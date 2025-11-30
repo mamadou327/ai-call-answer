@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_permissions: {
+        Row: {
+          can_approve_businesses: boolean | null
+          can_manage_billing: boolean | null
+          can_view_analytics: boolean | null
+          can_view_calls_messages: boolean | null
+          created_at: string | null
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          can_approve_businesses?: boolean | null
+          can_manage_billing?: boolean | null
+          can_view_analytics?: boolean | null
+          can_view_calls_messages?: boolean | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          can_approve_businesses?: boolean | null
+          can_manage_billing?: boolean | null
+          can_view_analytics?: boolean | null
+          can_view_calls_messages?: boolean | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           booking_code: string | null
@@ -313,6 +346,9 @@ export type Database = {
       }
       profiles: {
         Row: {
+          admin_request_note: string | null
+          admin_requested_at: string | null
+          admin_status: string | null
           created_at: string | null
           first_name: string | null
           id: string
@@ -321,6 +357,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          admin_request_note?: string | null
+          admin_requested_at?: string | null
+          admin_status?: string | null
           created_at?: string | null
           first_name?: string | null
           id?: string
@@ -329,6 +368,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          admin_request_note?: string | null
+          admin_requested_at?: string | null
+          admin_status?: string | null
           created_at?: string | null
           first_name?: string | null
           id?: string
@@ -446,6 +488,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ensure_super_admin: { Args: never; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -455,7 +498,12 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "business_owner"
+      app_role:
+        | "admin"
+        | "business_owner"
+        | "super_admin"
+        | "sub_admin"
+        | "pending_admin"
       booking_status: "pending" | "confirmed" | "cancelled"
       business_status: "pending" | "approved" | "rejected"
       call_type:
@@ -597,7 +645,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "business_owner"],
+      app_role: [
+        "admin",
+        "business_owner",
+        "super_admin",
+        "sub_admin",
+        "pending_admin",
+      ],
       booking_status: ["pending", "confirmed", "cancelled"],
       business_status: ["pending", "approved", "rejected"],
       call_type: [
