@@ -107,8 +107,9 @@ const Auth = () => {
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
+          <div className="flex items-center justify-center gap-3 mb-4">
             <img src={aiviaLogo} alt="Aivia" className="h-20 w-auto" />
+            <span className="text-3xl font-bold text-primary">Aivia</span>
           </div>
           <CardTitle className="text-2xl">
             {isSignUp ? "Create your account" : "Welcome back"}
