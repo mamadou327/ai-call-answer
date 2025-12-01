@@ -92,32 +92,37 @@ export default {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out'
   		},
-  		fontFamily: {
-  			sans: [
-  				'Space Grotesk',
-  				'ui-sans-serif',
-  				'system-ui',
-  				'-apple-system',
-  				'BlinkMacSystemFont',
-  				'Segoe UI',
-  				'Roboto',
-  				'Helvetica Neue',
-  				'Arial',
-  				'Noto Sans',
-  				'sans-serif'
-  			],
-  			mono: [
-  				'Space Mono',
-  				'ui-monospace',
-  				'SFMono-Regular',
-  				'Menlo',
-  				'Monaco',
-  				'Consolas',
-  				'Liberation Mono',
-  				'Courier New',
-  				'monospace'
-  			]
-  		},
+		fontFamily: {
+			sans: [
+				'Space Grotesk',
+				'ui-sans-serif',
+				'system-ui',
+				'-apple-system',
+				'BlinkMacSystemFont',
+				'Segoe UI',
+				'Roboto',
+				'Helvetica Neue',
+				'Arial',
+				'Noto Sans',
+				'sans-serif'
+			],
+			mono: [
+				'Space Mono',
+				'ui-monospace',
+				'SFMono-Regular',
+				'Menlo',
+				'Monaco',
+				'Consolas',
+				'Liberation Mono',
+				'Courier New',
+				'monospace'
+			],
+			orbitron: ['Orbitron', 'sans-serif'],
+			exo: ['Exo 2', 'sans-serif'],
+			audiowide: ['Audiowide', 'sans-serif'],
+			raleway: ['Raleway', 'sans-serif'],
+			montserrat: ['Montserrat', 'sans-serif']
+		},
   		boxShadow: {
   			'2xs': 'var(--shadow-2xs)',
   			xs: 'var(--shadow-xs)',
