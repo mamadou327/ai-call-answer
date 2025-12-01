@@ -24,7 +24,7 @@ export const CallsTab = () => {
       {/* Sample call log structure for reference */}
       <Card className="opacity-50">
         <CardHeader>
-          <CardTitle className="text-sm">Example Call Log Structure</CardTitle>
+          <CardTitle className="text-sm">{t("callsTab.exampleTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-start gap-4 p-4 border rounded-lg">
@@ -34,17 +34,17 @@ export const CallsTab = () => {
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <p className="font-semibold">Customer Name</p>
+                  <p className="font-semibold">{t("callsTab.exampleCustomer")}</p>
                   <p className="text-sm text-muted-foreground">+1 234 567 8900</p>
                 </div>
-                <Badge>Booking</Badge>
+                <Badge>{t("callsTab.exampleType")}</Badge>
               </div>
               <p className="text-sm text-muted-foreground mb-2">
-                AI-generated summary: Customer called to book an appointment...
+                {t("callsTab.exampleSummary")}
               </p>
               <Button variant="outline" size="sm">
                 <PlayCircle className="w-4 h-4 mr-2" />
-                Play Recording
+                {t("callsTab.playRecording")}
               </Button>
             </div>
           </div>

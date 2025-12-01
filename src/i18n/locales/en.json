@@ -49,6 +49,22 @@
     "cancelled": "Cancelled",
     "pending": "Pending"
   },
+  "bookingDetails": {
+    "title": "Booking Details",
+    "description": "Full booking information",
+    "confirmCancel": "Are you sure you want to cancel this booking?",
+    "cancelError": "Failed to cancel booking.",
+    "cancelSuccess": "Booking cancelled successfully.",
+    "cancelBooking": "Cancel Booking",
+    "reschedule": "Reschedule",
+    "rescheduleTitle": "Reschedule Booking",
+    "newStartTime": "New Start Time",
+    "newEndTime": "New End Time",
+    "selectNewTime": "Please select new start and end times.",
+    "rescheduleError": "Failed to reschedule booking.",
+    "rescheduleSuccess": "Booking rescheduled successfully.",
+    "confirmReschedule": "Confirm Reschedule"
+  },
   "settings": {
     "title": "Settings",
     "business": "Business",
@@ -62,6 +78,57 @@
     "timeOff": "Time Off",
     "staffLogin": "Staff Login",
     "websiteAnalysis": "Website Analysis"
+  },
+  "businessInfo": {
+    "title": "Business Information",
+    "description": "Update your business details",
+    "businessName": "Business Name",
+    "address": "Business Address",
+    "mainPhone": "Main Phone Number",
+    "secondaryPhone": "Secondary Phone",
+    "website": "Website",
+    "updateError": "Failed to update business information.",
+    "updateSuccess": "Business information updated successfully."
+  },
+  "assistantSettings": {
+    "title": "AI Assistant Settings",
+    "description": "Configure how your AI assistant behaves",
+    "assistantName": "Assistant Name",
+    "primaryLanguage": "Primary Language",
+    "tone": "Tone",
+    "voiceGender": "Voice Gender",
+    "voiceSpeed": "Voice Speed",
+    "english": "English",
+    "spanish": "Spanish",
+    "french": "French",
+    "german": "German",
+    "casual": "Casual",
+    "neutral": "Neutral",
+    "formal": "Formal",
+    "female": "Female",
+    "male": "Male",
+    "neutralGender": "Neutral",
+    "slow": "Slow",
+    "normal": "Normal",
+    "fast": "Fast",
+    "updateError": "Failed to update assistant settings.",
+    "updateSuccess": "Assistant settings updated successfully."
+  },
+  "openingHours": {
+    "title": "Opening Hours",
+    "description": "Set your business hours for each day",
+    "monday": "Monday",
+    "tuesday": "Tuesday",
+    "wednesday": "Wednesday",
+    "thursday": "Thursday",
+    "friday": "Friday",
+    "saturday": "Saturday",
+    "sunday": "Sunday",
+    "to": "to",
+    "closed": "Closed",
+    "saveHours": "Save Hours",
+    "updateError": "Failed to update opening hours.",
+    "updateSuccess": "Opening hours updated successfully."
   },
   "staff": {
     "title": "Staff Accounts",
@@ -87,6 +154,13 @@
     "invitationSent": "Invitation sent",
     "invitationDescription": "Staff member will receive access instructions via email."
   },
+  "callsTab": {
+    "exampleTitle": "Example Call Log Structure",
+    "exampleCustomer": "Customer Name",
+    "exampleType": "Booking",
+    "exampleSummary": "AI-generated summary: Customer called to book an appointment...",
+    "playRecording": "Play Recording"
+  },
   "localization": {
     "title": "Localization Settings",
     "language": "App Language",
@@ -102,6 +176,7 @@
   "common": {
     "loading": "Loading...",
     "save": "Save",
+    "saving": "Saving...",
     "cancel": "Cancel",
     "delete": "Delete",
     "edit": "Edit",
@@ -112,6 +187,10 @@
     "next": "Next",
     "finish": "Finish",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "error": "Error",
+    "success": "Success",
+    "saveChanges": "Save Changes",
+    "saveSettings": "Save Settings"
   }
 }

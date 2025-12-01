@@ -49,6 +49,22 @@
     "cancelled": "Annulé",
     "pending": "En Attente"
   },
+  "bookingDetails": {
+    "title": "Détails de la Réservation",
+    "description": "Informations complètes de la réservation",
+    "confirmCancel": "Êtes-vous sûr de vouloir annuler cette réservation?",
+    "cancelError": "Échec de l'annulation de la réservation.",
+    "cancelSuccess": "Réservation annulée avec succès.",
+    "cancelBooking": "Annuler la Réservation",
+    "reschedule": "Reprogrammer",
+    "rescheduleTitle": "Reprogrammer la Réservation",
+    "newStartTime": "Nouvelle Heure de Début",
+    "newEndTime": "Nouvelle Heure de Fin",
+    "selectNewTime": "Veuillez sélectionner de nouvelles heures de début et de fin.",
+    "rescheduleError": "Échec de la reprogrammation de la réservation.",
+    "rescheduleSuccess": "Réservation reprogrammée avec succès.",
+    "confirmReschedule": "Confirmer la Reprogrammation"
+  },
   "settings": {
     "title": "Paramètres",
     "business": "Entreprise",
@@ -62,6 +78,57 @@
     "timeOff": "Temps Libre",
     "staffLogin": "Accès Personnel",
     "websiteAnalysis": "Analyse Web"
+  },
+  "businessInfo": {
+    "title": "Informations sur l'Entreprise",
+    "description": "Mettez à jour les détails de votre entreprise",
+    "businessName": "Nom de l'Entreprise",
+    "address": "Adresse de l'Entreprise",
+    "mainPhone": "Téléphone Principal",
+    "secondaryPhone": "Téléphone Secondaire",
+    "website": "Site Web",
+    "updateError": "Échec de la mise à jour des informations de l'entreprise.",
+    "updateSuccess": "Informations de l'entreprise mises à jour avec succès."
+  },
+  "assistantSettings": {
+    "title": "Paramètres de l'Assistant IA",
+    "description": "Configurez le comportement de votre assistant IA",
+    "assistantName": "Nom de l'Assistant",
+    "primaryLanguage": "Langue Principale",
+    "tone": "Ton",
+    "voiceGender": "Genre de Voix",
+    "voiceSpeed": "Vitesse de Voix",
+    "english": "Anglais",
+    "spanish": "Espagnol",
+    "french": "Français",
+    "german": "Allemand",
+    "casual": "Décontracté",
+    "neutral": "Neutre",
+    "formal": "Formel",
+    "female": "Féminin",
+    "male": "Masculin",
+    "neutralGender": "Neutre",
+    "slow": "Lent",
+    "normal": "Normal",
+    "fast": "Rapide",
+    "updateError": "Échec de la mise à jour des paramètres de l'assistant.",
+    "updateSuccess": "Paramètres de l'assistant mis à jour avec succès."
+  },
+  "openingHours": {
+    "title": "Heures d'Ouverture",
+    "description": "Définissez les horaires de votre entreprise pour chaque jour",
+    "monday": "Lundi",
+    "tuesday": "Mardi",
+    "wednesday": "Mercredi",
+    "thursday": "Jeudi",
+    "friday": "Vendredi",
+    "saturday": "Samedi",
+    "sunday": "Dimanche",
+    "to": "à",
+    "closed": "Fermé",
+    "saveHours": "Enregistrer les Horaires",
+    "updateError": "Échec de la mise à jour des horaires.",
+    "updateSuccess": "Horaires mis à jour avec succès."
   },
   "staff": {
     "title": "Comptes du Personnel",
@@ -87,6 +154,13 @@
     "invitationSent": "Invitation envoyée",
     "invitationDescription": "Le membre du personnel recevra les instructions d'accès par email."
   },
+  "callsTab": {
+    "exampleTitle": "Structure d'Exemple de Journal d'Appels",
+    "exampleCustomer": "Nom du Client",
+    "exampleType": "Réservation",
+    "exampleSummary": "Résumé généré par IA: Le client a appelé pour réserver un rendez-vous...",
+    "playRecording": "Lire l'Enregistrement"
+  },
   "localization": {
     "title": "Paramètres de Localisation",
     "language": "Langue de l'Application",
@@ -102,6 +176,7 @@
   "common": {
     "loading": "Chargement...",
     "save": "Enregistrer",
+    "saving": "Enregistrement...",
     "cancel": "Annuler",
     "delete": "Supprimer",
     "edit": "Modifier",
@@ -112,6 +187,10 @@
     "next": "Suivant",
     "finish": "Terminer",
     "yes": "Oui",
-    "no": "Non"
+    "no": "Non",
+    "error": "Erreur",
+    "success": "Succès",
+    "saveChanges": "Enregistrer les Modifications",
+    "saveSettings": "Enregistrer les Paramètres"
   }
 }

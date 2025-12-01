@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 interface BusinessInfoFormProps {
   businessId: string;
@@ -15,6 +16,7 @@ interface BusinessInfoFormProps {
 
 export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInfoFormProps) => {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     business_name: business?.business_name || "",
@@ -35,14 +37,14 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
 
     if (error) {
       toast({
-        title: "Error",
-        description: "Failed to update business information.",
+        title: t("common.error"),
+        description: t("businessInfo.updateError"),
         variant: "destructive",
       });
     } else {
       toast({
-        title: "Success",
-        description: "Business information updated successfully.",
+        title: t("common.success"),
+        description: t("businessInfo.updateSuccess"),
       });
       onUpdate();
     }
@@ -53,13 +55,13 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Business Information</CardTitle>
-        <CardDescription>Update your business details</CardDescription>
+        <CardTitle>{t("businessInfo.title")}</CardTitle>
+        <CardDescription>{t("businessInfo.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="business_name">Business Name *</Label>
+            <Label htmlFor="business_name">{t("businessInfo.businessName")} *</Label>
             <Input
               id="business_name"
               value={formData.business_name}
@@ -69,7 +71,7 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="address">Business Address *</Label>
+            <Label htmlFor="address">{t("businessInfo.address")} *</Label>
             <Textarea
               id="address"
               value={formData.address}
@@ -80,7 +82,7 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="main_phone">Main Phone Number *</Label>
+              <Label htmlFor="main_phone">{t("businessInfo.mainPhone")} *</Label>
               <Input
                 id="main_phone"
                 value={formData.main_phone}
@@ -90,7 +92,7 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="secondary_phone">Secondary Phone</Label>
+              <Label htmlFor="secondary_phone">{t("businessInfo.secondaryPhone")}</Label>
               <Input
                 id="secondary_phone"
                 value={formData.secondary_phone}
@@ -100,7 +102,7 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="website">Website</Label>
+            <Label htmlFor="website">{t("businessInfo.website")}</Label>
             <Input
               id="website"
               type="url"
@@ -110,7 +112,7 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
           </div>
 
           <Button type="submit" disabled={loading}>
-            {loading ? "Saving..." : "Save Changes"}
+            {loading ? t("common.saving") : t("common.saveChanges")}
           </Button>
         </form>
       </CardContent>

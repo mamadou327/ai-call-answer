@@ -62,8 +62,11 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Sending email via Resend...");
 
     // Send email using Resend
+    // IMPORTANT: To receive emails in production:
+    // 1. Verify your domain at https://resend.com/domains
+    // 2. Update the "from" email below to use your verified domain
     const emailResponse = await resend.emails.send({
-      from: "Aivia <onboarding@resend.dev>",
+      from: "Aivia <onboarding@resend.dev>", // Change to your verified domain email
       to: staffEmail,
       subject: emailContent.subject,
       html: emailContent.html,
