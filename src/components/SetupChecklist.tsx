@@ -1,16 +1,19 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CheckCircle2, Circle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CheckCircle2, Circle, ChevronRight } from "lucide-react";
 
 export interface ChecklistItem {
   label: string;
   isComplete: boolean;
+  action?: string; // Settings section to navigate to
 }
 
 interface SetupChecklistProps {
   items: ChecklistItem[];
+  onItemClick: (action: string) => void;
 }
 
-export const SetupChecklist = ({ items }: SetupChecklistProps) => {
+export const SetupChecklist = ({ items, onItemClick }: SetupChecklistProps) => {
   const completedCount = items.filter(item => item.isComplete).length;
   const totalCount = items.length;
   const progress = (completedCount / totalCount) * 100;
@@ -29,18 +32,26 @@ export const SetupChecklist = ({ items }: SetupChecklistProps) => {
           />
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-2">
         {items.map((item, index) => (
-          <div key={index} className="flex items-center gap-3">
-            {item.isComplete ? (
-              <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-            ) : (
-              <Circle className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-            )}
-            <span className={item.isComplete ? "text-foreground" : "text-muted-foreground"}>
-              {item.label}
-            </span>
-          </div>
+          <Button
+            key={index}
+            variant="ghost"
+            className="w-full justify-start h-auto py-3 px-3"
+            onClick={() => item.action && onItemClick(item.action)}
+          >
+            <div className="flex items-center gap-3 flex-1">
+              {item.isComplete ? (
+                <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+              ) : (
+                <Circle className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+              )}
+              <span className={`flex-1 text-left ${item.isComplete ? "text-foreground" : "text-muted-foreground"}`}>
+                {item.label}
+              </span>
+              {!item.isComplete && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+            </div>
+          </Button>
         ))}
       </CardContent>
     </Card>
