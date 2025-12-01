@@ -16,7 +16,20 @@
     "calendar": "Calendario",
     "noAppointments": "No hay citas programadas para hoy",
     "noMessages": "No hay mensajes recientes",
-    "noBookings": "No hay reservas próximas"
+    "noBookings": "No hay reservas próximas",
+    "noCalls": "Aún no hay llamadas",
+    "callsDescription": "Los registros y grabaciones de llamadas aparecerán aquí una vez que Aivia comience a atender llamadas",
+    "messagesDescription": "Los mensajes de clientes e interacciones de chat aparecerán aquí",
+    "today": "Hoy",
+    "thisWeek": "Esta Semana",
+    "thisMonth": "Este Mes",
+    "customRange": "Rango Personalizado",
+    "unread": "No Leídos",
+    "day": "Día",
+    "week": "Semana",
+    "month": "Mes",
+    "calendarView": "Vista de Calendario",
+    "calendarComingSoon": "Calendario interactivo próximamente"
   },
   "bookings": {
     "title": "Gestión de Reservas",

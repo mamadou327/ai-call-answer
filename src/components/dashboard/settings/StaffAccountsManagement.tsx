@@ -81,16 +81,34 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from("staff_accounts")
-        .insert([{
-          business_id: businessId,
-          staff_id: formData.staff_id,
-          email: formData.email,
-          status: "pending",
-        }]);
+      // Check if there's an existing account for this staff member
+      const existingAccount = accounts.find(a => a.staff_id === formData.staff_id);
 
-      if (error) throw error;
+      if (existingAccount) {
+        // Update existing account instead of inserting a new one
+        const { error } = await supabase
+          .from("staff_accounts")
+          .update({
+            email: formData.email,
+            status: "pending",
+            invited_at: new Date().toISOString(),
+          })
+          .eq("id", existingAccount.id);
+
+        if (error) throw error;
+      } else {
+        // Insert new account
+        const { error } = await supabase
+          .from("staff_accounts")
+          .insert([{
+            business_id: businessId,
+            staff_id: formData.staff_id,
+            email: formData.email,
+            status: "pending",
+          }]);
+
+        if (error) throw error;
+      }
 
       toast({
         title: t("staff.invitationSent"),

@@ -8,6 +8,7 @@ import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "./DateRangePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useTranslation } from "react-i18next";
 
 interface DashboardTabProps {
   businessName: string;
@@ -16,6 +17,7 @@ interface DashboardTabProps {
 }
 
 export const DashboardTab = ({ businessName, currency = "GBP", businessId }: DashboardTabProps) => {
+  const { t } = useTranslation();
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("week");
   const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "custom">("month");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
@@ -94,17 +96,17 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
     <div className="space-y-6">
       {/* Date Range Selector */}
       <div className="flex justify-between items-center gap-4 flex-wrap">
-        <h2 className="text-2xl font-bold">Analytics</h2>
+        <h2 className="text-2xl font-bold">{t("dashboard.analytics")}</h2>
         <div className="flex gap-2 items-center">
           <Select value={dateRange} onValueChange={(value: any) => setDateRange(value)}>
             <SelectTrigger className="w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="week">This Week</SelectItem>
-              <SelectItem value="month">This Month</SelectItem>
-              <SelectItem value="custom">Custom Range</SelectItem>
+              <SelectItem value="today">{t("dashboard.today")}</SelectItem>
+              <SelectItem value="week">{t("dashboard.thisWeek")}</SelectItem>
+              <SelectItem value="month">{t("dashboard.thisMonth")}</SelectItem>
+              <SelectItem value="custom">{t("dashboard.customRange")}</SelectItem>
             </SelectContent>
           </Select>
           {dateRange === "custom" && (
@@ -120,46 +122,46 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.totalBookings")}</CardTitle>
             <CalendarCheck className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{bookingsCount}</div>
-            <p className="text-xs text-muted-foreground">Total bookings</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.totalBookings")}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Calls</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.totalCalls")}</CardTitle>
             <Phone className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">This month</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.thisMonth")}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Messages</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.messages")}</CardTitle>
             <MessageSquare className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">Unread</p>
+            <p className="text-xs text-muted-foreground">{t("dashboard.unread")}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.revenue")}</CardTitle>
             <DollarSign className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{currencySymbol}0</div>
             <p className="text-xs text-muted-foreground">
-              {dateRange === "today" ? "Today" : dateRange === "week" ? "This week" : dateRange === "month" ? "This month" : "Custom range"}
+              {dateRange === "today" ? t("dashboard.today") : dateRange === "week" ? t("dashboard.thisWeek") : dateRange === "month" ? t("dashboard.thisMonth") : t("dashboard.customRange")}
             </p>
           </CardContent>
         </Card>
@@ -168,12 +170,12 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
       {/* Today's Appointments */}
       <Card>
         <CardHeader>
-          <CardTitle>Today's Appointments</CardTitle>
+          <CardTitle>{t("dashboard.todaysAppointments")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
             <CalendarCheck className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            <p>No appointments scheduled for today</p>
+            <p>{t("dashboard.noAppointments")}</p>
           </div>
         </CardContent>
       </Card>
@@ -182,12 +184,12 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
         {/* Recent Messages */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent Messages</CardTitle>
+            <CardTitle>{t("dashboard.recentMessages")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-center py-8 text-muted-foreground">
               <MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>No recent messages</p>
+              <p>{t("dashboard.noMessages")}</p>
             </div>
           </CardContent>
         </Card>
@@ -195,13 +197,13 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
         {/* Upcoming Bookings */}
         <Card>
           <CardHeader>
-            <CardTitle>Upcoming Bookings</CardTitle>
+            <CardTitle>{t("dashboard.upcomingBookings")}</CardTitle>
           </CardHeader>
           <CardContent>
             {upcomingBookings.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Calendar className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>No upcoming bookings</p>
+                <p>{t("dashboard.noBookings")}</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -230,36 +232,36 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
       {/* Calendar View */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Calendar</CardTitle>
+          <CardTitle>{t("dashboard.calendar")}</CardTitle>
           <div className="flex gap-2">
             <Button
               variant={calendarView === "day" ? "default" : "outline"}
               size="sm"
               onClick={() => setCalendarView("day")}
             >
-              Day
+              {t("dashboard.day")}
             </Button>
             <Button
               variant={calendarView === "week" ? "default" : "outline"}
               size="sm"
               onClick={() => setCalendarView("week")}
             >
-              Week
+              {t("dashboard.week")}
             </Button>
             <Button
               variant={calendarView === "month" ? "default" : "outline"}
               size="sm"
               onClick={() => setCalendarView("month")}
             >
-              Month
+              {t("dashboard.month")}
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
             <Calendar className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p className="text-lg mb-2">Calendar View ({calendarView})</p>
-            <p className="text-sm">Interactive calendar coming soon</p>
+            <p className="text-lg mb-2">{t("dashboard.calendarView")} ({calendarView})</p>
+            <p className="text-sm">{t("dashboard.calendarComingSoon")}</p>
           </div>
         </CardContent>
       </Card>

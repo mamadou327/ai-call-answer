@@ -7,6 +7,7 @@ import { BookingDetailsDialog } from "./BookingDetailsDialog";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useTranslation } from "react-i18next";
 
 interface BookingsTabProps {
   businessId: string;
@@ -26,6 +27,7 @@ interface Booking {
 }
 
 export const BookingsTab = ({ businessId }: BookingsTabProps) => {
+  const { t } = useTranslation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -86,22 +88,22 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
     <div className="space-y-6">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Bookings Management</CardTitle>
+          <CardTitle>{t("bookings.title")}</CardTitle>
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            New Booking
+            {t("bookings.newBooking")}
           </Button>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="text-center py-12 text-muted-foreground">
-              <p>Loading bookings...</p>
+              <p>{t("common.loading")}</p>
             </div>
           ) : bookings.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Calendar className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg mb-2">No bookings yet</p>
-              <p className="text-sm">Customer bookings will appear here once Aivia starts taking appointments</p>
+              <p className="text-lg mb-2">{t("bookings.noBookingsYet")}</p>
+              <p className="text-sm">{t("bookings.description")}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -134,7 +136,7 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
                           : "secondary"
                       }
                     >
-                      {booking.status}
+                      {t(`bookings.${booking.status}`)}
                     </Badge>
                   </div>
                 </div>

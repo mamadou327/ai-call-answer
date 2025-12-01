@@ -2,19 +2,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Phone, PlayCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useTranslation } from "react-i18next";
 
 export const CallsTab = () => {
+  const { t } = useTranslation();
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Call History</CardTitle>
+          <CardTitle>{t("dashboard.calls")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-12 text-muted-foreground">
             <Phone className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p className="text-lg mb-2">No calls yet</p>
-            <p className="text-sm">Call logs and recordings will appear here once Aivia starts handling calls</p>
+            <p className="text-lg mb-2">{t("dashboard.noCalls")}</p>
+            <p className="text-sm">{t("dashboard.callsDescription")}</p>
           </div>
         </CardContent>
       </Card>
