@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import aiviaLogo from "@/assets/aivia-logo.png";
 import { Loader2 } from "lucide-react";
+import { authSchema, signUpSchema } from "@/lib/validation";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ const Auth = () => {
     password: "",
     confirmPassword: "",
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -51,20 +53,27 @@ const Auth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
     setIsLoading(true);
 
     try {
-      if (isSignUp) {
-        if (formData.password !== formData.confirmPassword) {
-          toast({
-            title: "Passwords don't match",
-            description: "Please make sure your passwords match",
-            variant: "destructive",
-          });
-          setIsLoading(false);
-          return;
-        }
+      // Validate with Zod
+      const schema = isSignUp ? signUpSchema : authSchema;
+      const result = schema.safeParse(formData);
 
+      if (!result.success) {
+        const fieldErrors: Record<string, string> = {};
+        result.error.errors.forEach((err) => {
+          if (err.path[0]) {
+            fieldErrors[err.path[0].toString()] = err.message;
+          }
+        });
+        setErrors(fieldErrors);
+        setIsLoading(false);
+        return;
+      }
+
+      if (isSignUp) {
         const { error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -134,6 +143,9 @@ const Auth = () => {
                 }
                 required
               />
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -146,6 +158,9 @@ const Auth = () => {
                 }
                 required
               />
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password}</p>
+              )}
             </div>
             {isSignUp && (
               <div className="space-y-2">
@@ -159,6 +174,9 @@ const Auth = () => {
                   }
                   required
                 />
+                {errors.confirmPassword && (
+                  <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+                )}
               </div>
             )}
             <Button type="submit" className="w-full" disabled={isLoading}>

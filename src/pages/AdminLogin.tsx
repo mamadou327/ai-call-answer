@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import aiviaLogo from "@/assets/aivia-logo.png";
 import { Loader2 } from "lucide-react";
+import { adminLoginSchema } from "@/lib/validation";
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -15,12 +16,29 @@ const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
     setIsLoading(true);
 
     try {
+      // Validate with Zod
+      const result = adminLoginSchema.safeParse({ email, password });
+
+      if (!result.success) {
+        const fieldErrors: Record<string, string> = {};
+        result.error.errors.forEach((err) => {
+          if (err.path[0]) {
+            fieldErrors[err.path[0].toString()] = err.message;
+          }
+        });
+        setErrors(fieldErrors);
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -83,6 +101,9 @@ const AdminLogin = () => {
                 placeholder="admin@aivia.com"
                 required
               />
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -94,6 +115,9 @@ const AdminLogin = () => {
                 placeholder="••••••••"
                 required
               />
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password}</p>
+              )}
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (

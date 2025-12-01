@@ -11,6 +11,9 @@ import aiviaLogo from "@/assets/aivia-logo.png";
 import { LogOut, Clock, CheckCircle2, XCircle, Eye } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
+// Super admin email constant
+const SUPER_ADMIN_EMAIL = "mlaye915@gmail.com";
+
 interface Business {
   id: string;
   business_name: string;
@@ -166,11 +169,14 @@ const AdminDashboard = () => {
       if (error) throw error;
 
       // Build the pending admins list from profiles table
-      const pendingList: PendingAdmin[] = (profilesData || []).map(profile => ({
-        user_id: profile.user_id,
-        email: profile.email || "",
-        profile: profile as Profile,
-      }));
+      // Filter out the super admin email
+      const pendingList: PendingAdmin[] = (profilesData || [])
+        .filter(profile => profile.email !== SUPER_ADMIN_EMAIL)
+        .map(profile => ({
+          user_id: profile.user_id,
+          email: profile.email || "",
+          profile: profile as Profile,
+        }));
 
       setPendingAdmins(pendingList);
     } catch (error: any) {
@@ -186,6 +192,17 @@ const AdminDashboard = () => {
     userId: string,
     action: "approve" | "reject"
   ) => {
+    // Prevent modifying the super admin
+    const admin = pendingAdmins.find(a => a.user_id === userId);
+    if (admin?.email === SUPER_ADMIN_EMAIL) {
+      toast({
+        title: "Action Not Allowed",
+        description: "The super admin account cannot be modified.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setActionLoading(userId);
     try {
       if (action === "approve") {
@@ -638,10 +655,10 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-4">
+               <div className="flex gap-2 pt-4">
                 <Button
                   onClick={() => handleAdminAction(selectedAdmin.user_id, "approve")}
-                  disabled={!!actionLoading}
+                  disabled={!!actionLoading || selectedAdmin.email === SUPER_ADMIN_EMAIL}
                   className="flex-1"
                 >
                   {actionLoading === selectedAdmin.user_id ? (
@@ -654,7 +671,7 @@ const AdminDashboard = () => {
                 <Button
                   variant="destructive"
                   onClick={() => handleAdminAction(selectedAdmin.user_id, "reject")}
-                  disabled={!!actionLoading}
+                  disabled={!!actionLoading || selectedAdmin.email === SUPER_ADMIN_EMAIL}
                   className="flex-1"
                 >
                   {actionLoading === selectedAdmin.user_id ? (
@@ -665,6 +682,11 @@ const AdminDashboard = () => {
                   Reject
                 </Button>
               </div>
+              {selectedAdmin.email === SUPER_ADMIN_EMAIL && (
+                <p className="text-sm text-muted-foreground text-center pt-2">
+                  This is the super admin account and cannot be modified.
+                </p>
+              )}
             </div>
           )}
         </DialogContent>
