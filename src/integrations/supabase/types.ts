@@ -501,6 +501,60 @@ export type Database = {
           },
         ]
       }
+      staff_accounts: {
+        Row: {
+          approved_at: string | null
+          business_id: string
+          created_at: string | null
+          email: string
+          id: string
+          invited_at: string | null
+          staff_id: string
+          status: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          business_id: string
+          created_at?: string | null
+          email: string
+          id?: string
+          invited_at?: string | null
+          staff_id: string
+          status?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          business_id?: string
+          created_at?: string | null
+          email?: string
+          id?: string
+          invited_at?: string | null
+          staff_id?: string
+          status?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_business_account"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_staff_account"
+            columns: ["staff_id"]
+            isOneToOne: true
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_services: {
         Row: {
           created_at: string | null
@@ -530,6 +584,60 @@ export type Database = {
           },
           {
             foreignKeyName: "staff_services_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_time_off: {
+        Row: {
+          business_id: string
+          created_at: string | null
+          end_time: string
+          id: string
+          notes: string | null
+          reason: string
+          staff_id: string
+          start_time: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string | null
+          end_time: string
+          id?: string
+          notes?: string | null
+          reason: string
+          staff_id: string
+          start_time: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string | null
+          end_time?: string
+          id?: string
+          notes?: string | null
+          reason?: string
+          staff_id?: string
+          start_time?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_business_timeoff"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_staff_timeoff"
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
