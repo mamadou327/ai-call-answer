@@ -49,6 +49,22 @@
     "cancelled": "Storniert",
     "pending": "Ausstehend"
   },
+  "bookingDetails": {
+    "title": "Buchungsdetails",
+    "description": "Vollständige Buchungsinformationen",
+    "confirmCancel": "Sind Sie sicher, dass Sie diese Buchung stornieren möchten?",
+    "cancelError": "Fehler beim Stornieren der Buchung.",
+    "cancelSuccess": "Buchung erfolgreich storniert.",
+    "cancelBooking": "Buchung Stornieren",
+    "reschedule": "Umbuchen",
+    "rescheduleTitle": "Buchung Umbuchen",
+    "newStartTime": "Neue Startzeit",
+    "newEndTime": "Neue Endzeit",
+    "selectNewTime": "Bitte wählen Sie neue Start- und Endzeiten.",
+    "rescheduleError": "Fehler beim Umbuchen der Buchung.",
+    "rescheduleSuccess": "Buchung erfolgreich umgebucht.",
+    "confirmReschedule": "Umbuchung Bestätigen"
+  },
   "settings": {
     "title": "Einstellungen",
     "business": "Geschäft",
@@ -62,6 +78,57 @@
     "timeOff": "Freizeit",
     "staffLogin": "Mitarbeiterzugang",
     "websiteAnalysis": "Website-Analyse"
+  },
+  "businessInfo": {
+    "title": "Geschäftsinformationen",
+    "description": "Aktualisieren Sie Ihre Geschäftsdetails",
+    "businessName": "Geschäftsname",
+    "address": "Geschäftsadresse",
+    "mainPhone": "Haupttelefonnummer",
+    "secondaryPhone": "Sekundäres Telefon",
+    "website": "Webseite",
+    "updateError": "Fehler beim Aktualisieren der Geschäftsinformationen.",
+    "updateSuccess": "Geschäftsinformationen erfolgreich aktualisiert."
+  },
+  "assistantSettings": {
+    "title": "KI-Assistenten-Einstellungen",
+    "description": "Konfigurieren Sie das Verhalten Ihres KI-Assistenten",
+    "assistantName": "Assistentenname",
+    "primaryLanguage": "Primäre Sprache",
+    "tone": "Ton",
+    "voiceGender": "Stimmengeschlecht",
+    "voiceSpeed": "Stimmgeschwindigkeit",
+    "english": "Englisch",
+    "spanish": "Spanisch",
+    "french": "Französisch",
+    "german": "Deutsch",
+    "casual": "Lässig",
+    "neutral": "Neutral",
+    "formal": "Formell",
+    "female": "Weiblich",
+    "male": "Männlich",
+    "neutralGender": "Neutral",
+    "slow": "Langsam",
+    "normal": "Normal",
+    "fast": "Schnell",
+    "updateError": "Fehler beim Aktualisieren der Assistenten-Einstellungen.",
+    "updateSuccess": "Assistenten-Einstellungen erfolgreich aktualisiert."
+  },
+  "openingHours": {
+    "title": "Öffnungszeiten",
+    "description": "Legen Sie Ihre Geschäftszeiten für jeden Tag fest",
+    "monday": "Montag",
+    "tuesday": "Dienstag",
+    "wednesday": "Mittwoch",
+    "thursday": "Donnerstag",
+    "friday": "Freitag",
+    "saturday": "Samstag",
+    "sunday": "Sonntag",
+    "to": "bis",
+    "closed": "Geschlossen",
+    "saveHours": "Öffnungszeiten Speichern",
+    "updateError": "Fehler beim Aktualisieren der Öffnungszeiten.",
+    "updateSuccess": "Öffnungszeiten erfolgreich aktualisiert."
   },
   "staff": {
     "title": "Mitarbeiterkonten",
@@ -87,6 +154,13 @@
     "invitationSent": "Einladung gesendet",
     "invitationDescription": "Der Mitarbeiter erhält Zugangsanweisungen per E-Mail."
   },
+  "callsTab": {
+    "exampleTitle": "Beispiel-Anrufprotokollstruktur",
+    "exampleCustomer": "Kundenname",
+    "exampleType": "Buchung",
+    "exampleSummary": "KI-generierte Zusammenfassung: Kunde rief an, um einen Termin zu buchen...",
+    "playRecording": "Aufzeichnung Abspielen"
+  },
   "localization": {
     "title": "Lokalisierungseinstellungen",
     "language": "App-Sprache",
@@ -102,6 +176,7 @@
   "common": {
     "loading": "Lädt...",
     "save": "Speichern",
+    "saving": "Wird gespeichert...",
     "cancel": "Abbrechen",
     "delete": "Löschen",
     "edit": "Bearbeiten",
@@ -112,6 +187,10 @@
     "next": "Weiter",
     "finish": "Fertig",
     "yes": "Ja",
-    "no": "Nein"
+    "no": "Nein",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "saveChanges": "Änderungen Speichern",
+    "saveSettings": "Einstellungen Speichern"
   }
 }

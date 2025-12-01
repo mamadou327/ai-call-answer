@@ -49,6 +49,22 @@
     "cancelled": "Cancelado",
     "pending": "Pendiente"
   },
+  "bookingDetails": {
+    "title": "Detalles de Reserva",
+    "description": "Información completa de la reserva",
+    "confirmCancel": "¿Está seguro de que desea cancelar esta reserva?",
+    "cancelError": "Error al cancelar la reserva.",
+    "cancelSuccess": "Reserva cancelada exitosamente.",
+    "cancelBooking": "Cancelar Reserva",
+    "reschedule": "Reprogramar",
+    "rescheduleTitle": "Reprogramar Reserva",
+    "newStartTime": "Nueva Hora de Inicio",
+    "newEndTime": "Nueva Hora de Fin",
+    "selectNewTime": "Por favor seleccione nuevas horas de inicio y fin.",
+    "rescheduleError": "Error al reprogramar la reserva.",
+    "rescheduleSuccess": "Reserva reprogramada exitosamente.",
+    "confirmReschedule": "Confirmar Reprogramación"
+  },
   "settings": {
     "title": "Configuración",
     "business": "Negocio",
@@ -62,6 +78,57 @@
     "timeOff": "Tiempo Libre",
     "staffLogin": "Acceso del Personal",
     "websiteAnalysis": "Análisis Web"
+  },
+  "businessInfo": {
+    "title": "Información del Negocio",
+    "description": "Actualice los detalles de su negocio",
+    "businessName": "Nombre del Negocio",
+    "address": "Dirección del Negocio",
+    "mainPhone": "Teléfono Principal",
+    "secondaryPhone": "Teléfono Secundario",
+    "website": "Sitio Web",
+    "updateError": "Error al actualizar la información del negocio.",
+    "updateSuccess": "Información del negocio actualizada exitosamente."
+  },
+  "assistantSettings": {
+    "title": "Configuración del Asistente IA",
+    "description": "Configure cómo se comporta su asistente IA",
+    "assistantName": "Nombre del Asistente",
+    "primaryLanguage": "Idioma Principal",
+    "tone": "Tono",
+    "voiceGender": "Género de Voz",
+    "voiceSpeed": "Velocidad de Voz",
+    "english": "Inglés",
+    "spanish": "Español",
+    "french": "Francés",
+    "german": "Alemán",
+    "casual": "Casual",
+    "neutral": "Neutral",
+    "formal": "Formal",
+    "female": "Femenino",
+    "male": "Masculino",
+    "neutralGender": "Neutral",
+    "slow": "Lenta",
+    "normal": "Normal",
+    "fast": "Rápida",
+    "updateError": "Error al actualizar la configuración del asistente.",
+    "updateSuccess": "Configuración del asistente actualizada exitosamente."
+  },
+  "openingHours": {
+    "title": "Horario de Apertura",
+    "description": "Establezca los horarios de su negocio para cada día",
+    "monday": "Lunes",
+    "tuesday": "Martes",
+    "wednesday": "Miércoles",
+    "thursday": "Jueves",
+    "friday": "Viernes",
+    "saturday": "Sábado",
+    "sunday": "Domingo",
+    "to": "a",
+    "closed": "Cerrado",
+    "saveHours": "Guardar Horarios",
+    "updateError": "Error al actualizar los horarios.",
+    "updateSuccess": "Horarios actualizados exitosamente."
   },
   "staff": {
     "title": "Cuentas de Personal",
@@ -87,6 +154,13 @@
     "invitationSent": "Invitación enviada",
     "invitationDescription": "El miembro del personal recibirá instrucciones de acceso por correo electrónico."
   },
+  "callsTab": {
+    "exampleTitle": "Estructura de Registro de Llamadas de Ejemplo",
+    "exampleCustomer": "Nombre del Cliente",
+    "exampleType": "Reserva",
+    "exampleSummary": "Resumen generado por IA: El cliente llamó para reservar una cita...",
+    "playRecording": "Reproducir Grabación"
+  },
   "localization": {
     "title": "Configuración de Localización",
     "language": "Idioma de la Aplicación",
@@ -102,6 +176,7 @@
   "common": {
     "loading": "Cargando...",
     "save": "Guardar",
+    "saving": "Guardando...",
     "cancel": "Cancelar",
     "delete": "Eliminar",
     "edit": "Editar",
@@ -112,6 +187,10 @@
     "next": "Siguiente",
     "finish": "Finalizar",
     "yes": "Sí",
-    "no": "No"
+    "no": "No",
+    "error": "Error",
+    "success": "Éxito",
+    "saveChanges": "Guardar Cambios",
+    "saveSettings": "Guardar Configuración"
   }
 }

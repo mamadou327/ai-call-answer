@@ -6,18 +6,28 @@ import { Switch } from "@/components/ui/switch";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 interface OpeningHoursFormProps {
   businessId: string;
   onUpdate: () => void;
 }
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
 export const OpeningHoursForm = ({ businessId, onUpdate }: OpeningHoursFormProps) => {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [hours, setHours] = useState<any[]>([]);
+
+  const DAYS = [
+    t("openingHours.monday"),
+    t("openingHours.tuesday"),
+    t("openingHours.wednesday"),
+    t("openingHours.thursday"),
+    t("openingHours.friday"),
+    t("openingHours.saturday"),
+    t("openingHours.sunday")
+  ];
 
   useEffect(() => {
     loadHours();
@@ -60,14 +70,14 @@ export const OpeningHoursForm = ({ businessId, onUpdate }: OpeningHoursFormProps
 
     if (error) {
       toast({
-        title: "Error",
-        description: "Failed to update opening hours.",
+        title: t("common.error"),
+        description: t("openingHours.updateError"),
         variant: "destructive",
       });
     } else {
       toast({
-        title: "Success",
-        description: "Opening hours updated successfully.",
+        title: t("common.success"),
+        description: t("openingHours.updateSuccess"),
       });
       onUpdate();
     }
@@ -84,8 +94,8 @@ export const OpeningHoursForm = ({ businessId, onUpdate }: OpeningHoursFormProps
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Opening Hours</CardTitle>
-        <CardDescription>Set your business hours for each day</CardDescription>
+        <CardTitle>{t("openingHours.title")}</CardTitle>
+        <CardDescription>{t("openingHours.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -107,7 +117,7 @@ export const OpeningHoursForm = ({ businessId, onUpdate }: OpeningHoursFormProps
                       onChange={(e) => updateDay(index, "open_time", e.target.value)}
                       className="w-32"
                     />
-                    <span>to</span>
+                    <span>{t("openingHours.to")}</span>
                     <Input
                       type="time"
                       value={hours[index]?.close_time || "17:00"}
@@ -118,12 +128,12 @@ export const OpeningHoursForm = ({ businessId, onUpdate }: OpeningHoursFormProps
                 </>
               )}
               {hours[index]?.is_closed && (
-                <span className="text-muted-foreground">Closed</span>
+                <span className="text-muted-foreground">{t("openingHours.closed")}</span>
               )}
             </div>
           ))}
           <Button type="submit" disabled={loading}>
-            {loading ? "Saving..." : "Save Hours"}
+            {loading ? t("common.saving") : t("openingHours.saveHours")}
           </Button>
         </form>
       </CardContent>

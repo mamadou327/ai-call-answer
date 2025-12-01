@@ -1,10 +1,14 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2, User, Clock, Phone, FileText } from "lucide-react";
+import { Trash2, User, Clock, Phone, FileText, Calendar as CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface BookingDetailsDialogProps {
   booking: any;
@@ -15,11 +19,15 @@ interface BookingDetailsDialogProps {
 
 export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: BookingDetailsDialogProps) => {
   const { toast } = useToast();
+  const { t } = useTranslation();
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [newStartTime, setNewStartTime] = useState("");
+  const [newEndTime, setNewEndTime] = useState("");
 
   if (!booking) return null;
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to cancel this booking?")) {
+    if (!confirm(t("bookingDetails.confirmCancel"))) {
       return;
     }
 
@@ -30,17 +38,52 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
 
     if (error) {
       toast({
-        title: "Error",
-        description: "Failed to cancel booking.",
+        title: t("common.error"),
+        description: t("bookingDetails.cancelError"),
         variant: "destructive",
       });
     } else {
       toast({
-        title: "Success",
-        description: "Booking cancelled successfully.",
+        title: t("common.success"),
+        description: t("bookingDetails.cancelSuccess"),
       });
       onDelete();
       onOpenChange(false);
+    }
+  };
+
+  const handleReschedule = async () => {
+    if (!newStartTime || !newEndTime) {
+      toast({
+        title: t("common.error"),
+        description: t("bookingDetails.selectNewTime"),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("bookings")
+      .update({ 
+        start_time: newStartTime,
+        end_time: newEndTime,
+      })
+      .eq("id", booking.id);
+
+    if (error) {
+      toast({
+        title: t("common.error"),
+        description: t("bookingDetails.rescheduleError"),
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: t("common.success"),
+        description: t("bookingDetails.rescheduleSuccess"),
+      });
+      onDelete();
+      onOpenChange(false);
+      setIsRescheduling(false);
     }
   };
 
@@ -48,8 +91,8 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Booking Details</DialogTitle>
-          <DialogDescription>Full booking information</DialogDescription>
+          <DialogTitle>{t("bookingDetails.title")}</DialogTitle>
+          <DialogDescription>{t("bookingDetails.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -79,7 +122,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
                 <div className="flex items-center gap-3">
                   <FileText className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium">Service</p>
+                    <p className="text-sm font-medium">{t("bookings.service")}</p>
                     <p className="text-sm text-muted-foreground">{booking.service.name}</p>
                   </div>
                 </div>
@@ -89,7 +132,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
                 <div className="flex items-center gap-3">
                   <User className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium">Staff Member</p>
+                    <p className="text-sm font-medium">{t("bookings.staffMember")}</p>
                     <p className="text-sm text-muted-foreground">{booking.staff.name}</p>
                   </div>
                 </div>
@@ -99,7 +142,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
                 <div className="flex items-start gap-3">
                   <FileText className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium">Notes</p>
+                    <p className="text-sm font-medium">{t("bookings.notes")}</p>
                     <p className="text-sm text-muted-foreground">{booking.notes}</p>
                   </div>
                 </div>
@@ -107,7 +150,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
 
               <div className="flex items-center gap-2 pt-2">
                 <Badge variant="outline" className="text-xs">
-                  Created by: {booking.created_by}
+                  {t("bookings.createdBy")}: {booking.created_by}
                 </Badge>
                 <Badge
                   variant={
@@ -118,25 +161,74 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
                       : "secondary"
                   }
                 >
-                  {booking.status}
+                  {t(`bookings.${booking.status}`)}
                 </Badge>
               </div>
             </div>
           </div>
 
+          {isRescheduling && (
+            <div className="space-y-4 pt-4 border-t">
+              <h4 className="font-medium">{t("bookingDetails.rescheduleTitle")}</h4>
+              <div className="space-y-2">
+                <Label>{t("bookingDetails.newStartTime")}</Label>
+                <Input
+                  type="datetime-local"
+                  value={newStartTime}
+                  onChange={(e) => setNewStartTime(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{t("bookingDetails.newEndTime")}</Label>
+                <Input
+                  type="datetime-local"
+                  value={newEndTime}
+                  onChange={(e) => setNewEndTime(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2 pt-4 border-t">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
-              Close
+              {t("common.close")}
             </Button>
-            {booking.status !== "cancelled" && (
-              <Button 
-                variant="destructive" 
-                onClick={handleDelete}
-                className="flex-1"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Cancel Booking
-              </Button>
+            {!isRescheduling && booking.status !== "cancelled" && (
+              <>
+                <Button 
+                  variant="secondary" 
+                  onClick={() => setIsRescheduling(true)}
+                  className="flex-1"
+                >
+                  <CalendarIcon className="w-4 h-4 mr-2" />
+                  {t("bookingDetails.reschedule")}
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={handleDelete}
+                  className="flex-1"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  {t("bookingDetails.cancelBooking")}
+                </Button>
+              </>
+            )}
+            {isRescheduling && (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsRescheduling(false)}
+                  className="flex-1"
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button 
+                  onClick={handleReschedule}
+                  className="flex-1"
+                >
+                  {t("bookingDetails.confirmReschedule")}
+                </Button>
+              </>
             )}
           </div>
         </div>

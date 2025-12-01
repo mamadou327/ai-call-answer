@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 interface AssistantSettingsProps {
   businessId: string;
@@ -14,6 +15,7 @@ interface AssistantSettingsProps {
 
 export const AssistantSettings = ({ businessId, onUpdate }: AssistantSettingsProps) => {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     assistant_name: "Aivia",
@@ -60,14 +62,14 @@ export const AssistantSettings = ({ businessId, onUpdate }: AssistantSettingsPro
 
     if (error) {
       toast({
-        title: "Error",
-        description: "Failed to update assistant settings.",
+        title: t("common.error"),
+        description: t("assistantSettings.updateError"),
         variant: "destructive",
       });
     } else {
       toast({
-        title: "Success",
-        description: "Assistant settings updated successfully.",
+        title: t("common.success"),
+        description: t("assistantSettings.updateSuccess"),
       });
       onUpdate();
     }
@@ -78,13 +80,13 @@ export const AssistantSettings = ({ businessId, onUpdate }: AssistantSettingsPro
   return (
     <Card>
       <CardHeader>
-        <CardTitle>AI Assistant Settings</CardTitle>
-        <CardDescription>Configure how your AI assistant behaves</CardDescription>
+        <CardTitle>{t("assistantSettings.title")}</CardTitle>
+        <CardDescription>{t("assistantSettings.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="assistant_name">Assistant Name *</Label>
+            <Label htmlFor="assistant_name">{t("assistantSettings.assistantName")} *</Label>
             <Input
               id="assistant_name"
               value={formData.assistant_name}
@@ -95,7 +97,7 @@ export const AssistantSettings = ({ businessId, onUpdate }: AssistantSettingsPro
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="language">Primary Language *</Label>
+              <Label htmlFor="language">{t("assistantSettings.primaryLanguage")} *</Label>
               <Select
                 value={formData.primary_language}
                 onValueChange={(value) => setFormData({ ...formData, primary_language: value })}
@@ -104,16 +106,16 @@ export const AssistantSettings = ({ businessId, onUpdate }: AssistantSettingsPro
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="English">English</SelectItem>
-                  <SelectItem value="Spanish">Spanish</SelectItem>
-                  <SelectItem value="French">French</SelectItem>
-                  <SelectItem value="German">German</SelectItem>
+                  <SelectItem value="English">{t("assistantSettings.english")}</SelectItem>
+                  <SelectItem value="Spanish">{t("assistantSettings.spanish")}</SelectItem>
+                  <SelectItem value="French">{t("assistantSettings.french")}</SelectItem>
+                  <SelectItem value="German">{t("assistantSettings.german")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tone">Tone *</Label>
+              <Label htmlFor="tone">{t("assistantSettings.tone")} *</Label>
               <Select
                 value={formData.tone}
                 onValueChange={(value: "casual" | "neutral" | "formal") => setFormData({ ...formData, tone: value })}
@@ -122,9 +124,9 @@ export const AssistantSettings = ({ businessId, onUpdate }: AssistantSettingsPro
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="casual">Casual</SelectItem>
-                  <SelectItem value="neutral">Neutral</SelectItem>
-                  <SelectItem value="formal">Formal</SelectItem>
+                  <SelectItem value="casual">{t("assistantSettings.casual")}</SelectItem>
+                  <SelectItem value="neutral">{t("assistantSettings.neutral")}</SelectItem>
+                  <SelectItem value="formal">{t("assistantSettings.formal")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -132,7 +134,7 @@ export const AssistantSettings = ({ businessId, onUpdate }: AssistantSettingsPro
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="voice_gender">Voice Gender *</Label>
+              <Label htmlFor="voice_gender">{t("assistantSettings.voiceGender")} *</Label>
               <Select
                 value={formData.voice_gender}
                 onValueChange={(value: "male" | "female" | "neutral") => setFormData({ ...formData, voice_gender: value })}
@@ -141,15 +143,15 @@ export const AssistantSettings = ({ businessId, onUpdate }: AssistantSettingsPro
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="female">Female</SelectItem>
-                  <SelectItem value="male">Male</SelectItem>
-                  <SelectItem value="neutral">Neutral</SelectItem>
+                  <SelectItem value="female">{t("assistantSettings.female")}</SelectItem>
+                  <SelectItem value="male">{t("assistantSettings.male")}</SelectItem>
+                  <SelectItem value="neutral">{t("assistantSettings.neutralGender")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="voice_speed">Voice Speed *</Label>
+              <Label htmlFor="voice_speed">{t("assistantSettings.voiceSpeed")} *</Label>
               <Select
                 value={formData.voice_speed}
                 onValueChange={(value: "slow" | "normal" | "fast") => setFormData({ ...formData, voice_speed: value })}
@@ -158,16 +160,16 @@ export const AssistantSettings = ({ businessId, onUpdate }: AssistantSettingsPro
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="slow">Slow</SelectItem>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="fast">Fast</SelectItem>
+                  <SelectItem value="slow">{t("assistantSettings.slow")}</SelectItem>
+                  <SelectItem value="normal">{t("assistantSettings.normal")}</SelectItem>
+                  <SelectItem value="fast">{t("assistantSettings.fast")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <Button type="submit" disabled={loading}>
-            {loading ? "Saving..." : "Save Settings"}
+            {loading ? t("common.saving") : t("common.saveSettings")}
           </Button>
         </form>
       </CardContent>
