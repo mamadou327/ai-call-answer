@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Check, X, Mail } from "lucide-react";
 import { format } from "date-fns";
+import { useTranslation } from "react-i18next";
 
 interface StaffAccountsManagementProps {
   businessId: string;
@@ -35,6 +36,7 @@ interface Staff {
 
 export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsManagementProps) => {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [accounts, setAccounts] = useState<StaffAccount[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -91,8 +93,8 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
       if (error) throw error;
 
       toast({
-        title: "Invitation sent",
-        description: "Staff member will receive access instructions via email.",
+        title: t("staff.invitationSent"),
+        description: t("staff.invitationDescription"),
       });
 
       setDialogOpen(false);
@@ -161,7 +163,7 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
   };
 
   const handleRevoke = async (accountId: string) => {
-    if (!confirm("Are you sure you want to revoke this staff member's access? They will no longer be able to log in.")) {
+    if (!confirm(t("staff.revokeConfirm"))) {
       return;
     }
 
@@ -190,7 +192,7 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
   };
 
   const availableStaff = staff.filter(
-    (s) => !accounts.some((a) => a.staff_id === s.id)
+    (s) => !accounts.some((a) => a.staff_id === s.id && (a.status === "active" || a.status === "pending"))
   );
 
   return (
@@ -198,20 +200,20 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Staff Accounts</CardTitle>
+            <CardTitle>{t("staff.title")}</CardTitle>
             <CardDescription>
-              Invite staff to access their own calendar and bookings. You approve all requests.
+              {t("staff.description")}
             </CardDescription>
           </div>
           <Button onClick={() => setDialogOpen(true)}>
             <UserPlus className="mr-2 h-4 w-4" />
-            Invite Staff
+            {t("staff.inviteStaff")}
           </Button>
         </div>
       </CardHeader>
       <CardContent>
         {accounts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No staff accounts yet.</p>
+          <p className="text-sm text-muted-foreground">{t("staff.noAccounts")}</p>
         ) : (
           <div className="space-y-3">
             {accounts.map((account) => (
@@ -234,7 +236,7 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
                 <div className="flex items-center gap-2">
                   {account.status === "pending" && (
                     <>
-                      <Badge variant="secondary">Pending</Badge>
+                      <Badge variant="secondary">{t("staff.pending")}</Badge>
                       <Button
                         size="sm"
                         variant="ghost"
@@ -253,22 +255,22 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
                   )}
                   {account.status === "active" && (
                     <>
-                      <Badge className="bg-green-600">Active</Badge>
+                      <Badge className="bg-green-600">{t("staff.active")}</Badge>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => handleRevoke(account.id)}
                         className="text-red-600 hover:text-red-700"
                       >
-                        Revoke
+                        {t("staff.revoke")}
                       </Button>
                     </>
                   )}
                   {account.status === "rejected" && (
-                    <Badge variant="destructive">Rejected</Badge>
+                    <Badge variant="destructive">{t("staff.rejected")}</Badge>
                   )}
                   {account.status === "revoked" && (
-                    <Badge variant="secondary" className="bg-gray-500">Revoked</Badge>
+                    <Badge variant="secondary" className="bg-gray-500">{t("staff.revoked")}</Badge>
                   )}
                 </div>
               </div>
@@ -280,14 +282,14 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Invite Staff Member</DialogTitle>
+            <DialogTitle>{t("staff.inviteTitle")}</DialogTitle>
             <DialogDescription>
-              Send an invitation for a staff member to create their account
+              {t("staff.inviteDescription")}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleInvite} className="space-y-4">
             <div className="space-y-2">
-              <Label>Staff Member *</Label>
+              <Label>{t("staff.selectStaff")} *</Label>
               <Select
                 value={formData.staff_id}
                 onValueChange={(value) => {
@@ -300,7 +302,7 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
                 required
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select staff" />
+                  <SelectValue placeholder={t("staff.selectStaff")} />
                 </SelectTrigger>
                 <SelectContent>
                   {availableStaff.map((member) => (
@@ -313,7 +315,7 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
             </div>
 
             <div className="space-y-2">
-              <Label>Email Address *</Label>
+              <Label>{t("staff.emailAddress")} *</Label>
               <Input
                 type="email"
                 value={formData.email}
@@ -322,16 +324,16 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
                 required
               />
               <p className="text-xs text-muted-foreground">
-                They'll receive instructions to set up their account
+                {t("staff.emailHelp")}
               </p>
             </div>
 
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
+                {t("staff.cancel")}
               </Button>
               <Button type="submit" disabled={loading}>
-                {loading ? "Sending..." : "Send Invitation"}
+                {loading ? t("staff.sending") : t("staff.sendInvitation")}
               </Button>
             </div>
           </form>
