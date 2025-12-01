@@ -16,7 +16,20 @@
     "calendar": "Calendar",
     "noAppointments": "No appointments scheduled for today",
     "noMessages": "No recent messages",
-    "noBookings": "No upcoming bookings"
+    "noBookings": "No upcoming bookings",
+    "noCalls": "No calls yet",
+    "callsDescription": "Call logs and recordings will appear here once Aivia starts handling calls",
+    "messagesDescription": "Customer messages and chat interactions will appear here",
+    "today": "Today",
+    "thisWeek": "This Week",
+    "thisMonth": "This Month",
+    "customRange": "Custom Range",
+    "unread": "Unread",
+    "day": "Day",
+    "week": "Week",
+    "month": "Month",
+    "calendarView": "Calendar View",
+    "calendarComingSoon": "Interactive calendar coming soon"
   },
   "bookings": {
     "title": "Bookings Management",

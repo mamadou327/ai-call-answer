@@ -16,7 +16,20 @@
     "calendar": "Kalender",
     "noAppointments": "Keine Termine für heute geplant",
     "noMessages": "Keine neuen Nachrichten",
-    "noBookings": "Keine kommenden Buchungen"
+    "noBookings": "Keine kommenden Buchungen",
+    "noCalls": "Noch keine Anrufe",
+    "callsDescription": "Anrufprotokolle und Aufzeichnungen erscheinen hier, sobald Aivia Anrufe bearbeitet",
+    "messagesDescription": "Kundennachrichten und Chat-Interaktionen erscheinen hier",
+    "today": "Heute",
+    "thisWeek": "Diese Woche",
+    "thisMonth": "Dieser Monat",
+    "customRange": "Benutzerdefinierter Bereich",
+    "unread": "Ungelesen",
+    "day": "Tag",
+    "week": "Woche",
+    "month": "Monat",
+    "calendarView": "Kalenderansicht",
+    "calendarComingSoon": "Interaktiver Kalender demnächst verfügbar"
   },
   "bookings": {
     "title": "Buchungsverwaltung",
