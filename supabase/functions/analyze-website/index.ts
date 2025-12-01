@@ -48,6 +48,9 @@ serve(async (req) => {
     });
 
     if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error("AI API Error:", aiResponse.status, errorText);
+      
       if (aiResponse.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
@@ -60,7 +63,10 @@ serve(async (req) => {
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      throw new Error("AI analysis failed");
+      return new Response(JSON.stringify({ error: `AI analysis failed: ${aiResponse.status} - ${errorText}` }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const aiData = await aiResponse.json();
