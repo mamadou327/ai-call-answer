@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import aiviaLogo from "@/assets/aivia-logo.png";
 import { Loader2, ArrowLeft } from "lucide-react";
+import { adminRegisterSchema } from "@/lib/validation";
 
 const AdminRegister = () => {
   const navigate = useNavigate();
@@ -21,12 +22,29 @@ const AdminRegister = () => {
     note: "",
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
     setIsLoading(true);
 
     try {
+      // Validate with Zod
+      const result = adminRegisterSchema.safeParse(formData);
+
+      if (!result.success) {
+        const fieldErrors: Record<string, string> = {};
+        result.error.errors.forEach((err) => {
+          if (err.path[0]) {
+            fieldErrors[err.path[0].toString()] = err.message;
+          }
+        });
+        setErrors(fieldErrors);
+        setIsLoading(false);
+        return;
+      }
+
       // Sign up the user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
@@ -117,6 +135,9 @@ const AdminRegister = () => {
                   }
                   required
                 />
+                {errors.firstName && (
+                  <p className="text-sm text-destructive">{errors.firstName}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="lastName">Last Name</Label>
@@ -128,6 +149,9 @@ const AdminRegister = () => {
                   }
                   required
                 />
+                {errors.lastName && (
+                  <p className="text-sm text-destructive">{errors.lastName}</p>
+                )}
               </div>
             </div>
             <div className="space-y-2">
@@ -141,6 +165,9 @@ const AdminRegister = () => {
                 }
                 required
               />
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -152,8 +179,11 @@ const AdminRegister = () => {
                   setFormData({ ...formData, password: e.target.value })
                 }
                 required
-                minLength={6}
+                minLength={8}
               />
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="note">Why do you need admin access? (Optional)</Label>
@@ -166,6 +196,9 @@ const AdminRegister = () => {
                 placeholder="Please explain why you're requesting admin access..."
                 rows={3}
               />
+              {errors.note && (
+                <p className="text-sm text-destructive">{errors.note}</p>
+              )}
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
