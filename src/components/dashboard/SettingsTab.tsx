@@ -8,6 +8,8 @@ import { PoliciesForm } from "./settings/PoliciesForm";
 import { AssistantSettings } from "./settings/AssistantSettings";
 import { LocalizationSettings } from "./settings/LocalizationSettings";
 import { WebsiteAnalysis } from "./settings/WebsiteAnalysis";
+import { TimeOffManagement } from "./settings/TimeOffManagement";
+import { StaffAccountsManagement } from "./settings/StaffAccountsManagement";
 
 interface SettingsTabProps {
   businessId: string;
@@ -25,7 +27,7 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate }: S
 
   return (
     <Tabs defaultValue={activeSection || "business"} className="space-y-6">
-      <TabsList className="grid w-full grid-cols-9 lg:w-auto">
+      <TabsList className="grid w-full grid-cols-11 lg:w-auto">
         <TabsTrigger value="business">Business</TabsTrigger>
         <TabsTrigger value="services">Services</TabsTrigger>
         <TabsTrigger value="staff">Staff</TabsTrigger>
@@ -34,6 +36,8 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate }: S
         <TabsTrigger value="policies">Policies</TabsTrigger>
         <TabsTrigger value="assistant">Assistant</TabsTrigger>
         <TabsTrigger value="localization">Location</TabsTrigger>
+        <TabsTrigger value="timeoff">Time Off</TabsTrigger>
+        <TabsTrigger value="accounts">Staff Login</TabsTrigger>
         <TabsTrigger value="ai">AI Analysis</TabsTrigger>
       </TabsList>
 
@@ -67,6 +71,14 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate }: S
 
       <TabsContent value="localization">
         <LocalizationSettings businessId={businessId} onUpdate={onUpdate} />
+      </TabsContent>
+
+      <TabsContent value="timeoff">
+        <TimeOffManagement businessId={businessId} onUpdate={onUpdate} />
+      </TabsContent>
+
+      <TabsContent value="accounts">
+        <StaffAccountsManagement businessId={businessId} onUpdate={onUpdate} />
       </TabsContent>
 
       <TabsContent value="ai">
