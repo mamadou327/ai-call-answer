@@ -18,8 +18,8 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Truncate document if too long (limit to ~50k chars to stay within token limits)
-    const truncatedContent = documentText.substring(0, 50000);
+    // Truncate document if too long (limit to ~20k chars to stay within token limits)
+    const truncatedContent = documentText.substring(0, 20000);
     console.log(`Document length: ${documentText.length}, truncated to: ${truncatedContent.length}`);
 
     // Analyze with AI
@@ -30,7 +30,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5",
+        model: "google/gemini-2.5-flash",
         messages: [
           {
             role: "system",
@@ -64,17 +64,32 @@ serve(async (req) => {
     }
 
     const aiData = await aiResponse.json();
-    const policyText = aiData.choices[0].message.content;
+    console.log("AI response received:", JSON.stringify(aiData).substring(0, 200));
+    
+    const policyText = aiData.choices?.[0]?.message?.content;
+    if (!policyText) {
+      console.error("No content in AI response:", JSON.stringify(aiData));
+      throw new Error("AI returned empty response");
+    }
     
     // Try to parse JSON
     let policies;
     try {
-      const jsonMatch = policyText.match(/```json\n([\s\S]*?)\n```/) || 
-                       policyText.match(/```\n([\s\S]*?)\n```/);
-      const jsonStr = jsonMatch ? jsonMatch[1] : policyText;
-      policies = JSON.parse(jsonStr);
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = policyText.match(/```json\s*([\s\S]*?)\s*```/) || 
+                       policyText.match(/```\s*([\s\S]*?)\s*```/) ||
+                       policyText.match(/\{[\s\S]*\}/); // Fallback to raw JSON
+      
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : policyText;
+      policies = JSON.parse(jsonStr.trim());
+      console.log("Successfully parsed policies:", Object.keys(policies));
     } catch (e) {
-      policies = { cancellation_policy: policyText };
+      console.error("JSON parse error:", e, "Raw text:", policyText.substring(0, 500));
+      // If JSON parsing fails, try to extract at least the cancellation policy text
+      policies = { 
+        cancellation_policy: policyText,
+        parsing_error: true 
+      };
     }
 
     return new Response(

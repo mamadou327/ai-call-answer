@@ -22,8 +22,9 @@ serve(async (req) => {
     const websiteResponse = await fetch(websiteUrl);
     const websiteContent = await websiteResponse.text();
     
-    // Truncate content if too long (keep first 100000 chars for more thorough analysis)
-    const truncatedContent = websiteContent.substring(0, 100000);
+    // Truncate content if too long (limit to ~30k chars to stay within token limits)
+    const truncatedContent = websiteContent.substring(0, 30000);
+    console.log(`Website content length: ${websiteContent.length}, truncated to: ${truncatedContent.length}`);
 
     // Analyze with AI
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -33,7 +34,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5",
+        model: "google/gemini-2.5-flash",
         messages: [
           {
             role: "system",
@@ -70,19 +71,31 @@ serve(async (req) => {
     }
 
     const aiData = await aiResponse.json();
-    const analysisText = aiData.choices[0].message.content;
+    console.log("AI response received:", JSON.stringify(aiData).substring(0, 200));
+    
+    const analysisText = aiData.choices?.[0]?.message?.content;
+    if (!analysisText) {
+      console.error("No content in AI response:", JSON.stringify(aiData));
+      throw new Error("AI returned empty response");
+    }
     
     // Try to parse JSON from the response
     let analysis;
     try {
       // Extract JSON if it's wrapped in markdown code blocks
-      const jsonMatch = analysisText.match(/```json\n([\s\S]*?)\n```/) || 
-                       analysisText.match(/```\n([\s\S]*?)\n```/);
-      const jsonStr = jsonMatch ? jsonMatch[1] : analysisText;
-      analysis = JSON.parse(jsonStr);
+      const jsonMatch = analysisText.match(/```json\s*([\s\S]*?)\s*```/) || 
+                       analysisText.match(/```\s*([\s\S]*?)\s*```/) ||
+                       analysisText.match(/\{[\s\S]*\}/);
+      
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : analysisText;
+      analysis = JSON.parse(jsonStr.trim());
+      console.log("Successfully parsed analysis:", Object.keys(analysis));
     } catch (e) {
-      // If parsing fails, return the raw text
-      analysis = { raw_analysis: analysisText };
+      console.error("JSON parse error:", e, "Raw text:", analysisText.substring(0, 500));
+      analysis = { 
+        raw: analysisText,
+        parsing_error: true 
+      };
     }
 
     return new Response(
