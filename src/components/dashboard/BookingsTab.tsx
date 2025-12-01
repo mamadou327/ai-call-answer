@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Plus, User, Clock } from "lucide-react";
+import { Calendar, Plus, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookingDialog } from "./BookingDialog";
+import { BookingDetailsDialog } from "./BookingDetailsDialog";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -26,6 +27,8 @@ interface Booking {
 
 export const BookingsTab = ({ businessId }: BookingsTabProps) => {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -74,6 +77,11 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
     loadBookings();
   };
 
+  const handleBookingClick = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setDetailsDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -96,64 +104,39 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
               <p className="text-sm">Customer bookings will appear here once Aivia starts taking appointments</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {bookings.map((booking) => (
                 <div
                   key={booking.id}
-                  className="flex items-start justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                  onClick={() => handleBookingClick(booking)}
                 >
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-3">
-                      <User className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">{booking.customer_name}</p>
-                        <p className="text-sm text-muted-foreground">{booking.customer_phone}</p>
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="flex-1">
+                      <p className="font-medium">{booking.customer_name}</p>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Clock className="h-4 w-4" />
+                        <span>{format(new Date(booking.start_time), "MMM d, yyyy 'at' h:mm a")}</span>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-3 ml-8">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <p className="text-sm">
-                        {format(new Date(booking.start_time), "PPP 'at' p")}
-                      </p>
-                    </div>
-
-                    {booking.service && (
-                      <p className="text-sm text-muted-foreground ml-8">
-                        Service: {booking.service.name}
-                      </p>
-                    )}
-
-                    {booking.staff && (
-                      <p className="text-sm text-muted-foreground ml-8">
-                        Staff: {booking.staff.name}
-                      </p>
-                    )}
-
-                    {booking.notes && (
-                      <p className="text-sm text-muted-foreground ml-8 italic">
-                        Note: {booking.notes}
-                      </p>
-                    )}
-
-                    <div className="ml-8 flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        Created by: {booking.created_by}
-                      </Badge>
                     </div>
                   </div>
 
-                  <Badge
-                    variant={
-                      booking.status === "confirmed"
-                        ? "default"
-                        : booking.status === "cancelled"
-                        ? "destructive"
-                        : "secondary"
-                    }
-                  >
-                    {booking.status}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {booking.created_by}
+                    </Badge>
+                    <Badge
+                      variant={
+                        booking.status === "confirmed"
+                          ? "default"
+                          : booking.status === "cancelled"
+                          ? "destructive"
+                          : "secondary"
+                      }
+                    >
+                      {booking.status}
+                    </Badge>
+                  </div>
                 </div>
               ))}
             </div>
@@ -166,6 +149,13 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSuccess={handleBookingSuccess}
+      />
+
+      <BookingDetailsDialog
+        booking={selectedBooking}
+        open={detailsDialogOpen}
+        onOpenChange={setDetailsDialogOpen}
+        onDelete={loadBookings}
       />
     </div>
   );

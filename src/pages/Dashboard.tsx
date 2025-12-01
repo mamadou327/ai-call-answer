@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Phone, LogOut, LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
+import { useTranslation } from "react-i18next";
 
 import { SetupChecklist, type ChecklistItem } from "@/components/SetupChecklist";
 import { DashboardTab } from "@/components/dashboard/DashboardTab";
@@ -35,6 +36,7 @@ interface Business {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [business, setBusiness] = useState<Business | null>(null);
@@ -231,23 +233,23 @@ const Dashboard = () => {
               <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="dashboard" className="flex items-center gap-2">
                   <LayoutDashboard className="w-4 h-4" />
-                  Dashboard
+                  {t("dashboard.title")}
                 </TabsTrigger>
                 <TabsTrigger value="calls" className="flex items-center gap-2">
                   <PhoneCall className="w-4 h-4" />
-                  Calls
+                  {t("dashboard.calls")}
                 </TabsTrigger>
                 <TabsTrigger value="messages" className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4" />
-                  Messages
+                  {t("dashboard.messages")}
                 </TabsTrigger>
                 <TabsTrigger value="bookings" className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
-                  Bookings
+                  {t("dashboard.bookings")}
                 </TabsTrigger>
                 <TabsTrigger value="settings" className="flex items-center gap-2">
                   <Settings className="w-4 h-4" />
-                  Settings
+                  {t("dashboard.settings")}
                 </TabsTrigger>
               </TabsList>
 
@@ -279,6 +281,7 @@ const Dashboard = () => {
                   business={business}
                   activeSection={activeSettingsSection}
                   onUpdate={handleSettingsUpdate}
+                  currency={settings?.currency || "GBP"}
                 />
               </TabsContent>
             </Tabs>

@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 interface ServicesManagementProps {
   businessId: string;
   onUpdate: () => void;
+  currency?: string;
 }
 
 interface Service {
@@ -23,7 +24,7 @@ interface Service {
   category: string;
 }
 
-export const ServicesManagement = ({ businessId, onUpdate }: ServicesManagementProps) => {
+export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: ServicesManagementProps) => {
   const { toast } = useToast();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,6 +36,24 @@ export const ServicesManagement = ({ businessId, onUpdate }: ServicesManagementP
     price: 0,
     category: "",
   });
+
+  const getCurrencySymbol = (curr: string) => {
+    const symbols: Record<string, string> = {
+      GBP: "£",
+      USD: "$",
+      EUR: "€",
+      CAD: "$",
+      AUD: "$",
+      JPY: "¥",
+      CHF: "CHF",
+      SEK: "kr",
+      NOK: "kr",
+      DKK: "kr",
+    };
+    return symbols[curr] || "$";
+  };
+
+  const currencySymbol = getCurrencySymbol(currency);
 
   useEffect(() => {
     loadServices();
@@ -157,7 +176,7 @@ export const ServicesManagement = ({ businessId, onUpdate }: ServicesManagementP
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="price">Price ($) *</Label>
+                  <Label htmlFor="price">Price ({currencySymbol}) *</Label>
                   <Input
                     id="price"
                     type="number"
@@ -193,7 +212,7 @@ export const ServicesManagement = ({ businessId, onUpdate }: ServicesManagementP
                   )}
                   <div className="flex gap-4 mt-2 text-sm">
                     <span>{service.duration_minutes} min</span>
-                    <span>${service.price}</span>
+                    <span>{currencySymbol}{service.price}</span>
                   </div>
                 </div>
                 <Button
