@@ -36,16 +36,23 @@ export const WebsiteAnalysis = ({ businessId, currentWebsite, onAnalysisComplete
         body: { websiteUrl },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Function invocation error:", error);
+        throw new Error(error.message || "Failed to invoke analysis function");
+      }
 
-      if (data.success) {
+      console.log("Analysis response:", data);
+
+      if (data?.success && data?.analysis) {
         setAnalysis(data.analysis);
         toast({
           title: "Analysis Complete",
           description: "AI has analyzed your website. Review and apply the findings below.",
         });
       } else {
-        throw new Error(data.error || "Analysis failed");
+        const errorMsg = data?.error || "No analysis data returned";
+        console.error("Analysis failed:", errorMsg, data);
+        throw new Error(errorMsg);
       }
     } catch (error: any) {
       console.error("Website analysis error:", error);

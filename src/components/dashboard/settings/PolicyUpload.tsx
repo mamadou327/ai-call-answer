@@ -39,16 +39,23 @@ export const PolicyUpload = ({ onPolicyExtracted }: PolicyUploadProps) => {
         body: { documentText: text },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Function invocation error:", error);
+        throw new Error(error.message || "Failed to invoke analysis function");
+      }
 
-      if (data.success) {
+      console.log("Analysis response:", data);
+
+      if (data?.success && data?.policies) {
         setExtractedPolicy(data.policies);
         toast({
           title: "Policy Extracted",
           description: "AI has analyzed your policy document. Review and apply below.",
         });
       } else {
-        throw new Error(data.error || "Failed to analyze policy");
+        const errorMsg = data?.error || "No policy data returned from analysis";
+        console.error("Analysis failed:", errorMsg, data);
+        throw new Error(errorMsg);
       }
     } catch (error: any) {
       console.error("Policy upload error:", error);
