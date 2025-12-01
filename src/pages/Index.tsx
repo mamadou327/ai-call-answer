@@ -28,7 +28,7 @@ const Index = () => {
             <span className="text-2xl font-bold text-foreground">AIVIA</span>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate("/auth")}>
+            <Button variant="ghost" onClick={() => navigate("/auth?mode=signin")}>
               Sign In
             </Button>
             <Button onClick={() => navigate("/auth")}>Get Started</Button>
