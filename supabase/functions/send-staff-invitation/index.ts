@@ -1,4 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { Resend } from "https://esm.sh/resend@4.0.0";
+
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,22 +59,22 @@ const handler = async (req: Request): Promise<Response> => {
       `,
     };
 
-    console.log("Email content prepared:", emailContent);
+    console.log("Sending email via Resend...");
 
-    // TODO: In production, integrate with Resend:
-    // const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-    // await resend.emails.send({
-    //   from: "Aivia <noreply@yourdomain.com>",
-    //   to: staffEmail,
-    //   subject: emailContent.subject,
-    //   html: emailContent.html,
-    // });
+    // Send email using Resend
+    const emailResponse = await resend.emails.send({
+      from: "Aivia <onboarding@resend.dev>",
+      to: staffEmail,
+      subject: emailContent.subject,
+      html: emailContent.html,
+    });
+
+    console.log("Email sent successfully:", emailResponse);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: "Invitation email prepared (integrate with Resend to send)",
-        emailPreview: emailContent 
+        message: "Invitation email sent successfully"
       }),
       {
         status: 200,

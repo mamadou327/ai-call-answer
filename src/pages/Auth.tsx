@@ -14,7 +14,11 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(true);
+  
+  // Check URL parameter to determine initial mode
+  const searchParams = new URLSearchParams(window.location.search);
+  const mode = searchParams.get('mode');
+  const [isSignUp, setIsSignUp] = useState(mode !== 'signin');
   const [formData, setFormData] = useState({
     email: "",
     password: "",
