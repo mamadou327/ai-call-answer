@@ -20,6 +20,7 @@ interface Staff {
   role: string;
   email?: string;
   phone?: string;
+  color?: string;
 }
 
 interface Service {
@@ -39,6 +40,7 @@ export const StaffManagement = ({ businessId, onUpdate }: StaffManagementProps) 
     role: "",
     email: "",
     phone: "",
+    color: "#3B82F6",
   });
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
@@ -83,6 +85,7 @@ export const StaffManagement = ({ businessId, onUpdate }: StaffManagementProps) 
       role: member.role,
       email: member.email || "",
       phone: member.phone || "",
+      color: member.color || "#3B82F6",
     });
     await loadStaffServices(member.id);
     setDialogOpen(true);
@@ -153,7 +156,7 @@ export const StaffManagement = ({ businessId, onUpdate }: StaffManagementProps) 
 
       setDialogOpen(false);
       setSelectedStaff(null);
-      setFormData({ name: "", role: "", email: "", phone: "" });
+      setFormData({ name: "", role: "", email: "", phone: "", color: "#3B82F6" });
       setSelectedServices([]);
       loadStaff();
       onUpdate();
@@ -209,7 +212,7 @@ export const StaffManagement = ({ businessId, onUpdate }: StaffManagementProps) 
           setDialogOpen(open);
           if (!open) {
             setSelectedStaff(null);
-            setFormData({ name: "", role: "", email: "", phone: "" });
+            setFormData({ name: "", role: "", email: "", phone: "", color: "#3B82F6" });
             setSelectedServices([]);
           }
         }}>
@@ -267,6 +270,22 @@ export const StaffManagement = ({ businessId, onUpdate }: StaffManagementProps) 
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="color">Calendar Color</Label>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    id="color"
+                    type="color"
+                    value={formData.color}
+                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                    className="w-20 h-10"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Color for this staff member in calendar views
+                  </span>
+                </div>
+              </div>
+
               {services.length > 0 && (
                 <div className="space-y-2">
                   <Label>Services</Label>
@@ -307,11 +326,18 @@ export const StaffManagement = ({ businessId, onUpdate }: StaffManagementProps) 
           <div className="space-y-4">
             {staff.map((member) => (
               <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex-1">
-                  <h4 className="font-semibold">{member.name}</h4>
-                  <p className="text-sm text-muted-foreground">{member.role}</p>
-                  {member.email && <p className="text-xs text-muted-foreground mt-1">{member.email}</p>}
-                  {member.phone && <p className="text-xs text-muted-foreground">{member.phone}</p>}
+                <div className="flex-1 flex items-center gap-3">
+                  <div 
+                    className="w-4 h-4 rounded-full border-2 border-background shadow-sm flex-shrink-0"
+                    style={{ backgroundColor: member.color || "#3B82F6" }}
+                    title="Calendar color"
+                  />
+                  <div>
+                    <h4 className="font-semibold">{member.name}</h4>
+                    <p className="text-sm text-muted-foreground">{member.role}</p>
+                    {member.email && <p className="text-xs text-muted-foreground mt-1">{member.email}</p>}
+                    {member.phone && <p className="text-xs text-muted-foreground">{member.phone}</p>}
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Button

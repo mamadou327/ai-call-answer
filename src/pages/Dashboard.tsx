@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Phone, LogOut, LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
-import { AiviaStatusCard } from "@/components/AiviaStatusCard";
+
 import { SetupChecklist, type ChecklistItem } from "@/components/SetupChecklist";
 import { DashboardTab } from "@/components/dashboard/DashboardTab";
 import { CallsTab } from "@/components/dashboard/CallsTab";
@@ -37,6 +37,7 @@ const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [business, setBusiness] = useState<Business | null>(null);
+  const [settings, setSettings] = useState<any>(null);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [activeSettingsSection, setActiveSettingsSection] = useState<string>("");
@@ -75,6 +76,18 @@ const Dashboard = () => {
     
     if (bizData) {
       setBusiness(bizData);
+      
+      // Load settings
+      const { data: settingsData } = await supabase
+        .from("business_settings")
+        .select("*")
+        .eq("business_id", bizData.id)
+        .single();
+      
+      if (settingsData) {
+        setSettings(settingsData);
+      }
+      
       await loadSetupChecklist(bizData);
     }
   };
@@ -209,15 +222,6 @@ const Dashboard = () => {
       <main className="container py-8">
         {business?.status === "approved" && business && (
           <>
-            <div className="mb-6">
-              <AiviaStatusCard
-                businessId={business.id}
-                isActive={business.aivia_active}
-                isSetupComplete={isSetupComplete}
-                onStatusChange={(newStatus) => setBusiness({ ...business, aivia_active: newStatus })}
-              />
-            </div>
-
             {!isSetupComplete && (
               <div className="mb-6">
                 <SetupChecklist items={checklistItems} onItemClick={handleChecklistItemClick} />
@@ -249,7 +253,12 @@ const Dashboard = () => {
               </TabsList>
 
               <TabsContent value="dashboard">
-                <DashboardTab businessName={business.business_name} />
+                {business && settings && (
+                  <DashboardTab 
+                    businessName={business.business_name} 
+                    currency={settings.currency || "GBP"} 
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="calls">

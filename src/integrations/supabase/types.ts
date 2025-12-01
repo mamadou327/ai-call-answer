@@ -457,6 +457,7 @@ export type Database = {
       staff: {
         Row: {
           business_id: string
+          color: string | null
           created_at: string | null
           email: string | null
           id: string
@@ -468,6 +469,7 @@ export type Database = {
         }
         Insert: {
           business_id: string
+          color?: string | null
           created_at?: string | null
           email?: string | null
           id?: string
@@ -479,6 +481,7 @@ export type Database = {
         }
         Update: {
           business_id?: string
+          color?: string | null
           created_at?: string | null
           email?: string | null
           id?: string
