@@ -108,7 +108,7 @@ const Auth = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <img src={aiviaLogo} alt="Aivia" className="h-16 w-auto" />
+            <img src={aiviaLogo} alt="Aivia" className="h-20 w-auto" />
           </div>
           <CardTitle className="text-2xl">
             {isSignUp ? "Create your account" : "Welcome back"}
