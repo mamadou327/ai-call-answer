@@ -26,6 +26,7 @@ interface Business {
 interface Profile {
   first_name: string;
   last_name: string;
+  email: string | null;
   admin_status: string | null;
   admin_request_note: string | null;
   admin_requested_at: string | null;
@@ -113,7 +114,7 @@ const AdminDashboard = () => {
       const ownerIds = [...new Set(data?.map(b => b.owner_id) || [])];
       const { data: profilesData } = await supabase
         .from("profiles")
-        .select("user_id, first_name, last_name, admin_status, admin_request_note, admin_requested_at")
+        .select("user_id, first_name, last_name, email, admin_status, admin_request_note, admin_requested_at")
         .in("user_id", ownerIds);
 
       const profilesMap: Record<string, Profile> = {};
@@ -121,6 +122,7 @@ const AdminDashboard = () => {
         profilesMap[p.user_id] = {
           first_name: p.first_name,
           last_name: p.last_name,
+          email: p.email,
           admin_status: p.admin_status,
           admin_request_note: p.admin_request_note,
           admin_requested_at: p.admin_requested_at,
@@ -141,9 +143,10 @@ const AdminDashboard = () => {
 
   const loadPendingAdmins = async () => {
     try {
+      // Query profiles directly for users with pending_admin role
       const { data: roles } = await supabase
         .from("user_roles")
-        .select("user_id, role")
+        .select("user_id")
         .eq("role", "pending_admin");
 
       if (!roles || roles.length === 0) {
@@ -153,35 +156,21 @@ const AdminDashboard = () => {
 
       const userIds = roles.map(r => r.user_id);
 
-      // Get user emails from auth.users
-      const { data, error: usersError } = await supabase.auth.admin.listUsers();
-      const users = data?.users;
-      
-      if (usersError) {
-        console.error("Error fetching users:", usersError);
-        return;
-      }
-
-      // Get profiles
-      const { data: profilesData } = await supabase
+      // Get profiles with email from our database
+      const { data: profilesData, error } = await supabase
         .from("profiles")
         .select("*")
         .in("user_id", userIds)
         .eq("admin_status", "pending");
 
-      const pendingList: PendingAdmin[] = [];
-      if (users && Array.isArray(users)) {
-        profilesData?.forEach(profile => {
-          const user = users.find((u: any) => u.id === profile.user_id);
-          if (user) {
-            pendingList.push({
-              user_id: profile.user_id,
-              email: user.email || "",
-              profile: profile as Profile,
-            });
-          }
-        });
-      }
+      if (error) throw error;
+
+      // Build the pending admins list from profiles table
+      const pendingList: PendingAdmin[] = (profilesData || []).map(profile => ({
+        user_id: profile.user_id,
+        email: profile.email || "",
+        profile: profile as Profile,
+      }));
 
       setPendingAdmins(pendingList);
     } catch (error: any) {
