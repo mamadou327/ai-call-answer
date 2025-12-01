@@ -8,8 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import aiviaLogo from "@/assets/aivia-logo.png";
-import { LogOut, Clock, CheckCircle2, XCircle, Eye } from "lucide-react";
+import { LogOut, Clock, CheckCircle2, XCircle, Eye, Globe } from "lucide-react";
 import { Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import WorldTracker from "@/components/WorldTracker";
 
 // Super admin email constant
 const SUPER_ADMIN_EMAIL = "mlaye915@gmail.com";
@@ -24,6 +30,10 @@ interface Business {
   status: string;
   created_at: string;
   owner_id: string;
+  assigned_aivia_number: string | null;
+  number_notes: string | null;
+  porting_status: string | null;
+  porting_instructions: string | null;
 }
 
 interface Profile {
@@ -38,6 +48,7 @@ interface Profile {
 
 interface AdminPermissions {
   can_approve_businesses: boolean;
+  can_manage_business_numbers: boolean;
   can_view_analytics: boolean;
   can_manage_billing: boolean;
   can_view_calls_messages: boolean;
@@ -59,6 +70,7 @@ const AdminDashboard = () => {
   const [selectedAdmin, setSelectedAdmin] = useState<PendingAdmin | null>(null);
   const [adminPermissions, setAdminPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
+    can_manage_business_numbers: false,
     can_view_analytics: false,
     can_manage_billing: false,
     can_view_calls_messages: false,
@@ -66,7 +78,20 @@ const AdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState<"businesses" | "admins">("businesses");
+  const [activeTab, setActiveTab] = useState<"businesses" | "admins" | "tracker">("businesses");
+  const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
+    can_approve_businesses: false,
+    can_manage_business_numbers: false,
+    can_view_analytics: false,
+    can_manage_billing: false,
+    can_view_calls_messages: false,
+  });
+  
+  // Business number assignment state
+  const [assignedNumber, setAssignedNumber] = useState("");
+  const [numberNotes, setNumberNotes] = useState("");
+  const [portingStatus, setPortingStatus] = useState<string>("pending");
+  const [portingInstructions, setPortingInstructions] = useState("");
 
   useEffect(() => {
     checkAdminAccess();
@@ -75,7 +100,7 @@ const AdminDashboard = () => {
   const checkAdminAccess = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      navigate("/admin");
+      navigate("/admin/login");
       return;
     }
 
@@ -90,8 +115,36 @@ const AdminDashboard = () => {
     setIsSuperAdmin(!!superAdmin);
 
     if (!superAdmin && !subAdmin) {
-      navigate("/admin");
+      navigate("/admin/login");
       return;
+    }
+
+    // Load user's permissions
+    if (subAdmin) {
+      const { data: perms } = await supabase
+        .from("admin_permissions")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+      
+      if (perms) {
+        setUserPermissions({
+          can_approve_businesses: perms.can_approve_businesses || false,
+          can_manage_business_numbers: perms.can_manage_business_numbers || false,
+          can_view_analytics: perms.can_view_analytics || false,
+          can_manage_billing: perms.can_manage_billing || false,
+          can_view_calls_messages: perms.can_view_calls_messages || false,
+        });
+      }
+    } else if (superAdmin) {
+      // Super admin has all permissions
+      setUserPermissions({
+        can_approve_businesses: true,
+        can_manage_business_numbers: true,
+        can_view_analytics: true,
+        can_manage_billing: true,
+        can_view_calls_messages: true,
+      });
     }
 
     // Load data based on role
@@ -275,9 +328,19 @@ const AdminDashboard = () => {
   const handleAction = async (businessId: string, newStatus: "approved" | "rejected") => {
     setActionLoading(businessId);
     try {
+      const updateData: any = { status: newStatus };
+      
+      // If approving, include number assignment and porting details
+      if (newStatus === "approved") {
+        if (assignedNumber) updateData.assigned_aivia_number = assignedNumber;
+        if (numberNotes) updateData.number_notes = numberNotes;
+        if (portingStatus) updateData.porting_status = portingStatus;
+        if (portingInstructions) updateData.porting_instructions = portingInstructions;
+      }
+
       const { error } = await supabase
         .from("businesses")
-        .update({ status: newStatus })
+        .update(updateData)
         .eq("id", businessId);
 
       if (error) throw error;
@@ -289,6 +352,11 @@ const AdminDashboard = () => {
 
       loadBusinesses();
       setSelectedBusiness(null);
+      // Reset form fields
+      setAssignedNumber("");
+      setNumberNotes("");
+      setPortingStatus("pending");
+      setPortingInstructions("");
     } catch (error: any) {
       toast({
         title: "Error",
@@ -341,19 +409,19 @@ const AdminDashboard = () => {
           </p>
         </div>
 
-        {isSuperAdmin && (
-          <div className="flex gap-2 mb-6">
-            <Button
-              variant={activeTab === "businesses" ? "default" : "outline"}
-              onClick={() => setActiveTab("businesses")}
-            >
-              Business Applications
-              {businesses.filter(b => b.status === "pending").length > 0 && (
-                <Badge variant="secondary" className="ml-2">
-                  {businesses.filter(b => b.status === "pending").length}
-                </Badge>
-              )}
-            </Button>
+        <div className="flex gap-2 mb-6">
+          <Button
+            variant={activeTab === "businesses" ? "default" : "outline"}
+            onClick={() => setActiveTab("businesses")}
+          >
+            Business Applications
+            {businesses.filter(b => b.status === "pending").length > 0 && (
+              <Badge variant="secondary" className="ml-2">
+                {businesses.filter(b => b.status === "pending").length}
+              </Badge>
+            )}
+          </Button>
+          {isSuperAdmin && (
             <Button
               variant={activeTab === "admins" ? "default" : "outline"}
               onClick={() => setActiveTab("admins")}
@@ -365,8 +433,17 @@ const AdminDashboard = () => {
                 </Badge>
               )}
             </Button>
-          </div>
-        )}
+          )}
+          {(isSuperAdmin || userPermissions.can_view_analytics) && (
+            <Button
+              variant={activeTab === "tracker" ? "default" : "outline"}
+              onClick={() => setActiveTab("tracker")}
+            >
+              <Globe className="w-4 h-4 mr-2" />
+              World Tracker
+            </Button>
+          )}
+        </div>
 
         {activeTab === "businesses" && (
           <Card>
@@ -425,6 +502,10 @@ const AdminDashboard = () => {
             )}
           </CardContent>
         </Card>
+        )}
+
+        {activeTab === "tracker" && (
+          <WorldTracker />
         )}
 
         {activeTab === "admins" && isSuperAdmin && (
@@ -524,33 +605,132 @@ const AdminDashboard = () => {
                 </div>
               )}
 
-              {selectedBusiness.status === "pending" && (
-                <div className="flex gap-2 pt-4">
-                  <Button
-                    onClick={() => handleAction(selectedBusiness.id, "approved")}
-                    disabled={!!actionLoading}
-                    className="flex-1"
-                  >
-                    {actionLoading === selectedBusiness.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    ) : (
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                    )}
-                    Approve
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => handleAction(selectedBusiness.id, "rejected")}
-                    disabled={!!actionLoading}
-                    className="flex-1"
-                  >
-                    {actionLoading === selectedBusiness.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    ) : (
-                      <XCircle className="w-4 h-4 mr-2" />
-                    )}
-                    Reject
-                  </Button>
+              {selectedBusiness.status === "pending" && userPermissions.can_approve_businesses && (
+                <>
+                  <div className="border-t pt-4 space-y-4">
+                    <h3 className="font-semibold text-sm">Number Assignment & Porting</h3>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="assigned-number" className="text-sm font-medium">
+                          Assigned Aivia Number
+                        </Label>
+                        <Input
+                          id="assigned-number"
+                          placeholder="+1 (555) 123-4567"
+                          value={assignedNumber}
+                          onChange={(e) => setAssignedNumber(e.target.value)}
+                          className="mt-1.5"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          If providing an Aivia number
+                        </p>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="number-notes" className="text-sm font-medium">
+                          Number Notes
+                        </Label>
+                        <Textarea
+                          id="number-notes"
+                          placeholder="Optional notes about the number assignment..."
+                          value={numberNotes}
+                          onChange={(e) => setNumberNotes(e.target.value)}
+                          className="mt-1.5"
+                          rows={2}
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="porting-status" className="text-sm font-medium">
+                          Porting Status
+                        </Label>
+                        <Select value={portingStatus} onValueChange={setPortingStatus}>
+                          <SelectTrigger className="mt-1.5">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="in_progress">In Progress</SelectItem>
+                            <SelectItem value="complete">Complete</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          If they're porting an existing number
+                        </p>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="porting-instructions" className="text-sm font-medium">
+                          Porting Instructions
+                        </Label>
+                        <Textarea
+                          id="porting-instructions"
+                          placeholder="Detailed instructions for number porting..."
+                          value={portingInstructions}
+                          onChange={(e) => setPortingInstructions(e.target.value)}
+                          className="mt-1.5"
+                          rows={3}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-4">
+                    <Button
+                      onClick={() => handleAction(selectedBusiness.id, "approved")}
+                      disabled={!!actionLoading}
+                      className="flex-1"
+                    >
+                      {actionLoading === selectedBusiness.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                      )}
+                      Approve
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleAction(selectedBusiness.id, "rejected")}
+                      disabled={!!actionLoading}
+                      className="flex-1"
+                    >
+                      {actionLoading === selectedBusiness.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      ) : (
+                        <XCircle className="w-4 h-4 mr-2" />
+                      )}
+                      Reject
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {selectedBusiness.status === "approved" && (
+                <div className="border-t pt-4 space-y-3">
+                  <h3 className="font-semibold text-sm">Assigned Details</h3>
+                  {selectedBusiness.assigned_aivia_number && (
+                    <div>
+                      <Label className="text-sm font-medium">Aivia Number</Label>
+                      <p className="text-sm text-muted-foreground">{selectedBusiness.assigned_aivia_number}</p>
+                      {selectedBusiness.number_notes && (
+                        <p className="text-xs text-muted-foreground mt-1">{selectedBusiness.number_notes}</p>
+                      )}
+                    </div>
+                  )}
+                  {selectedBusiness.porting_status && (
+                    <div>
+                      <Label className="text-sm font-medium">Porting Status</Label>
+                      <p className="text-sm text-muted-foreground capitalize">
+                        {selectedBusiness.porting_status.replace("_", " ")}
+                      </p>
+                      {selectedBusiness.porting_instructions && (
+                        <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
+                          {selectedBusiness.porting_instructions}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -613,6 +793,20 @@ const AdminDashboard = () => {
                   <label className="flex items-center space-x-2">
                     <input
                       type="checkbox"
+                      checked={adminPermissions.can_manage_business_numbers}
+                      onChange={(e) =>
+                        setAdminPermissions({
+                          ...adminPermissions,
+                          can_manage_business_numbers: e.target.checked,
+                        })
+                      }
+                      className="rounded"
+                    />
+                    <span className="text-sm">Can manage business numbers</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
                       checked={adminPermissions.can_view_analytics}
                       onChange={(e) =>
                         setAdminPermissions({
@@ -622,7 +816,7 @@ const AdminDashboard = () => {
                       }
                       className="rounded"
                     />
-                    <span className="text-sm">Can view analytics</span>
+                    <span className="text-sm">Can view global analytics (World Tracker)</span>
                   </label>
                   <label className="flex items-center space-x-2">
                     <input
@@ -636,7 +830,7 @@ const AdminDashboard = () => {
                       }
                       className="rounded"
                     />
-                    <span className="text-sm">Can manage billing</span>
+                    <span className="text-sm">Can view billing and revenue</span>
                   </label>
                   <label className="flex items-center space-x-2">
                     <input
@@ -694,9 +888,5 @@ const AdminDashboard = () => {
     </div>
   );
 };
-
-const Label = ({ className, children }: { className?: string; children: React.ReactNode }) => (
-  <div className={className}>{children}</div>
-);
 
 export default AdminDashboard;

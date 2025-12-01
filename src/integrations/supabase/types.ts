@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           can_approve_businesses: boolean | null
           can_manage_billing: boolean | null
+          can_manage_business_numbers: boolean | null
           can_view_analytics: boolean | null
           can_view_calls_messages: boolean | null
           created_at: string | null
@@ -28,6 +29,7 @@ export type Database = {
         Insert: {
           can_approve_businesses?: boolean | null
           can_manage_billing?: boolean | null
+          can_manage_business_numbers?: boolean | null
           can_view_analytics?: boolean | null
           can_view_calls_messages?: boolean | null
           created_at?: string | null
@@ -38,6 +40,7 @@ export type Database = {
         Update: {
           can_approve_businesses?: boolean | null
           can_manage_billing?: boolean | null
+          can_manage_business_numbers?: boolean | null
           can_view_analytics?: boolean | null
           can_view_calls_messages?: boolean | null
           created_at?: string | null
@@ -218,11 +221,15 @@ export type Database = {
         Row: {
           address: string
           aivia_active: boolean
+          assigned_aivia_number: string | null
           business_name: string
           created_at: string | null
           id: string
           main_phone: string
+          number_notes: string | null
           owner_id: string
+          porting_instructions: string | null
+          porting_status: string | null
           secondary_phone: string | null
           staff_count: number
           status: Database["public"]["Enums"]["business_status"]
@@ -233,11 +240,15 @@ export type Database = {
         Insert: {
           address: string
           aivia_active?: boolean
+          assigned_aivia_number?: string | null
           business_name: string
           created_at?: string | null
           id?: string
           main_phone: string
+          number_notes?: string | null
           owner_id: string
+          porting_instructions?: string | null
+          porting_status?: string | null
           secondary_phone?: string | null
           staff_count?: number
           status?: Database["public"]["Enums"]["business_status"]
@@ -248,11 +259,15 @@ export type Database = {
         Update: {
           address?: string
           aivia_active?: boolean
+          assigned_aivia_number?: string | null
           business_name?: string
           created_at?: string | null
           id?: string
           main_phone?: string
+          number_notes?: string | null
           owner_id?: string
+          porting_instructions?: string | null
+          porting_status?: string | null
           secondary_phone?: string | null
           staff_count?: number
           status?: Database["public"]["Enums"]["business_status"]
