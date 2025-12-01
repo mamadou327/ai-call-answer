@@ -25,11 +25,16 @@ const OnboardingStep1 = ({ formData, updateFormData, onNext, userId }: Props) =>
     try {
       const { error } = await supabase
         .from("profiles")
-        .upsert({
-          user_id: userId,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-        });
+        .upsert(
+          {
+            user_id: userId,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+          },
+          {
+            onConflict: "user_id",
+          }
+        );
 
       if (error) throw error;
 
