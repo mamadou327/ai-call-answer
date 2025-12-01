@@ -350,6 +350,7 @@ export type Database = {
           admin_requested_at: string | null
           admin_status: string | null
           created_at: string | null
+          email: string | null
           first_name: string | null
           id: string
           last_name: string | null
@@ -361,6 +362,7 @@ export type Database = {
           admin_requested_at?: string | null
           admin_status?: string | null
           created_at?: string | null
+          email?: string | null
           first_name?: string | null
           id?: string
           last_name?: string | null
@@ -372,6 +374,7 @@ export type Database = {
           admin_requested_at?: string | null
           admin_status?: string | null
           created_at?: string | null
+          email?: string | null
           first_name?: string | null
           id?: string
           last_name?: string | null
