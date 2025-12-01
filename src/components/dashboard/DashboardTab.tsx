@@ -4,6 +4,8 @@ import { Calendar, Phone, MessageSquare, CalendarCheck, DollarSign } from "lucid
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
+import { DateRange } from "react-day-picker";
+import { DateRangePicker } from "./DateRangePicker";
 
 interface DashboardTabProps {
   businessName: string;
@@ -13,6 +15,7 @@ interface DashboardTabProps {
 export const DashboardTab = ({ businessName, currency = "GBP" }: DashboardTabProps) => {
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("week");
   const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "custom">("month");
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
 
   const getCurrencySymbol = (curr: string) => {
     const symbols: Record<string, string> = {
@@ -21,26 +24,41 @@ export const DashboardTab = ({ businessName, currency = "GBP" }: DashboardTabPro
       EUR: "€",
       CAD: "$",
       AUD: "$",
+      JPY: "¥",
+      CHF: "CHF",
+      SEK: "kr",
+      NOK: "kr",
+      DKK: "kr",
     };
     return symbols[curr] || "$";
   };
 
+  const currencySymbol = getCurrencySymbol(currency);
+
   return (
     <div className="space-y-6">
       {/* Date Range Selector */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 className="text-2xl font-bold">Analytics</h2>
-        <Select value={dateRange} onValueChange={(value: any) => setDateRange(value)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="today">Today</SelectItem>
-            <SelectItem value="week">This Week</SelectItem>
-            <SelectItem value="month">This Month</SelectItem>
-            <SelectItem value="custom">Custom Range</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2 items-center">
+          <Select value={dateRange} onValueChange={(value: any) => setDateRange(value)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="week">This Week</SelectItem>
+              <SelectItem value="month">This Month</SelectItem>
+              <SelectItem value="custom">Custom Range</SelectItem>
+            </SelectContent>
+          </Select>
+          {dateRange === "custom" && (
+            <DateRangePicker 
+              dateRange={customDateRange}
+              onDateRangeChange={setCustomDateRange}
+            />
+          )}
+        </div>
       </div>
 
       {/* Key Metrics */}
@@ -84,9 +102,9 @@ export const DashboardTab = ({ businessName, currency = "GBP" }: DashboardTabPro
             <DollarSign className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{getCurrencySymbol(currency)}0</div>
+            <div className="text-2xl font-bold">{currencySymbol}0</div>
             <p className="text-xs text-muted-foreground">
-              {dateRange === "today" ? "Today" : dateRange === "week" ? "This week" : "This month"}
+              {dateRange === "today" ? "Today" : dateRange === "week" ? "This week" : dateRange === "month" ? "This month" : "Custom range"}
             </p>
           </CardContent>
         </Card>

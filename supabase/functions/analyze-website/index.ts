@@ -22,8 +22,8 @@ serve(async (req) => {
     const websiteResponse = await fetch(websiteUrl);
     const websiteContent = await websiteResponse.text();
     
-    // Truncate content if too long (keep first 50000 chars)
-    const truncatedContent = websiteContent.substring(0, 50000);
+    // Truncate content if too long (keep first 100000 chars for more thorough analysis)
+    const truncatedContent = websiteContent.substring(0, 100000);
 
     // Analyze with AI
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -33,18 +33,18 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-pro",
         messages: [
           {
             role: "system",
-            content: "You are a business information extraction assistant. Analyze the website content and extract structured business information including staff members, services offered, opening hours, and policies. Return the information in JSON format."
+            content: "You are an expert business intelligence analyst specializing in extracting comprehensive information from business websites. Your goal is to thoroughly analyze website content and extract ALL available business information in a structured format. Be meticulous and extract every relevant detail you can find."
           },
           {
             role: "user",
-            content: `Analyze this website content and extract:\n1. Staff members (name, role)\n2. Services (name, description, approximate duration in minutes, approximate price)\n3. Opening hours (days and times)\n4. Business policies (cancellation, refund, booking rules)\n\nWebsite URL: ${websiteUrl}\n\nWebsite Content:\n${truncatedContent}\n\nReturn as JSON with this structure:\n{\n  "staff": [{"name": "...", "role": "..."}],\n  "services": [{"name": "...", "description": "...", "duration_minutes": 60, "price": 50, "category": "..."}],\n  "opening_hours": [{"day": 0-6, "open_time": "09:00", "close_time": "17:00", "is_closed": false}],\n  "policies": {"cancellation_policy": "...", "min_booking_notice_hours": 24, "min_cancellation_notice_hours": 24, "max_days_advance": 30}\n}`
+            content: `Perform a comprehensive analysis of this business website and extract ALL available information:\n\nWebsite URL: ${websiteUrl}\n\nWebsite Content:\n${truncatedContent}\n\nExtract the following information in detail:\n\n1. **Staff/Team Members**: Extract ALL staff members mentioned with:\n   - Full name\n   - Job title/role\n   - Specialties or areas of expertise\n   - Qualifications or certifications\n   - Years of experience\n   - Bio or description\n   - Contact information (email, phone) if available\n\n2. **Services**: Extract ALL services offered with:\n   - Service name\n   - Detailed description\n   - Duration in minutes (if mentioned, otherwise estimate based on service type)\n   - Price (if mentioned, otherwise note as "Contact for pricing")\n   - Category (e.g., "Haircut", "Color", "Treatment", etc.)\n   - Any special notes or requirements\n\n3. **Opening Hours**: Extract business hours for each day:\n   - day: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday\n   - open_time: "HH:MM" format (24-hour)\n   - close_time: "HH:MM" format (24-hour)\n   - is_closed: true if closed that day\n   - Special hours or holiday hours if mentioned\n\n4. **Business Policies**: Extract ALL policy information:\n   - Cancellation policy with full details\n   - Minimum booking notice (convert to hours)\n   - Minimum cancellation notice (convert to hours)\n   - Maximum days in advance for booking\n   - Refund policy\n   - Late arrival policy\n   - No-show policy\n   - Payment policies\n   - Any other terms and conditions\n\n5. **Additional Business Information**:\n   - Business address (full address)\n   - Contact phone numbers\n   - Email addresses\n   - Social media links\n   - Business description/about\n   - Specializations or unique selling points\n   - Awards or certifications\n   - Years in business\n\nReturn as JSON with this exact structure:\n{\n  "staff": [{"name": "Full Name", "role": "Job Title", "email": "email if available", "phone": "phone if available", "bio": "description", "specialties": ["specialty1", "specialty2"]}],\n  "services": [{"name": "Service Name", "description": "Detailed description", "duration_minutes": 60, "price": 50, "category": "Category Name"}],\n  "opening_hours": [{"day": 0, "open_time": "09:00", "close_time": "17:00", "is_closed": false}],\n  "policies": {"cancellation_policy": "Full policy text", "min_booking_notice_hours": 24, "min_cancellation_notice_hours": 24, "max_days_advance": 30, "refund_policy": "...", "late_policy": "...", "no_show_policy": "..."},\n  "business_info": {"address": "Full address", "phone": ["phone numbers"], "email": ["email addresses"], "description": "About the business", "specializations": ["specialization1"]}\n}\n\nBe thorough and extract EVERY piece of relevant information you can find. If information is not available, omit that field rather than guessing.`
           }
         ],
-        temperature: 0.7,
+        temperature: 0.3,
       }),
     });
 
