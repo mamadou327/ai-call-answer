@@ -23,10 +23,12 @@ const AdminRegister = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [existingEmailError, setExistingEmailError] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+    setExistingEmailError(false);
     setIsLoading(true);
 
     try {
@@ -58,7 +60,17 @@ const AdminRegister = () => {
         },
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        // Check if it's a "user already exists" error
+        if (authError.message?.toLowerCase().includes("already") || 
+            authError.message?.toLowerCase().includes("exists") ||
+            authError.status === 422) {
+          setExistingEmailError(true);
+          setIsLoading(false);
+          return;
+        }
+        throw authError;
+      }
 
       if (authData.user) {
         // Add pending_admin role
@@ -123,6 +135,25 @@ const AdminRegister = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {existingEmailError && (
+            <div className="mb-4 p-4 bg-warning/10 border border-warning/20 rounded-lg">
+              <p className="text-sm font-medium text-warning mb-2">
+                This email already has an account
+              </p>
+              <p className="text-sm text-muted-foreground mb-3">
+                An account with this email already exists. Please sign in to the admin portal instead.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/admin")}
+                className="w-full"
+              >
+                Go to Admin Login
+              </Button>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -204,7 +235,7 @@ const AdminRegister = () => {
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Submitting...
+                  Submitting request...
                 </>
               ) : (
                 "Submit Request"

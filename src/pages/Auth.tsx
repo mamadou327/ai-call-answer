@@ -21,6 +21,7 @@ const Auth = () => {
     confirmPassword: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [existingEmailError, setExistingEmailError] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -54,6 +55,7 @@ const Auth = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+    setExistingEmailError(false);
     setIsLoading(true);
 
     try {
@@ -82,7 +84,17 @@ const Auth = () => {
           },
         });
 
-        if (error) throw error;
+        if (error) {
+          // Check if it's a "user already exists" error
+          if (error.message?.toLowerCase().includes("already") || 
+              error.message?.toLowerCase().includes("exists") ||
+              error.status === 422) {
+            setExistingEmailError(true);
+            setIsLoading(false);
+            return;
+          }
+          throw error;
+        }
 
         toast({
           title: "Account created!",
@@ -112,6 +124,12 @@ const Auth = () => {
     }
   };
 
+  const switchToLogin = () => {
+    setExistingEmailError(false);
+    setIsSignUp(false);
+    setFormData({ ...formData, confirmPassword: "" });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -130,6 +148,25 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {existingEmailError && (
+            <div className="mb-4 p-4 bg-warning/10 border border-warning/20 rounded-lg">
+              <p className="text-sm font-medium text-warning mb-2">
+                This email already has an account
+              </p>
+              <p className="text-sm text-muted-foreground mb-3">
+                It looks like you've already registered with this email. Please sign in instead.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={switchToLogin}
+                className="w-full"
+              >
+                Switch to Sign In
+              </Button>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -183,7 +220,7 @@ const Auth = () => {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Please wait
+                  {isSignUp ? "Creating account..." : "Signing in..."}
                 </>
               ) : isSignUp ? (
                 "Create Account"
@@ -197,7 +234,12 @@ const Auth = () => {
               <>
                 Already have an account?{" "}
                 <button
-                  onClick={() => setIsSignUp(false)}
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(false);
+                    setExistingEmailError(false);
+                    setFormData({ ...formData, confirmPassword: "" });
+                  }}
                   className="text-primary hover:underline font-medium"
                 >
                   Sign in
@@ -207,7 +249,11 @@ const Auth = () => {
               <>
                 Don't have an account?{" "}
                 <button
-                  onClick={() => setIsSignUp(true)}
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(true);
+                    setExistingEmailError(false);
+                  }}
                   className="text-primary hover:underline font-medium"
                 >
                   Sign up
