@@ -160,10 +160,13 @@ export type Database = {
       }
       business_settings: {
         Row: {
+          app_language: string | null
           assistant_name: string | null
           business_id: string
           cancellation_policy: string | null
+          country: string | null
           created_at: string | null
+          currency: string | null
           id: string
           max_days_advance: number | null
           min_booking_notice_hours: number | null
@@ -176,10 +179,13 @@ export type Database = {
           voice_speed: Database["public"]["Enums"]["voice_speed"] | null
         }
         Insert: {
+          app_language?: string | null
           assistant_name?: string | null
           business_id: string
           cancellation_policy?: string | null
+          country?: string | null
           created_at?: string | null
+          currency?: string | null
           id?: string
           max_days_advance?: number | null
           min_booking_notice_hours?: number | null
@@ -192,10 +198,13 @@ export type Database = {
           voice_speed?: Database["public"]["Enums"]["voice_speed"] | null
         }
         Update: {
+          app_language?: string | null
           assistant_name?: string | null
           business_id?: string
           cancellation_policy?: string | null
+          country?: string | null
           created_at?: string | null
+          currency?: string | null
           id?: string
           max_days_advance?: number | null
           min_booking_notice_hours?: number | null
@@ -449,8 +458,10 @@ export type Database = {
         Row: {
           business_id: string
           created_at: string | null
+          email: string | null
           id: string
           name: string
+          phone: string | null
           role: string
           updated_at: string | null
           working_hours: Json | null
@@ -458,8 +469,10 @@ export type Database = {
         Insert: {
           business_id: string
           created_at?: string | null
+          email?: string | null
           id?: string
           name: string
+          phone?: string | null
           role: string
           updated_at?: string | null
           working_hours?: Json | null
@@ -467,8 +480,10 @@ export type Database = {
         Update: {
           business_id?: string
           created_at?: string | null
+          email?: string | null
           id?: string
           name?: string
+          phone?: string | null
           role?: string
           updated_at?: string | null
           working_hours?: Json | null
@@ -479,6 +494,42 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_services: {
+        Row: {
+          created_at: string | null
+          id: string
+          service_id: string
+          staff_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          service_id: string
+          staff_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          service_id?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_services_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]

@@ -6,6 +6,8 @@ import { OpeningHoursForm } from "./settings/OpeningHoursForm";
 import { PhoneNumberSection } from "./settings/PhoneNumberSection";
 import { PoliciesForm } from "./settings/PoliciesForm";
 import { AssistantSettings } from "./settings/AssistantSettings";
+import { LocalizationSettings } from "./settings/LocalizationSettings";
+import { WebsiteAnalysis } from "./settings/WebsiteAnalysis";
 
 interface SettingsTabProps {
   businessId: string;
@@ -15,9 +17,15 @@ interface SettingsTabProps {
 }
 
 export const SettingsTab = ({ businessId, business, activeSection, onUpdate }: SettingsTabProps) => {
+  const handleWebsiteAnalysis = (analysis: any) => {
+    // Analysis data is ready - user can review in each section
+    // The data will be shown with missing fields highlighted in red
+    console.log("Website analysis completed:", analysis);
+  };
+
   return (
     <Tabs defaultValue={activeSection || "business"} className="space-y-6">
-      <TabsList className="grid w-full grid-cols-7 lg:w-auto">
+      <TabsList className="grid w-full grid-cols-9 lg:w-auto">
         <TabsTrigger value="business">Business</TabsTrigger>
         <TabsTrigger value="services">Services</TabsTrigger>
         <TabsTrigger value="staff">Staff</TabsTrigger>
@@ -25,6 +33,8 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate }: S
         <TabsTrigger value="phone">Phone</TabsTrigger>
         <TabsTrigger value="policies">Policies</TabsTrigger>
         <TabsTrigger value="assistant">Assistant</TabsTrigger>
+        <TabsTrigger value="localization">Location</TabsTrigger>
+        <TabsTrigger value="ai">AI Analysis</TabsTrigger>
       </TabsList>
 
       <TabsContent value="business">
@@ -53,6 +63,18 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate }: S
 
       <TabsContent value="assistant">
         <AssistantSettings businessId={businessId} onUpdate={onUpdate} />
+      </TabsContent>
+
+      <TabsContent value="localization">
+        <LocalizationSettings businessId={businessId} onUpdate={onUpdate} />
+      </TabsContent>
+
+      <TabsContent value="ai">
+        <WebsiteAnalysis 
+          businessId={businessId} 
+          currentWebsite={business.website || ""}
+          onAnalysisComplete={handleWebsiteAnalysis}
+        />
       </TabsContent>
     </Tabs>
   );

@@ -2,17 +2,47 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Phone, MessageSquare, CalendarCheck, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 
 interface DashboardTabProps {
   businessName: string;
+  currency?: string;
 }
 
-export const DashboardTab = ({ businessName }: DashboardTabProps) => {
+export const DashboardTab = ({ businessName, currency = "GBP" }: DashboardTabProps) => {
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("week");
+  const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "custom">("month");
+
+  const getCurrencySymbol = (curr: string) => {
+    const symbols: Record<string, string> = {
+      GBP: "£",
+      USD: "$",
+      EUR: "€",
+      CAD: "$",
+      AUD: "$",
+    };
+    return symbols[curr] || "$";
+  };
 
   return (
     <div className="space-y-6">
+      {/* Date Range Selector */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Analytics</h2>
+        <Select value={dateRange} onValueChange={(value: any) => setDateRange(value)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="today">Today</SelectItem>
+            <SelectItem value="week">This Week</SelectItem>
+            <SelectItem value="month">This Month</SelectItem>
+            <SelectItem value="custom">Custom Range</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -54,8 +84,10 @@ export const DashboardTab = ({ businessName }: DashboardTabProps) => {
             <DollarSign className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$0</div>
-            <p className="text-xs text-muted-foreground">This month</p>
+            <div className="text-2xl font-bold">{getCurrencySymbol(currency)}0</div>
+            <p className="text-xs text-muted-foreground">
+              {dateRange === "today" ? "Today" : dateRange === "week" ? "This week" : "This month"}
+            </p>
           </CardContent>
         </Card>
       </div>

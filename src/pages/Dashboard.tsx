@@ -80,11 +80,12 @@ const Dashboard = () => {
   };
 
   const loadSetupChecklist = async (biz: Business) => {
-    const [servicesRes, staffRes, hoursRes, settingsRes] = await Promise.all([
+    const [servicesRes, staffRes, hoursRes, settingsRes, currencyRes] = await Promise.all([
       supabase.from("services").select("id").eq("business_id", biz.id),
       supabase.from("staff").select("id").eq("business_id", biz.id),
       supabase.from("opening_hours").select("id").eq("business_id", biz.id),
       supabase.from("business_settings").select("*").eq("business_id", biz.id).single(),
+      supabase.from("business_settings").select("currency").eq("business_id", biz.id).single(),
     ]);
 
     const items: ChecklistItem[] = [
@@ -174,9 +175,34 @@ const Dashboard = () => {
             </div>
             <span className="font-bold text-xl">Aivia</span>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleSignOut}>
-            <LogOut className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-4">
+            {business && (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-lg border">
+                <span className="text-sm font-medium">AIV</span>
+                <Button
+                  variant={business.aivia_active ? "default" : "outline"}
+                  size="sm"
+                  onClick={async () => {
+                    const newStatus = !business.aivia_active;
+                    await supabase
+                      .from("businesses")
+                      .update({ aivia_active: newStatus })
+                      .eq("id", business.id);
+                    setBusiness({ ...business, aivia_active: newStatus });
+                    toast({
+                      title: newStatus ? "AIV Activated" : "AIV Deactivated",
+                      description: newStatus ? "AI assistant is now active" : "AI assistant is now inactive",
+                    });
+                  }}
+                >
+                  {business.aivia_active ? "ON" : "OFF"}
+                </Button>
+              </div>
+            )}
+            <Button variant="ghost" size="icon" onClick={handleSignOut}>
+              <LogOut className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -235,7 +261,7 @@ const Dashboard = () => {
               </TabsContent>
 
               <TabsContent value="bookings">
-                <BookingsTab />
+                <BookingsTab businessId={business.id} />
               </TabsContent>
 
               <TabsContent value="settings">
