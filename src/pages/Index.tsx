@@ -24,7 +24,7 @@ const Index = () => {
       <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <img src={aiviaLogo} alt="Aivia" className="h-8 w-auto" />
+            <img src={aiviaLogo} alt="Aivia" className="h-12 w-auto" />
             <span className="text-xl font-bold text-foreground">Aivia</span>
           </div>
           <div className="flex items-center gap-4">
@@ -38,9 +38,6 @@ const Index = () => {
 
       {/* Hero */}
       <section className="container mx-auto px-4 py-20 text-center">
-        <div className="inline-block rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary mb-6">
-          Trusted by salons & barbershops nationwide
-        </div>
         <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
           Your 24/7 AI Receptionist
         </h1>
