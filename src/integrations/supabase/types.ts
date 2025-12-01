@@ -694,7 +694,7 @@ export type Database = {
         | "sub_admin"
         | "pending_admin"
       booking_status: "pending" | "confirmed" | "cancelled"
-      business_status: "pending" | "approved" | "rejected"
+      business_status: "pending" | "approved" | "rejected" | "revoked"
       call_type:
         | "new_booking"
         | "reschedule"
@@ -842,7 +842,7 @@ export const Constants = {
         "pending_admin",
       ],
       booking_status: ["pending", "confirmed", "cancelled"],
-      business_status: ["pending", "approved", "rejected"],
+      business_status: ["pending", "approved", "rejected", "revoked"],
       call_type: [
         "new_booking",
         "reschedule",

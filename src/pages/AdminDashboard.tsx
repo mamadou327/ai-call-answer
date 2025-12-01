@@ -325,7 +325,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleAction = async (businessId: string, newStatus: "approved" | "rejected") => {
+  const handleAction = async (businessId: string, newStatus: "approved" | "rejected" | "revoked") => {
     setActionLoading(businessId);
     try {
       const updateData: any = { status: newStatus };
@@ -381,6 +381,8 @@ const AdminDashboard = () => {
         return <Badge variant="secondary" className="bg-success/10 text-success"><CheckCircle2 className="w-3 h-3 mr-1" />Approved</Badge>;
       case "rejected":
         return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
+      case "revoked":
+        return <Badge variant="destructive" className="bg-destructive/10 text-destructive"><XCircle className="w-3 h-3 mr-1" />Revoked</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -706,8 +708,8 @@ const AdminDashboard = () => {
                 </>
               )}
 
-              {selectedBusiness.status === "approved" && (
-                <div className="border-t pt-4 space-y-3">
+              {selectedBusiness.status === "approved" && userPermissions.can_approve_businesses && (
+                <div className="border-t pt-4 space-y-4">
                   <h3 className="font-semibold text-sm">Assigned Details</h3>
                   {selectedBusiness.assigned_aivia_number && (
                     <div>
@@ -731,6 +733,25 @@ const AdminDashboard = () => {
                       )}
                     </div>
                   )}
+                  
+                  <div className="pt-2">
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleAction(selectedBusiness.id, "revoked")}
+                      disabled={!!actionLoading}
+                      className="w-full"
+                    >
+                      {actionLoading === selectedBusiness.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      ) : (
+                        <XCircle className="w-4 h-4 mr-2" />
+                      )}
+                      Revoke Business Access
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-2 text-center">
+                      This will immediately block the business owner from accessing their dashboard and all business data.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
