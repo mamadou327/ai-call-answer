@@ -55,11 +55,31 @@ const AdminLogin = () => {
       const isSuperAdmin = roles?.some(r => r.role === "super_admin");
       const isSubAdmin = roles?.some(r => r.role === "sub_admin");
       const isPendingAdmin = roles?.some(r => r.role === "pending_admin");
+      const isBusinessOwner = roles?.some(r => r.role === "business_owner");
 
       if (isSuperAdmin || isSubAdmin) {
-        navigate("/admin");
+        // Check if they have active admin status
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("admin_status")
+          .eq("user_id", data.user.id)
+          .single();
+
+        if (profile?.admin_status === "active") {
+          navigate("/admin");
+        } else {
+          await supabase.auth.signOut();
+          toast({
+            title: "Access Denied",
+            description: "Your admin access is not active.",
+            variant: "destructive",
+          });
+        }
       } else if (isPendingAdmin) {
         navigate("/admin/pending");
+      } else if (isBusinessOwner) {
+        // Redirect business owners to their dashboard
+        navigate("/dashboard");
       } else {
         await supabase.auth.signOut();
         toast({
