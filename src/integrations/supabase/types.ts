@@ -55,6 +55,8 @@ export type Database = {
           booking_code: string | null
           business_id: string
           created_at: string | null
+          created_by: string | null
+          created_by_user_id: string | null
           customer_name: string
           customer_phone: string
           end_time: string
@@ -71,6 +73,8 @@ export type Database = {
           booking_code?: string | null
           business_id: string
           created_at?: string | null
+          created_by?: string | null
+          created_by_user_id?: string | null
           customer_name: string
           customer_phone: string
           end_time: string
@@ -87,6 +91,8 @@ export type Database = {
           booking_code?: string | null
           business_id?: string
           created_at?: string | null
+          created_by?: string | null
+          created_by_user_id?: string | null
           customer_name?: string
           customer_phone?: string
           end_time?: string

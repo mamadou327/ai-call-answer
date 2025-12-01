@@ -255,7 +255,8 @@ const Dashboard = () => {
                 {business && settings && (
                   <DashboardTab 
                     businessName={business.business_name} 
-                    currency={settings.currency || "GBP"} 
+                    currency={settings.currency || "GBP"}
+                    businessId={business.id}
                   />
                 )}
               </TabsContent>

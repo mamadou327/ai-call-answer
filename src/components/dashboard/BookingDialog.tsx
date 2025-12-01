@@ -61,6 +61,8 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
       const startTime = new Date(formData.start_time);
       const endTime = new Date(startTime.getTime() + formData.duration * 60000);
 
+      const { data: { user } } = await supabase.auth.getUser();
+
       const { error } = await supabase
         .from("bookings")
         .insert([{
@@ -73,6 +75,8 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
           end_time: endTime.toISOString(),
           notes: formData.notes,
           status: "confirmed",
+          created_by: "Business Owner",
+          created_by_user_id: user?.id || null,
         }]);
 
       if (error) throw error;
