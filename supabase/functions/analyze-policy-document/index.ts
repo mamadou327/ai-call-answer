@@ -37,7 +37,6 @@ serve(async (req) => {
             content: `Analyze this policy document in detail and extract ALL relevant information:\n\n${documentText}\n\nExtract the following information and return as JSON:\n{\n  "cancellation_policy": "Complete cancellation policy text with all details about when customers can cancel, how to cancel, what happens if they cancel at different times, any fees or penalties, and refund terms",\n  "min_booking_notice_hours": number (minimum hours in advance customers must book),\n  "min_cancellation_notice_hours": number (minimum hours before appointment customers can cancel without penalty),\n  "max_days_advance": number (maximum days in advance customers can book),\n  "refund_policy": "Full refund policy including timelines and conditions",\n  "no_show_policy": "Policy for customers who don't show up for appointments",\n  "rescheduling_policy": "Rules for rescheduling appointments",\n  "deposit_policy": "Information about deposits or advance payments if applicable",\n  "late_arrival_policy": "Policy for customers arriving late",\n  "payment_terms": "When and how payment is expected",\n  "special_terms": "Any other important terms and conditions"\n}\n\nBe thorough and extract every policy detail mentioned in the document. If a field is not mentioned in the document, omit it from the JSON.`
           }
         ],
-        temperature: 0.3,
       }),
     });
 
