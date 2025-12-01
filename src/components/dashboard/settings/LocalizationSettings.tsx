@@ -5,14 +5,23 @@ import { Label } from "@/components/ui/label";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 interface LocalizationSettingsProps {
   businessId: string;
   onUpdate: () => void;
 }
 
+const languageMap: Record<string, string> = {
+  "English": "en",
+  "Spanish": "es",
+  "French": "fr",
+  "German": "de"
+};
+
 export const LocalizationSettings = ({ businessId, onUpdate }: LocalizationSettingsProps) => {
   const { toast } = useToast();
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     country: "United Kingdom",
@@ -37,6 +46,10 @@ export const LocalizationSettings = ({ businessId, onUpdate }: LocalizationSetti
         currency: data.currency || "GBP",
         app_language: data.app_language || "English",
       });
+      
+      // Set i18n language based on saved preference
+      const langCode = languageMap[data.app_language] || "en";
+      i18n.changeLanguage(langCode);
     }
   };
 
@@ -60,9 +73,13 @@ export const LocalizationSettings = ({ businessId, onUpdate }: LocalizationSetti
         variant: "destructive",
       });
     } else {
+      // Update i18n language
+      const langCode = languageMap[formData.app_language] || "en";
+      i18n.changeLanguage(langCode);
+      
       toast({
-        title: "Success",
-        description: "Localization settings updated successfully.",
+        title: t("localization.success"),
+        description: t("localization.success"),
       });
       onUpdate();
     }
@@ -73,13 +90,13 @@ export const LocalizationSettings = ({ businessId, onUpdate }: LocalizationSetti
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Localization</CardTitle>
-        <CardDescription>Configure your regional settings</CardDescription>
+        <CardTitle>{t("localization.title")}</CardTitle>
+        <CardDescription>{t("localization.countryHelp")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="country">Country *</Label>
+            <Label htmlFor="country">{t("localization.country")} *</Label>
             <Select
               value={formData.country}
               onValueChange={(value) => setFormData({ ...formData, country: value })}
@@ -100,7 +117,7 @@ export const LocalizationSettings = ({ businessId, onUpdate }: LocalizationSetti
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="currency">Currency *</Label>
+            <Label htmlFor="currency">{t("localization.currency")} *</Label>
             <Select
               value={formData.currency}
               onValueChange={(value) => setFormData({ ...formData, currency: value })}
@@ -119,7 +136,7 @@ export const LocalizationSettings = ({ businessId, onUpdate }: LocalizationSetti
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="app_language">App Language *</Label>
+            <Label htmlFor="app_language">{t("localization.language")} *</Label>
             <Select
               value={formData.app_language}
               onValueChange={(value) => setFormData({ ...formData, app_language: value })}
@@ -129,15 +146,16 @@ export const LocalizationSettings = ({ businessId, onUpdate }: LocalizationSetti
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="English">English</SelectItem>
-                <SelectItem value="Spanish">Spanish</SelectItem>
-                <SelectItem value="French">French</SelectItem>
-                <SelectItem value="German">German</SelectItem>
+                <SelectItem value="Spanish">Español (Spanish)</SelectItem>
+                <SelectItem value="French">Français (French)</SelectItem>
+                <SelectItem value="German">Deutsch (German)</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">{t("localization.languageHelp")}</p>
           </div>
 
           <Button type="submit" disabled={loading}>
-            {loading ? "Saving..." : "Save Settings"}
+            {loading ? t("localization.saving") : t("localization.saveChanges")}
           </Button>
         </form>
       </CardContent>
