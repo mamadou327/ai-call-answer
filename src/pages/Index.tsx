@@ -25,7 +25,7 @@ const Index = () => {
         <div className="container mx-auto flex h-20 items-center justify-between px-4">
           <div className="flex items-center gap-2">
             <img src={aiviaLogo} alt="Aivia" className="h-14 w-auto" />
-            <span className="text-2xl font-bold text-foreground">Aivia</span>
+            <span className="text-2xl font-bold text-foreground">AIVIA</span>
           </div>
           <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={() => navigate("/auth")}>
@@ -42,7 +42,7 @@ const Index = () => {
           Your 24/7 AI Receptionist
         </h1>
         <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-          Never miss a booking again. Aivia handles calls, schedules appointments, and manages your salon or barbershop — around the clock.
+          Never miss a booking again. AIVIA handles calls, schedules appointments, and manages your salon or barbershop — around the clock.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Button size="lg" onClick={() => navigate("/auth")} className="text-lg px-8">
@@ -92,7 +92,7 @@ const Index = () => {
       {/* Benefits */}
       <section className="container mx-auto px-4 py-16">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">Why service businesses love Aivia</h2>
+          <h2 className="text-3xl font-bold text-center mb-12">Why service businesses love AIVIA</h2>
           <div className="space-y-6">
             <div className="flex items-start gap-4">
               <CheckCircle2 className="w-6 h-6 text-success shrink-0 mt-1" />
@@ -133,7 +133,7 @@ const Index = () => {
             Ready to transform your business?
           </h2>
           <p className="text-white/90 mb-8 text-lg max-w-2xl mx-auto">
-            Join hundreds of salons and barbershops using Aivia to grow their business
+            Join hundreds of salons and barbershops using AIVIA to grow their business
           </p>
           <Button size="lg" variant="secondary" onClick={() => navigate("/auth")} className="text-lg px-8">
             Get Started Now
@@ -144,7 +144,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4 text-center text-muted-foreground">
-          <p>© 2024 Aivia. All rights reserved.</p>
+          <p>© 2024 AIVIA. All rights reserved.</p>
         </div>
       </footer>
     </div>
