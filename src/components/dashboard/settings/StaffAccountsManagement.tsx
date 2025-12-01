@@ -160,6 +160,35 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
     }
   };
 
+  const handleRevoke = async (accountId: string) => {
+    if (!confirm("Are you sure you want to revoke this staff member's access? They will no longer be able to log in.")) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("staff_accounts")
+        .update({ status: "revoked" })
+        .eq("id", accountId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Access Revoked",
+        description: "Staff member's access has been removed.",
+      });
+
+      loadAccounts();
+      onUpdate();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const availableStaff = staff.filter(
     (s) => !accounts.some((a) => a.staff_id === s.id)
   );
@@ -223,10 +252,23 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
                     </>
                   )}
                   {account.status === "active" && (
-                    <Badge className="bg-green-600">Active</Badge>
+                    <>
+                      <Badge className="bg-green-600">Active</Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleRevoke(account.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        Revoke
+                      </Button>
+                    </>
                   )}
                   {account.status === "rejected" && (
                     <Badge variant="destructive">Rejected</Badge>
+                  )}
+                  {account.status === "revoked" && (
+                    <Badge variant="secondary" className="bg-gray-500">Revoked</Badge>
                   )}
                 </div>
               </div>
