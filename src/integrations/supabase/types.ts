@@ -228,6 +228,7 @@ export type Database = {
           main_phone: string
           number_notes: string | null
           owner_id: string
+          plan_tier: string | null
           porting_instructions: string | null
           porting_status: string | null
           secondary_phone: string | null
@@ -247,6 +248,7 @@ export type Database = {
           main_phone: string
           number_notes?: string | null
           owner_id: string
+          plan_tier?: string | null
           porting_instructions?: string | null
           porting_status?: string | null
           secondary_phone?: string | null
@@ -266,6 +268,7 @@ export type Database = {
           main_phone?: string
           number_notes?: string | null
           owner_id?: string
+          plan_tier?: string | null
           porting_instructions?: string | null
           porting_status?: string | null
           secondary_phone?: string | null
