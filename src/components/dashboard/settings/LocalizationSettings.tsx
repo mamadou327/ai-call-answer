@@ -47,9 +47,10 @@ export const LocalizationSettings = ({ businessId, onUpdate }: LocalizationSetti
         app_language: data.app_language || "English",
       });
       
-      // Set i18n language based on saved preference
+  // Set i18n language based on saved preference
       const langCode = languageMap[data.app_language] || "en";
       i18n.changeLanguage(langCode);
+      localStorage.setItem('i18nextLng', langCode);
     }
   };
 
@@ -76,6 +77,7 @@ export const LocalizationSettings = ({ businessId, onUpdate }: LocalizationSetti
       // Update i18n language
       const langCode = languageMap[formData.app_language] || "en";
       i18n.changeLanguage(langCode);
+      localStorage.setItem('i18nextLng', langCode);
       
       toast({
         title: t("localization.success"),

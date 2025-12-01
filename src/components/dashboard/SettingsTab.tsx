@@ -16,9 +16,10 @@ interface SettingsTabProps {
   business: any;
   activeSection?: string;
   onUpdate: () => void;
+  currency?: string;
 }
 
-export const SettingsTab = ({ businessId, business, activeSection, onUpdate }: SettingsTabProps) => {
+export const SettingsTab = ({ businessId, business, activeSection, onUpdate, currency = "GBP" }: SettingsTabProps) => {
   const handleWebsiteAnalysis = (analysis: any) => {
     // Analysis data is ready - user can review in each section
     // The data will be shown with missing fields highlighted in red
@@ -46,7 +47,7 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate }: S
       </TabsContent>
 
       <TabsContent value="services">
-        <ServicesManagement businessId={businessId} onUpdate={onUpdate} />
+        <ServicesManagement businessId={businessId} onUpdate={onUpdate} currency={currency} />
       </TabsContent>
 
       <TabsContent value="staff">
