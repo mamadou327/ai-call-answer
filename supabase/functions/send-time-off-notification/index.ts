@@ -1,8 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -19,14 +17,35 @@ interface TimeOffNotification {
 }
 
 const handler = async (req: Request): Promise<Response> => {
+  console.log("=== TIME OFF NOTIFICATION EMAIL FUNCTION STARTED ===");
+  
   if (req.method === "OPTIONS") {
+    console.log("Handling CORS preflight");
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { staffName, staffEmail, businessName, startTime, endTime, reason, notes }: TimeOffNotification = await req.json();
+    // Check environment variables
+    const apiKey = Deno.env.get("RESEND_API_KEY");
+    const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "noreply@aiviaapp.co.uk";
+    
+    console.log("Environment check:");
+    console.log("- RESEND_API_KEY exists:", !!apiKey);
+    console.log("- RESEND_FROM_EMAIL:", fromEmail);
+    
+    if (!apiKey) {
+      console.error("❌ RESEND_API_KEY is not set");
+      return new Response(
+        JSON.stringify({ error: "RESEND_API_KEY is not configured" }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
 
-    console.log("Sending time-off notification to:", staffEmail);
+    const { staffName, staffEmail, businessName, startTime, endTime, reason, notes }: TimeOffNotification = await req.json();
+    console.log("Time-off notification details:", { staffName, staffEmail, businessName, reason });
 
     const formattedStart = new Date(startTime).toLocaleDateString("en-US", {
       weekday: "long",
@@ -74,10 +93,13 @@ const handler = async (req: Request): Promise<Response> => {
       `,
     };
 
+    console.log("Initializing Resend client...");
+    const resend = new Resend(apiKey);
+    
     console.log("Sending email via Resend...");
+    console.log("- From:", fromEmail);
+    console.log("- To:", staffEmail);
 
-    // Send email using Resend with verified domain
-    const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "noreply@aiviaapp.co.uk";
     const emailResponse = await resend.emails.send({
       from: fromEmail,
       to: staffEmail,
@@ -85,7 +107,8 @@ const handler = async (req: Request): Promise<Response> => {
       html: emailContent.html,
     });
 
-    console.log("Email sent successfully:", emailResponse);
+    console.log("✅ Email sent successfully");
+    console.log("Email ID:", emailResponse.data?.id);
 
     return new Response(
       JSON.stringify({ 
@@ -98,9 +121,15 @@ const handler = async (req: Request): Promise<Response> => {
       }
     );
   } catch (error: any) {
-    console.error("Error in send-time-off-notification:", error);
+    console.error("❌ ERROR in send-time-off-notification:");
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message || "Failed to send time-off notification",
+        details: error.stack
+      }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
