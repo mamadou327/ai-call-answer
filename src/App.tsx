@@ -12,6 +12,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AdminLogin from "./pages/AdminLogin";
 import AdminRegister from "./pages/AdminRegister";
 import AdminPending from "./pages/AdminPending";
+import FontDemo from "./pages/FontDemo";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/pending-approval" element={<PendingApproval />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/fonts" element={<FontDemo />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/register" element={<AdminRegister />} />
