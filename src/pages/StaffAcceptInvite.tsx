@@ -40,11 +40,14 @@ const StaffAcceptInvite = () => {
 
   const validateInvite = async () => {
     if (!token) {
+      console.error("No invite token provided in URL");
       setIsLoading(false);
       return;
     }
 
     try {
+      console.log("Validating invite token:", token);
+      
       const { data, error } = await supabase
         .from("staff_invites")
         .select("*, businesses(business_name)")
@@ -52,15 +55,20 @@ const StaffAcceptInvite = () => {
         .eq("status", "pending")
         .single();
 
-      if (error || !data) {
+      if (error) {
+        console.error("Error fetching staff invite:", error);
+        setInviteValid(false);
+      } else if (!data) {
+        console.error("No staff invite found for token");
         setInviteValid(false);
       } else {
+        console.log("Valid invite found:", data);
         setInviteValid(true);
         setInviteData(data);
         setFormData(prev => ({ ...prev, email: data.email }));
       }
     } catch (error) {
-      console.error("Error validating invite:", error);
+      console.error("Exception validating invite:", error);
       setInviteValid(false);
     } finally {
       setIsLoading(false);
