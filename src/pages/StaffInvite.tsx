@@ -262,7 +262,7 @@ const StaffInvite = () => {
               The business owner must approve your access before you can log in. 
               You'll receive an email once your account is approved.
             </p>
-            <Button onClick={() => navigate("/auth")} variant="outline" className="w-full">
+            <Button onClick={() => navigate("/auth?mode=signin")} variant="outline" className="w-full">
               Go to Login
             </Button>
           </CardContent>
@@ -317,7 +317,7 @@ const StaffInvite = () => {
                 Already have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => navigate("/auth")}
+                  onClick={() => navigate("/auth?mode=signin")}
                   className="text-primary hover:underline font-medium"
                 >
                   Sign in
