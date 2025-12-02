@@ -621,8 +621,13 @@ export type Database = {
         Row: {
           approved_at: string | null
           business_id: string
+          chair: string | null
           created_at: string | null
+          first_name: string | null
           id: string
+          last_name: string | null
+          phone: string | null
+          position: string | null
           revoked_at: string | null
           role: string
           status: string
@@ -631,8 +636,13 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           business_id: string
+          chair?: string | null
           created_at?: string | null
+          first_name?: string | null
           id?: string
+          last_name?: string | null
+          phone?: string | null
+          position?: string | null
           revoked_at?: string | null
           role?: string
           status?: string
@@ -641,8 +651,13 @@ export type Database = {
         Update: {
           approved_at?: string | null
           business_id?: string
+          chair?: string | null
           created_at?: string | null
+          first_name?: string | null
           id?: string
+          last_name?: string | null
+          phone?: string | null
+          position?: string | null
           revoked_at?: string | null
           role?: string
           status?: string
