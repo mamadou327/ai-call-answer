@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Plus, Clock } from "lucide-react";
+import { Calendar, Plus, Clock, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookingDialog } from "./BookingDialog";
@@ -21,9 +21,14 @@ interface Booking {
   end_time: string;
   status: string;
   created_by: string;
+  created_by_user_id: string | null;
+  last_modified_by_user_id: string | null;
+  cancelled_by_user_id: string | null;
+  cancelled_at: string | null;
   notes: string | null;
   service?: { name: string };
   staff?: { name: string };
+  creator_name?: string;
 }
 
 export const BookingsTab = ({ businessId }: BookingsTabProps) => {
@@ -71,7 +76,38 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
       .eq("business_id", businessId)
       .order("start_time", { ascending: false });
 
-    if (data) setBookings(data);
+    if (data) {
+      // Get creator names from profiles
+      const userIds = data
+        .map(b => b.created_by_user_id)
+        .filter((id): id is string => id !== null);
+      
+      const uniqueUserIds = [...new Set(userIds)];
+      
+      let profileMap = new Map<string, string>();
+      if (uniqueUserIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, first_name, last_name, email")
+          .in("user_id", uniqueUserIds);
+        
+        profiles?.forEach(p => {
+          const name = p.first_name && p.last_name 
+            ? `${p.first_name} ${p.last_name}`
+            : p.email || "Unknown";
+          profileMap.set(p.user_id, name);
+        });
+      }
+
+      const enrichedData = data.map(booking => ({
+        ...booking,
+        creator_name: booking.created_by_user_id 
+          ? profileMap.get(booking.created_by_user_id) || booking.created_by 
+          : booking.created_by,
+      }));
+      
+      setBookings(enrichedData);
+    }
     setLoading(false);
   };
 
@@ -124,8 +160,9 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {booking.created_by}
+                    <Badge variant="outline" className="text-xs flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      {booking.creator_name || booking.created_by}
                     </Badge>
                     <Badge
                       variant={

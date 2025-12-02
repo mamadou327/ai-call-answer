@@ -63,6 +63,35 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
 
       const { data: { user } } = await supabase.auth.getUser();
 
+      // Get user profile for display name
+      let creatorName = "System";
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("first_name, last_name, email")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        
+        if (profile) {
+          creatorName = profile.first_name && profile.last_name 
+            ? `${profile.first_name} ${profile.last_name}`
+            : profile.email || "Staff";
+        }
+
+        // Check if user is staff or owner
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id);
+        
+        const isStaff = roles?.some(r => r.role === "staff");
+        if (isStaff) {
+          creatorName = creatorName || "Staff Member";
+        } else {
+          creatorName = creatorName || "Business Owner";
+        }
+      }
+
       const { error } = await supabase
         .from("bookings")
         .insert([{
@@ -75,7 +104,7 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
           end_time: endTime.toISOString(),
           notes: formData.notes,
           status: "confirmed",
-          created_by: "Business Owner",
+          created_by: creatorName,
           created_by_user_id: user?.id || null,
         }]);
 

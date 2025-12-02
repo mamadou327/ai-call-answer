@@ -8,7 +8,8 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Onboarding from "./pages/Onboarding";
 import PendingApproval from "./pages/PendingApproval";
-import StaffAcceptInvite from "./pages/StaffAcceptInvite";
+import StaffInvite from "./pages/StaffInvite";
+import StaffPendingApproval from "./pages/StaffPendingApproval";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminLogin from "./pages/AdminLogin";
 import AdminRegister from "./pages/AdminRegister";
@@ -30,7 +31,8 @@ const App = () => (
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/pending-approval" element={<PendingApproval />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/staff/accept-invite" element={<StaffAcceptInvite />} />
+          <Route path="/staff/invite" element={<StaffInvite />} />
+          <Route path="/staff/pending" element={<StaffPendingApproval />} />
           <Route path="/fonts" element={<FontDemo />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/login" element={<AdminLogin />} />
