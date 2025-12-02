@@ -132,7 +132,6 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
               staffEmail: formData.email,
               businessName: businessData.business_name,
               businessId: businessId,
-              appUrl: window.location.origin,
             },
           });
 
