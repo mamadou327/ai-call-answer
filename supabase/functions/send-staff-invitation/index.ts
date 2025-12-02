@@ -13,6 +13,7 @@ interface StaffInvitationRequest {
   businessId: string;
   businessName: string;
   staffName: string;
+  appUrl: string;
 }
 
 // Generate a secure random token
@@ -53,8 +54,8 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Supabase configuration missing");
     }
 
-    const { staffEmail, businessId, businessName, staffName }: StaffInvitationRequest = await req.json();
-    console.log("Request data:", { staffEmail, businessId, businessName, staffName });
+    const { staffEmail, businessId, businessName, staffName, appUrl }: StaffInvitationRequest = await req.json();
+    console.log("Request data:", { staffEmail, businessId, businessName, staffName, appUrl });
 
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -82,8 +83,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Staff invite created:", inviteData);
 
-    // Construct the invite link - use the correct app URL
-    const appUrl = 'https://d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com';
+    // Construct the invite link using the provided app URL
     const inviteLink = `${appUrl}/staff/accept-invite?token=${inviteToken}`;
     
     console.log("Invite link created:", inviteLink);
