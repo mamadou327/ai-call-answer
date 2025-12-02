@@ -13,7 +13,6 @@ interface StaffInvitationRequest {
   businessId: string;
   businessName: string;
   staffName: string;
-  appUrl: string;
 }
 
 // Generate a secure random token
@@ -54,8 +53,8 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Supabase configuration missing");
     }
 
-    const { staffEmail, businessId, businessName, staffName, appUrl }: StaffInvitationRequest = await req.json();
-    console.log("Request data:", { staffEmail, businessId, businessName, staffName, appUrl });
+    const { staffEmail, businessId, businessName, staffName }: StaffInvitationRequest = await req.json();
+    console.log("Request data:", { staffEmail, businessId, businessName, staffName });
 
     // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -83,8 +82,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Staff invite created:", inviteData);
 
-    // Construct the invite link using the provided app URL
-    const inviteLink = `${appUrl}/staff/accept-invite?token=${inviteToken}`;
+    // Use custom domain for invite link
+    const inviteLink = 'https://aiviaapp.co.uk/staff/accept-invite';
     
     console.log("Invite link created:", inviteLink);
 
@@ -103,6 +102,7 @@ const handler = async (req: Request): Promise<Response> => {
         <p><a href="${inviteLink}" style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">Accept Invitation</a></p>
         <p>Or copy and paste this link into your browser:</p>
         <p style="color: #666; font-size: 14px;">${inviteLink}</p>
+        <p>On the page, simply enter your email address (<strong>${staffEmail}</strong>) to proceed.</p>
         <p>Best regards,<br>The Aivia Team</p>
       `,
     });
