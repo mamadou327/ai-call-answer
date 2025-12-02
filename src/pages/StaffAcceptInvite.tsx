@@ -57,6 +57,7 @@ const StaffAcceptInvite = () => {
 
       if (error) {
         console.error("Error fetching staff invite:", error);
+        console.error("Error details:", JSON.stringify(error, null, 2));
         setInviteValid(false);
       } else if (!data) {
         console.error("No staff invite found for token");
@@ -69,6 +70,7 @@ const StaffAcceptInvite = () => {
       }
     } catch (error) {
       console.error("Exception validating invite:", error);
+      console.error("Exception details:", JSON.stringify(error, null, 2));
       setInviteValid(false);
     } finally {
       setIsLoading(false);

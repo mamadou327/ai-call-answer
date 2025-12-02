@@ -1,0 +1,90 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { Resend } from "https://esm.sh/resend@4.0.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+interface AdminNotificationRequest {
+  businessName: string;
+  ownerName: string;
+  ownerEmail: string;
+  phone: string;
+  website?: string;
+  address: string;
+}
+
+const handler = async (req: Request): Promise<Response> => {
+  console.log("send-admin-notification function called");
+
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const resendFromEmail = Deno.env.get("RESEND_FROM_EMAIL");
+    const adminEmail = "mlaye915@gmail.com";
+
+    console.log("Environment check:", {
+      hasResendKey: !!resendApiKey,
+      hasFromEmail: !!resendFromEmail,
+      fromEmail: resendFromEmail,
+    });
+
+    if (!resendApiKey || !resendFromEmail) {
+      throw new Error("Email configuration missing");
+    }
+
+    const { businessName, ownerName, ownerEmail, phone, website, address }: AdminNotificationRequest = await req.json();
+    console.log("Sending admin notification for business:", businessName);
+
+    const resend = new Resend(resendApiKey);
+
+    const emailResponse = await resend.emails.send({
+      from: resendFromEmail,
+      to: [adminEmail],
+      subject: `New business signup awaiting approval - ${businessName}`,
+      html: `
+        <h1>New Business Signup</h1>
+        <p>A new business has signed up and is awaiting approval:</p>
+        
+        <h2>Business Information</h2>
+        <ul>
+          <li><strong>Business Name:</strong> ${businessName}</li>
+          <li><strong>Owner Name:</strong> ${ownerName}</li>
+          <li><strong>Owner Email:</strong> ${ownerEmail}</li>
+          <li><strong>Phone:</strong> ${phone}</li>
+          ${website ? `<li><strong>Website:</strong> ${website}</li>` : ''}
+          <li><strong>Address:</strong> ${address}</li>
+        </ul>
+        
+        <p>Please review this application in the admin dashboard.</p>
+        <p><a href="https://d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com/admin" style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">Go to Admin Dashboard</a></p>
+      `,
+    });
+
+    console.log("Admin notification sent successfully:", emailResponse);
+
+    return new Response(JSON.stringify({ success: true, emailResponse }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        ...corsHeaders,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error in send-admin-notification function:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+  }
+};
+
+serve(handler);
