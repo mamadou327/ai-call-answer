@@ -29,6 +29,8 @@ const StaffInvite = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [businessName, setBusinessName] = useState("");
+  const [staffCount, setStaffCount] = useState<number>(0);
+  const [codeValidated, setCodeValidated] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -41,9 +43,74 @@ const StaffInvite = () => {
     chair: "",
   });
 
+  const validateJoinCode = async () => {
+    if (!formData.joinCode.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a join code",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const { data: validationResult, error: validationError } = await supabase
+        .rpc('validate_staff_join_code', { p_code: formData.joinCode });
+
+      if (validationError) {
+        throw new Error("Failed to validate join code");
+      }
+
+      if (!validationResult || validationResult.length === 0) {
+        toast({
+          title: "Invalid Code",
+          description: "This code is invalid or has expired. Please ask your manager for a new code.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const businessId = validationResult[0].business_id;
+      setBusinessName(validationResult[0].business_name);
+
+      // Fetch staff count for chair dropdown
+      const { data: businessData } = await supabase
+        .from("businesses")
+        .select("staff_count")
+        .eq("id", businessId)
+        .single();
+
+      setStaffCount(businessData?.staff_count || 5);
+      setCodeValidated(true);
+
+      toast({
+        title: "Code Validated",
+        description: `You're joining ${validationResult[0].business_name}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to validate code",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!codeValidated) {
+      toast({
+        title: "Error",
+        description: "Please validate your join code first",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       toast({
         title: "Error",
@@ -71,19 +138,23 @@ const StaffInvite = () => {
       return;
     }
 
+    if (!formData.position) {
+      toast({
+        title: "Error",
+        description: "Please select your position",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsProcessing(true);
     
     try {
-      // Validate join code
+      // Re-validate join code to get business ID
       const { data: validationResult, error: validationError } = await supabase
         .rpc('validate_staff_join_code', { p_code: formData.joinCode });
 
-      if (validationError) {
-        console.error("Validation error:", validationError);
-        throw new Error("Failed to validate join code");
-      }
-
-      if (!validationResult || validationResult.length === 0) {
+      if (validationError || !validationResult || validationResult.length === 0) {
         toast({
           title: "Invalid Code",
           description: "This code is invalid or has expired. Please ask your manager for a new code.",
@@ -94,8 +165,6 @@ const StaffInvite = () => {
       }
 
       const businessId = validationResult[0].business_id;
-      const foundBusinessName = validationResult[0].business_name;
-      setBusinessName(foundBusinessName);
 
       // Create the user account
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
@@ -149,7 +218,7 @@ const StaffInvite = () => {
           last_name: formData.lastName.trim(),
           phone: formData.phone.trim() || null,
           position: formData.position || null,
-          chair: formData.chair.trim() || null,
+          chair: formData.chair || null,
         });
 
       if (membershipError) {
@@ -212,151 +281,200 @@ const StaffInvite = () => {
           </div>
           <CardTitle className="text-2xl">Join as Staff</CardTitle>
           <CardDescription>
-            Enter your details and the join code from your employer to create your staff account
+            Enter the join code from your employer to get started
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+          {/* Step 1: Validate Join Code */}
+          {!codeValidated ? (
+            <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName">First Name *</Label>
+                <Label htmlFor="joinCode">Join Code *</Label>
                 <Input
-                  id="firstName"
+                  id="joinCode"
                   type="text"
-                  placeholder="John"
-                  value={formData.firstName}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  placeholder="e.g. EXCL-4827"
+                  value={formData.joinCode}
+                  onChange={(e) => setFormData({ ...formData, joinCode: e.target.value.toUpperCase() })}
+                  className="uppercase tracking-wider font-mono text-center text-lg"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Get this code from your employer/manager
+                </p>
+              </div>
+              <Button onClick={validateJoinCode} className="w-full" disabled={isProcessing}>
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Validating...
+                  </>
+                ) : (
+                  "Validate Code"
+                )}
+              </Button>
+              <div className="text-center text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => navigate("/auth")}
+                  className="text-primary hover:underline font-medium"
+                >
+                  Sign in
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Step 2: Fill in Details */
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-green-800">
+                  ✓ Joining <strong>{businessName}</strong>
+                </p>
+              </div>
+
+              {/* Name Fields */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name *</Label>
+                  <Input
+                    id="firstName"
+                    type="text"
+                    placeholder="John"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name *</Label>
+                  <Input
+                    id="lastName"
+                    type="text"
+                    placeholder="Doe"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Position */}
+              <div className="space-y-2">
+                <Label htmlFor="position">Position *</Label>
+                <Select
+                  value={formData.position}
+                  onValueChange={(value) => setFormData({ ...formData, position: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select your position" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {POSITION_OPTIONS.map((position) => (
+                      <SelectItem key={position} value={position}>
+                        {position}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Chair Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="chair">Chair/Station (Optional)</Label>
+                <Select
+                  value={formData.chair}
+                  onValueChange={(value) => setFormData({ ...formData, chair: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select your chair" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: staffCount }, (_, i) => (
+                      <SelectItem key={i + 1} value={`Chair ${i + 1}`}>
+                        Chair {i + 1}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  If applicable to your salon/barbershop
+                </p>
+              </div>
+
+              {/* Contact Number */}
+              <div className="space-y-2">
+                <Label htmlFor="phone">Contact Number (Optional)</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="+44 7XXX XXXXXX"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                />
+              </div>
+              
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="your.email@example.com"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </div>
+              
+              {/* Password Fields */}
+              <div className="space-y-2">
+                <Label htmlFor="password">Password *</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Create a password (min 6 characters)"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name *</Label>
+                <Label htmlFor="confirmPassword">Confirm Password *</Label>
                 <Input
-                  id="lastName"
-                  type="text"
-                  placeholder="Doe"
-                  value={formData.lastName}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="Confirm your password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   required
                 />
               </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="your.email@example.com"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
-              />
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="phone">Contact Number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+44 7XXX XXXXXX"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              />
-            </div>
+              <Button type="submit" className="w-full" disabled={isProcessing}>
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating account...
+                  </>
+                ) : (
+                  "Join & Request Access"
+                )}
+              </Button>
 
-            <div className="space-y-2">
-              <Label htmlFor="position">Position *</Label>
-              <Select
-                value={formData.position}
-                onValueChange={(value) => setFormData({ ...formData, position: value })}
-                required
+              <button
+                type="button"
+                onClick={() => {
+                  setCodeValidated(false);
+                  setFormData({ ...formData, joinCode: "" });
+                }}
+                className="w-full text-sm text-muted-foreground hover:text-primary"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your position" />
-                </SelectTrigger>
-                <SelectContent>
-                  {POSITION_OPTIONS.map((position) => (
-                    <SelectItem key={position} value={position}>
-                      {position}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="chair">Chair/Station (Optional)</Label>
-              <Input
-                id="chair"
-                type="text"
-                placeholder="e.g. Chair 1, Station A"
-                value={formData.chair}
-                onChange={(e) => setFormData({ ...formData, chair: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">
-                If applicable to your salon/barbershop
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">Password *</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Create a password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password *</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Confirm your password"
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="joinCode">Join Code *</Label>
-              <Input
-                id="joinCode"
-                type="text"
-                placeholder="e.g. EXCL-4827"
-                value={formData.joinCode}
-                onChange={(e) => setFormData({ ...formData, joinCode: e.target.value.toUpperCase() })}
-                className="uppercase tracking-wider font-mono"
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Get this code from your employer/manager
-              </p>
-            </div>
-            <Button type="submit" className="w-full" disabled={isProcessing}>
-              {isProcessing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating account...
-                </>
-              ) : (
-                "Join & Request Access"
-              )}
-            </Button>
-          </form>
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <button
-              type="button"
-              onClick={() => navigate("/auth")}
-              className="text-primary hover:underline font-medium"
-            >
-              Sign in
-            </button>
-          </div>
+                Use a different code
+              </button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>
