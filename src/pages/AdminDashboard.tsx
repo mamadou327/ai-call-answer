@@ -328,6 +328,9 @@ const AdminDashboard = () => {
   const handleAction = async (businessId: string, newStatus: "approved" | "rejected" | "revoked") => {
     setActionLoading(businessId);
     try {
+      const business = businesses.find(b => b.id === businessId);
+      const profile = business ? profiles[business.owner_id] : null;
+      
       const updateData: any = { status: newStatus };
       
       // If approving, include number assignment and porting details
@@ -344,6 +347,35 @@ const AdminDashboard = () => {
         .eq("id", businessId);
 
       if (error) throw error;
+
+      // Send approval email
+      if (newStatus === "approved" && business && profile?.email) {
+        try {
+          console.log("Sending approval email to:", profile.email);
+          const { error: emailError } = await supabase.functions.invoke("send-business-approval-email", {
+            body: {
+              businessName: business.business_name,
+              ownerEmail: profile.email,
+              ownerName: `${profile.first_name} ${profile.last_name}`,
+              assignedNumber: assignedNumber || undefined,
+              portingStatus: portingStatus || undefined,
+              dashboardUrl: `${window.location.origin}/dashboard`,
+            },
+          });
+
+          if (emailError) {
+            console.error("Failed to send approval email:", emailError);
+            // Don't fail the whole operation if email fails
+            toast({
+              title: "Warning",
+              description: "Business approved but notification email failed to send.",
+              variant: "destructive",
+            });
+          }
+        } catch (emailError) {
+          console.error("Failed to send approval email:", emailError);
+        }
+      }
 
       toast({
         title: `Business ${newStatus}`,

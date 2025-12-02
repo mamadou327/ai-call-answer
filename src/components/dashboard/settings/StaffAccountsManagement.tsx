@@ -81,6 +81,11 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
     setLoading(true);
 
     try {
+      const selectedStaff = staff.find(s => s.id === formData.staff_id);
+      if (!selectedStaff) {
+        throw new Error("Selected staff not found");
+      }
+
       // Check if there's an existing account for this staff member
       const existingAccount = accounts.find(a => a.staff_id === formData.staff_id);
 
@@ -108,6 +113,35 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
           }]);
 
         if (error) throw error;
+      }
+
+      // Get business name for the invitation email
+      const { data: businessData } = await supabase
+        .from("businesses")
+        .select("business_name")
+        .eq("id", businessId)
+        .single();
+
+      // Send invitation email
+      if (businessData) {
+        try {
+          console.log("Sending staff invitation email to:", formData.email);
+          const { error: emailError } = await supabase.functions.invoke("send-staff-invitation", {
+            body: {
+              staffName: selectedStaff.name,
+              staffEmail: formData.email,
+              businessName: businessData.business_name,
+              inviteLink: `${window.location.origin}/auth`,
+            },
+          });
+
+          if (emailError) {
+            console.error("Failed to send invitation email:", emailError);
+            // Don't fail the whole operation if email fails
+          }
+        } catch (emailError) {
+          console.error("Failed to send invitation email:", emailError);
+        }
       }
 
       toast({
