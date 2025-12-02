@@ -36,6 +36,23 @@ const Onboarding = () => {
       }
       setUserId(user.id);
 
+      // Check if user is staff - staff should not access onboarding
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      const userRoles = roles?.map(r => r.role) || [];
+      if (userRoles.includes("staff")) {
+        toast({
+          title: "Access Denied",
+          description: "Staff members cannot access business onboarding.",
+          variant: "destructive",
+        });
+        navigate("/dashboard");
+        return;
+      }
+
       // Check if they already have a business (resuming onboarding)
       const { data: business } = await supabase
         .from("businesses")
