@@ -39,31 +39,48 @@ const StaffAcceptInvite = () => {
     try {
       console.log("Looking up invite for email:", email);
       
-      const { data, error } = await supabase
+      // First get all pending invites for this email (without join to avoid RLS issues)
+      const { data: invites, error: inviteError } = await supabase
         .from("staff_invites")
-        .select("*, businesses(business_name)")
-        .eq("email", email.toLowerCase())
-        .eq("status", "pending")
+        .select("*")
+        .eq("email", email.toLowerCase().trim())
+        .eq("status", "pending");
+
+      console.log("Invite lookup result:", { invites, inviteError });
+
+      if (inviteError) {
+        console.error("Error fetching staff invite:", inviteError);
+        toast({
+          title: "Error",
+          description: "Failed to look up invitation. Please try again.",
+          variant: "destructive",
+        });
+        return null;
+      }
+
+      if (!invites || invites.length === 0) {
+        toast({
+          title: "No invitation found",
+          description: "There is no pending staff invitation for this email address.",
+          variant: "destructive",
+        });
+        return null;
+      }
+
+      // Get the first pending invite
+      const invite = invites[0];
+
+      // Now get the business name separately
+      const { data: businessData } = await supabase
+        .from("businesses")
+        .select("business_name")
+        .eq("id", invite.business_id)
         .single();
 
-      if (error) {
-        console.error("Error fetching staff invite:", error);
-        toast({
-          title: "No invitation found",
-          description: "There is no pending staff invitation for this email address.",
-          variant: "destructive",
-        });
-        return null;
-      }
-
-      if (!data) {
-        toast({
-          title: "No invitation found",
-          description: "There is no pending staff invitation for this email address.",
-          variant: "destructive",
-        });
-        return null;
-      }
+      const data = {
+        ...invite,
+        businesses: businessData || { business_name: "Unknown Business" }
+      };
 
       console.log("Valid invite found:", data);
       return data;
