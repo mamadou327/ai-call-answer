@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Phone, LogOut, LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings } from "lucide-react";
+import { LogOut, LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +13,7 @@ import { DashboardTab } from "@/components/dashboard/DashboardTab";
 import { CallsTab } from "@/components/dashboard/CallsTab";
 import { MessagesTab } from "@/components/dashboard/MessagesTab";
 import { BookingsTab } from "@/components/dashboard/BookingsTab";
+import { CalendarTab } from "@/components/dashboard/CalendarTab";
 import { SettingsTab } from "@/components/dashboard/SettingsTab";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 
@@ -96,12 +97,11 @@ const Dashboard = () => {
   };
 
   const loadSetupChecklist = async (biz: Business) => {
-    const [servicesRes, staffRes, hoursRes, settingsRes, currencyRes] = await Promise.all([
+    const [servicesRes, staffRes, hoursRes, settingsRes] = await Promise.all([
       supabase.from("services").select("id").eq("business_id", biz.id),
       supabase.from("staff").select("id").eq("business_id", biz.id),
       supabase.from("opening_hours").select("id").eq("business_id", biz.id),
       supabase.from("business_settings").select("*").eq("business_id", biz.id).single(),
-      supabase.from("business_settings").select("currency").eq("business_id", biz.id).single(),
     ]);
 
     const items: ChecklistItem[] = [
@@ -128,27 +128,22 @@ const Dashboard = () => {
       {
         label: "Cancellation/refund policy set",
         isComplete: !!settingsRes.data?.cancellation_policy,
-        action: "policies",
+        action: "business",
       },
       {
         label: "Booking rules configured",
         isComplete: !!(settingsRes.data?.min_booking_notice_hours && settingsRes.data?.max_days_advance),
-        action: "policies",
+        action: "business",
       },
       {
         label: "Notification email configured",
         isComplete: !!settingsRes.data?.notification_email,
-        action: "policies",
-      },
-      {
-        label: "Phone number assigned or porting in progress",
-        isComplete: !!(biz.assigned_aivia_number || biz.porting_status),
-        action: "phone",
+        action: "business",
       },
       {
         label: "Assistant settings configured",
         isComplete: !!(settingsRes.data?.assistant_name && settingsRes.data?.primary_language && settingsRes.data?.tone),
-        action: "assistant",
+        action: "business",
       },
     ];
 
@@ -230,10 +225,14 @@ const Dashboard = () => {
             )}
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="dashboard" className="flex items-center gap-2">
                   <LayoutDashboard className="w-4 h-4" />
                   {t("dashboard.title")}
+                </TabsTrigger>
+                <TabsTrigger value="calendar" className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  {t("dashboard.calendar")}
                 </TabsTrigger>
                 <TabsTrigger value="calls" className="flex items-center gap-2">
                   <PhoneCall className="w-4 h-4" />
@@ -261,6 +260,10 @@ const Dashboard = () => {
                     businessId={business.id}
                   />
                 )}
+              </TabsContent>
+
+              <TabsContent value="calendar">
+                <CalendarTab businessId={business.id} currency={settings?.currency || "GBP"} />
               </TabsContent>
 
               <TabsContent value="calls">
