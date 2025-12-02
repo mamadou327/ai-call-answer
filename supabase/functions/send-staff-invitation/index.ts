@@ -102,7 +102,6 @@ const handler = async (req: Request): Promise<Response> => {
         <p><a href="${inviteLink}" style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">Accept Invitation</a></p>
         <p>Or copy and paste this link into your browser:</p>
         <p style="color: #666; font-size: 14px;">${inviteLink}</p>
-        <p>On the page, simply enter your email address (<strong>${staffEmail}</strong>) to proceed.</p>
         <p>Best regards,<br>The Aivia Team</p>
       `,
     });

@@ -25,11 +25,13 @@ const StaffAcceptInvite = () => {
   });
 
   useEffect(() => {
+    console.log("StaffAcceptInvite page loaded");
     checkAuthStatus();
   }, []);
 
   const checkAuthStatus = async () => {
     const { data: { user } } = await supabase.auth.getUser();
+    console.log("Auth check - User logged in:", !!user);
     setIsLoggedIn(!!user);
   };
 
