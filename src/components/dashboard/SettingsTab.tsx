@@ -6,6 +6,7 @@ import { OpeningHoursForm } from "./settings/OpeningHoursForm";
 import { TimeOffManagement } from "./settings/TimeOffManagement";
 import { StaffJoinCodeSection } from "./settings/StaffJoinCodeSection";
 import { StaffMembershipsManagement } from "./settings/StaffMembershipsManagement";
+import { StaffInviteDialog } from "./settings/StaffInviteDialog";
 
 interface SettingsTabProps {
   businessId: string;
@@ -42,9 +43,13 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
       </TabsContent>
 
       <TabsContent value="staff" className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Staff Management</h3>
+          <StaffInviteDialog businessId={businessId} businessName={business?.business_name || ""} />
+        </div>
         <StaffJoinCodeSection businessId={businessId} businessName={business?.business_name || ""} />
         <StaffMembershipsManagement businessId={businessId} onUpdate={onUpdate} />
-        <StaffManagement businessId={businessId} onUpdate={onUpdate} />
+        <StaffManagement businessId={businessId} businessName={business?.business_name || ""} onUpdate={onUpdate} />
       </TabsContent>
 
       <TabsContent value="hours">
