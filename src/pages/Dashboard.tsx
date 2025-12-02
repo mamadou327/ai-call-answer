@@ -45,16 +45,60 @@ const Dashboard = () => {
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [activeSettingsSection, setActiveSettingsSection] = useState<string>("");
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isStaffView, setIsStaffView] = useState(false);
 
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate("/auth");
+        return;
+      }
+      
+      setUser(user);
+      
+      // Check user roles
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      const isStaff = roles?.some(r => r.role === "staff");
+      const isBusinessOwner = roles?.some(r => r.role === "business_owner");
+
+      if (isStaff && !isBusinessOwner) {
+        // Check staff membership status
+        const { data: membership } = await supabase
+          .from("staff_memberships")
+          .select("status, business_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (!membership) {
+          navigate("/staff/invite");
+          return;
+        }
+
+        if (membership.status === "pending_approval") {
+          navigate("/staff/pending");
+          return;
+        }
+
+        if (membership.status === "revoked") {
+          navigate("/staff/pending");
+          return;
+        }
+
+        // Staff with active status - load the business they belong to
+        setUserRole("staff");
+        setIsStaffView(true);
+        await loadStaffBusinessData(membership.business_id);
       } else {
-        setUser(user);
+        setUserRole("business_owner");
         await loadBusinessData(user.id);
       }
+      
       setLoading(false);
     };
 
@@ -70,6 +114,28 @@ const Dashboard = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const loadStaffBusinessData = async (businessId: string) => {
+    const { data: bizData } = await supabase
+      .from("businesses")
+      .select("*")
+      .eq("id", businessId)
+      .single();
+    
+    if (bizData) {
+      setBusiness(bizData as unknown as Business);
+      
+      const { data: settingsData } = await supabase
+        .from("business_settings")
+        .select("*")
+        .eq("business_id", bizData.id)
+        .single();
+      
+      if (settingsData) {
+        setSettings(settingsData);
+      }
+    }
+  };
 
   const loadBusinessData = async (userId: string) => {
     const { data: bizData } = await supabase
@@ -218,14 +284,20 @@ const Dashboard = () => {
       <main className="container py-8">
         {business?.status === "approved" && business && (
           <>
-            {!isSetupComplete && (
+            {!isStaffView && !isSetupComplete && (
               <div className="mb-6">
                 <SetupChecklist items={checklistItems} onItemClick={handleChecklistItemClick} />
               </div>
             )}
 
+            {isStaffView && (
+              <div className="mb-4 p-3 bg-primary/10 rounded-lg text-sm">
+                You are viewing as staff for <strong>{business.business_name}</strong>
+              </div>
+            )}
+
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className={`grid w-full ${isStaffView ? 'grid-cols-4' : 'grid-cols-6'}`}>
                 <TabsTrigger value="dashboard" className="flex items-center gap-2">
                   <LayoutDashboard className="w-4 h-4" />
                   {t("dashboard.title")}
@@ -234,22 +306,28 @@ const Dashboard = () => {
                   <Calendar className="w-4 h-4" />
                   {t("dashboard.calendar")}
                 </TabsTrigger>
-                <TabsTrigger value="calls" className="flex items-center gap-2">
-                  <PhoneCall className="w-4 h-4" />
-                  {t("dashboard.calls")}
-                </TabsTrigger>
-                <TabsTrigger value="messages" className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4" />
-                  {t("dashboard.messages")}
-                </TabsTrigger>
+                {!isStaffView && (
+                  <>
+                    <TabsTrigger value="calls" className="flex items-center gap-2">
+                      <PhoneCall className="w-4 h-4" />
+                      {t("dashboard.calls")}
+                    </TabsTrigger>
+                    <TabsTrigger value="messages" className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4" />
+                      {t("dashboard.messages")}
+                    </TabsTrigger>
+                  </>
+                )}
                 <TabsTrigger value="bookings" className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
                   {t("dashboard.bookings")}
                 </TabsTrigger>
-                <TabsTrigger value="settings" className="flex items-center gap-2">
-                  <Settings className="w-4 h-4" />
-                  {t("dashboard.settings")}
-                </TabsTrigger>
+                {!isStaffView && (
+                  <TabsTrigger value="settings" className="flex items-center gap-2">
+                    <Settings className="w-4 h-4" />
+                    {t("dashboard.settings")}
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               <TabsContent value="dashboard">
@@ -266,27 +344,33 @@ const Dashboard = () => {
                 <CalendarTab businessId={business.id} currency={settings?.currency || "GBP"} />
               </TabsContent>
 
-              <TabsContent value="calls">
-                <CallsTab />
-              </TabsContent>
+              {!isStaffView && (
+                <>
+                  <TabsContent value="calls">
+                    <CallsTab />
+                  </TabsContent>
 
-              <TabsContent value="messages">
-                <MessagesTab />
-              </TabsContent>
+                  <TabsContent value="messages">
+                    <MessagesTab />
+                  </TabsContent>
+                </>
+              )}
 
               <TabsContent value="bookings">
                 <BookingsTab businessId={business.id} />
               </TabsContent>
 
-              <TabsContent value="settings">
-                <SettingsTab
-                  businessId={business.id}
-                  business={business}
-                  activeSection={activeSettingsSection}
-                  onUpdate={handleSettingsUpdate}
-                  currency={settings?.currency || "GBP"}
-                />
-              </TabsContent>
+              {!isStaffView && (
+                <TabsContent value="settings">
+                  <SettingsTab
+                    businessId={business.id}
+                    business={business}
+                    activeSection={activeSettingsSection}
+                    onUpdate={handleSettingsUpdate}
+                    currency={settings?.currency || "GBP"}
+                  />
+                </TabsContent>
+              )}
             </Tabs>
           </>
         )}

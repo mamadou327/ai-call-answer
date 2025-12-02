@@ -54,6 +54,8 @@ export type Database = {
         Row: {
           booking_code: string | null
           business_id: string
+          cancelled_at: string | null
+          cancelled_by_user_id: string | null
           created_at: string | null
           created_by: string | null
           created_by_user_id: string | null
@@ -61,6 +63,7 @@ export type Database = {
           customer_phone: string
           end_time: string
           id: string
+          last_modified_by_user_id: string | null
           notes: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           service_id: string | null
@@ -72,6 +75,8 @@ export type Database = {
         Insert: {
           booking_code?: string | null
           business_id: string
+          cancelled_at?: string | null
+          cancelled_by_user_id?: string | null
           created_at?: string | null
           created_by?: string | null
           created_by_user_id?: string | null
@@ -79,6 +84,7 @@ export type Database = {
           customer_phone: string
           end_time: string
           id?: string
+          last_modified_by_user_id?: string | null
           notes?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           service_id?: string | null
@@ -90,6 +96,8 @@ export type Database = {
         Update: {
           booking_code?: string | null
           business_id?: string
+          cancelled_at?: string | null
+          cancelled_by_user_id?: string | null
           created_at?: string | null
           created_by?: string | null
           created_by_user_id?: string | null
@@ -97,6 +105,7 @@ export type Database = {
           customer_phone?: string
           end_time?: string
           id?: string
+          last_modified_by_user_id?: string | null
           notes?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           service_id?: string | null
@@ -248,6 +257,8 @@ export type Database = {
           porting_status: string | null
           secondary_phone: string | null
           staff_count: number
+          staff_join_code: string | null
+          staff_join_expires_at: string | null
           status: Database["public"]["Enums"]["business_status"]
           updated_at: string | null
           website: string | null
@@ -268,6 +279,8 @@ export type Database = {
           porting_status?: string | null
           secondary_phone?: string | null
           staff_count?: number
+          staff_join_code?: string | null
+          staff_join_expires_at?: string | null
           status?: Database["public"]["Enums"]["business_status"]
           updated_at?: string | null
           website?: string | null
@@ -288,6 +301,8 @@ export type Database = {
           porting_status?: string | null
           secondary_phone?: string | null
           staff_count?: number
+          staff_join_code?: string | null
+          staff_join_expires_at?: string | null
           status?: Database["public"]["Enums"]["business_status"]
           updated_at?: string | null
           website?: string | null
@@ -602,6 +617,47 @@ export type Database = {
           },
         ]
       }
+      staff_memberships: {
+        Row: {
+          approved_at: string | null
+          business_id: string
+          created_at: string | null
+          id: string
+          revoked_at: string | null
+          role: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          business_id: string
+          created_at?: string | null
+          id?: string
+          revoked_at?: string | null
+          role?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          business_id?: string
+          created_at?: string | null
+          id?: string
+          revoked_at?: string | null
+          role?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_memberships_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_services: {
         Row: {
           created_at: string | null
@@ -719,12 +775,30 @@ export type Database = {
     }
     Functions: {
       ensure_super_admin: { Args: never; Returns: undefined }
+      generate_staff_join_code: {
+        Args: { business_name: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      refresh_staff_join_code_if_expired: {
+        Args: { p_business_id: string }
+        Returns: {
+          expires_at: string
+          join_code: string
+        }[]
+      }
+      validate_staff_join_code: {
+        Args: { p_code: string }
+        Returns: {
+          business_id: string
+          business_name: string
+        }[]
       }
     }
     Enums: {
