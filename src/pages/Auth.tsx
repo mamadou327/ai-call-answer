@@ -107,7 +107,15 @@ const Auth = () => {
       }
 
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        // First check if there's a pending staff invite for this email
+        const { data: pendingInvite } = await supabase
+          .from("staff_invites")
+          .select("*, businesses(business_name)")
+          .eq("email", formData.email)
+          .eq("status", "pending")
+          .maybeSingle();
+
+        const { data: authData, error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
           options: {
@@ -127,10 +135,59 @@ const Auth = () => {
           throw error;
         }
 
-        toast({
-          title: "Account created!",
-          description: "Welcome to Aivia. Let's set up your business.",
-        });
+        if (!authData.user) {
+          throw new Error("User creation failed");
+        }
+
+        // If there's a pending staff invite, handle as staff signup
+        if (pendingInvite) {
+          console.log("Found pending staff invite for", formData.email);
+          
+          // Assign staff role
+          const { error: roleError } = await supabase
+            .from("user_roles")
+            .insert({ user_id: authData.user.id, role: "staff" });
+
+          if (roleError && !roleError.message.includes("duplicate")) {
+            console.error("Error assigning staff role:", roleError);
+          }
+
+          // Link to staff account if exists
+          const { error: accountError } = await supabase
+            .from("staff_accounts")
+            .update({ 
+              user_id: authData.user.id,
+              status: "active"
+            })
+            .eq("business_id", pendingInvite.business_id)
+            .eq("email", pendingInvite.email);
+
+          if (accountError) {
+            console.error("Error linking staff account:", accountError);
+          }
+
+          // Mark invite as accepted
+          await supabase
+            .from("staff_invites")
+            .update({ 
+              status: "accepted",
+              accepted_at: new Date().toISOString()
+            })
+            .eq("id", pendingInvite.id);
+
+          toast({
+            title: "Account created!",
+            description: `Welcome to ${pendingInvite.businesses?.business_name}. You've been added as staff.`,
+          });
+
+          // Will be redirected to dashboard by checkOnboardingStatus
+        } else {
+          // Normal business owner signup
+          toast({
+            title: "Account created!",
+            description: "Welcome to Aivia. Let's set up your business.",
+          });
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: formData.email,
