@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import WorldTracker from "@/components/WorldTracker";
+import { DangerZoneSection } from "@/components/admin/DangerZoneSection";
 
 // Super admin email constant
 const SUPER_ADMIN_EMAIL = "mlaye915@gmail.com";
@@ -623,6 +624,13 @@ const AdminDashboard = () => {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {/* Danger Zone - Super Admin Only */}
+        {isSuperAdmin && (
+          <div className="mt-8">
+            <DangerZoneSection />
+          </div>
         )}
       </div>
 
