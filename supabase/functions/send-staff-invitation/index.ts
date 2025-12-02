@@ -1,124 +1,125 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@4.0.0";
-
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
-interface InvitationRequest {
-  staffName: string;
+interface StaffInvitationRequest {
   staffEmail: string;
+  businessId: string;
   businessName: string;
-  inviteLink: string;
+  staffName: string;
+}
+
+// Generate a secure random token
+function generateInviteToken(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  console.log("=== STAFF INVITATION EMAIL FUNCTION STARTED ===");
-  
+  console.log("send-staff-invitation function called");
+
+  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    console.log("Handling CORS preflight");
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     // Check environment variables
-    const apiKey = Deno.env.get("RESEND_API_KEY");
-    const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "noreply@aiviaapp.co.uk";
-    
-    console.log("Environment check:");
-    console.log("- RESEND_API_KEY exists:", !!apiKey);
-    console.log("- RESEND_FROM_EMAIL:", fromEmail);
-    
-    if (!apiKey) {
-      console.error("❌ RESEND_API_KEY is not set");
-      return new Response(
-        JSON.stringify({ error: "RESEND_API_KEY is not configured" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const resendFromEmail = Deno.env.get("RESEND_FROM_EMAIL");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    const { staffName, staffEmail, businessName, inviteLink }: InvitationRequest = await req.json();
-    console.log("Invitation details:", { staffName, staffEmail, businessName });
-
-    console.log("Sending invitation to:", staffEmail);
-
-    // In production, integrate with Resend or another email service
-    // For now, we'll just log the email details
-    const emailContent = {
-      to: staffEmail,
-      subject: `You've been invited to ${businessName}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #333;">Welcome to ${businessName}!</h1>
-          <p>Hi ${staffName},</p>
-          <p>You've been invited to join ${businessName}'s team on Aivia.</p>
-          <p>You'll be able to:</p>
-          <ul>
-            <li>View your own calendar and bookings</li>
-            <li>Manage your availability</li>
-            <li>See customer appointments</li>
-          </ul>
-          <p style="margin: 30px 0;">
-            <a href="${inviteLink}" 
-               style="background-color: #3b82f6; color: white; padding: 12px 24px; 
-                      text-decoration: none; border-radius: 6px; display: inline-block;">
-              Accept Invitation
-            </a>
-          </p>
-          <p style="color: #666; font-size: 14px;">
-            If the button doesn't work, copy and paste this link into your browser:<br>
-            ${inviteLink}
-          </p>
-          <p style="color: #999; font-size: 12px; margin-top: 40px;">
-            This invitation was sent by ${businessName}. The business owner will approve your access.
-          </p>
-        </div>
-      `,
-    };
-
-    console.log("Initializing Resend client...");
-    const resend = new Resend(apiKey);
-    
-    console.log("Sending email via Resend...");
-    console.log("- From:", fromEmail);
-    console.log("- To:", staffEmail);
-
-    const emailResponse = await resend.emails.send({
-      from: fromEmail,
-      to: staffEmail,
-      subject: emailContent.subject,
-      html: emailContent.html,
+    console.log("Environment check:", {
+      hasResendKey: !!resendApiKey,
+      hasFromEmail: !!resendFromEmail,
+      hasSupabaseUrl: !!supabaseUrl,
+      hasSupabaseKey: !!supabaseServiceKey,
+      fromEmail: resendFromEmail,
     });
 
-    console.log("✅ Email sent successfully");
-    console.log("Email ID:", emailResponse.data?.id);
+    if (!resendFromEmail) {
+      throw new Error("RESEND_FROM_EMAIL is not configured");
+    }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "Invitation email sent successfully"
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error("Supabase configuration missing");
+    }
+
+    const { staffEmail, businessId, businessName, staffName }: StaffInvitationRequest = await req.json();
+    console.log("Request data:", { staffEmail, businessId, businessName, staffName });
+
+    // Create Supabase client
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Generate invite token
+    const inviteToken = generateInviteToken();
+
+    // Create staff invite record
+    const { data: inviteData, error: inviteError } = await supabase
+      .from('staff_invites')
+      .insert({
+        business_id: businessId,
+        email: staffEmail,
+        role: 'staff',
+        invite_token: inviteToken,
+        status: 'pending',
+      })
+      .select()
+      .single();
+
+    if (inviteError) {
+      console.error("Error creating staff invite:", inviteError);
+      throw new Error(`Failed to create invite: ${inviteError.message}`);
+    }
+
+    console.log("Staff invite created:", inviteData);
+
+    // Construct the invite link
+    const appUrl = supabaseUrl.includes('lovableproject.com') 
+      ? 'https://d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com'
+      : supabaseUrl.replace(/\/\/.*\.supabase\.co/, '//d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com');
+    const inviteLink = `${appUrl}/staff/accept-invite?token=${inviteToken}`;
+
+    // Initialize Resend client
+    const resend = new Resend(resendApiKey);
+
+    const emailResponse = await resend.emails.send({
+      from: resendFromEmail,
+      to: [staffEmail],
+      subject: `You've been invited to join ${businessName} on Aivia`,
+      html: `
+        <h1>Welcome to ${businessName}!</h1>
+        <p>Hi ${staffName},</p>
+        <p>You have been invited to join <strong>${businessName}</strong> on Aivia as a staff member.</p>
+        <p>To get started, please click the link below to accept your invitation and set up your account:</p>
+        <p><a href="${inviteLink}" style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">Accept Invitation</a></p>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="color: #666; font-size: 14px;">${inviteLink}</p>
+        <p>Best regards,<br>The Aivia Team</p>
+      `,
+    });
+
+    console.log("Email sent successfully:", emailResponse);
+
+    return new Response(JSON.stringify({ success: true, emailResponse, inviteToken }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        ...corsHeaders,
+      },
+    });
   } catch (error: any) {
-    console.error("❌ ERROR in send-staff-invitation:");
-    console.error("Error name:", error.name);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
+    console.error("Error in send-staff-invitation function:", error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message || "Failed to send invitation",
-        details: error.stack
-      }),
+      JSON.stringify({ error: error.message }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },

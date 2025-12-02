@@ -561,6 +561,47 @@ export type Database = {
           },
         ]
       }
+      staff_invites: {
+        Row: {
+          accepted_at: string | null
+          business_id: string
+          created_at: string | null
+          email: string
+          id: string
+          invite_token: string
+          role: string
+          status: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          business_id: string
+          created_at?: string | null
+          email: string
+          id?: string
+          invite_token: string
+          role?: string
+          status?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          business_id?: string
+          created_at?: string | null
+          email?: string
+          id?: string
+          invite_token?: string
+          role?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_invites_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_services: {
         Row: {
           created_at: string | null
@@ -693,6 +734,7 @@ export type Database = {
         | "super_admin"
         | "sub_admin"
         | "pending_admin"
+        | "staff"
       booking_status: "pending" | "confirmed" | "cancelled"
       business_status: "pending" | "approved" | "rejected" | "revoked"
       call_type:
@@ -840,6 +882,7 @@ export const Constants = {
         "super_admin",
         "sub_admin",
         "pending_admin",
+        "staff",
       ],
       booking_status: ["pending", "confirmed", "cancelled"],
       business_status: ["pending", "approved", "rejected", "revoked"],

@@ -39,6 +39,27 @@ const Auth = () => {
   }, [navigate]);
 
   const checkOnboardingStatus = async (userId: string) => {
+    // Check user role first
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+
+    const userRoles = roles?.map(r => r.role) || [];
+
+    // If user is staff, send them to dashboard (not onboarding)
+    if (userRoles.includes("staff")) {
+      navigate("/dashboard");
+      return;
+    }
+
+    // If user is admin, send them to admin dashboard
+    if (userRoles.includes("super_admin") || userRoles.includes("sub_admin")) {
+      navigate("/admin");
+      return;
+    }
+
+    // For business owners, check their business status
     const { data: business } = await supabase
       .from("businesses")
       .select("*")
@@ -46,6 +67,12 @@ const Auth = () => {
       .single();
 
     if (!business) {
+      // Assign business_owner role if they don't have any role
+      if (userRoles.length === 0) {
+        await supabase
+          .from("user_roles")
+          .insert({ user_id: userId, role: "business_owner" });
+      }
       navigate("/onboarding");
     } else if (business.status === "pending") {
       navigate("/pending-approval");

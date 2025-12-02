@@ -131,7 +131,7 @@ export const StaffAccountsManagement = ({ businessId, onUpdate }: StaffAccountsM
               staffName: selectedStaff.name,
               staffEmail: formData.email,
               businessName: businessData.business_name,
-              inviteLink: `${window.location.origin}/auth`,
+              businessId: businessId,
             },
           });
 
