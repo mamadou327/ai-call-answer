@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Edit } from "lucide-react";
+import { Plus, Trash2, Edit, Send, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 interface StaffManagementProps {
   businessId: string;
+  businessName: string;
   onUpdate: () => void;
 }
 
@@ -28,13 +29,14 @@ interface Service {
   name: string;
 }
 
-export const StaffManagement = ({ businessId, onUpdate }: StaffManagementProps) => {
+export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffManagementProps) => {
   const { toast } = useToast();
   const [staff, setStaff] = useState<Staff[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+  const [sendingWelcome, setSendingWelcome] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     role: "",
@@ -43,6 +45,51 @@ export const StaffManagement = ({ businessId, onUpdate }: StaffManagementProps) 
     color: "#3B82F6",
   });
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+
+  const sendWelcomeEmail = async (staffEmail: string, staffName: string) => {
+    try {
+      const { error } = await supabase.functions.invoke("send-staff-welcome", {
+        body: {
+          staffEmail,
+          staffName,
+          businessName,
+        },
+      });
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error("Error sending welcome email:", error);
+      return false;
+    }
+  };
+
+  const sendInviteWithCode = async (staffEmail: string, staffName: string) => {
+    setSendingWelcome(staffEmail);
+    try {
+      const { error } = await supabase.functions.invoke("send-staff-invite-with-code", {
+        body: {
+          staffEmail,
+          staffName,
+          businessId,
+          businessName,
+        },
+      });
+      if (error) throw error;
+      toast({
+        title: "Invite Sent!",
+        description: `Staff invite with join code sent to ${staffEmail}`,
+      });
+    } catch (error: any) {
+      console.error("Error sending invite:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send invite",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingWelcome(null);
+    }
+  };
 
   useEffect(() => {
     loadStaff();
@@ -148,10 +195,21 @@ export const StaffManagement = ({ businessId, onUpdate }: StaffManagementProps) 
           if (servicesError) throw servicesError;
         }
 
-        toast({
-          title: "Success",
-          description: "Staff member added successfully.",
-        });
+        // Send welcome email if staff has email
+        if (formData.email) {
+          const emailSent = await sendWelcomeEmail(formData.email, formData.name);
+          toast({
+            title: "Success",
+            description: emailSent 
+              ? "Staff member added and welcome email sent." 
+              : "Staff member added. (Welcome email could not be sent)",
+          });
+        } else {
+          toast({
+            title: "Success",
+            description: "Staff member added successfully.",
+          });
+        }
       }
 
       setDialogOpen(false);
@@ -340,6 +398,21 @@ export const StaffManagement = ({ businessId, onUpdate }: StaffManagementProps) 
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  {member.email && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => sendInviteWithCode(member.email!, member.name)}
+                      disabled={sendingWelcome === member.email}
+                      title="Send invite with code"
+                    >
+                      {sendingWelcome === member.email ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
