@@ -5,9 +5,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import aiviaLogo from "@/assets/aivia-logo.png";
 import { Loader2, CheckCircle } from "lucide-react";
+
+const POSITION_OPTIONS = [
+  "Stylist",
+  "Barber",
+  "Receptionist",
+  "Therapist",
+  "Nail Technician",
+  "Beautician",
+  "Massage Therapist",
+  "Manager",
+  "Assistant",
+  "Other",
+];
 
 const StaffInvite = () => {
   const navigate = useNavigate();
@@ -20,6 +34,11 @@ const StaffInvite = () => {
     password: "",
     confirmPassword: "",
     joinCode: "",
+    firstName: "",
+    lastName: "",
+    phone: "",
+    position: "",
+    chair: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,6 +57,15 @@ const StaffInvite = () => {
       toast({
         title: "Error",
         description: "Password must be at least 6 characters",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter your first and last name",
         variant: "destructive",
       });
       return;
@@ -75,6 +103,10 @@ const StaffInvite = () => {
         password: formData.password,
         options: {
           emailRedirectTo: `${window.location.origin}/dashboard`,
+          data: {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+          },
         },
       });
 
@@ -105,7 +137,7 @@ const StaffInvite = () => {
         console.error("Role assignment error:", roleError);
       }
 
-      // Create staff membership with pending_approval status
+      // Create staff membership with pending_approval status and profile info
       const { error: membershipError } = await supabase
         .from("staff_memberships")
         .insert({
@@ -113,6 +145,11 @@ const StaffInvite = () => {
           user_id: authData.user.id,
           role: "staff",
           status: "pending_approval",
+          first_name: formData.firstName.trim(),
+          last_name: formData.lastName.trim(),
+          phone: formData.phone.trim() || null,
+          position: formData.position || null,
+          chair: formData.chair.trim() || null,
         });
 
       if (membershipError) {
@@ -180,8 +217,33 @@ const StaffInvite = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name *</Label>
+                <Input
+                  id="firstName"
+                  type="text"
+                  placeholder="John"
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name *</Label>
+                <Input
+                  id="lastName"
+                  type="text"
+                  placeholder="Doe"
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+            
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email *</Label>
               <Input
                 id="email"
                 type="email"
@@ -191,8 +253,54 @@ const StaffInvite = () => {
                 required
               />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="phone">Contact Number</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+44 7XXX XXXXXX"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="position">Position *</Label>
+              <Select
+                value={formData.position}
+                onValueChange={(value) => setFormData({ ...formData, position: value })}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your position" />
+                </SelectTrigger>
+                <SelectContent>
+                  {POSITION_OPTIONS.map((position) => (
+                    <SelectItem key={position} value={position}>
+                      {position}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="chair">Chair/Station (Optional)</Label>
+              <Input
+                id="chair"
+                type="text"
+                placeholder="e.g. Chair 1, Station A"
+                value={formData.chair}
+                onChange={(e) => setFormData({ ...formData, chair: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                If applicable to your salon/barbershop
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="password">Password *</Label>
               <Input
                 id="password"
                 type="password"
@@ -203,7 +311,7 @@ const StaffInvite = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Label htmlFor="confirmPassword">Confirm Password *</Label>
               <Input
                 id="confirmPassword"
                 type="password"
@@ -214,7 +322,7 @@ const StaffInvite = () => {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="joinCode">Join Code</Label>
+              <Label htmlFor="joinCode">Join Code *</Label>
               <Input
                 id="joinCode"
                 type="text"
