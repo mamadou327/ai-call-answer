@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, UserMinus, Clock, UserCheck, UserX, Mail, Phone, Briefcase, Armchair, Eye } from "lucide-react";
+import { Check, X, UserMinus, Clock, UserCheck, UserX, Mail, Phone, Briefcase, Armchair, Eye, User } from "lucide-react";
 import { format } from "date-fns";
 import {
   AlertDialog,
@@ -456,6 +456,8 @@ export const StaffMembershipsManagement = ({ businessId, onUpdate }: StaffMember
               </div>
 
               <div className="border-t pt-3 space-y-1">
+                <StaffDetailRow icon={User} label="First Name" value={detailDialog.membership.first_name} />
+                <StaffDetailRow icon={User} label="Last Name" value={detailDialog.membership.last_name} />
                 <StaffDetailRow icon={Mail} label="Email" value={detailDialog.membership.user_email} />
                 <StaffDetailRow icon={Phone} label="Contact Number" value={detailDialog.membership.phone} />
                 <StaffDetailRow icon={Briefcase} label="Position" value={detailDialog.membership.position} />
