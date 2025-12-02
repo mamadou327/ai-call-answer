@@ -166,7 +166,7 @@ const StaffInvite = () => {
 
       const businessId = validationResult[0].business_id;
 
-      // Create the user account
+      // First, try to sign up new user
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -181,16 +181,80 @@ const StaffInvite = () => {
 
       if (signUpError) {
         if (signUpError.message.includes("already registered")) {
-          toast({
-            title: "Account Exists",
-            description: "An account with this email already exists. Please sign in and use the join code from the dashboard.",
-            variant: "destructive",
+          // User exists - try to sign them in and check if they have a revoked membership
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password,
           });
+
+          if (signInError) {
+            toast({
+              title: "Account Exists",
+              description: "An account with this email already exists. If you had a revoked account, please use the correct password to re-register.",
+              variant: "destructive",
+            });
+            setIsProcessing(false);
+            return;
+          }
+
+          // Check if they have a revoked membership for this business
+          const { data: existingMembership } = await supabase
+            .from("staff_memberships")
+            .select("id, status")
+            .eq("user_id", signInData.user.id)
+            .eq("business_id", businessId)
+            .maybeSingle();
+
+          if (existingMembership) {
+            if (existingMembership.status === "revoked") {
+              // Delete the revoked membership so they can re-register
+              await supabase
+                .from("staff_memberships")
+                .delete()
+                .eq("id", existingMembership.id);
+            } else if (existingMembership.status === "pending_approval") {
+              toast({
+                title: "Already Pending",
+                description: "Your request is already pending approval.",
+              });
+              navigate("/staff/pending");
+              return;
+            } else if (existingMembership.status === "active") {
+              toast({
+                title: "Already Active",
+                description: "You already have active staff access.",
+              });
+              navigate("/dashboard");
+              return;
+            }
+          }
+
+          // Create new membership for the existing user
+          const { error: membershipError } = await supabase
+            .from("staff_memberships")
+            .insert({
+              business_id: businessId,
+              user_id: signInData.user.id,
+              role: "staff",
+              status: "pending_approval",
+              first_name: formData.firstName.trim(),
+              last_name: formData.lastName.trim(),
+              phone: formData.phone.trim() || null,
+              position: formData.position || null,
+              chair: formData.chair || null,
+            });
+
+          if (membershipError) {
+            console.error("Membership creation error:", membershipError);
+            throw new Error("Failed to create staff membership");
+          }
+
+          await supabase.auth.signOut();
+          setIsSuccess(true);
+          return;
         } else {
           throw signUpError;
         }
-        setIsProcessing(false);
-        return;
       }
 
       if (!authData.user) {
@@ -262,8 +326,8 @@ const StaffInvite = () => {
               The business owner must approve your access before you can log in. 
               You'll receive an email once your account is approved.
             </p>
-            <Button onClick={() => navigate("/auth?mode=signin")} variant="outline" className="w-full">
-              Go to Login
+            <Button onClick={() => navigate("/staff/login")} variant="outline" className="w-full">
+              Go to Staff Login
             </Button>
           </CardContent>
         </Card>
