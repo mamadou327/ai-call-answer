@@ -62,7 +62,7 @@ const StaffPendingApproval = () => {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    navigate("/");
+    navigate("/staff/login");
   };
 
   const handleRefresh = () => {
