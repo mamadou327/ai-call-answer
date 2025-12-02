@@ -10,7 +10,6 @@ import { LocalizationSettings } from "./settings/LocalizationSettings";
 import { WebsiteAnalysis } from "./settings/WebsiteAnalysis";
 import { TimeOffManagement } from "./settings/TimeOffManagement";
 import { StaffAccountsManagement } from "./settings/StaffAccountsManagement";
-import { EmailTestSettings } from "./settings/EmailTestSettings";
 
 interface SettingsTabProps {
   businessId: string;
@@ -29,7 +28,7 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
 
   return (
     <Tabs defaultValue={activeSection || "business"} className="space-y-6">
-      <TabsList className="grid w-full grid-cols-12 lg:w-auto">
+      <TabsList className="grid w-full grid-cols-11 lg:w-auto">
         <TabsTrigger value="business">Business</TabsTrigger>
         <TabsTrigger value="services">Services</TabsTrigger>
         <TabsTrigger value="staff">Staff</TabsTrigger>
@@ -41,7 +40,6 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
         <TabsTrigger value="timeoff">Time Off</TabsTrigger>
         <TabsTrigger value="accounts">Staff Login</TabsTrigger>
         <TabsTrigger value="ai">AI Analysis</TabsTrigger>
-        <TabsTrigger value="email-test">Email Test</TabsTrigger>
       </TabsList>
 
       <TabsContent value="business">
@@ -90,10 +88,6 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
           currentWebsite={business.website || ""}
           onAnalysisComplete={handleWebsiteAnalysis}
         />
-      </TabsContent>
-
-      <TabsContent value="email-test">
-        <EmailTestSettings />
       </TabsContent>
     </Tabs>
   );
