@@ -24,6 +24,24 @@ const OnboardingStep5 = ({ onBack, businessId }: Props) => {
     try {
       if (!businessId) throw new Error("Business ID not found");
 
+      // Get business and user details
+      const { data: business, error: businessError } = await supabase
+        .from("businesses")
+        .select("*, owner_id")
+        .eq("id", businessId)
+        .single();
+
+      if (businessError) throw businessError;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not found");
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, email")
+        .eq("user_id", user.id)
+        .single();
+
       // Mark business as pending
       const { error } = await supabase
         .from("businesses")
@@ -31,6 +49,31 @@ const OnboardingStep5 = ({ onBack, businessId }: Props) => {
         .eq("id", businessId);
 
       if (error) throw error;
+
+      // Send notification to super admin
+      try {
+        console.log("Sending admin notification email...");
+        const { error: emailError } = await supabase.functions.invoke("send-admin-notification", {
+          body: {
+            businessName: business.business_name,
+            ownerName: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || 'Unknown',
+            ownerEmail: profile?.email || user.email || 'Unknown',
+            phone: business.main_phone,
+            website: business.website || undefined,
+            address: business.address,
+          },
+        });
+
+        if (emailError) {
+          console.error("Failed to send admin notification email:", emailError);
+          // Don't throw - we still want to proceed even if email fails
+        } else {
+          console.log("Admin notification email sent successfully");
+        }
+      } catch (emailError) {
+        console.error("Error sending admin notification:", emailError);
+        // Continue anyway
+      }
 
       toast({
         title: "Application submitted!",

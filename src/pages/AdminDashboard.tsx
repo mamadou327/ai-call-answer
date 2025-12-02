@@ -348,6 +348,35 @@ const AdminDashboard = () => {
 
       if (error) throw error;
 
+      // If approving a business, send approval email to the business owner
+      if (newStatus === "approved" && business && profile?.email) {
+        try {
+          console.log("Sending business approval email to:", profile.email);
+          
+          const dashboardUrl = "https://d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com/dashboard";
+          
+          const { error: emailError } = await supabase.functions.invoke("send-business-approval-email", {
+            body: {
+              businessName: business.business_name,
+              ownerEmail: profile.email,
+              dashboardUrl: dashboardUrl,
+              assignedNumber: assignedNumber || business.assigned_aivia_number || undefined,
+              portingStatus: portingStatus || business.porting_status || undefined,
+            },
+          });
+
+          if (emailError) {
+            console.error("Failed to send business approval email:", emailError);
+            // Don't throw - approval still succeeded
+          } else {
+            console.log("Business approval email sent successfully");
+          }
+        } catch (emailError) {
+          console.error("Error sending business approval email:", emailError);
+          // Continue anyway - approval was successful
+        }
+      }
+
       // Send approval email
       if (newStatus === "approved" && business && profile?.email) {
         try {

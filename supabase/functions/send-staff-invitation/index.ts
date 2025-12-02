@@ -82,11 +82,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Staff invite created:", inviteData);
 
-    // Construct the invite link
-    const appUrl = supabaseUrl.includes('lovableproject.com') 
-      ? 'https://d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com'
-      : supabaseUrl.replace(/\/\/.*\.supabase\.co/, '//d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com');
+    // Construct the invite link - use the correct app URL
+    const appUrl = 'https://d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com';
     const inviteLink = `${appUrl}/staff/accept-invite?token=${inviteToken}`;
+    
+    console.log("Invite link created:", inviteLink);
 
     // Initialize Resend client
     const resend = new Resend(resendApiKey);
