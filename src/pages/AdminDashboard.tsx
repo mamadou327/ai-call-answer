@@ -8,13 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import aiviaLogo from "@/assets/aivia-logo.png";
-import { LogOut, Clock, CheckCircle2, XCircle, Eye, Globe } from "lucide-react";
+import { LogOut, Clock, CheckCircle2, XCircle, Eye, Globe, ChevronRight, ChevronLeft } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import WorldTracker from "@/components/WorldTracker";
 import { DangerZoneSection } from "@/components/admin/DangerZoneSection";
 
@@ -67,6 +66,7 @@ const AdminDashboard = () => {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
+  const [dialogStep, setDialogStep] = useState<1 | 2>(1);
   const [pendingAdmins, setPendingAdmins] = useState<PendingAdmin[]>([]);
   const [selectedAdmin, setSelectedAdmin] = useState<PendingAdmin | null>(null);
   const [adminPermissions, setAdminPermissions] = useState<AdminPermissions>({
@@ -79,7 +79,7 @@ const AdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState<"businesses" | "admins" | "tracker">("businesses");
+  const [activeTab, setActiveTab] = useState<"businesses" | "approved" | "admins" | "tracker">("businesses");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
     can_manage_business_numbers: false,
@@ -368,42 +368,11 @@ const AdminDashboard = () => {
 
           if (emailError) {
             console.error("Failed to send business approval email:", emailError);
-            // Don't throw - approval still succeeded
           } else {
             console.log("Business approval email sent successfully");
           }
         } catch (emailError) {
           console.error("Error sending business approval email:", emailError);
-          // Continue anyway - approval was successful
-        }
-      }
-
-      // Send approval email
-      if (newStatus === "approved" && business && profile?.email) {
-        try {
-          console.log("Sending approval email to:", profile.email);
-          const { error: emailError } = await supabase.functions.invoke("send-business-approval-email", {
-            body: {
-              businessName: business.business_name,
-              ownerEmail: profile.email,
-              ownerName: `${profile.first_name} ${profile.last_name}`,
-              assignedNumber: assignedNumber || undefined,
-              portingStatus: portingStatus || undefined,
-              dashboardUrl: `${window.location.origin}/dashboard`,
-            },
-          });
-
-          if (emailError) {
-            console.error("Failed to send approval email:", emailError);
-            // Don't fail the whole operation if email fails
-            toast({
-              title: "Warning",
-              description: "Business approved but notification email failed to send.",
-              variant: "destructive",
-            });
-          }
-        } catch (emailError) {
-          console.error("Failed to send approval email:", emailError);
         }
       }
 
@@ -414,6 +383,7 @@ const AdminDashboard = () => {
 
       loadBusinesses();
       setSelectedBusiness(null);
+      setDialogStep(1);
       // Reset form fields
       setAssignedNumber("");
       setNumberNotes("");
@@ -450,6 +420,29 @@ const AdminDashboard = () => {
     }
   };
 
+  const openBusinessDialog = (business: Business) => {
+    setSelectedBusiness(business);
+    setDialogStep(1);
+    // Pre-fill existing values if any
+    setAssignedNumber(business.assigned_aivia_number || "");
+    setNumberNotes(business.number_notes || "");
+    setPortingStatus(business.porting_status || "pending");
+    setPortingInstructions(business.porting_instructions || "");
+  };
+
+  const closeBusinessDialog = () => {
+    setSelectedBusiness(null);
+    setDialogStep(1);
+    setAssignedNumber("");
+    setNumberNotes("");
+    setPortingStatus("pending");
+    setPortingInstructions("");
+  };
+
+  // Filter businesses by status
+  const pendingAndRecentBusinesses = businesses.filter(b => b.status === "pending" || b.status === "rejected" || b.status === "revoked");
+  const approvedBusinesses = businesses.filter(b => b.status === "approved");
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
@@ -473,15 +466,27 @@ const AdminDashboard = () => {
           </p>
         </div>
 
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-6 flex-wrap">
           <Button
             variant={activeTab === "businesses" ? "default" : "outline"}
             onClick={() => setActiveTab("businesses")}
           >
-            Business Applications
-            {businesses.filter(b => b.status === "pending").length > 0 && (
+            Pending Applications
+            {pendingAndRecentBusinesses.filter(b => b.status === "pending").length > 0 && (
               <Badge variant="secondary" className="ml-2">
-                {businesses.filter(b => b.status === "pending").length}
+                {pendingAndRecentBusinesses.filter(b => b.status === "pending").length}
+              </Badge>
+            )}
+          </Button>
+          <Button
+            variant={activeTab === "approved" ? "default" : "outline"}
+            onClick={() => setActiveTab("approved")}
+          >
+            <CheckCircle2 className="w-4 h-4 mr-2" />
+            Approved Businesses
+            {approvedBusinesses.length > 0 && (
+              <Badge variant="secondary" className="ml-2">
+                {approvedBusinesses.length}
               </Badge>
             )}
           </Button>
@@ -511,61 +516,120 @@ const AdminDashboard = () => {
 
         {activeTab === "businesses" && (
           <Card>
-          <CardHeader>
-            <CardTitle>Pending & Recent Applications</CardTitle>
-            <CardDescription>Click on any business to view details and take action</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : businesses.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">No business applications yet</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Business Name</TableHead>
-                    <TableHead>Owner</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Staff Count</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Applied</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {businesses.map((business) => {
-                    const profile = profiles[business.owner_id];
-                    return (
-                      <TableRow key={business.id}>
-                        <TableCell className="font-medium">{business.business_name}</TableCell>
-                        <TableCell>
-                          {profile ? `${profile.first_name} ${profile.last_name}` : "N/A"}
-                        </TableCell>
-                        <TableCell>{business.main_phone}</TableCell>
-                        <TableCell>{business.staff_count}</TableCell>
-                        <TableCell>{getStatusBadge(business.status)}</TableCell>
-                        <TableCell>{new Date(business.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedBusiness(business)}
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            View
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+            <CardHeader>
+              <CardTitle>Pending & Recent Applications</CardTitle>
+              <CardDescription>Click on any business to view details and take action</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : pendingAndRecentBusinesses.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No pending business applications</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Business Name</TableHead>
+                      <TableHead>Owner</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Staff Count</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Applied</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingAndRecentBusinesses.map((business) => {
+                      const profile = profiles[business.owner_id];
+                      return (
+                        <TableRow key={business.id}>
+                          <TableCell className="font-medium">{business.business_name}</TableCell>
+                          <TableCell>
+                            {profile ? `${profile.first_name} ${profile.last_name}` : "N/A"}
+                          </TableCell>
+                          <TableCell>{business.main_phone}</TableCell>
+                          <TableCell>{business.staff_count}</TableCell>
+                          <TableCell>{getStatusBadge(business.status)}</TableCell>
+                          <TableCell>{new Date(business.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openBusinessDialog(business)}
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === "approved" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Approved Businesses</CardTitle>
+              <CardDescription>All businesses that have been approved</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : approvedBusinesses.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No approved businesses yet</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Business Name</TableHead>
+                      <TableHead>Owner</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Aivia Number</TableHead>
+                      <TableHead>Staff Count</TableHead>
+                      <TableHead>Approved</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {approvedBusinesses.map((business) => {
+                      const profile = profiles[business.owner_id];
+                      return (
+                        <TableRow key={business.id}>
+                          <TableCell className="font-medium">{business.business_name}</TableCell>
+                          <TableCell>
+                            {profile ? `${profile.first_name} ${profile.last_name}` : "N/A"}
+                          </TableCell>
+                          <TableCell>{business.main_phone}</TableCell>
+                          <TableCell>{business.assigned_aivia_number || "—"}</TableCell>
+                          <TableCell>{business.staff_count}</TableCell>
+                          <TableCell>{new Date(business.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openBusinessDialog(business)}
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {activeTab === "tracker" && (
@@ -634,159 +698,74 @@ const AdminDashboard = () => {
         )}
       </div>
 
-      {/* Business Details Dialog */}
-      <Dialog open={!!selectedBusiness} onOpenChange={() => setSelectedBusiness(null)}>
+      {/* Business Details Dialog - Multi-step */}
+      <Dialog open={!!selectedBusiness} onOpenChange={closeBusinessDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{selectedBusiness?.business_name}</DialogTitle>
-            <DialogDescription>Review business application details</DialogDescription>
+            <DialogDescription>
+              {dialogStep === 1 ? "Business details" : "Number assignment & actions"}
+            </DialogDescription>
           </DialogHeader>
           {selectedBusiness && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm font-medium">Owner</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {profiles[selectedBusiness.owner_id]
-                      ? `${profiles[selectedBusiness.owner_id].first_name} ${profiles[selectedBusiness.owner_id].last_name}`
-                      : "N/A"}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Main Phone</Label>
-                  <p className="text-sm text-muted-foreground">{selectedBusiness.main_phone}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Staff Count</Label>
-                  <p className="text-sm text-muted-foreground">{selectedBusiness.staff_count}</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Status</Label>
-                  <div className="mt-1">{getStatusBadge(selectedBusiness.status)}</div>
-                </div>
+              {/* Step indicator */}
+              <div className="flex items-center justify-center gap-2 pb-2">
+                <div className={`w-2 h-2 rounded-full ${dialogStep === 1 ? "bg-primary" : "bg-muted"}`} />
+                <div className={`w-2 h-2 rounded-full ${dialogStep === 2 ? "bg-primary" : "bg-muted"}`} />
               </div>
-              <div>
-                <Label className="text-sm font-medium">Address</Label>
-                <p className="text-sm text-muted-foreground">{selectedBusiness.address}</p>
-              </div>
-              {selectedBusiness.website && (
-                <div>
-                  <Label className="text-sm font-medium">Website</Label>
-                  <p className="text-sm text-muted-foreground">{selectedBusiness.website}</p>
-                </div>
-              )}
 
-              {selectedBusiness.status === "pending" && userPermissions.can_approve_businesses && (
+              {/* Step 1: Business Details */}
+              {dialogStep === 1 && (
                 <>
-                  <div className="border-t pt-4 space-y-4">
-                    <h3 className="font-semibold text-sm">Number Assignment & Porting</h3>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="assigned-number" className="text-sm font-medium">
-                          Assigned Aivia Number
-                        </Label>
-                        <Input
-                          id="assigned-number"
-                          placeholder="+1 (555) 123-4567"
-                          value={assignedNumber}
-                          onChange={(e) => setAssignedNumber(e.target.value)}
-                          className="mt-1.5"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          If providing an Aivia number
-                        </p>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="number-notes" className="text-sm font-medium">
-                          Number Notes
-                        </Label>
-                        <Textarea
-                          id="number-notes"
-                          placeholder="Optional notes about the number assignment..."
-                          value={numberNotes}
-                          onChange={(e) => setNumberNotes(e.target.value)}
-                          className="mt-1.5"
-                          rows={2}
-                        />
-                      </div>
-
-                      <div>
-                        <Label htmlFor="porting-status" className="text-sm font-medium">
-                          Porting Status
-                        </Label>
-                        <Select value={portingStatus} onValueChange={setPortingStatus}>
-                          <SelectTrigger className="mt-1.5">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="in_progress">In Progress</SelectItem>
-                            <SelectItem value="complete">Complete</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          If they're porting an existing number
-                        </p>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="porting-instructions" className="text-sm font-medium">
-                          Porting Instructions
-                        </Label>
-                        <Textarea
-                          id="porting-instructions"
-                          placeholder="Detailed instructions for number porting..."
-                          value={portingInstructions}
-                          onChange={(e) => setPortingInstructions(e.target.value)}
-                          className="mt-1.5"
-                          rows={3}
-                        />
-                      </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">Owner</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {profiles[selectedBusiness.owner_id]
+                          ? `${profiles[selectedBusiness.owner_id].first_name} ${profiles[selectedBusiness.owner_id].last_name}`
+                          : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Owner Email</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {profiles[selectedBusiness.owner_id]?.email || "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Main Phone</Label>
+                      <p className="text-sm text-muted-foreground">{selectedBusiness.main_phone}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Staff Count</Label>
+                      <p className="text-sm text-muted-foreground">{selectedBusiness.staff_count}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Status</Label>
+                      <div className="mt-1">{getStatusBadge(selectedBusiness.status)}</div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Applied</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(selectedBusiness.created_at).toLocaleDateString()}
+                      </p>
                     </div>
                   </div>
-
-                  <div className="flex gap-2 pt-4">
-                    <Button
-                      onClick={() => handleAction(selectedBusiness.id, "approved")}
-                      disabled={!!actionLoading}
-                      className="flex-1"
-                    >
-                      {actionLoading === selectedBusiness.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      ) : (
-                        <CheckCircle2 className="w-4 h-4 mr-2" />
-                      )}
-                      Approve
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => handleAction(selectedBusiness.id, "rejected")}
-                      disabled={!!actionLoading}
-                      className="flex-1"
-                    >
-                      {actionLoading === selectedBusiness.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      ) : (
-                        <XCircle className="w-4 h-4 mr-2" />
-                      )}
-                      Reject
-                    </Button>
+                  <div>
+                    <Label className="text-sm font-medium">Address</Label>
+                    <p className="text-sm text-muted-foreground">{selectedBusiness.address}</p>
                   </div>
-                </>
-              )}
-
-              {selectedBusiness.status === "approved" && userPermissions.can_approve_businesses && (
-                <div className="border-t pt-4 space-y-4">
-                  <h3 className="font-semibold text-sm">Assigned Details</h3>
+                  {selectedBusiness.website && (
+                    <div>
+                      <Label className="text-sm font-medium">Website</Label>
+                      <p className="text-sm text-muted-foreground">{selectedBusiness.website}</p>
+                    </div>
+                  )}
                   {selectedBusiness.assigned_aivia_number && (
                     <div>
-                      <Label className="text-sm font-medium">Aivia Number</Label>
+                      <Label className="text-sm font-medium">Assigned Aivia Number</Label>
                       <p className="text-sm text-muted-foreground">{selectedBusiness.assigned_aivia_number}</p>
-                      {selectedBusiness.number_notes && (
-                        <p className="text-xs text-muted-foreground mt-1">{selectedBusiness.number_notes}</p>
-                      )}
                     </div>
                   )}
                   {selectedBusiness.porting_status && (
@@ -795,33 +774,198 @@ const AdminDashboard = () => {
                       <p className="text-sm text-muted-foreground capitalize">
                         {selectedBusiness.porting_status.replace("_", " ")}
                       </p>
-                      {selectedBusiness.porting_instructions && (
-                        <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
-                          {selectedBusiness.porting_instructions}
-                        </p>
-                      )}
                     </div>
                   )}
-                  
-                  <div className="pt-2">
-                    <Button
-                      variant="destructive"
-                      onClick={() => handleAction(selectedBusiness.id, "revoked")}
-                      disabled={!!actionLoading}
-                      className="w-full"
-                    >
-                      {actionLoading === selectedBusiness.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      ) : (
-                        <XCircle className="w-4 h-4 mr-2" />
-                      )}
-                      Revoke Business Access
+
+                  <div className="flex justify-end pt-4">
+                    <Button onClick={() => setDialogStep(2)}>
+                      Next
+                      <ChevronRight className="w-4 h-4 ml-2" />
                     </Button>
-                    <p className="text-xs text-muted-foreground mt-2 text-center">
-                      This will immediately block the business owner from accessing their dashboard and all business data.
-                    </p>
                   </div>
-                </div>
+                </>
+              )}
+
+              {/* Step 2: Actions */}
+              {dialogStep === 2 && (
+                <>
+                  {selectedBusiness.status === "pending" && userPermissions.can_approve_businesses && (
+                    <>
+                      <div className="space-y-4">
+                        <h3 className="font-semibold text-sm">Number Assignment & Porting</h3>
+                        
+                        <div>
+                          <Label htmlFor="assigned-number" className="text-sm font-medium">
+                            Assigned Aivia Number
+                          </Label>
+                          <Input
+                            id="assigned-number"
+                            placeholder="+1 (555) 123-4567"
+                            value={assignedNumber}
+                            onChange={(e) => setAssignedNumber(e.target.value)}
+                            className="mt-1.5"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            If providing an Aivia number
+                          </p>
+                        </div>
+
+                        <div>
+                          <Label htmlFor="number-notes" className="text-sm font-medium">
+                            Number Notes
+                          </Label>
+                          <Textarea
+                            id="number-notes"
+                            placeholder="Optional notes about the number assignment..."
+                            value={numberNotes}
+                            onChange={(e) => setNumberNotes(e.target.value)}
+                            className="mt-1.5"
+                            rows={2}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="porting-status" className="text-sm font-medium">
+                            Porting Status
+                          </Label>
+                          <Select value={portingStatus} onValueChange={setPortingStatus}>
+                            <SelectTrigger className="mt-1.5">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending">Pending</SelectItem>
+                              <SelectItem value="in_progress">In Progress</SelectItem>
+                              <SelectItem value="complete">Complete</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            If they're porting an existing number
+                          </p>
+                        </div>
+
+                        <div>
+                          <Label htmlFor="porting-instructions" className="text-sm font-medium">
+                            Porting Instructions
+                          </Label>
+                          <Textarea
+                            id="porting-instructions"
+                            placeholder="Detailed instructions for number porting..."
+                            value={portingInstructions}
+                            onChange={(e) => setPortingInstructions(e.target.value)}
+                            className="mt-1.5"
+                            rows={3}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => setDialogStep(1)}
+                        >
+                          <ChevronLeft className="w-4 h-4 mr-2" />
+                          Back
+                        </Button>
+                        <Button
+                          onClick={() => handleAction(selectedBusiness.id, "approved")}
+                          disabled={!!actionLoading}
+                          className="flex-1"
+                        >
+                          {actionLoading === selectedBusiness.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          ) : (
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                          )}
+                          Approve
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={() => handleAction(selectedBusiness.id, "rejected")}
+                          disabled={!!actionLoading}
+                          className="flex-1"
+                        >
+                          {actionLoading === selectedBusiness.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          ) : (
+                            <XCircle className="w-4 h-4 mr-2" />
+                          )}
+                          Reject
+                        </Button>
+                      </div>
+                    </>
+                  )}
+
+                  {selectedBusiness.status === "approved" && userPermissions.can_approve_businesses && (
+                    <>
+                      <div className="space-y-4">
+                        <h3 className="font-semibold text-sm">Assigned Details</h3>
+                        {selectedBusiness.assigned_aivia_number && (
+                          <div>
+                            <Label className="text-sm font-medium">Aivia Number</Label>
+                            <p className="text-sm text-muted-foreground">{selectedBusiness.assigned_aivia_number}</p>
+                            {selectedBusiness.number_notes && (
+                              <p className="text-xs text-muted-foreground mt-1">{selectedBusiness.number_notes}</p>
+                            )}
+                          </div>
+                        )}
+                        {selectedBusiness.porting_status && (
+                          <div>
+                            <Label className="text-sm font-medium">Porting Status</Label>
+                            <p className="text-sm text-muted-foreground capitalize">
+                              {selectedBusiness.porting_status.replace("_", " ")}
+                            </p>
+                            {selectedBusiness.porting_instructions && (
+                              <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
+                                {selectedBusiness.porting_instructions}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex gap-2 pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => setDialogStep(1)}
+                        >
+                          <ChevronLeft className="w-4 h-4 mr-2" />
+                          Back
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={() => handleAction(selectedBusiness.id, "revoked")}
+                          disabled={!!actionLoading}
+                          className="flex-1"
+                        >
+                          {actionLoading === selectedBusiness.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          ) : (
+                            <XCircle className="w-4 h-4 mr-2" />
+                          )}
+                          Revoke Business Access
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground text-center">
+                        This will immediately block the business owner from accessing their dashboard.
+                      </p>
+                    </>
+                  )}
+
+                  {(selectedBusiness.status === "rejected" || selectedBusiness.status === "revoked") && (
+                    <div className="flex gap-2 pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => setDialogStep(1)}
+                      >
+                        <ChevronLeft className="w-4 h-4 mr-2" />
+                        Back
+                      </Button>
+                      <p className="text-sm text-muted-foreground flex-1 flex items-center justify-center">
+                        This business has been {selectedBusiness.status}.
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -906,7 +1050,7 @@ const AdminDashboard = () => {
                       }
                       className="rounded"
                     />
-                    <span className="text-sm">Can view global analytics (World Tracker)</span>
+                    <span className="text-sm">Can view analytics</span>
                   </label>
                   <label className="flex items-center space-x-2">
                     <input
@@ -920,7 +1064,7 @@ const AdminDashboard = () => {
                       }
                       className="rounded"
                     />
-                    <span className="text-sm">Can view billing and revenue</span>
+                    <span className="text-sm">Can manage billing</span>
                   </label>
                   <label className="flex items-center space-x-2">
                     <input
@@ -934,15 +1078,15 @@ const AdminDashboard = () => {
                       }
                       className="rounded"
                     />
-                    <span className="text-sm">Can view calls and messages</span>
+                    <span className="text-sm">Can view calls & messages</span>
                   </label>
                 </div>
               </div>
 
-               <div className="flex gap-2 pt-4">
+              <div className="flex gap-2 pt-4">
                 <Button
                   onClick={() => handleAdminAction(selectedAdmin.user_id, "approve")}
-                  disabled={!!actionLoading || selectedAdmin.email === SUPER_ADMIN_EMAIL}
+                  disabled={!!actionLoading}
                   className="flex-1"
                 >
                   {actionLoading === selectedAdmin.user_id ? (
@@ -955,7 +1099,7 @@ const AdminDashboard = () => {
                 <Button
                   variant="destructive"
                   onClick={() => handleAdminAction(selectedAdmin.user_id, "reject")}
-                  disabled={!!actionLoading || selectedAdmin.email === SUPER_ADMIN_EMAIL}
+                  disabled={!!actionLoading}
                   className="flex-1"
                 >
                   {actionLoading === selectedAdmin.user_id ? (
@@ -966,11 +1110,6 @@ const AdminDashboard = () => {
                   Reject
                 </Button>
               </div>
-              {selectedAdmin.email === SUPER_ADMIN_EMAIL && (
-                <p className="text-sm text-muted-foreground text-center pt-2">
-                  This is the super admin account and cannot be modified.
-                </p>
-              )}
             </div>
           )}
         </DialogContent>
