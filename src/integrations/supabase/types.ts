@@ -372,6 +372,10 @@ export type Database = {
       }
       customer_settings: {
         Row: {
+          ask_how_heard: boolean
+          ask_marketing_consent: boolean
+          ask_notes_preferences: boolean
+          ask_preferred_staff: boolean
           business_id: string
           collect_email: boolean
           collect_name: boolean
@@ -381,6 +385,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ask_how_heard?: boolean
+          ask_marketing_consent?: boolean
+          ask_notes_preferences?: boolean
+          ask_preferred_staff?: boolean
           business_id: string
           collect_email?: boolean
           collect_name?: boolean
@@ -390,6 +398,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ask_how_heard?: boolean
+          ask_marketing_consent?: boolean
+          ask_notes_preferences?: boolean
+          ask_preferred_staff?: boolean
           business_id?: string
           collect_email?: boolean
           collect_name?: boolean
@@ -414,9 +426,13 @@ export type Database = {
           created_at: string
           email: string | null
           first_visit_date: string
+          how_heard: string | null
           id: string
+          marketing_consent: boolean | null
           name: string
+          notes_preferences: string | null
           phone: string | null
+          preferred_staff_id: string | null
           total_visits: number
           updated_at: string
         }
@@ -425,9 +441,13 @@ export type Database = {
           created_at?: string
           email?: string | null
           first_visit_date?: string
+          how_heard?: string | null
           id?: string
+          marketing_consent?: boolean | null
           name: string
+          notes_preferences?: string | null
           phone?: string | null
+          preferred_staff_id?: string | null
           total_visits?: number
           updated_at?: string
         }
@@ -436,9 +456,13 @@ export type Database = {
           created_at?: string
           email?: string | null
           first_visit_date?: string
+          how_heard?: string | null
           id?: string
+          marketing_consent?: boolean | null
           name?: string
+          notes_preferences?: string | null
           phone?: string | null
+          preferred_staff_id?: string | null
           total_visits?: number
           updated_at?: string
         }
@@ -448,6 +472,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customers_preferred_staff_id_fkey"
+            columns: ["preferred_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
