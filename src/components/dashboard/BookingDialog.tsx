@@ -10,8 +10,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useOpeningHours } from "@/hooks/use-opening-hours";
+import { useBookingValidation } from "@/hooks/use-booking-validation";
 
 interface BookingDialogProps {
   businessId: string;
@@ -46,6 +48,7 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
   const [filteredStaff, setFilteredStaff] = useState<Staff[]>([]);
   const [staffServices, setStaffServices] = useState<StaffService[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [timeError, setTimeError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     customer_name: "",
     customer_phone: "",
@@ -55,6 +58,9 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
     duration: 60,
     notes: "",
   });
+
+  const { isDayClosed, getHoursForDate, isTimeWithinHours } = useOpeningHours(businessId);
+  const { checkStaffOverlap } = useBookingValidation();
 
   useEffect(() => {
     if (open) {
@@ -88,6 +94,23 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
       setFormData(prev => ({ ...prev, staff_id: "" }));
     }
   }, [formData.service_id, staffServices, allStaff]);
+
+  // Validate time when date or time changes
+  useEffect(() => {
+    if (selectedDate && formData.time) {
+      const { isClosed, openTime, closeTime } = getHoursForDate(selectedDate);
+      
+      if (isClosed) {
+        setTimeError("Business is closed on this day");
+      } else if (!isTimeWithinHours(selectedDate, formData.time)) {
+        setTimeError(`Business hours: ${openTime} - ${closeTime}`);
+      } else {
+        setTimeError(null);
+      }
+    } else {
+      setTimeError(null);
+    }
+  }, [selectedDate, formData.time, getHoursForDate, isTimeWithinHours]);
 
   const loadServices = async () => {
     const { data } = await supabase
@@ -136,6 +159,27 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
       return;
     }
 
+    // Check if day is closed
+    if (isDayClosed(selectedDate)) {
+      toast({
+        title: "Error",
+        description: "Cannot book on a closed day.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if time is within opening hours
+    if (!isTimeWithinHours(selectedDate, formData.time)) {
+      const { openTime, closeTime } = getHoursForDate(selectedDate);
+      toast({
+        title: "Error",
+        description: `Selected time is outside business hours (${openTime} - ${closeTime}).`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -145,6 +189,26 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
       startTime.setHours(hours, minutes, 0, 0);
       
       const endTime = new Date(startTime.getTime() + formData.duration * 60000);
+
+      // Check for double-booking if staff is selected
+      if (formData.staff_id) {
+        const { hasOverlap, conflictingBooking } = await checkStaffOverlap({
+          businessId,
+          staffId: formData.staff_id,
+          startTime,
+          endTime,
+        });
+
+        if (hasOverlap) {
+          toast({
+            title: "Double Booking Detected",
+            description: `This staff member already has a booking at this time (${conflictingBooking?.customer_name} at ${format(new Date(conflictingBooking?.start_time), "h:mm a")}).`,
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+      }
 
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -222,6 +286,15 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
     } finally {
       setLoading(false);
     }
+  };
+
+  // Disable past dates and closed days
+  const isDateDisabled = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (date < today) return true;
+    return isDayClosed(date);
   };
 
   return (
@@ -315,11 +388,17 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
                   mode="single"
                   selected={selectedDate}
                   onSelect={setSelectedDate}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  disabled={isDateDisabled}
                   initialFocus
                 />
               </PopoverContent>
             </Popover>
+            {selectedDate && isDayClosed(selectedDate) && (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                Business is closed on this day
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -332,7 +411,19 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
               required
               step="60"
             />
-            <p className="text-xs text-muted-foreground">You can enter any time (e.g., 12:12)</p>
+            {timeError ? (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {timeError}
+              </p>
+            ) : selectedDate && (
+              <p className="text-xs text-muted-foreground">
+                {(() => {
+                  const { openTime, closeTime, isClosed } = getHoursForDate(selectedDate);
+                  return isClosed ? "Closed" : `Open: ${openTime} - ${closeTime}`;
+                })()}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -367,7 +458,7 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || !!timeError}>
               {loading ? "Creating..." : "Create Booking"}
             </Button>
           </div>

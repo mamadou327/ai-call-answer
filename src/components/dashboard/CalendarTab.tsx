@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameDay, addDays, startOfDay, endOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight, User } from "lucide-react";
+import { ChevronLeft, ChevronRight, User, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { BookingDetailsDialog } from "./BookingDetailsDialog";
+import { useOpeningHours } from "@/hooks/use-opening-hours";
 
 interface CalendarTabProps {
   businessId: string;
@@ -35,6 +36,8 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+
+  const { openingHours, isDayClosed, getHoursForDate } = useOpeningHours(businessId);
 
   useEffect(() => {
     loadBookings();
@@ -99,7 +102,34 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
     return Array.from({ length: 7 }, (_, i) => addDays(start, i));
   };
 
-  const hours = Array.from({ length: 12 }, (_, i) => i + 8); // 8 AM to 7 PM
+  // Get hours based on opening hours
+  const getDisplayHours = () => {
+    let minHour = 8;
+    let maxHour = 20;
+
+    openingHours.forEach(h => {
+      if (!h.is_closed && h.open_time && h.close_time) {
+        const openHour = parseInt(h.open_time.split(":")[0]);
+        const closeHour = parseInt(h.close_time.split(":")[0]);
+        minHour = Math.min(minHour, openHour);
+        maxHour = Math.max(maxHour, closeHour + 1);
+      }
+    });
+
+    return Array.from({ length: maxHour - minHour }, (_, i) => minHour + i);
+  };
+
+  const hours = getDisplayHours();
+
+  const isHourWithinOpeningHours = (date: Date, hour: number): boolean => {
+    const { openTime, closeTime, isClosed } = getHoursForDate(date);
+    if (isClosed || !openTime || !closeTime) return false;
+    
+    const openHour = parseInt(openTime.split(":")[0]);
+    const closeHour = parseInt(closeTime.split(":")[0]);
+    
+    return hour >= openHour && hour < closeHour;
+  };
 
   const navigatePrevious = () => {
     if (view === "day") {
@@ -128,11 +158,29 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
 
   const renderDayView = () => {
     const dayBookings = getBookingsForDate(selectedDate);
+    const dayClosed = isDayClosed(selectedDate);
+    const { openTime, closeTime } = getHoursForDate(selectedDate);
     
     return (
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">{format(selectedDate, "EEEE, MMMM d, yyyy")}</h3>
-        {dayBookings.length === 0 ? (
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">{format(selectedDate, "EEEE, MMMM d, yyyy")}</h3>
+          {dayClosed ? (
+            <Badge variant="destructive" className="flex items-center gap-1">
+              <X className="w-3 h-3" />
+              Closed
+            </Badge>
+          ) : (
+            <Badge variant="outline">{openTime} - {closeTime}</Badge>
+          )}
+        </div>
+        {dayClosed ? (
+          <div className="text-center py-12 text-muted-foreground bg-muted/30 rounded-lg">
+            <X className="w-12 h-12 mx-auto mb-2 text-muted-foreground/50" />
+            <p className="font-medium">Business Closed</p>
+            <p className="text-sm">No appointments can be scheduled on this day</p>
+          </div>
+        ) : dayBookings.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <p>No appointments scheduled for this day</p>
           </div>
@@ -180,17 +228,25 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
         <div className="min-w-[800px]">
           <div className="grid grid-cols-8 border-b">
             <div className="p-2 text-center text-sm font-medium text-muted-foreground">Time</div>
-            {weekDays.map((day) => (
-              <div 
-                key={day.toISOString()} 
-                className={`p-2 text-center border-l ${isSameDay(day, new Date()) ? "bg-primary/10" : ""}`}
-              >
-                <p className="text-sm font-medium">{format(day, "EEE")}</p>
-                <p className={`text-lg ${isSameDay(day, new Date()) ? "text-primary font-bold" : ""}`}>
-                  {format(day, "d")}
-                </p>
-              </div>
-            ))}
+            {weekDays.map((day) => {
+              const dayClosed = isDayClosed(day);
+              return (
+                <div 
+                  key={day.toISOString()} 
+                  className={`p-2 text-center border-l ${isSameDay(day, new Date()) ? "bg-primary/10" : ""} ${dayClosed ? "bg-muted/50" : ""}`}
+                >
+                  <p className="text-sm font-medium">{format(day, "EEE")}</p>
+                  <p className={`text-lg ${isSameDay(day, new Date()) ? "text-primary font-bold" : ""}`}>
+                    {format(day, "d")}
+                  </p>
+                  {dayClosed && (
+                    <Badge variant="secondary" className="text-xs mt-1">
+                      <X className="w-3 h-3" />
+                    </Badge>
+                  )}
+                </div>
+              );
+            })}
           </div>
           
           <div className="max-h-[500px] overflow-y-auto">
@@ -200,6 +256,8 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                   {format(new Date().setHours(hour, 0), "h a")}
                 </div>
                 {weekDays.map((day) => {
+                  const dayClosed = isDayClosed(day);
+                  const hourOpen = isHourWithinOpeningHours(day, hour);
                   const dayBookings = getBookingsForDate(day).filter(b => {
                     const bookingHour = new Date(b.start_time).getHours();
                     return bookingHour === hour;
@@ -208,20 +266,32 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                   return (
                     <div 
                       key={`${day.toISOString()}-${hour}`} 
-                      className={`p-1 border-l relative ${isSameDay(day, new Date()) ? "bg-primary/5" : ""}`}
+                      className={`p-1 border-l relative ${
+                        dayClosed 
+                          ? "bg-muted/30" 
+                          : hourOpen 
+                            ? isSameDay(day, new Date()) ? "bg-primary/5" : ""
+                            : "bg-muted/20"
+                      }`}
                     >
-                      {dayBookings.map((booking) => (
-                        <div
-                          key={booking.id}
-                          className="text-xs p-1 rounded mb-1 text-white truncate cursor-pointer hover:opacity-80 transition-opacity"
-                          style={{ backgroundColor: booking.staff?.color || "#3B82F6" }}
-                          title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})`}
-                          onClick={() => handleBookingClick(booking)}
-                        >
-                          <p className="font-medium truncate">{booking.customer_name}</p>
-                          <p className="truncate opacity-90">{booking.service?.name}</p>
+                      {dayClosed ? (
+                        <div className="flex items-center justify-center h-full opacity-30">
+                          <X className="w-4 h-4 text-muted-foreground" />
                         </div>
-                      ))}
+                      ) : (
+                        dayBookings.map((booking) => (
+                          <div
+                            key={booking.id}
+                            className="text-xs p-1 rounded mb-1 text-white truncate cursor-pointer hover:opacity-80 transition-opacity"
+                            style={{ backgroundColor: booking.staff?.color || "#3B82F6" }}
+                            title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})`}
+                            onClick={() => handleBookingClick(booking)}
+                          >
+                            <p className="font-medium truncate">{booking.customer_name}</p>
+                            <p className="truncate opacity-90">{booking.service?.name}</p>
+                          </div>
+                        ))
+                      )}
                     </div>
                   );
                 })}
@@ -242,17 +312,34 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
           onSelect={(date) => date && setSelectedDate(date)}
           className="rounded-md border"
           modifiers={{
-            hasBookings: bookings.map(b => new Date(b.start_time))
+            hasBookings: bookings.map(b => new Date(b.start_time)),
+            closed: (date) => isDayClosed(date),
           }}
           modifiersStyles={{
-            hasBookings: { fontWeight: "bold", textDecoration: "underline" }
+            hasBookings: { fontWeight: "bold", textDecoration: "underline" },
+          }}
+          modifiersClassNames={{
+            closed: "text-muted-foreground/50 line-through",
           }}
         />
         <div className="flex-1">
-          <h3 className="text-lg font-semibold mb-4">
-            Appointments on {format(selectedDate, "MMMM d, yyyy")}
-          </h3>
-          {getBookingsForDate(selectedDate).length === 0 ? (
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">
+              Appointments on {format(selectedDate, "MMMM d, yyyy")}
+            </h3>
+            {isDayClosed(selectedDate) && (
+              <Badge variant="destructive" className="flex items-center gap-1">
+                <X className="w-3 h-3" />
+                Closed
+              </Badge>
+            )}
+          </div>
+          {isDayClosed(selectedDate) ? (
+            <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-lg">
+              <X className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
+              <p>Business Closed</p>
+            </div>
+          ) : getBookingsForDate(selectedDate).length === 0 ? (
             <p className="text-muted-foreground">No appointments</p>
           ) : (
             <div className="space-y-2">
