@@ -73,7 +73,7 @@ const AdminDashboard = () => {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
-  const [dialogStep, setDialogStep] = useState<1 | 2>(1);
+  const [dialogStep, setDialogStep] = useState<1 | 2 | 3>(1);
   const [pendingAdmins, setPendingAdmins] = useState<PendingAdmin[]>([]);
   const [selectedAdmin, setSelectedAdmin] = useState<PendingAdmin | null>(null);
   const [adminPermissions, setAdminPermissions] = useState<AdminPermissions>({
@@ -810,8 +810,8 @@ const AdminDashboard = () => {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{selectedBusiness?.business_name}</DialogTitle>
-            <DialogDescription>
-              {dialogStep === 1 ? "Business details" : "Number assignment & actions"}
+          <DialogDescription>
+              {dialogStep === 1 ? "Business details" : dialogStep === 2 ? "Number assignment & porting" : "Twilio & calls"}
             </DialogDescription>
           </DialogHeader>
           {selectedBusiness && (
@@ -820,6 +820,7 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-center gap-2 pb-2">
                 <div className={`w-2 h-2 rounded-full ${dialogStep === 1 ? "bg-primary" : "bg-muted"}`} />
                 <div className={`w-2 h-2 rounded-full ${dialogStep === 2 ? "bg-primary" : "bg-muted"}`} />
+                <div className={`w-2 h-2 rounded-full ${dialogStep === 3 ? "bg-primary" : "bg-muted"}`} />
               </div>
 
               {/* Step 1: Business Details */}
@@ -1067,9 +1068,47 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                       
-                      <Separator className="my-4" />
-                      
-                      {/* Twilio & Calls Section */}
+                      <div className="flex gap-2 pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => setDialogStep(1)}
+                        >
+                          <ChevronLeft className="w-4 h-4 mr-2" />
+                          Back
+                        </Button>
+                        <Button
+                          onClick={() => setDialogStep(3)}
+                          className="flex-1"
+                        >
+                          Next
+                          <ChevronRight className="w-4 h-4 ml-2" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+
+                  {(selectedBusiness.status === "rejected" || selectedBusiness.status === "revoked") && (
+                    <div className="flex gap-2 pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => setDialogStep(1)}
+                      >
+                        <ChevronLeft className="w-4 h-4 mr-2" />
+                        Back
+                      </Button>
+                      <p className="text-sm text-muted-foreground flex-1 flex items-center justify-center">
+                        This business has been {selectedBusiness.status}.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Step 3: Twilio & Calls */}
+              {dialogStep === 3 && (
+                <>
+                  {selectedBusiness.status === "approved" && userPermissions.can_approve_businesses && (
+                    <>
                       <div className="space-y-4">
                         <h3 className="font-semibold text-sm flex items-center gap-2">
                           <Phone className="w-4 h-4" />
@@ -1139,7 +1178,7 @@ const AdminDashboard = () => {
                       <div className="flex gap-2 pt-4">
                         <Button
                           variant="outline"
-                          onClick={() => setDialogStep(1)}
+                          onClick={() => setDialogStep(2)}
                         >
                           <ChevronLeft className="w-4 h-4 mr-2" />
                           Back
@@ -1166,21 +1205,6 @@ const AdminDashboard = () => {
                         </Button>
                       </div>
                     </>
-                  )}
-
-                  {(selectedBusiness.status === "rejected" || selectedBusiness.status === "revoked") && (
-                    <div className="flex gap-2 pt-4">
-                      <Button
-                        variant="outline"
-                        onClick={() => setDialogStep(1)}
-                      >
-                        <ChevronLeft className="w-4 h-4 mr-2" />
-                        Back
-                      </Button>
-                      <p className="text-sm text-muted-foreground flex-1 flex items-center justify-center">
-                        This business has been {selectedBusiness.status}.
-                      </p>
-                    </div>
                   )}
                 </>
               )}
