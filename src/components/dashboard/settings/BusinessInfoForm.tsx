@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { WebsiteAnalysis } from "./WebsiteAnalysis";
 import { PolicyUpload } from "./PolicyUpload";
+import { TwilioSettings } from "./TwilioSettings";
 import { Sparkles, MapPin, Phone, Bot, FileText } from "lucide-react";
 
 interface BusinessInfoFormProps {
@@ -464,6 +465,9 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
           {loading ? t("common.saving") : t("common.saveChanges")}
         </Button>
       </form>
+
+      {/* Read-only Twilio Settings */}
+      <TwilioSettings business={business} />
     </div>
   );
 };

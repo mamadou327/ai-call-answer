@@ -9,7 +9,7 @@ const corsHeaders = {
 function twimlResponse(message: string, hangup: boolean = true): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Amy">${message}</Say>
+  <Say voice="Polly.Amy">${escapeXml(message)}</Say>
   ${hangup ? "<Hangup/>" : ""}
 </Response>`;
   
@@ -19,6 +19,55 @@ function twimlResponse(message: string, hangup: boolean = true): Response {
       "Content-Type": "text/xml",
     },
   });
+}
+
+// Escape XML special characters
+function escapeXml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+// Helper function to get business AI voice settings
+async function getBusinessAiVoiceSettings(supabase: any, businessId: string) {
+  const { data: settings, error } = await supabase
+    .from("business_settings")
+    .select("assistant_name, tone, primary_language, voice_gender, voice_speed")
+    .eq("business_id", businessId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching business settings:", error);
+  }
+
+  return {
+    assistantName: settings?.assistant_name || "Aivia",
+    tone: settings?.tone || "neutral",
+    primaryLanguage: settings?.primary_language || "English",
+    voiceGender: settings?.voice_gender || "female",
+    voiceSpeed: settings?.voice_speed || "normal",
+  };
+}
+
+// Generate greeting based on business and AI settings
+function generateGreeting(businessName: string, settings: any): string {
+  const { assistantName, tone } = settings;
+  
+  // Default greeting with business name and assistant name
+  const defaultGreeting = `Hi, thanks for calling ${businessName}. I'm ${assistantName}, your virtual receptionist. How can I help you today?`;
+  
+  // Adjust based on tone
+  switch (tone) {
+    case "formal":
+      return `Good day. Thank you for calling ${businessName}. My name is ${assistantName}, and I am your virtual assistant. How may I be of service today?`;
+    case "casual":
+      return `Hey there! Thanks for calling ${businessName}! I'm ${assistantName}, your friendly AI assistant. What can I do for you?`;
+    default:
+      return defaultGreeting;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -33,7 +82,10 @@ Deno.serve(async (req) => {
     const pathParts = url.pathname.split("/");
     const token = pathParts[pathParts.length - 1];
 
+    console.log("Twilio webhook called with token:", token);
+
     if (!token || token === "twilio-voice-webhook") {
+      console.error("No token provided in URL");
       return twimlResponse("This number is not configured correctly. Goodbye.");
     }
 
@@ -50,15 +102,23 @@ Deno.serve(async (req) => {
         business_name,
         twilio_enabled,
         aivia_active,
-        assigned_aivia_number
+        assigned_aivia_number,
+        twilio_phone_number
       `)
       .eq("twilio_webhook_token", token)
-      .single();
+      .maybeSingle();
 
-    if (businessError || !business) {
+    if (businessError) {
+      console.error("Database error finding business:", businessError);
+      return twimlResponse("We are experiencing technical difficulties. Please try again later. Goodbye.");
+    }
+
+    if (!business) {
       console.error("Business not found for token:", token);
       return twimlResponse("This number is not configured in Aivia. Goodbye.");
     }
+
+    console.log("Found business:", business.id, business.business_name);
 
     if (!business.twilio_enabled) {
       console.log("Twilio disabled for business:", business.id);
@@ -81,13 +141,8 @@ Deno.serve(async (req) => {
     });
 
     // Get business AI settings
-    const { data: settings } = await supabase
-      .from("business_settings")
-      .select("assistant_name, tone, primary_language")
-      .eq("business_id", business.id)
-      .single();
-
-    const assistantName = settings?.assistant_name || "Aivia";
+    const aiSettings = await getBusinessAiVoiceSettings(supabase, business.id);
+    console.log("AI Settings:", aiSettings);
 
     // Log the call
     const { error: logError } = await supabase
@@ -104,19 +159,21 @@ Deno.serve(async (req) => {
 
     if (logError) {
       console.error("Error logging call:", logError);
+    } else {
+      console.log("Call logged successfully");
     }
 
     // Generate greeting based on AI settings
     let greeting: string;
     if (business.aivia_active) {
-      greeting = `Hello! Thank you for calling ${business.business_name}. My name is ${assistantName}, your AI assistant. How may I help you today?`;
+      greeting = generateGreeting(business.business_name, aiSettings);
     } else {
       greeting = `Thank you for calling ${business.business_name}. Our AI assistant is currently unavailable. Please try again later or leave a message. Goodbye.`;
       return twimlResponse(greeting, true);
     }
 
-    // Return TwiML with greeting (for now, just say the greeting and hang up)
-    // Full AI streaming will be implemented later
+    // Return TwiML with greeting
+    // Note: Full AI conversation streaming will be implemented in a future update
     return twimlResponse(
       `${greeting} I apologize, but our full AI booking system is being set up. Please call back later or contact the business directly. Goodbye.`,
       true
