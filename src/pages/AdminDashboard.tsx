@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import aiviaLogo from "@/assets/aivia-logo.png";
-import { LogOut, Clock, CheckCircle2, XCircle, Eye, Globe, ChevronRight, ChevronLeft } from "lucide-react";
+import { LogOut, Clock, CheckCircle2, XCircle, Eye, Globe, ChevronRight, ChevronLeft, Phone, Copy, Check } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +36,11 @@ interface Business {
   number_notes: string | null;
   porting_status: string | null;
   porting_instructions: string | null;
+  // Twilio fields
+  twilio_webhook_token: string | null;
+  twilio_phone_number: string | null;
+  twilio_enabled: boolean | null;
+  aivia_active: boolean;
 }
 
 interface Profile {
@@ -93,6 +100,15 @@ const AdminDashboard = () => {
   const [numberNotes, setNumberNotes] = useState("");
   const [portingStatus, setPortingStatus] = useState<string>("pending");
   const [portingInstructions, setPortingInstructions] = useState("");
+  
+  // Twilio settings state
+  const [twilioPhoneNumber, setTwilioPhoneNumber] = useState("");
+  const [twilioEnabled, setTwilioEnabled] = useState(false);
+  const [twilioWebhookToken, setTwilioWebhookToken] = useState<string | null>(null);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+  
+  // Supabase project ID for webhook URL
+  const SUPABASE_PROJECT_ID = "zyqzypyncugihrawhppg";
 
   useEffect(() => {
     checkAdminAccess();
@@ -409,6 +425,15 @@ const AdminDashboard = () => {
       if (numberNotes !== undefined) updateData.number_notes = numberNotes || null;
       if (portingStatus) updateData.porting_status = portingStatus;
       if (portingInstructions !== undefined) updateData.porting_instructions = portingInstructions || null;
+      
+      // Twilio fields
+      updateData.twilio_phone_number = twilioPhoneNumber || null;
+      updateData.twilio_enabled = twilioEnabled;
+      
+      // If enabling Twilio and we have a new token, save it
+      if (twilioEnabled && twilioWebhookToken) {
+        updateData.twilio_webhook_token = twilioWebhookToken;
+      }
 
       const { error } = await supabase
         .from("businesses")
@@ -429,6 +454,9 @@ const AdminDashboard = () => {
       setNumberNotes("");
       setPortingStatus("pending");
       setPortingInstructions("");
+      setTwilioPhoneNumber("");
+      setTwilioEnabled(false);
+      setTwilioWebhookToken(null);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -468,6 +496,11 @@ const AdminDashboard = () => {
     setNumberNotes(business.number_notes || "");
     setPortingStatus(business.porting_status || "pending");
     setPortingInstructions(business.porting_instructions || "");
+    // Pre-fill Twilio values
+    setTwilioPhoneNumber(business.twilio_phone_number || "");
+    setTwilioEnabled(business.twilio_enabled || false);
+    setTwilioWebhookToken(business.twilio_webhook_token || null);
+    setCopiedWebhook(false);
   };
 
   const closeBusinessDialog = () => {
@@ -477,6 +510,40 @@ const AdminDashboard = () => {
     setNumberNotes("");
     setPortingStatus("pending");
     setPortingInstructions("");
+    // Reset Twilio state
+    setTwilioPhoneNumber("");
+    setTwilioEnabled(false);
+    setTwilioWebhookToken(null);
+    setCopiedWebhook(false);
+  };
+
+  const handleTwilioToggle = async (enabled: boolean) => {
+    if (!selectedBusiness) return;
+    
+    setTwilioEnabled(enabled);
+    
+    // If enabling and no token exists, generate one
+    if (enabled && !twilioWebhookToken) {
+      const newToken = crypto.randomUUID();
+      setTwilioWebhookToken(newToken);
+    }
+  };
+
+  const copyWebhookUrl = () => {
+    if (!twilioWebhookToken) return;
+    const webhookUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook/${twilioWebhookToken}`;
+    navigator.clipboard.writeText(webhookUrl);
+    setCopiedWebhook(true);
+    setTimeout(() => setCopiedWebhook(false), 2000);
+    toast({
+      title: "Copied",
+      description: "Webhook URL copied to clipboard",
+    });
+  };
+
+  const getWebhookUrl = () => {
+    if (!twilioWebhookToken) return "";
+    return `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook/${twilioWebhookToken}`;
   };
 
   // Filter businesses by status
@@ -998,6 +1065,75 @@ const AdminDashboard = () => {
                             rows={3}
                           />
                         </div>
+                      </div>
+                      
+                      <Separator className="my-4" />
+                      
+                      {/* Twilio & Calls Section */}
+                      <div className="space-y-4">
+                        <h3 className="font-semibold text-sm flex items-center gap-2">
+                          <Phone className="w-4 h-4" />
+                          Twilio & Calls
+                        </h3>
+                        
+                        <div>
+                          <Label htmlFor="twilio-phone" className="text-sm font-medium">
+                            Twilio Phone Number
+                          </Label>
+                          <Input
+                            id="twilio-phone"
+                            placeholder="+442896021192"
+                            value={twilioPhoneNumber}
+                            onChange={(e) => setTwilioPhoneNumber(e.target.value)}
+                            className="mt-1.5"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            The Twilio number assigned to this business
+                          </p>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-sm font-medium">Twilio Enabled</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Enable inbound voice calls via Twilio
+                            </p>
+                          </div>
+                          <Switch
+                            checked={twilioEnabled}
+                            onCheckedChange={handleTwilioToggle}
+                          />
+                        </div>
+                        
+                        {(twilioEnabled || twilioWebhookToken) && (
+                          <div>
+                            <Label className="text-sm font-medium">Webhook URL</Label>
+                            <div className="flex gap-2 mt-1.5">
+                              <Input
+                                value={getWebhookUrl()}
+                                readOnly
+                                className="bg-muted font-mono text-xs"
+                                placeholder="Enable Twilio to generate webhook URL"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={copyWebhookUrl}
+                                disabled={!twilioWebhookToken}
+                              >
+                                {copiedWebhook ? (
+                                  <Check className="w-4 h-4 text-success" />
+                                ) : (
+                                  <Copy className="w-4 h-4" />
+                                )}
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Paste this URL in Twilio's Voice webhook settings
+                            </p>
+                          </div>
+                        )}
                       </div>
                       
                       <div className="flex gap-2 pt-4">
