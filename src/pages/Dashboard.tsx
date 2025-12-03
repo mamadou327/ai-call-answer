@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings } from "lucide-react";
+import { LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { useTranslation } from "react-i18next";
 
@@ -15,6 +14,7 @@ import { MessagesTab } from "@/components/dashboard/MessagesTab";
 import { BookingsTab } from "@/components/dashboard/BookingsTab";
 import { CalendarTab } from "@/components/dashboard/CalendarTab";
 import { SettingsTab } from "@/components/dashboard/SettingsTab";
+import { AccountMenu } from "@/components/AccountMenu";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 
 interface Business {
@@ -251,32 +251,16 @@ const Dashboard = () => {
             <span className="font-orbitron font-bold text-2xl">Aivia</span>
           </div>
           <div className="flex items-center gap-4">
-            {business && (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-lg border">
-                <span className="text-sm font-medium">AIV</span>
-                <Button
-                  variant={business.aivia_active ? "default" : "outline"}
-                  size="sm"
-                  onClick={async () => {
-                    const newStatus = !business.aivia_active;
-                    await supabase
-                      .from("businesses")
-                      .update({ aivia_active: newStatus })
-                      .eq("id", business.id);
-                    setBusiness({ ...business, aivia_active: newStatus });
-                    toast({
-                      title: newStatus ? "AIV Activated" : "AIV Deactivated",
-                      description: newStatus ? "AI assistant is now active" : "AI assistant is now inactive",
-                    });
-                  }}
-                >
-                  {business.aivia_active ? "ON" : "OFF"}
-                </Button>
-              </div>
+            {business && user && (
+              <AccountMenu
+                businessName={business.business_name}
+                userEmail={user.email || ""}
+                planTier={business.plan_tier}
+                aiviaActive={business.aivia_active}
+                businessId={business.id}
+                onAiviaToggle={(active) => setBusiness({ ...business, aivia_active: active })}
+              />
             )}
-            <Button variant="ghost" size="icon" onClick={handleSignOut}>
-              <LogOut className="w-5 h-5" />
-            </Button>
           </div>
         </div>
       </header>
