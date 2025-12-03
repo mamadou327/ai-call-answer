@@ -29,6 +29,7 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingService, setEditingService] = useState<Service | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -68,29 +69,73 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
     if (data) setServices(data);
   };
 
+  const openEditDialog = (service: Service) => {
+    setEditingService(service);
+    setFormData({
+      name: service.name,
+      description: service.description || "",
+      duration_minutes: service.duration_minutes,
+      price: service.price,
+      category: service.category,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setEditingService(null);
+      setFormData({ name: "", description: "", duration_minutes: 60, price: 0, category: "" });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase
-      .from("services")
-      .insert([{ ...formData, business_id: businessId }]);
+    if (editingService) {
+      // Update existing service
+      const { error } = await supabase
+        .from("services")
+        .update(formData)
+        .eq("id", editingService.id);
 
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add service.",
-        variant: "destructive",
-      });
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to update service.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Service updated successfully.",
+        });
+        handleDialogClose(false);
+        loadServices();
+        onUpdate();
+      }
     } else {
-      toast({
-        title: "Success",
-        description: "Service added successfully.",
-      });
-      setDialogOpen(false);
-      setFormData({ name: "", description: "", duration_minutes: 60, price: 0, category: "" });
-      loadServices();
-      onUpdate();
+      // Create new service
+      const { error } = await supabase
+        .from("services")
+        .insert([{ ...formData, business_id: businessId }]);
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to add service.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Service added successfully.",
+        });
+        handleDialogClose(false);
+        loadServices();
+        onUpdate();
+      }
     }
 
     setLoading(false);
@@ -125,17 +170,19 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
           <CardTitle>Services</CardTitle>
           <CardDescription>Manage your business services</CardDescription>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => { setEditingService(null); setFormData({ name: "", description: "", duration_minutes: 60, price: 0, category: "" }); }}>
               <Plus className="w-4 h-4 mr-2" />
               Add Service
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add New Service</DialogTitle>
-              <DialogDescription>Create a new service for your business</DialogDescription>
+              <DialogTitle>{editingService ? "Edit Service" : "Add New Service"}</DialogTitle>
+              <DialogDescription>
+                {editingService ? "Update service details" : "Create a new service for your business"}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -188,7 +235,7 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
                 </div>
               </div>
               <Button type="submit" disabled={loading}>
-                {loading ? "Adding..." : "Add Service"}
+                {loading ? (editingService ? "Updating..." : "Adding...") : (editingService ? "Update Service" : "Add Service")}
               </Button>
             </form>
           </DialogContent>
@@ -215,13 +262,22 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
                     <span>{currencySymbol}{service.price}</span>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleDelete(service.id)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => openEditDialog(service)}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(service.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

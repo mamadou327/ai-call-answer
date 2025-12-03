@@ -5,8 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface BookingDialogProps {
   businessId: string;
@@ -15,17 +20,38 @@ interface BookingDialogProps {
   onSuccess: () => void;
 }
 
+interface Service {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  price: number;
+}
+
+interface Staff {
+  id: string;
+  name: string;
+  role: string;
+}
+
+interface StaffService {
+  staff_id: string;
+  service_id: string;
+}
+
 export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: BookingDialogProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [services, setServices] = useState<any[]>([]);
-  const [staff, setStaff] = useState<any[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [allStaff, setAllStaff] = useState<Staff[]>([]);
+  const [filteredStaff, setFilteredStaff] = useState<Staff[]>([]);
+  const [staffServices, setStaffServices] = useState<StaffService[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [formData, setFormData] = useState({
     customer_name: "",
     customer_phone: "",
     service_id: "",
     staff_id: "",
-    start_time: "",
+    time: "",
     duration: 60,
     notes: "",
   });
@@ -34,13 +60,39 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
     if (open) {
       loadServices();
       loadStaff();
+      loadStaffServices();
     }
   }, [open, businessId]);
+
+  // Filter staff when service changes
+  useEffect(() => {
+    if (!formData.service_id) {
+      setFilteredStaff(allStaff);
+      return;
+    }
+
+    // Get staff IDs that can perform the selected service
+    const eligibleStaffIds = staffServices
+      .filter(ss => ss.service_id === formData.service_id)
+      .map(ss => ss.staff_id);
+
+    // If no staff-service mappings exist, show all staff
+    if (eligibleStaffIds.length === 0) {
+      setFilteredStaff(allStaff);
+    } else {
+      setFilteredStaff(allStaff.filter(s => eligibleStaffIds.includes(s.id)));
+    }
+
+    // Reset staff selection if current staff can't do the service
+    if (formData.staff_id && eligibleStaffIds.length > 0 && !eligibleStaffIds.includes(formData.staff_id)) {
+      setFormData(prev => ({ ...prev, staff_id: "" }));
+    }
+  }, [formData.service_id, staffServices, allStaff]);
 
   const loadServices = async () => {
     const { data } = await supabase
       .from("services")
-      .select("*")
+      .select("id, name, duration_minutes, price")
       .eq("business_id", businessId);
     if (data) setServices(data);
   };
@@ -48,17 +100,50 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
   const loadStaff = async () => {
     const { data } = await supabase
       .from("staff")
-      .select("*")
+      .select("id, name, role")
       .eq("business_id", businessId);
-    if (data) setStaff(data);
+    if (data) {
+      setAllStaff(data);
+      setFilteredStaff(data);
+    }
+  };
+
+  const loadStaffServices = async () => {
+    const { data } = await supabase
+      .from("staff_services")
+      .select("staff_id, service_id");
+    if (data) setStaffServices(data);
+  };
+
+  const handleServiceChange = (serviceId: string) => {
+    const service = services.find(s => s.id === serviceId);
+    setFormData({
+      ...formData,
+      service_id: serviceId,
+      duration: service?.duration_minutes || 60,
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!selectedDate || !formData.time) {
+      toast({
+        title: "Error",
+        description: "Please select both date and time.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const startTime = new Date(formData.start_time);
+      // Parse time (HH:MM format)
+      const [hours, minutes] = formData.time.split(":").map(Number);
+      const startTime = new Date(selectedDate);
+      startTime.setHours(hours, minutes, 0, 0);
+      
       const endTime = new Date(startTime.getTime() + formData.duration * 60000);
 
       const { data: { user } } = await supabase.auth.getUser();
@@ -122,10 +207,11 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
         customer_phone: "",
         service_id: "",
         staff_id: "",
-        start_time: "",
+        time: "",
         duration: 60,
         notes: "",
       });
+      setSelectedDate(undefined);
     } catch (error: any) {
       console.error("Booking creation error:", error);
       toast({
@@ -171,14 +257,7 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
             <Label htmlFor="service">Service</Label>
             <Select
               value={formData.service_id}
-              onValueChange={(value) => {
-                const service = services.find(s => s.id === value);
-                setFormData({ 
-                  ...formData, 
-                  service_id: value,
-                  duration: service?.duration_minutes || 60 
-                });
-              }}
+              onValueChange={handleServiceChange}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select service" />
@@ -198,29 +277,62 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
             <Select
               value={formData.staff_id}
               onValueChange={(value) => setFormData({ ...formData, staff_id: value })}
+              disabled={filteredStaff.length === 0}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select staff" />
+                <SelectValue placeholder={filteredStaff.length === 0 ? "No staff available for this service" : "Select staff"} />
               </SelectTrigger>
               <SelectContent>
-                {staff.map((member) => (
+                {filteredStaff.map((member) => (
                   <SelectItem key={member.id} value={member.id}>
                     {member.name} - {member.role}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {formData.service_id && filteredStaff.length === 0 && (
+              <p className="text-xs text-muted-foreground">No staff assigned to this service yet</p>
+            )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="start_time">Date & Time *</Label>
+            <Label>Date *</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !selectedDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? format(selectedDate, "PPP") : "Pick a date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="time">Time * (HH:MM)</Label>
             <Input
-              id="start_time"
-              type="datetime-local"
-              value={formData.start_time}
-              onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+              id="time"
+              type="time"
+              value={formData.time}
+              onChange={(e) => setFormData({ ...formData, time: e.target.value })}
               required
+              step="60"
             />
+            <p className="text-xs text-muted-foreground">You can enter any time (e.g., 12:12)</p>
           </div>
 
           <div className="space-y-2">
@@ -230,10 +342,15 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
               type="number"
               value={formData.duration}
               onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
-              min="15"
-              step="15"
+              min="5"
+              step="5"
               required
             />
+            {formData.service_id && (
+              <p className="text-xs text-muted-foreground">
+                Auto-set from service duration. You can adjust if needed.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

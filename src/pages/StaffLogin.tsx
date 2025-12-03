@@ -78,12 +78,12 @@ const StaffLogin = () => {
       }
 
       if (membership.status === "active") {
-        navigate("/dashboard");
+        navigate("/staff/dashboard");
         return;
       }
 
       // Fallback
-      navigate("/dashboard");
+      navigate("/staff/dashboard");
     } catch (error: any) {
       toast({
         title: "Error",

@@ -7,6 +7,7 @@ import { TimeOffManagement } from "./settings/TimeOffManagement";
 import { StaffJoinCodeSection } from "./settings/StaffJoinCodeSection";
 import { StaffMembershipsManagement } from "./settings/StaffMembershipsManagement";
 import { StaffInviteDialog } from "./settings/StaffInviteDialog";
+import { CustomersManagement } from "./settings/CustomersManagement";
 
 interface SettingsTabProps {
   businessId: string;
@@ -26,12 +27,13 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
 
   return (
     <Tabs defaultValue={mapSection(activeSection || "business")} className="space-y-6">
-      <TabsList className="grid w-full grid-cols-5 lg:w-auto">
+      <TabsList className="grid w-full grid-cols-6 lg:w-auto">
         <TabsTrigger value="business">Business</TabsTrigger>
         <TabsTrigger value="services">Services</TabsTrigger>
         <TabsTrigger value="staff">Staff</TabsTrigger>
         <TabsTrigger value="hours">Hours</TabsTrigger>
         <TabsTrigger value="timeoff">Time Off</TabsTrigger>
+        <TabsTrigger value="customers">Customers</TabsTrigger>
       </TabsList>
 
       <TabsContent value="business">
@@ -58,6 +60,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
 
       <TabsContent value="timeoff">
         <TimeOffManagement businessId={businessId} onUpdate={onUpdate} />
+      </TabsContent>
+
+      <TabsContent value="customers">
+        <CustomersManagement businessId={businessId} onUpdate={onUpdate} />
       </TabsContent>
     </Tabs>
   );

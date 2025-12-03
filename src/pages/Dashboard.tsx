@@ -347,11 +347,11 @@ const Dashboard = () => {
               {!isStaffView && (
                 <>
                   <TabsContent value="calls">
-                    <CallsTab />
+                    <CallsTab businessId={business.id} />
                   </TabsContent>
 
                   <TabsContent value="messages">
-                    <MessagesTab />
+                    <MessagesTab businessId={business.id} />
                   </TabsContent>
                 </>
               )}
