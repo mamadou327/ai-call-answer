@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameDay, addDays, startOfDay, endOfDay } from "date-fns";
 import { ChevronLeft, ChevronRight, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { BookingDetailsDialog } from "./BookingDetailsDialog";
 
 interface CalendarTabProps {
   businessId: string;
@@ -20,8 +21,10 @@ interface Booking {
   start_time: string;
   end_time: string;
   status: string;
-  service?: { name: string };
-  staff?: { name: string; color: string };
+  notes: string | null;
+  created_by: string | null;
+  service?: { name: string } | null;
+  staff?: { name: string; color: string } | null;
 }
 
 export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) => {
@@ -30,6 +33,8 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
   const [view, setView] = useState<"day" | "week" | "month">("week");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
 
   useEffect(() => {
     loadBookings();
@@ -116,6 +121,11 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
     }
   };
 
+  const handleBookingClick = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setDetailsDialogOpen(true);
+  };
+
   const renderDayView = () => {
     const dayBookings = getBookingsForDate(selectedDate);
     
@@ -131,8 +141,9 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
             {dayBookings.map((booking) => (
               <div
                 key={booking.id}
-                className="p-4 rounded-lg border"
+                className="p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
                 style={{ borderLeftColor: booking.staff?.color || "#3B82F6", borderLeftWidth: "4px" }}
+                onClick={() => handleBookingClick(booking)}
               >
                 <div className="flex justify-between items-start">
                   <div>
@@ -202,9 +213,10 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                       {dayBookings.map((booking) => (
                         <div
                           key={booking.id}
-                          className="text-xs p-1 rounded mb-1 text-white truncate"
+                          className="text-xs p-1 rounded mb-1 text-white truncate cursor-pointer hover:opacity-80 transition-opacity"
                           style={{ backgroundColor: booking.staff?.color || "#3B82F6" }}
                           title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})`}
+                          onClick={() => handleBookingClick(booking)}
                         >
                           <p className="font-medium truncate">{booking.customer_name}</p>
                           <p className="truncate opacity-90">{booking.service?.name}</p>
@@ -247,8 +259,9 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
               {getBookingsForDate(selectedDate).map((booking) => (
                 <div
                   key={booking.id}
-                  className="p-3 rounded-lg border flex justify-between items-center"
+                  className="p-3 rounded-lg border flex justify-between items-center cursor-pointer hover:bg-muted/50 transition-colors"
                   style={{ borderLeftColor: booking.staff?.color || "#3B82F6", borderLeftWidth: "4px" }}
+                  onClick={() => handleBookingClick(booking)}
                 >
                   <div>
                     <p className="font-medium">{booking.customer_name}</p>
@@ -329,6 +342,14 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
           )}
         </CardContent>
       </Card>
+
+      {/* Booking Details Dialog */}
+      <BookingDetailsDialog
+        booking={selectedBooking}
+        open={detailsDialogOpen}
+        onOpenChange={setDetailsDialogOpen}
+        onDelete={loadBookings}
+      />
     </div>
   );
 };
