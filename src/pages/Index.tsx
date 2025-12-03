@@ -144,7 +144,14 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border py-8">
         <div className="container mx-auto px-4 text-center text-muted-foreground">
-          <p>© 2024 AIVIA. All rights reserved.</p>
+          <p className="mb-4">© 2024 AIVIA. All rights reserved.</p>
+          <Button 
+            variant="link" 
+            onClick={() => navigate("/staff/login")} 
+            className="text-muted-foreground hover:text-foreground"
+          >
+            Staff login
+          </Button>
         </div>
       </footer>
     </div>
