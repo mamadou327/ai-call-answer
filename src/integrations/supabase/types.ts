@@ -312,36 +312,42 @@ export type Database = {
       }
       calls_log: {
         Row: {
+          booking_id: string | null
           business_id: string
           call_outcome: string | null
           call_type: Database["public"]["Enums"]["call_type"]
           caller_name: string | null
           caller_phone: string
           created_at: string | null
+          duration_ms: number | null
           id: string
           needs_review: boolean | null
           summary: string | null
           tags: string[] | null
         }
         Insert: {
+          booking_id?: string | null
           business_id: string
           call_outcome?: string | null
           call_type: Database["public"]["Enums"]["call_type"]
           caller_name?: string | null
           caller_phone: string
           created_at?: string | null
+          duration_ms?: number | null
           id?: string
           needs_review?: boolean | null
           summary?: string | null
           tags?: string[] | null
         }
         Update: {
+          booking_id?: string | null
           business_id?: string
           call_outcome?: string | null
           call_type?: Database["public"]["Enums"]["call_type"]
           caller_name?: string | null
           caller_phone?: string
           created_at?: string | null
+          duration_ms?: number | null
           id?: string
           needs_review?: boolean | null
           summary?: string | null
@@ -349,10 +355,163 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "calls_log_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "calls_log_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_settings: {
+        Row: {
+          business_id: string
+          collect_email: boolean
+          collect_name: boolean
+          collect_phone: boolean
+          created_at: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          collect_email?: boolean
+          collect_name?: boolean
+          collect_phone?: boolean
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          collect_email?: boolean
+          collect_name?: boolean
+          collect_phone?: boolean
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          business_id: string
+          created_at: string
+          email: string | null
+          first_visit_date: string
+          id: string
+          name: string
+          phone: string | null
+          total_visits: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          email?: string | null
+          first_visit_date?: string
+          id?: string
+          name: string
+          phone?: string | null
+          total_visits?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          email?: string | null
+          first_visit_date?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          total_visits?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          business_id: string
+          call_id: string | null
+          caller_name: string | null
+          caller_phone: string
+          content: string
+          created_at: string
+          id: string
+          is_read: boolean
+          is_urgent: boolean
+          recipient_staff_id: string | null
+          recipient_type: string
+        }
+        Insert: {
+          business_id: string
+          call_id?: string | null
+          caller_name?: string | null
+          caller_phone: string
+          content: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          is_urgent?: boolean
+          recipient_staff_id?: string | null
+          recipient_type?: string
+        }
+        Update: {
+          business_id?: string
+          call_id?: string | null
+          caller_name?: string | null
+          caller_phone?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          is_urgent?: boolean
+          recipient_staff_id?: string | null
+          recipient_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls_log"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_recipient_staff_id_fkey"
+            columns: ["recipient_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]

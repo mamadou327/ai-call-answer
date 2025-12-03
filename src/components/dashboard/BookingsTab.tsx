@@ -38,6 +38,7 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     loadBookings();
@@ -143,7 +144,7 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
             </div>
           ) : (
             <div className="space-y-2">
-              {bookings.map((booking) => (
+              {(showAll ? bookings : bookings.slice(0, 3)).map((booking) => (
                 <div
                   key={booking.id}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
@@ -178,6 +179,15 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
                   </div>
                 </div>
               ))}
+              {bookings.length > 3 && (
+                <Button
+                  variant="outline"
+                  className="w-full mt-4"
+                  onClick={() => setShowAll(!showAll)}
+                >
+                  {showAll ? "Show Less" : `Show More (${bookings.length - 3} more)`}
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
