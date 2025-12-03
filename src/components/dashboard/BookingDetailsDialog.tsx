@@ -22,7 +22,6 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
   const { t } = useTranslation();
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [newStartTime, setNewStartTime] = useState("");
-  const [newEndTime, setNewEndTime] = useState("");
 
   if (!booking) return null;
 
@@ -53,7 +52,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
   };
 
   const handleReschedule = async () => {
-    if (!newStartTime || !newEndTime) {
+    if (!newStartTime) {
       toast({
         title: t("common.error"),
         description: t("bookingDetails.selectNewTime"),
@@ -62,11 +61,19 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
       return;
     }
 
+    // Calculate duration from original booking and apply to new start time
+    const originalStart = new Date(booking.start_time);
+    const originalEnd = new Date(booking.end_time);
+    const durationMs = originalEnd.getTime() - originalStart.getTime();
+    
+    const newStart = new Date(newStartTime);
+    const newEnd = new Date(newStart.getTime() + durationMs);
+
     const { error } = await supabase
       .from("bookings")
       .update({ 
-        start_time: newStartTime,
-        end_time: newEndTime,
+        start_time: newStart.toISOString(),
+        end_time: newEnd.toISOString(),
       })
       .eq("id", booking.id);
 
@@ -177,14 +184,9 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
                   value={newStartTime}
                   onChange={(e) => setNewStartTime(e.target.value)}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>{t("bookingDetails.newEndTime")}</Label>
-                <Input
-                  type="datetime-local"
-                  value={newEndTime}
-                  onChange={(e) => setNewEndTime(e.target.value)}
-                />
+                <p className="text-xs text-muted-foreground">
+                  {t("bookingDetails.durationKept")}
+                </p>
               </div>
             </div>
           )}
