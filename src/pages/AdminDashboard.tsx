@@ -833,13 +833,14 @@ const AdminDashboard = () => {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="not_porting">Not Porting</SelectItem>
                               <SelectItem value="pending">Pending</SelectItem>
                               <SelectItem value="in_progress">In Progress</SelectItem>
                               <SelectItem value="complete">Complete</SelectItem>
                             </SelectContent>
                           </Select>
                           <p className="text-xs text-muted-foreground mt-1">
-                            If they're porting an existing number
+                            Select "Not Porting" if using an Aivia number only
                           </p>
                         </div>
 
