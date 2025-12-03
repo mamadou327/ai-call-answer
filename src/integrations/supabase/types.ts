@@ -260,6 +260,9 @@ export type Database = {
           staff_join_code: string | null
           staff_join_expires_at: string | null
           status: Database["public"]["Enums"]["business_status"]
+          twilio_enabled: boolean | null
+          twilio_phone_number: string | null
+          twilio_webhook_token: string | null
           updated_at: string | null
           website: string | null
           website_knowledge: string | null
@@ -282,6 +285,9 @@ export type Database = {
           staff_join_code?: string | null
           staff_join_expires_at?: string | null
           status?: Database["public"]["Enums"]["business_status"]
+          twilio_enabled?: boolean | null
+          twilio_phone_number?: string | null
+          twilio_webhook_token?: string | null
           updated_at?: string | null
           website?: string | null
           website_knowledge?: string | null
@@ -304,6 +310,9 @@ export type Database = {
           staff_join_code?: string | null
           staff_join_expires_at?: string | null
           status?: Database["public"]["Enums"]["business_status"]
+          twilio_enabled?: boolean | null
+          twilio_phone_number?: string | null
+          twilio_webhook_token?: string | null
           updated_at?: string | null
           website?: string | null
           website_knowledge?: string | null
@@ -324,6 +333,8 @@ export type Database = {
           needs_review: boolean | null
           summary: string | null
           tags: string[] | null
+          to_number: string | null
+          twilio_call_sid: string | null
         }
         Insert: {
           booking_id?: string | null
@@ -338,6 +349,8 @@ export type Database = {
           needs_review?: boolean | null
           summary?: string | null
           tags?: string[] | null
+          to_number?: string | null
+          twilio_call_sid?: string | null
         }
         Update: {
           booking_id?: string | null
@@ -352,6 +365,8 @@ export type Database = {
           needs_review?: boolean | null
           summary?: string | null
           tags?: string[] | null
+          to_number?: string | null
+          twilio_call_sid?: string | null
         }
         Relationships: [
           {

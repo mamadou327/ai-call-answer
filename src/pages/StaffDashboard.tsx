@@ -11,6 +11,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { format, isToday, startOfDay, endOfDay, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameDay } from "date-fns";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { BookingDetailsDialog } from "@/components/dashboard/BookingDetailsDialog";
 
 interface Booking {
   id: string;
@@ -20,6 +21,7 @@ interface Booking {
   end_time: string;
   status: string;
   notes: string | null;
+  created_by?: string | null;
   service?: { name: string } | null;
   staff?: { id: string; name: string } | null;
 }
@@ -52,6 +54,8 @@ const StaffDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [calendarDate, setCalendarDate] = useState<Date>(new Date());
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("week");
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [bookingDetailsOpen, setBookingDetailsOpen] = useState(false);
 
   useEffect(() => {
     checkUserAndLoadData();
@@ -226,6 +230,17 @@ const StaffDashboard = () => {
 
     if (!error) {
       setMessages(prev => prev.map(m => m.id === messageId ? { ...m, is_read: true } : m));
+    }
+  };
+
+  const handleBookingClick = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setBookingDetailsOpen(true);
+  };
+
+  const refreshBookings = () => {
+    if (businessId && staffId) {
+      loadStaffData(businessId, staffId);
     }
   };
 
@@ -553,7 +568,8 @@ const StaffDashboard = () => {
                         {getCalendarBookings().map((booking) => (
                           <div
                             key={booking.id}
-                            className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50"
+                            className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                            onClick={() => handleBookingClick(booking)}
                           >
                             <div className="flex-shrink-0 text-center min-w-[80px]">
                               <p className="text-sm font-medium">
@@ -701,6 +717,14 @@ const StaffDashboard = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Booking Details Dialog */}
+        <BookingDetailsDialog
+          booking={selectedBooking}
+          open={bookingDetailsOpen}
+          onOpenChange={setBookingDetailsOpen}
+          onDelete={refreshBookings}
+        />
       </main>
     </div>
   );

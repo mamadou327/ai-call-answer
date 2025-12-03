@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Users, Upload, Settings2, Phone, Mail, User, ChevronDown, ChevronUp, Calendar, MessageSquare, Heart, UserCheck, Loader2 } from "lucide-react";
+import { Users, Download, Settings2, Phone, Mail, User, ChevronDown, ChevronUp, Calendar, MessageSquare, Heart, UserCheck, Loader2, Eye } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,7 @@ import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
+import { CustomerDetailDialog } from "../CustomerDetailDialog";
 
 interface CustomersManagementProps {
   businessId: string;
@@ -40,6 +41,7 @@ interface Customer {
   how_heard: string | null;
   marketing_consent: boolean | null;
   notes_preferences: string | null;
+  preferred_staff_id: string | null;
 }
 
 interface CustomerSettings {
@@ -68,10 +70,12 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
   });
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [importFromDate, setImportFromDate] = useState<Date | undefined>(undefined);
-  const [importToDate, setImportToDate] = useState<Date | undefined>(undefined);
-  const [importing, setImporting] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportFromDate, setExportFromDate] = useState<Date | undefined>(undefined);
+  const [exportToDate, setExportToDate] = useState<Date | undefined>(undefined);
+  const [exporting, setExporting] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerDetailOpen, setCustomerDetailOpen] = useState(false);
 
   useEffect(() => {
     loadCustomers();
@@ -139,111 +143,93 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
     setSettingsLoading(false);
   };
 
-  const handleImportCustomers = async () => {
-    if (!importFromDate || !importToDate) {
-      toast({
-        title: "Error",
-        description: "Please select both from and to dates.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setImporting(true);
-    let importedCount = 0;
-    let updatedCount = 0;
-
+  const handleExportCustomers = async () => {
+    setExporting(true);
+    
     try {
-      // Fetch bookings in the date range
-      const { data: bookings } = await supabase
-        .from("bookings")
-        .select("customer_name, customer_phone, start_time")
-        .eq("business_id", businessId)
-        .gte("start_time", importFromDate.toISOString())
-        .lte("start_time", importToDate.toISOString());
-
-      if (bookings && bookings.length > 0) {
-        for (const booking of bookings) {
-          // Check if customer exists
-          const { data: existing } = await supabase
-            .from("customers")
-            .select("id, total_visits")
-            .eq("business_id", businessId)
-            .eq("phone", booking.customer_phone)
-            .maybeSingle();
-
-          if (existing) {
-            // Customer exists - this booking may have already been counted
-            updatedCount++;
-          } else {
-            // Create new customer
-            const { error } = await supabase
-              .from("customers")
-              .insert({
-                business_id: businessId,
-                name: booking.customer_name,
-                phone: booking.customer_phone,
-                first_visit_date: booking.start_time,
-                total_visits: 1,
-              });
-            if (!error) importedCount++;
-          }
-        }
+      // Filter customers by date range if provided
+      let customersToExport = [...customers];
+      
+      if (exportFromDate && exportToDate) {
+        customersToExport = customers.filter(c => {
+          const visitDate = new Date(c.first_visit_date);
+          return visitDate >= exportFromDate && visitDate <= exportToDate;
+        });
       }
 
-      // Also check call logs for customer info
-      const { data: calls } = await supabase
-        .from("calls_log")
-        .select("caller_name, caller_phone, created_at")
-        .eq("business_id", businessId)
-        .gte("created_at", importFromDate.toISOString())
-        .lte("created_at", importToDate.toISOString());
-
-      if (calls && calls.length > 0) {
-        for (const call of calls) {
-          if (!call.caller_phone) continue;
-          
-          const { data: existing } = await supabase
-            .from("customers")
-            .select("id")
-            .eq("business_id", businessId)
-            .eq("phone", call.caller_phone)
-            .maybeSingle();
-
-          if (!existing) {
-            const { error } = await supabase
-              .from("customers")
-              .insert({
-                business_id: businessId,
-                name: call.caller_name || "Unknown",
-                phone: call.caller_phone,
-                first_visit_date: call.created_at,
-                total_visits: 1,
-              });
-            if (!error) importedCount++;
-          }
-        }
+      if (customersToExport.length === 0) {
+        toast({
+          title: "No customers to export",
+          description: "No customers found for the selected date range.",
+          variant: "destructive",
+        });
+        setExporting(false);
+        return;
       }
+
+      // Create CSV content
+      const headers = ["Name", "Phone", "Email", "First Visit Date", "Total Visits", "How Heard", "Marketing Consent", "Notes/Preferences"];
+      const csvRows = [headers.join(",")];
+      
+      for (const customer of customersToExport) {
+        const row = [
+          `"${customer.name.replace(/"/g, '""')}"`,
+          customer.phone || "",
+          customer.email || "",
+          format(new Date(customer.first_visit_date), "yyyy-MM-dd"),
+          customer.total_visits.toString(),
+          customer.how_heard || "",
+          customer.marketing_consent ? "Yes" : "No",
+          `"${(customer.notes_preferences || "").replace(/"/g, '""')}"`,
+        ];
+        csvRows.push(row.join(","));
+      }
+
+      const csvContent = csvRows.join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      
+      // Generate filename
+      let filename = "customers";
+      if (exportFromDate && exportToDate) {
+        filename += `_${format(exportFromDate, "yyyy-MM-dd")}_to_${format(exportToDate, "yyyy-MM-dd")}`;
+      } else {
+        filename += "_all";
+      }
+      filename += ".csv";
+      
+      // Trigger download
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
       toast({
-        title: "Import Complete",
-        description: `Imported ${importedCount} new customers. ${updatedCount} existing customers found.`,
+        title: "Export Complete",
+        description: `Exported ${customersToExport.length} customers to ${filename}`,
       });
 
-      setImportDialogOpen(false);
-      setImportFromDate(undefined);
-      setImportToDate(undefined);
-      loadCustomers();
+      setExportDialogOpen(false);
+      setExportFromDate(undefined);
+      setExportToDate(undefined);
     } catch (error) {
-      console.error("Import error:", error);
+      console.error("Export error:", error);
       toast({
         title: "Error",
-        description: "Failed to import customers.",
+        description: "Failed to export customers.",
         variant: "destructive",
       });
     } finally {
-      setImporting(false);
+      setExporting(false);
     }
+  };
+
+  const handleViewCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setCustomerDetailOpen(true);
   };
 
   const filteredCustomers = customers.filter(c =>
@@ -266,88 +252,88 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
             </CardTitle>
             <CardDescription>View and manage your customer database</CardDescription>
           </div>
-          <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+          <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
-                <Upload className="w-4 h-4 mr-2" />
-                Import
+                <Download className="w-4 h-4 mr-2" />
+                Export
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Import Customer Details</DialogTitle>
+                <DialogTitle>Export Customers</DialogTitle>
                 <DialogDescription>
-                  Import customers from existing bookings and call logs within a date range
+                  Download customer data as a CSV file. Optionally filter by date range.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>From Date</Label>
+                  <Label>From Date (optional)</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         className={cn(
                           "w-full justify-start text-left font-normal",
-                          !importFromDate && "text-muted-foreground"
+                          !exportFromDate && "text-muted-foreground"
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {importFromDate ? format(importFromDate, "PPP") : "Select start date"}
+                        {exportFromDate ? format(exportFromDate, "PPP") : "Select start date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <CalendarPicker
                         mode="single"
-                        selected={importFromDate}
-                        onSelect={setImportFromDate}
+                        selected={exportFromDate}
+                        onSelect={setExportFromDate}
                         initialFocus
                       />
                     </PopoverContent>
                   </Popover>
                 </div>
                 <div className="space-y-2">
-                  <Label>To Date</Label>
+                  <Label>To Date (optional)</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         className={cn(
                           "w-full justify-start text-left font-normal",
-                          !importToDate && "text-muted-foreground"
+                          !exportToDate && "text-muted-foreground"
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {importToDate ? format(importToDate, "PPP") : "Select end date"}
+                        {exportToDate ? format(exportToDate, "PPP") : "Select end date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <CalendarPicker
                         mode="single"
-                        selected={importToDate}
-                        onSelect={setImportToDate}
-                        disabled={(date) => importFromDate ? date < importFromDate : false}
+                        selected={exportToDate}
+                        onSelect={setExportToDate}
+                        disabled={(date) => exportFromDate ? date < exportFromDate : false}
                         initialFocus
                       />
                     </PopoverContent>
                   </Popover>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  This will scan bookings and call logs between the selected dates and create customer records for any new contacts found.
+                  Leave dates empty to export all customers. When dates are provided, customers will be filtered by their first visit date.
                 </p>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+                <Button variant="outline" onClick={() => setExportDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleImportCustomers} disabled={importing || !importFromDate || !importToDate}>
-                  {importing ? (
+                <Button onClick={handleExportCustomers} disabled={exporting}>
+                  {exporting ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Importing...
+                      Exporting...
                     </>
                   ) : (
-                    "Import Customers"
+                    "Export Customers"
                   )}
                 </Button>
               </DialogFooter>
@@ -378,7 +364,8 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
               {filteredCustomers.map((customer) => (
                 <div
                   key={customer.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50"
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                  onClick={() => handleViewCustomer(customer)}
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
@@ -416,9 +403,14 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
                       </p>
                     )}
                   </div>
-                  <div className="text-right text-sm text-muted-foreground">
-                    <p>First visit</p>
-                    <p>{format(new Date(customer.first_visit_date), "MMM d, yyyy")}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right text-sm text-muted-foreground">
+                      <p>First visit</p>
+                      <p>{format(new Date(customer.first_visit_date), "MMM d, yyyy")}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(customer); }}>
+                      <Eye className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -576,6 +568,14 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
           </CollapsibleContent>
         </Collapsible>
       </Card>
+
+      {/* Customer Detail Dialog */}
+      <CustomerDetailDialog
+        customer={selectedCustomer}
+        businessId={businessId}
+        open={customerDetailOpen}
+        onOpenChange={setCustomerDetailOpen}
+      />
     </div>
   );
 };
