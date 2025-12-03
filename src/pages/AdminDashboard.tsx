@@ -400,6 +400,46 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleUpdateApprovedBusiness = async (businessId: string) => {
+    setActionLoading(businessId);
+    try {
+      const updateData: any = {};
+      
+      if (assignedNumber !== undefined) updateData.assigned_aivia_number = assignedNumber || null;
+      if (numberNotes !== undefined) updateData.number_notes = numberNotes || null;
+      if (portingStatus) updateData.porting_status = portingStatus;
+      if (portingInstructions !== undefined) updateData.porting_instructions = portingInstructions || null;
+
+      const { error } = await supabase
+        .from("businesses")
+        .update(updateData)
+        .eq("id", businessId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Business Updated",
+        description: "The business details have been updated successfully.",
+      });
+
+      loadBusinesses();
+      setSelectedBusiness(null);
+      setDialogStep(1);
+      setAssignedNumber("");
+      setNumberNotes("");
+      setPortingStatus("pending");
+      setPortingInstructions("");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate("/");
@@ -899,29 +939,65 @@ const AdminDashboard = () => {
                   {selectedBusiness.status === "approved" && userPermissions.can_approve_businesses && (
                     <>
                       <div className="space-y-4">
-                        <h3 className="font-semibold text-sm">Assigned Details</h3>
-                        {selectedBusiness.assigned_aivia_number && (
-                          <div>
-                            <Label className="text-sm font-medium">Aivia Number</Label>
-                            <p className="text-sm text-muted-foreground">{selectedBusiness.assigned_aivia_number}</p>
-                            {selectedBusiness.number_notes && (
-                              <p className="text-xs text-muted-foreground mt-1">{selectedBusiness.number_notes}</p>
-                            )}
-                          </div>
-                        )}
-                        {selectedBusiness.porting_status && (
-                          <div>
-                            <Label className="text-sm font-medium">Porting Status</Label>
-                            <p className="text-sm text-muted-foreground capitalize">
-                              {selectedBusiness.porting_status.replace("_", " ")}
-                            </p>
-                            {selectedBusiness.porting_instructions && (
-                              <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">
-                                {selectedBusiness.porting_instructions}
-                              </p>
-                            )}
-                          </div>
-                        )}
+                        <h3 className="font-semibold text-sm">Edit Number Assignment & Porting</h3>
+                        
+                        <div>
+                          <Label htmlFor="edit-assigned-number" className="text-sm font-medium">
+                            Assigned Aivia Number
+                          </Label>
+                          <Input
+                            id="edit-assigned-number"
+                            placeholder="+1 (555) 123-4567"
+                            value={assignedNumber}
+                            onChange={(e) => setAssignedNumber(e.target.value)}
+                            className="mt-1.5"
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="edit-number-notes" className="text-sm font-medium">
+                            Number Notes
+                          </Label>
+                          <Textarea
+                            id="edit-number-notes"
+                            placeholder="Optional notes about the number assignment..."
+                            value={numberNotes}
+                            onChange={(e) => setNumberNotes(e.target.value)}
+                            className="mt-1.5"
+                            rows={2}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="edit-porting-status" className="text-sm font-medium">
+                            Porting Status
+                          </Label>
+                          <Select value={portingStatus} onValueChange={setPortingStatus}>
+                            <SelectTrigger className="mt-1.5">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="not_porting">Not Porting</SelectItem>
+                              <SelectItem value="pending">Pending</SelectItem>
+                              <SelectItem value="in_progress">In Progress</SelectItem>
+                              <SelectItem value="complete">Complete</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label htmlFor="edit-porting-instructions" className="text-sm font-medium">
+                            Porting Instructions
+                          </Label>
+                          <Textarea
+                            id="edit-porting-instructions"
+                            placeholder="Detailed instructions for number porting..."
+                            value={portingInstructions}
+                            onChange={(e) => setPortingInstructions(e.target.value)}
+                            className="mt-1.5"
+                            rows={3}
+                          />
+                        </div>
                       </div>
                       
                       <div className="flex gap-2 pt-4">
@@ -933,22 +1009,26 @@ const AdminDashboard = () => {
                           Back
                         </Button>
                         <Button
-                          variant="destructive"
-                          onClick={() => handleAction(selectedBusiness.id, "revoked")}
+                          onClick={() => handleUpdateApprovedBusiness(selectedBusiness.id)}
                           disabled={!!actionLoading}
                           className="flex-1"
                         >
                           {actionLoading === selectedBusiness.id ? (
                             <Loader2 className="w-4 h-4 animate-spin mr-2" />
                           ) : (
-                            <XCircle className="w-4 h-4 mr-2" />
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
                           )}
-                          Revoke Business Access
+                          Save Changes
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={() => handleAction(selectedBusiness.id, "revoked")}
+                          disabled={!!actionLoading}
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Revoke
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground text-center">
-                        This will immediately block the business owner from accessing their dashboard.
-                      </p>
                     </>
                   )}
 
