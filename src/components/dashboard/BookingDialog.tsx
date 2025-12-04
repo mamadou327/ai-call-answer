@@ -82,7 +82,7 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
       .filter(ss => ss.service_id === formData.service_id)
       .map(ss => ss.staff_id);
 
-    // If no staff-service mappings exist, show all staff
+    // If no staff-service mappings exist for this service, show all staff
     if (eligibleStaffIds.length === 0) {
       setFilteredStaff(allStaff);
     } else {
