@@ -247,7 +247,7 @@ const Dashboard = () => {
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={aiviaLogo} alt="Aivia" className="h-8 w-auto" />
+            <img src={aiviaLogo} alt="Aivia" className="h-12 w-auto" />
             <span className="font-orbitron font-bold text-2xl">Aivia</span>
           </div>
           <div className="flex items-center gap-4">
