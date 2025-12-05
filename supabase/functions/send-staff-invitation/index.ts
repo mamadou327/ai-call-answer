@@ -108,7 +108,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Email sent successfully:", emailResponse);
 
-    return new Response(JSON.stringify({ success: true, emailResponse, inviteToken }), {
+    // Only return success status and invite ID - never expose the token in responses
+    return new Response(JSON.stringify({ success: true, inviteId: inviteData.id }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
