@@ -22,6 +22,7 @@ interface CallLog {
   tags: string[] | null;
   booking_id: string | null;
   created_at: string;
+  provider: string | null;
 }
 
 const callTypeLabels: Record<string, string> = {
@@ -134,6 +135,11 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
                         <Clock className="w-3 h-3" />
                         {formatDuration(call.duration_ms)}
                       </span>
+                      {call.provider && (
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {call.provider}
+                        </Badge>
+                      )}
                       {call.booking_id && (
                         <Badge variant="outline" className="text-xs">
                           Booking updated

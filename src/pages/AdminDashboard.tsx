@@ -41,6 +41,10 @@ interface Business {
   twilio_phone_number: string | null;
   twilio_enabled: boolean | null;
   aivia_active: boolean;
+  // MessageBird fields
+  messagebird_phone_number: string | null;
+  messagebird_token: string | null;
+  messagebird_enabled: boolean;
 }
 
 interface Profile {
@@ -106,6 +110,12 @@ const AdminDashboard = () => {
   const [twilioEnabled, setTwilioEnabled] = useState(false);
   const [twilioWebhookToken, setTwilioWebhookToken] = useState<string | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
+  
+  // MessageBird settings state
+  const [messagebirdPhoneNumber, setMessagebirdPhoneNumber] = useState("");
+  const [messagebirdEnabled, setMessagebirdEnabled] = useState(false);
+  const [messagebirdToken, setMessagebirdToken] = useState<string | null>(null);
+  const [copiedMessagebirdWebhook, setCopiedMessagebirdWebhook] = useState(false);
   
   // Supabase project ID for webhook URL
   const SUPABASE_PROJECT_ID = "zyqzypyncugihrawhppg";
@@ -435,6 +445,15 @@ const AdminDashboard = () => {
         updateData.twilio_webhook_token = twilioWebhookToken;
       }
 
+      // MessageBird fields
+      updateData.messagebird_phone_number = messagebirdPhoneNumber || null;
+      updateData.messagebird_enabled = messagebirdEnabled;
+      
+      // If enabling MessageBird and we have a new token, save it
+      if (messagebirdEnabled && messagebirdToken) {
+        updateData.messagebird_token = messagebirdToken;
+      }
+
       const { error } = await supabase
         .from("businesses")
         .update(updateData)
@@ -457,6 +476,9 @@ const AdminDashboard = () => {
       setTwilioPhoneNumber("");
       setTwilioEnabled(false);
       setTwilioWebhookToken(null);
+      setMessagebirdPhoneNumber("");
+      setMessagebirdEnabled(false);
+      setMessagebirdToken(null);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -501,6 +523,11 @@ const AdminDashboard = () => {
     setTwilioEnabled(business.twilio_enabled || false);
     setTwilioWebhookToken(business.twilio_webhook_token || null);
     setCopiedWebhook(false);
+    // Pre-fill MessageBird values
+    setMessagebirdPhoneNumber(business.messagebird_phone_number || "");
+    setMessagebirdEnabled(business.messagebird_enabled || false);
+    setMessagebirdToken(business.messagebird_token || null);
+    setCopiedMessagebirdWebhook(false);
   };
 
   const closeBusinessDialog = () => {
@@ -515,6 +542,11 @@ const AdminDashboard = () => {
     setTwilioEnabled(false);
     setTwilioWebhookToken(null);
     setCopiedWebhook(false);
+    // Reset MessageBird state
+    setMessagebirdPhoneNumber("");
+    setMessagebirdEnabled(false);
+    setMessagebirdToken(null);
+    setCopiedMessagebirdWebhook(false);
   };
 
   const handleTwilioToggle = async (enabled: boolean) => {
@@ -544,6 +576,35 @@ const AdminDashboard = () => {
   const getWebhookUrl = () => {
     if (!twilioWebhookToken) return "";
     return `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook/${twilioWebhookToken}`;
+  };
+
+  const handleMessagebirdToggle = async (enabled: boolean) => {
+    if (!selectedBusiness) return;
+    
+    setMessagebirdEnabled(enabled);
+    
+    // If enabling and no token exists, generate one
+    if (enabled && !messagebirdToken) {
+      const newToken = crypto.randomUUID();
+      setMessagebirdToken(newToken);
+    }
+  };
+
+  const copyMessagebirdWebhookUrl = () => {
+    if (!messagebirdToken) return;
+    const webhookUrl = `https://aiviaapp.co.uk/api/messagebird/voice/${messagebirdToken}`;
+    navigator.clipboard.writeText(webhookUrl);
+    setCopiedMessagebirdWebhook(true);
+    setTimeout(() => setCopiedMessagebirdWebhook(false), 2000);
+    toast({
+      title: "Copied",
+      description: "MessageBird webhook URL copied to clipboard",
+    });
+  };
+
+  const getMessagebirdWebhookUrl = () => {
+    if (!messagebirdToken) return "";
+    return `https://aiviaapp.co.uk/api/messagebird/voice/${messagebirdToken}`;
   };
 
   // Filter businesses by status
@@ -811,7 +872,7 @@ const AdminDashboard = () => {
           <DialogHeader>
             <DialogTitle>{selectedBusiness?.business_name}</DialogTitle>
           <DialogDescription>
-              {dialogStep === 1 ? "Business details" : dialogStep === 2 ? "Number assignment & porting" : "Twilio & calls"}
+              {dialogStep === 1 ? "Business details" : dialogStep === 2 ? "Number assignment & porting" : "Twilio & MessageBird"}
             </DialogDescription>
           </DialogHeader>
           {selectedBusiness && (
@@ -1104,7 +1165,7 @@ const AdminDashboard = () => {
                 </>
               )}
 
-              {/* Step 3: Twilio & Calls */}
+              {/* Step 3: Twilio & MessageBird */}
               {dialogStep === 3 && (
                 <>
                   {selectedBusiness.status === "approved" && userPermissions.can_approve_businesses && (
@@ -1170,6 +1231,74 @@ const AdminDashboard = () => {
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
                               Paste this URL in Twilio's Voice webhook settings
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-4">
+                        <h3 className="font-semibold text-sm flex items-center gap-2">
+                          <Phone className="w-4 h-4" />
+                          MessageBird & Calls
+                        </h3>
+                        
+                        <div>
+                          <Label htmlFor="messagebird-phone" className="text-sm font-medium">
+                            MessageBird Phone Number
+                          </Label>
+                          <Input
+                            id="messagebird-phone"
+                            placeholder="+447418314153"
+                            value={messagebirdPhoneNumber}
+                            onChange={(e) => setMessagebirdPhoneNumber(e.target.value)}
+                            className="mt-1.5"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            The MessageBird number assigned to this business
+                          </p>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label className="text-sm font-medium">MessageBird Enabled</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Enable inbound voice calls via MessageBird
+                            </p>
+                          </div>
+                          <Switch
+                            checked={messagebirdEnabled}
+                            onCheckedChange={handleMessagebirdToggle}
+                          />
+                        </div>
+                        
+                        {(messagebirdEnabled || messagebirdToken) && (
+                          <div>
+                            <Label className="text-sm font-medium">Webhook URL (Answer URL)</Label>
+                            <div className="flex gap-2 mt-1.5">
+                              <Input
+                                value={getMessagebirdWebhookUrl()}
+                                readOnly
+                                className="bg-muted font-mono text-xs"
+                                placeholder="Enable MessageBird to generate webhook URL"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={copyMessagebirdWebhookUrl}
+                                disabled={!messagebirdToken}
+                              >
+                                {copiedMessagebirdWebhook ? (
+                                  <Check className="w-4 h-4 text-success" />
+                                ) : (
+                                  <Copy className="w-4 h-4" />
+                                )}
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Paste this URL in MessageBird Flow Builder's "Fetch call flow from URL" step
                             </p>
                           </div>
                         )}

@@ -250,6 +250,9 @@ export type Database = {
           created_at: string | null
           id: string
           main_phone: string
+          messagebird_enabled: boolean
+          messagebird_phone_number: string | null
+          messagebird_token: string | null
           number_notes: string | null
           owner_id: string
           plan_tier: string | null
@@ -275,6 +278,9 @@ export type Database = {
           created_at?: string | null
           id?: string
           main_phone: string
+          messagebird_enabled?: boolean
+          messagebird_phone_number?: string | null
+          messagebird_token?: string | null
           number_notes?: string | null
           owner_id: string
           plan_tier?: string | null
@@ -300,6 +306,9 @@ export type Database = {
           created_at?: string | null
           id?: string
           main_phone?: string
+          messagebird_enabled?: boolean
+          messagebird_phone_number?: string | null
+          messagebird_token?: string | null
           number_notes?: string | null
           owner_id?: string
           plan_tier?: string | null
@@ -331,6 +340,7 @@ export type Database = {
           duration_ms: number | null
           id: string
           needs_review: boolean | null
+          provider: string | null
           summary: string | null
           tags: string[] | null
           to_number: string | null
@@ -347,6 +357,7 @@ export type Database = {
           duration_ms?: number | null
           id?: string
           needs_review?: boolean | null
+          provider?: string | null
           summary?: string | null
           tags?: string[] | null
           to_number?: string | null
@@ -363,6 +374,7 @@ export type Database = {
           duration_ms?: number | null
           id?: string
           needs_review?: boolean | null
+          provider?: string | null
           summary?: string | null
           tags?: string[] | null
           to_number?: string | null

@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { WebsiteAnalysis } from "./WebsiteAnalysis";
 import { PolicyUpload } from "./PolicyUpload";
 import { TwilioSettings } from "./TwilioSettings";
+import { MessageBirdSettings } from "./MessageBirdSettings";
 import { Sparkles, MapPin, Phone, Bot, FileText } from "lucide-react";
 
 interface BusinessInfoFormProps {
@@ -468,6 +469,9 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
 
       {/* Read-only Twilio Settings */}
       <TwilioSettings business={business} />
+
+      {/* Read-only MessageBird Settings */}
+      <MessageBirdSettings business={business} />
     </div>
   );
 };
