@@ -144,60 +144,70 @@ BUSINESS CONTEXT:
 - Address: ${business?.address}
 - Phone: ${business?.main_phone}
 
-SERVICES (use these exact names when matching):
-${services?.map((s: any) => `- "${s.name}" (${s.duration_minutes} minutes, price: ${s.price})`).join("\n") || "No services configured"}
+SERVICES (use these exact IDs):
+${services?.map((s: any) => `- "${s.name}" (ID: ${s.id}, ${s.duration_minutes} min, price: ${s.price})`).join("\n") || "No services configured"}
 
-STAFF MEMBERS (use these exact names when matching):
-${staff?.map((s: any) => `- "${s.name}" (${s.role})`).join("\n") || "No staff configured"}
+STAFF MEMBERS (use these exact IDs):
+${staff?.map((s: any) => `- "${s.name}" (ID: ${s.id}, ${s.role})`).join("\n") || "No staff configured"}
 
 OPENING HOURS (DB format: 0=Monday, 1=Tuesday, ..., 6=Sunday):
 ${formattedHours?.map((h: any) => `- ${h.day} (${h.dbDayIndex}): ${h.isClosed ? "CLOSED" : `${h.open} - ${h.close}`}`).join("\n") || "Not configured"}
 
-UPCOMING BOOKINGS:
-${upcomingBookings?.map((b: any) => `- ${b.start_time}: ${b.customer_name} (phone: ${b.customer_phone || "N/A"}) with ${b.staff?.name || "unassigned"} for "${b.service?.name || "unknown"}" [status: ${b.status}, id: ${b.id}]`).join("\n") || "No upcoming bookings"}
+UPCOMING BOOKINGS (use these exact IDs for cancel/reschedule):
+${upcomingBookings?.map((b: any) => `- ${b.start_time}: ${b.customer_name} (phone: ${b.customer_phone || "N/A"}) with ${b.staff?.name || "unassigned"} for "${b.service?.name || "unknown"}" [status: ${b.status}, ID: ${b.id}]`).join("\n") || "No upcoming bookings"}
 
 KNOWN CUSTOMERS:
 ${customers?.slice(0, 20).map((c: any) => `- ${c.name}${c.phone ? ` (${c.phone})` : ""}${c.email ? ` - ${c.email}` : ""}`).join("\n") || "No customers yet"}
 
-YOUR CAPABILITIES:
-1. CREATE BOOKING - When user wants to book an appointment
-2. CANCEL BOOKING - When user wants to cancel an existing booking
-3. RESCHEDULE BOOKING - When user wants to change booking time
+YOUR CAPABILITIES - EXECUTE IMMEDIATELY, DO NOT ASK FOR CONFIRMATION:
+1. CREATE BOOKING - Execute immediately when user wants to book
+2. CANCEL BOOKING - Execute immediately when user wants to cancel
+3. RESCHEDULE BOOKING - Execute immediately when user wants to reschedule  
 4. ANSWER QUESTIONS - About schedules, availability, services, etc.
 
-RESPONSE FORMAT - YOU MUST RESPOND WITH VALID JSON ONLY, NO MARKDOWN:
+CRITICAL RULES:
+- EXECUTE ACTIONS IMMEDIATELY - Do NOT ask "Is that correct?" or "Should I proceed?"
+- When user says "book X for Y" - CREATE THE BOOKING IMMEDIATELY
+- When user says "cancel X" - CANCEL THE BOOKING IMMEDIATELY
+- When user says "reschedule X to Y" - RESCHEDULE IMMEDIATELY
+- Only set action to "answer" if you're genuinely missing required info
+
+RESPONSE FORMAT - VALID JSON ONLY, NO MARKDOWN:
 {
   "action": "create_booking" | "cancel_booking" | "reschedule_booking" | "answer",
   "params": {
-    // For create_booking:
-    "customer_name": "string (required)",
-    "customer_phone": "string (optional)",
-    "customer_email": "string (optional)", 
-    "service_name": "string - exact match from services list",
-    "staff_name": "string - exact match from staff list",
-    "date": "YYYY-MM-DD format",
-    "time": "HH:MM format (24h)",
-    "notes": "string (optional)"
+    // For create_booking (execute immediately when info is available):
+    "customer_name": "string (REQUIRED)",
+    "customer_phone": "string (optional but helpful)",
+    "service_name": "exact service name from list",
+    "staff_name": "exact staff name from list",
+    "date": "YYYY-MM-DD",
+    "time": "HH:MM (24h)",
+    "notes": "optional"
     
-    // For cancel_booking:
-    "booking_id": "uuid of booking to cancel"
+    // For cancel_booking (execute immediately):
+    "booking_id": "exact UUID from UPCOMING BOOKINGS list"
     
-    // For reschedule_booking:
-    "booking_id": "uuid of booking",
+    // For reschedule_booking (execute immediately):
+    "booking_id": "exact UUID from UPCOMING BOOKINGS list",
     "new_date": "YYYY-MM-DD",
     "new_time": "HH:MM (24h)"
   },
-  "message": "Friendly confirmation or question for the user"
+  "message": "Brief description of what you're doing (not a question!)"
 }
 
-IMPORTANT RULES:
-- ALWAYS respond with valid JSON only - no markdown code blocks, no extra text
-- For dates: "tomorrow" = ${new Date(Date.now() + 86400000).toISOString().split("T")[0]}, calculate relative dates correctly
-- Match service/staff names EXACTLY as listed above (case-insensitive matching is OK)
-- Validate the booking time is within opening hours for that day
-- If required info is missing, set action to "answer" and ask for it in message
-- For cancel/reschedule, find the booking ID from the UPCOMING BOOKINGS list
-- Be helpful and concise in your messages`;
+DATE CALCULATIONS:
+- "tomorrow" = ${new Date(Date.now() + 86400000).toISOString().split("T")[0]}
+- "next Monday" = calculate from today
+
+VALIDATION RULES (the system will enforce these, but validate first):
+- Booking time must be within opening hours for that day
+- Booking end time (start + service duration) must not exceed closing time
+- No double-bookings for same staff at overlapping times
+- Cannot book in the past
+
+If you're missing REQUIRED info (customer name, date, time), ask for it with action: "answer".
+Otherwise, EXECUTE THE ACTION.`;
 
     // Call Lovable AI
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -451,19 +461,29 @@ async function createBooking(
   }
 
   // Create the booking
+  console.log("Creating booking:", {
+    businessId,
+    customer_name,
+    customer_phone,
+    service: service?.name,
+    staff: staffMember?.name,
+    startTime: startDate.toISOString(),
+    endTime: endDate.toISOString(),
+  });
+
   const { data: booking, error: bookingError } = await supabase
     .from("bookings")
     .insert({
       business_id: businessId,
       customer_name,
-      customer_phone: customer_phone || "",
+      customer_phone: customer_phone || "Not provided",
       service_id: service?.id || null,
       staff_id: staffMember?.id || null,
       start_time: startDate.toISOString(),
       end_time: endDate.toISOString(),
       status: "confirmed",
       notes: notes || null,
-      created_by: "ai_assistant",
+      created_by: "Aivia AI",
       created_by_user_id: userId,
     })
     .select()
@@ -471,22 +491,47 @@ async function createBooking(
 
   if (bookingError) {
     console.error("Booking creation error:", bookingError);
-    return { success: false, message: "Sorry, I couldn't create the booking. Please try again or use the booking form." };
+    return { success: false, message: `Sorry, I couldn't create the booking: ${bookingError.message}. Please try again or use the booking form.` };
   }
 
-  // Upsert customer if phone/email provided
-  if (customer_phone || customer_email) {
-    await supabase
-      .from("customers")
-      .upsert({
-        business_id: businessId,
-        name: customer_name,
-        phone: customer_phone || null,
-        email: customer_email || null,
-      }, { 
-        onConflict: "business_id,phone",
-        ignoreDuplicates: true 
-      });
+  console.log("Booking created successfully:", booking.id);
+
+  // Try to create/update customer record (non-blocking, won't fail the booking)
+  if (customer_phone) {
+    try {
+      // Check if customer exists by phone
+      const { data: existingCustomer } = await supabase
+        .from("customers")
+        .select("id")
+        .eq("business_id", businessId)
+        .eq("phone", customer_phone)
+        .maybeSingle();
+
+      if (existingCustomer) {
+        // Update existing customer
+        await supabase
+          .from("customers")
+          .update({ 
+            name: customer_name,
+            email: customer_email || undefined,
+            total_visits: supabase.rpc ? undefined : undefined, // Can't increment easily here
+          })
+          .eq("id", existingCustomer.id);
+      } else {
+        // Create new customer
+        await supabase
+          .from("customers")
+          .insert({
+            business_id: businessId,
+            name: customer_name,
+            phone: customer_phone,
+            email: customer_email || null,
+          });
+      }
+    } catch (custError) {
+      // Don't fail the booking if customer record fails
+      console.warn("Customer record update failed (non-blocking):", custError);
+    }
   }
 
   const formattedDate = startDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
@@ -512,6 +557,8 @@ async function cancelBooking(
     return { success: false, message: "Which booking would you like to cancel? Please specify the customer name or booking details." };
   }
 
+  console.log("Attempting to cancel booking:", booking_id);
+
   // Verify booking exists and belongs to this business
   const { data: booking, error: fetchError } = await supabase
     .from("bookings")
@@ -521,7 +568,8 @@ async function cancelBooking(
     .single();
 
   if (fetchError || !booking) {
-    return { success: false, message: "I couldn't find that booking. Please check the booking details." };
+    console.log("Booking not found:", booking_id, fetchError);
+    return { success: false, message: "I couldn't find that booking. Please check the booking details or tell me the customer name." };
   }
 
   if (booking.status === "cancelled") {
@@ -529,6 +577,7 @@ async function cancelBooking(
   }
 
   // Cancel the booking
+  console.log("Cancelling booking for:", booking.customer_name);
   const { error } = await supabase
     .from("bookings")
     .update({ 
@@ -540,9 +589,10 @@ async function cancelBooking(
 
   if (error) {
     console.error("Cancel booking error:", error);
-    return { success: false, message: "Sorry, I couldn't cancel the booking. Please try again." };
+    return { success: false, message: `Sorry, I couldn't cancel the booking: ${error.message}. Please try again.` };
   }
 
+  console.log("Booking cancelled successfully:", booking_id);
   const formattedDate = new Date(booking.start_time).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
   return { success: true, message: `✅ Cancelled ${booking.customer_name}'s booking on ${formattedDate}.` };
 }
