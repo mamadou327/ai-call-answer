@@ -111,13 +111,11 @@ const Auth = () => {
       }
 
       if (isSignUp) {
-        // First check if there's a pending staff invite for this email
-        const { data: pendingInvite } = await supabase
-          .from("staff_invites")
-          .select("*, businesses(business_name)")
-          .eq("email", formData.email)
-          .eq("status", "pending")
-          .maybeSingle();
+        // First check if there's a pending staff invite for this email using secure RPC function
+        const { data: pendingInvites } = await supabase
+          .rpc("get_pending_invite_for_email", { p_email: formData.email });
+        
+        const pendingInvite = pendingInvites?.[0] || null;
 
         const { data: authData, error } = await supabase.auth.signUp({
           email: formData.email,
@@ -164,7 +162,7 @@ const Auth = () => {
               status: "active"
             })
             .eq("business_id", pendingInvite.business_id)
-            .eq("email", pendingInvite.email);
+            .eq("email", formData.email);
 
           if (accountError) {
             console.error("Error linking staff account:", accountError);
@@ -181,7 +179,7 @@ const Auth = () => {
 
           toast({
             title: "Account created!",
-            description: `Welcome to ${pendingInvite.businesses?.business_name}. You've been added as staff.`,
+            description: `Welcome to ${pendingInvite.business_name}. You've been added as staff.`,
           });
 
           // Will be redirected to dashboard by checkOnboardingStatus
