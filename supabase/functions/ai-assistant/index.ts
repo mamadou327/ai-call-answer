@@ -116,20 +116,28 @@ serve(async (req) => {
       supabase.from("customers").select("id, name, phone, email").eq("business_id", businessId).limit(100),
     ]);
 
-    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    // DB uses: Monday=0, Tuesday=1, ..., Sunday=6
+    // JS uses: Sunday=0, Monday=1, ..., Saturday=6
+    const dbDayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const jsDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    
+    // Convert JS day (today) to DB day for display
+    const today = new Date();
+    const jsDayToday = today.getDay();
+    const dbDayToday = jsDayToday === 0 ? 6 : jsDayToday - 1;
+    
     const formattedHours = openingHours?.map((h: any) => ({
-      dayIndex: h.day_of_week,
-      day: dayNames[h.day_of_week],
+      dbDayIndex: h.day_of_week,
+      day: dbDayNames[h.day_of_week],
       isClosed: h.is_closed,
       open: h.open_time,
       close: h.close_time,
     }));
 
-    const today = new Date();
     const systemPrompt = `You are Aivia, an AI assistant for "${business?.business_name || "this business"}". You help ${role === "owner" ? "business owners" : "staff members"} manage bookings, check schedules, and answer questions.
 
 CURRENT DATE/TIME: ${today.toISOString()}
-TODAY IS: ${dayNames[today.getDay()]} (index ${today.getDay()})
+TODAY IS: ${dbDayNames[dbDayToday]} (DB day_of_week: ${dbDayToday})
 
 BUSINESS CONTEXT:
 - Business: ${business?.business_name}
@@ -142,8 +150,8 @@ ${services?.map((s: any) => `- "${s.name}" (${s.duration_minutes} minutes, price
 STAFF MEMBERS (use these exact names when matching):
 ${staff?.map((s: any) => `- "${s.name}" (${s.role})`).join("\n") || "No staff configured"}
 
-OPENING HOURS (day_of_week: 0=Sunday, 1=Monday, ... 6=Saturday):
-${formattedHours?.map((h: any) => `- ${h.day} (${h.dayIndex}): ${h.isClosed ? "CLOSED" : `${h.open} - ${h.close}`}`).join("\n") || "Not configured"}
+OPENING HOURS (DB format: 0=Monday, 1=Tuesday, ..., 6=Sunday):
+${formattedHours?.map((h: any) => `- ${h.day} (${h.dbDayIndex}): ${h.isClosed ? "CLOSED" : `${h.open} - ${h.close}`}`).join("\n") || "Not configured"}
 
 UPCOMING BOOKINGS:
 ${upcomingBookings?.map((b: any) => `- ${b.start_time}: ${b.customer_name} (phone: ${b.customer_phone || "N/A"}) with ${b.staff?.name || "unassigned"} for "${b.service?.name || "unknown"}" [status: ${b.status}, id: ${b.id}]`).join("\n") || "No upcoming bookings"}
@@ -328,31 +336,41 @@ function findStaff(staffList: any[], name: string): any | null {
     || staffList.find(s => lower.includes(s.name.toLowerCase()));
 }
 
-// Helper: Check if time is within opening hours
-function isWithinOpeningHours(openingHours: any[], date: Date, endDate: Date): { valid: boolean; reason?: string } {
-  const dayOfWeek = date.getDay();
-  const hours = openingHours?.find((h: any) => h.day_of_week === dayOfWeek);
+// Helper: Convert JS day to DB day (JS: Sunday=0, DB: Monday=0, Sunday=6)
+function jsToDbDay(jsDay: number): number {
+  return jsDay === 0 ? 6 : jsDay - 1;
+}
+
+// Helper: Check if time is within opening hours (using same logic as frontend useOpeningHours hook)
+function isWithinOpeningHours(openingHours: any[], date: Date, endDate: Date): { valid: boolean; reason?: string; openTime?: string; closeTime?: string } {
+  const jsDayOfWeek = date.getDay();
+  const dbDayOfWeek = jsToDbDay(jsDayOfWeek);
+  const hours = openingHours?.find((h: any) => h.day_of_week === dbDayOfWeek);
+  
+  const dbDayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const dayName = dbDayNames[dbDayOfWeek];
   
   if (!hours) {
-    return { valid: false, reason: "Opening hours not configured for this day" };
+    return { valid: false, reason: `Opening hours not configured for ${dayName}` };
   }
   
   if (hours.is_closed) {
-    return { valid: false, reason: "The business is closed on this day" };
+    return { valid: false, reason: `The business is closed on ${dayName}` };
   }
   
   const timeStr = date.toTimeString().slice(0, 5); // HH:MM
   const endTimeStr = endDate.toTimeString().slice(0, 5);
   
   if (timeStr < hours.open_time) {
-    return { valid: false, reason: `The business opens at ${hours.open_time}` };
+    return { valid: false, reason: `The business opens at ${hours.open_time} on ${dayName}`, openTime: hours.open_time, closeTime: hours.close_time };
   }
   
+  // Check if booking end time exceeds closing time
   if (endTimeStr > hours.close_time) {
-    return { valid: false, reason: `The booking would end after closing time (${hours.close_time})` };
+    return { valid: false, reason: `The booking would end at ${endTimeStr}, but the business closes at ${hours.close_time} on ${dayName}`, openTime: hours.open_time, closeTime: hours.close_time };
   }
   
-  return { valid: true };
+  return { valid: true, openTime: hours.open_time, closeTime: hours.close_time };
 }
 
 // Create booking action
