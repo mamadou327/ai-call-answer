@@ -39,6 +39,59 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // =========== AUTHORIZATION CHECK ===========
+    // Extract and verify JWT to ensure caller has access to this business
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      console.error("Missing or invalid Authorization header");
+      return new Response(
+        JSON.stringify({ assistantMessage: "Unauthorized - missing authentication", action: null }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const jwt = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    
+    if (authError || !user) {
+      console.error("Auth error:", authError);
+      return new Response(
+        JSON.stringify({ assistantMessage: "Unauthorized - invalid token", action: null }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Verify the authenticated user has access to this business
+    // Check 1: Is the user the business owner?
+    const { data: businessOwnerCheck } = await supabase
+      .from("businesses")
+      .select("id, owner_id")
+      .eq("id", businessId)
+      .eq("owner_id", user.id)
+      .single();
+
+    // Check 2: Does the user have an active staff membership for this business?
+    const { data: staffMembershipCheck } = await supabase
+      .from("staff_memberships")
+      .select("id")
+      .eq("business_id", businessId)
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .single();
+
+    if (!businessOwnerCheck && !staffMembershipCheck) {
+      console.error(`User ${user.id} attempted to access business ${businessId} without authorization`);
+      return new Response(
+        JSON.stringify({ assistantMessage: "Unauthorized - you don't have access to this business", action: null }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Use the verified user ID for all operations (not the client-provided userId)
+    const verifiedUserId = user.id;
+    console.log(`Authorized access: user ${verifiedUserId} accessing business ${businessId} (owner: ${!!businessOwnerCheck}, staff: ${!!staffMembershipCheck})`);
+    // =========== END AUTHORIZATION CHECK ===========
+
     // Fetch business context data
     const [
       { data: business },
@@ -209,7 +262,7 @@ IMPORTANT RULES:
     let friendlyMessage = parsed.message || "Request processed.";
 
     if (action === "create_booking") {
-      const result = await createBooking(supabase, businessId, userId, params, services || [], staff || [], openingHours || []);
+      const result = await createBooking(supabase, businessId, verifiedUserId, params, services || [], staff || [], openingHours || []);
       return new Response(
         JSON.stringify({ 
           assistantMessage: result.message, 
@@ -221,7 +274,7 @@ IMPORTANT RULES:
     }
 
     if (action === "cancel_booking") {
-      const result = await cancelBooking(supabase, businessId, userId, params);
+      const result = await cancelBooking(supabase, businessId, verifiedUserId, params);
       return new Response(
         JSON.stringify({ 
           assistantMessage: result.message, 
@@ -232,7 +285,7 @@ IMPORTANT RULES:
     }
 
     if (action === "reschedule_booking") {
-      const result = await rescheduleBooking(supabase, businessId, userId, params, openingHours || []);
+      const result = await rescheduleBooking(supabase, businessId, verifiedUserId, params, openingHours || []);
       return new Response(
         JSON.stringify({ 
           assistantMessage: result.message, 
