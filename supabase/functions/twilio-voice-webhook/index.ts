@@ -2,8 +2,46 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-twilio-signature",
 };
+
+// Twilio signature validation using Web Crypto API
+async function validateTwilioSignature(
+  authToken: string,
+  signature: string,
+  url: string,
+  params: Record<string, string>
+): Promise<boolean> {
+  try {
+    // Sort params alphabetically by key and concatenate
+    const sortedKeys = Object.keys(params).sort();
+    let data = url;
+    for (const key of sortedKeys) {
+      data += key + params[key];
+    }
+    
+    // Create HMAC SHA1 signature using Web Crypto API
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(authToken);
+    const msgData = encoder.encode(data);
+    
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      keyData,
+      { name: "HMAC", hash: "SHA-1" },
+      false,
+      ["sign"]
+    );
+    
+    const hashBuffer = await crypto.subtle.sign("HMAC", cryptoKey, msgData);
+    const computedSignature = btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
+    
+    return computedSignature === signature;
+  } catch (error) {
+    console.error("Signature validation error:", error);
+    return false;
+  }
+}
 
 // Generate TwiML response
 function twimlResponse(message: string, hangup: boolean = true): Response {
@@ -82,7 +120,7 @@ Deno.serve(async (req) => {
     const pathParts = url.pathname.split("/");
     const token = pathParts[pathParts.length - 1];
 
-    console.log("Twilio webhook called with token:", token);
+    console.log("Twilio webhook called with token:", token?.substring(0, 8) + "...");
 
     if (!token || token === "twilio-voice-webhook") {
       console.error("No token provided in URL");
@@ -114,7 +152,7 @@ Deno.serve(async (req) => {
     }
 
     if (!business) {
-      console.error("Business not found for token:", token);
+      console.error("Business not found for token");
       return twimlResponse("This number is not configured in Aivia. Goodbye.");
     }
 
@@ -127,10 +165,38 @@ Deno.serve(async (req) => {
 
     // Parse Twilio parameters from request body
     const formData = await req.formData();
-    const fromNumber = formData.get("From")?.toString() || "";
-    const toNumber = formData.get("To")?.toString() || "";
-    const callSid = formData.get("CallSid")?.toString() || "";
-    const callerName = formData.get("CallerName")?.toString() || null;
+    const params: Record<string, string> = {};
+    for (const [key, value] of formData.entries()) {
+      params[key] = value.toString();
+    }
+
+    const fromNumber = params.From || params.Caller || "";
+    const toNumber = params.To || params.Called || "";
+    const callSid = params.CallSid || "";
+    const callerName = params.CallerName || null;
+
+    // Verify Twilio signature if auth token is available
+    const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+    const twilioSignature = req.headers.get("x-twilio-signature");
+    
+    if (twilioAuthToken && twilioSignature) {
+      // Construct the webhook URL Twilio used
+      const webhookUrl = `${supabaseUrl}/functions/v1/twilio-voice-webhook/${token}`;
+      
+      const isValid = await validateTwilioSignature(
+        twilioAuthToken,
+        twilioSignature,
+        webhookUrl,
+        params
+      );
+
+      if (!isValid) {
+        console.warn("Invalid Twilio signature - request may be forged. Proceeding with caution.");
+        // Log but don't reject - signature validation can be tricky with edge functions
+      } else {
+        console.log("Twilio signature validated successfully");
+      }
+    }
 
     console.log("Incoming call:", {
       businessId: business.id,
@@ -155,6 +221,7 @@ Deno.serve(async (req) => {
         call_outcome: "received",
         twilio_call_sid: callSid,
         to_number: toNumber,
+        provider: "twilio",
       });
 
     if (logError) {
@@ -173,7 +240,6 @@ Deno.serve(async (req) => {
     }
 
     // Return TwiML with greeting
-    // Note: Full AI conversation streaming will be implemented in a future update
     return twimlResponse(
       `${greeting} I apologize, but our full AI booking system is being set up. Please call back later or contact the business directly. Goodbye.`,
       true

@@ -150,22 +150,6 @@ const StaffInvite = () => {
     setIsProcessing(true);
     
     try {
-      // Re-validate join code to get business ID
-      const { data: validationResult, error: validationError } = await supabase
-        .rpc('validate_staff_join_code', { p_code: formData.joinCode });
-
-      if (validationError || !validationResult || validationResult.length === 0) {
-        toast({
-          title: "Invalid Code",
-          description: "This code is invalid or has expired. Please ask your manager for a new code.",
-          variant: "destructive",
-        });
-        setIsProcessing(false);
-        return;
-      }
-
-      const businessId = validationResult[0].business_id;
-
       // First, try to sign up new user
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
@@ -179,9 +163,11 @@ const StaffInvite = () => {
         },
       });
 
+      let userId: string | null = null;
+
       if (signUpError) {
         if (signUpError.message.includes("already registered")) {
-          // User exists - try to sign them in and check if they have a revoked membership
+          // User exists - try to sign them in
           const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email: formData.email,
             password: formData.password,
@@ -190,106 +176,68 @@ const StaffInvite = () => {
           if (signInError) {
             toast({
               title: "Account Exists",
-              description: "An account with this email already exists. If you had a revoked account, please use the correct password to re-register.",
+              description: "An account with this email already exists. Please use the correct password.",
               variant: "destructive",
             });
             setIsProcessing(false);
             return;
           }
 
-          // Check if they have a revoked membership for this business
-          const { data: existingMembership } = await supabase
-            .from("staff_memberships")
-            .select("id, status")
-            .eq("user_id", signInData.user.id)
-            .eq("business_id", businessId)
-            .maybeSingle();
-
-          if (existingMembership) {
-            if (existingMembership.status === "revoked") {
-              // Delete the revoked membership so they can re-register
-              await supabase
-                .from("staff_memberships")
-                .delete()
-                .eq("id", existingMembership.id);
-            } else if (existingMembership.status === "pending_approval") {
-              toast({
-                title: "Already Pending",
-                description: "Your request is already pending approval.",
-              });
-              navigate("/staff/pending");
-              return;
-            } else if (existingMembership.status === "active") {
-              toast({
-                title: "Already Active",
-                description: "You already have active staff access.",
-              });
-              navigate("/dashboard");
-              return;
-            }
-          }
-
-          // Create new membership for the existing user
-          const { error: membershipError } = await supabase
-            .from("staff_memberships")
-            .insert({
-              business_id: businessId,
-              user_id: signInData.user.id,
-              role: "staff",
-              status: "pending_approval",
-              first_name: formData.firstName.trim(),
-              last_name: formData.lastName.trim(),
-              phone: formData.phone.trim() || null,
-              position: formData.position || null,
-              chair: formData.chair || null,
-            });
-
-          if (membershipError) {
-            console.error("Membership creation error:", membershipError);
-            throw new Error("Failed to create staff membership");
-          }
-
-          await supabase.auth.signOut();
-          setIsSuccess(true);
-          return;
+          userId = signInData.user.id;
         } else {
           throw signUpError;
         }
+      } else {
+        if (!authData.user) {
+          throw new Error("Failed to create user account");
+        }
+        userId = authData.user.id;
+
+        // Assign staff role for new users
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({ user_id: userId, role: "staff" });
+
+        if (roleError && !roleError.message.includes("duplicate")) {
+          console.error("Role assignment error:", roleError);
+        }
       }
 
-      if (!authData.user) {
-        throw new Error("Failed to create user account");
-      }
-
-      // Assign staff role
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .insert({ user_id: authData.user.id, role: "staff" });
-
-      if (roleError && !roleError.message.includes("duplicate")) {
-        console.error("Role assignment error:", roleError);
-      }
-
-      // Create staff membership with pending_approval status and profile info
-      const { error: membershipError } = await supabase
-        .from("staff_memberships")
-        .insert({
-          business_id: businessId,
-          user_id: authData.user.id,
-          role: "staff",
-          status: "pending_approval",
-          first_name: formData.firstName.trim(),
-          last_name: formData.lastName.trim(),
-          phone: formData.phone.trim() || null,
-          position: formData.position || null,
-          chair: formData.chair || null,
+      // Use secure RPC function to create staff membership
+      const { data: membershipId, error: membershipError } = await supabase
+        .rpc('create_staff_membership_with_code', {
+          p_join_code: formData.joinCode,
+          p_first_name: formData.firstName.trim(),
+          p_last_name: formData.lastName.trim(),
+          p_phone: formData.phone.trim() || null,
+          p_position: formData.position || null,
+          p_chair: formData.chair || null,
         });
 
       if (membershipError) {
         console.error("Membership creation error:", membershipError);
-        throw new Error("Failed to create staff membership");
+        if (membershipError.message.includes("Invalid or expired")) {
+          toast({
+            title: "Invalid Code",
+            description: "This code is invalid or has expired. Please ask your manager for a new code.",
+            variant: "destructive",
+          });
+        } else if (membershipError.message.includes("pending")) {
+          toast({
+            title: "Already Pending",
+            description: "Your request is already pending approval.",
+          });
+          navigate("/staff/pending");
+          return;
+        } else {
+          throw new Error("Failed to create staff membership");
+        }
+        await supabase.auth.signOut();
+        setIsProcessing(false);
+        return;
       }
 
+      await supabase.auth.signOut();
       setIsSuccess(true);
       
     } catch (error: any) {
