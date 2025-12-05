@@ -15,6 +15,8 @@ import { CalendarTab } from "@/components/dashboard/CalendarTab";
 import { SettingsTab } from "@/components/dashboard/SettingsTab";
 import { AccountMenu } from "@/components/AccountMenu";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
+import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
+
 interface Business {
   id: string;
   business_name: string;
@@ -279,6 +281,15 @@ const Dashboard = () => {
                 </TabsContent>}
             </Tabs>
           </>}
+
+        {/* AI Assistant Chat */}
+        {business && user && (
+          <AiviaAssistantChat
+            businessId={business.id}
+            userId={user.id}
+            role={isStaffView ? "staff" : "owner"}
+          />
+        )}
       </main>
     </div>;
 };

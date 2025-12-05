@@ -35,3 +35,6 @@ verify_jwt = true
 
 [functions.wipe-test-users]
 verify_jwt = true
+
+[functions.ai-assistant]
+verify_jwt = true
