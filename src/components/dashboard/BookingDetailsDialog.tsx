@@ -155,6 +155,16 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
                 </div>
               )}
 
+              {booking.booking_code && (
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">{t("bookings.bookingCode")}</p>
+                    <p className="text-sm font-mono font-semibold text-primary">{booking.booking_code}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 pt-2">
                 <Badge variant="outline" className="text-xs">
                   {t("bookings.createdBy")}: {booking.created_by}
