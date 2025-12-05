@@ -60,7 +60,8 @@ export const AiviaAssistantChat = ({ businessId, userId, role }: AiviaAssistantC
 
       if (error) throw error;
 
-      setMessages([...newMessages, { role: "assistant", content: data.response }]);
+      const assistantMessage = data.assistantMessage || data.response || "I processed your request.";
+      setMessages([...newMessages, { role: "assistant", content: assistantMessage }]);
     } catch (error) {
       console.error("AI Assistant error:", error);
       setMessages([
