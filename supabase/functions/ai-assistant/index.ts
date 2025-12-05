@@ -40,7 +40,6 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // =========== AUTHORIZATION CHECK ===========
-    // Extract and verify JWT to ensure caller has access to this business
     const authHeader = req.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       console.error("Missing or invalid Authorization header");
@@ -61,8 +60,6 @@ serve(async (req) => {
       );
     }
 
-    // Verify the authenticated user has access to this business
-    // Check 1: Is the user the business owner?
     const { data: businessOwnerCheck } = await supabase
       .from("businesses")
       .select("id, owner_id")
@@ -70,7 +67,6 @@ serve(async (req) => {
       .eq("owner_id", user.id)
       .single();
 
-    // Check 2: Does the user have an active staff membership for this business?
     const { data: staffMembershipCheck } = await supabase
       .from("staff_memberships")
       .select("id")
@@ -87,9 +83,8 @@ serve(async (req) => {
       );
     }
 
-    // Use the verified user ID for all operations (not the client-provided userId)
     const verifiedUserId = user.id;
-    console.log(`Authorized access: user ${verifiedUserId} accessing business ${businessId} (owner: ${!!businessOwnerCheck}, staff: ${!!staffMembershipCheck})`);
+    console.log(`Authorized access: user ${verifiedUserId} accessing business ${businessId}`);
     // =========== END AUTHORIZATION CHECK ===========
 
     // Fetch business context data
@@ -119,9 +114,7 @@ serve(async (req) => {
     // DB uses: Monday=0, Tuesday=1, ..., Sunday=6
     // JS uses: Sunday=0, Monday=1, ..., Saturday=6
     const dbDayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-    const jsDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     
-    // Convert JS day (today) to DB day for display
     const today = new Date();
     const jsDayToday = today.getDay();
     const dbDayToday = jsDayToday === 0 ? 6 : jsDayToday - 1;
@@ -134,80 +127,99 @@ serve(async (req) => {
       close: h.close_time,
     }));
 
-    const systemPrompt = `You are Aivia, an AI assistant for "${business?.business_name || "this business"}". You help ${role === "owner" ? "business owners" : "staff members"} manage bookings, check schedules, and answer questions.
+    // Format bookings with booking codes for easy reference
+    const formattedBookings = upcomingBookings?.map((b: any) => ({
+      code: b.booking_code,
+      id: b.id,
+      customer: b.customer_name,
+      phone: b.customer_phone,
+      date: new Date(b.start_time).toISOString().split("T")[0],
+      time: new Date(b.start_time).toTimeString().slice(0, 5),
+      staff: b.staff?.name || "unassigned",
+      service: b.service?.name || "unknown",
+      status: b.status,
+    }));
+
+    const systemPrompt = `You are Aivia, an AI booking assistant for "${business?.business_name || "this business"}". You help ${role === "owner" ? "business owners" : "staff members"} manage bookings.
 
 CURRENT DATE/TIME: ${today.toISOString()}
-TODAY IS: ${dbDayNames[dbDayToday]} (DB day_of_week: ${dbDayToday})
+TODAY IS: ${dbDayNames[dbDayToday]} (day ${dbDayToday})
 
-BUSINESS CONTEXT:
-- Business: ${business?.business_name}
+BUSINESS INFO:
+- Name: ${business?.business_name}
 - Address: ${business?.address}
 - Phone: ${business?.main_phone}
 
-SERVICES (use these exact IDs):
-${services?.map((s: any) => `- "${s.name}" (ID: ${s.id}, ${s.duration_minutes} min, price: ${s.price})`).join("\n") || "No services configured"}
+SERVICES:
+${services?.map((s: any) => `• ${s.name} (${s.duration_minutes} min, £${s.price}) - ID: ${s.id}`).join("\n") || "No services"}
 
-STAFF MEMBERS (use these exact IDs):
-${staff?.map((s: any) => `- "${s.name}" (ID: ${s.id}, ${s.role})`).join("\n") || "No staff configured"}
+STAFF:
+${staff?.map((s: any) => `• ${s.name} (${s.role}) - ID: ${s.id}`).join("\n") || "No staff"}
 
-OPENING HOURS (DB format: 0=Monday, 1=Tuesday, ..., 6=Sunday):
-${formattedHours?.map((h: any) => `- ${h.day} (${h.dbDayIndex}): ${h.isClosed ? "CLOSED" : `${h.open} - ${h.close}`}`).join("\n") || "Not configured"}
+OPENING HOURS:
+${formattedHours?.map((h: any) => `• ${h.day}: ${h.isClosed ? "CLOSED" : `${h.open} - ${h.close}`}`).join("\n") || "Not configured"}
 
-UPCOMING BOOKINGS (use these exact IDs for cancel/reschedule):
-${upcomingBookings?.map((b: any) => `- ${b.start_time}: ${b.customer_name} (phone: ${b.customer_phone || "N/A"}) with ${b.staff?.name || "unassigned"} for "${b.service?.name || "unknown"}" [status: ${b.status}, ID: ${b.id}]`).join("\n") || "No upcoming bookings"}
+UPCOMING BOOKINGS (use booking CODE to identify):
+${formattedBookings?.map((b: any) => `• ${b.code}: ${b.customer} (${b.phone || "no phone"}) on ${b.date} at ${b.time} with ${b.staff} for ${b.service} [${b.status}]`).join("\n") || "No upcoming bookings"}
 
-KNOWN CUSTOMERS:
-${customers?.slice(0, 20).map((c: any) => `- ${c.name}${c.phone ? ` (${c.phone})` : ""}${c.email ? ` - ${c.email}` : ""}`).join("\n") || "No customers yet"}
+CUSTOMERS:
+${customers?.slice(0, 15).map((c: any) => `• ${c.name}${c.phone ? ` (${c.phone})` : ""}${c.email ? ` - ${c.email}` : ""}`).join("\n") || "No customers yet"}
 
-YOUR CAPABILITIES - EXECUTE IMMEDIATELY, DO NOT ASK FOR CONFIRMATION:
-1. CREATE BOOKING - Execute immediately when user wants to book
-2. CANCEL BOOKING - Execute immediately when user wants to cancel
-3. RESCHEDULE BOOKING - Execute immediately when user wants to reschedule  
-4. ANSWER QUESTIONS - About schedules, availability, services, etc.
+YOUR CAPABILITIES:
+1. CREATE BOOKING - Book appointments
+2. CANCEL BOOKING - Cancel by booking code OR customer name+phone+date
+3. RESCHEDULE BOOKING - Move booking to new time
+4. GET SCHEDULE - Show bookings for a date range
+5. ANSWER QUESTIONS - About services, hours, availability
 
-CRITICAL RULES:
-- EXECUTE ACTIONS IMMEDIATELY - Do NOT ask "Is that correct?" or "Should I proceed?"
-- When user says "book X for Y" - CREATE THE BOOKING IMMEDIATELY
-- When user says "cancel X" - CANCEL THE BOOKING IMMEDIATELY
-- When user says "reschedule X to Y" - RESCHEDULE IMMEDIATELY
-- Only set action to "answer" if you're genuinely missing required info
+IMPORTANT RULES:
+1. Execute actions IMMEDIATELY when you have enough info
+2. ALWAYS reference bookings by their CODE (like "PRE-A1B2") not by ID
+3. When user says "cancel my booking" or similar, ask for booking code OR customer details to find it
+4. Before cancelling/rescheduling, briefly confirm: "I found the booking for [customer] on [date]. Cancelling now."
+5. NEVER show raw JSON to users - always respond naturally
+6. If action succeeds, say so clearly. If it fails, explain why.
 
-RESPONSE FORMAT - VALID JSON ONLY, NO MARKDOWN:
+FINDING BOOKINGS:
+- By booking code: Direct match (e.g., "PRE-A1B2")
+- By customer: Name + phone + date/time to identify the right booking
+- Always confirm which booking before making changes
+
+RESPONSE FORMAT (JSON only, no markdown):
 {
-  "action": "create_booking" | "cancel_booking" | "reschedule_booking" | "answer",
+  "action": "create_booking" | "cancel_booking" | "reschedule_booking" | "get_schedule" | "answer",
   "params": {
-    // For create_booking (execute immediately when info is available):
-    "customer_name": "string (REQUIRED)",
-    "customer_phone": "string (optional but helpful)",
-    "service_name": "exact service name from list",
-    "staff_name": "exact staff name from list",
+    // For create_booking:
+    "customer_name": "required",
+    "customer_phone": "optional",
+    "service_name": "match from services list",
+    "staff_name": "match from staff list", 
     "date": "YYYY-MM-DD",
     "time": "HH:MM (24h)",
     "notes": "optional"
     
-    // For cancel_booking (execute immediately):
-    "booking_id": "exact UUID from UPCOMING BOOKINGS list"
+    // For cancel_booking:
+    "booking_code": "PRE-XXXX" OR
+    "customer_name": "name",
+    "customer_phone": "phone",
+    "date": "YYYY-MM-DD"
     
-    // For reschedule_booking (execute immediately):
-    "booking_id": "exact UUID from UPCOMING BOOKINGS list",
+    // For reschedule_booking:
+    "booking_code": "PRE-XXXX" OR identify by customer+date
     "new_date": "YYYY-MM-DD",
-    "new_time": "HH:MM (24h)"
+    "new_time": "HH:MM"
+    
+    // For get_schedule:
+    "date": "YYYY-MM-DD" OR
+    "date_from": "YYYY-MM-DD",
+    "date_to": "YYYY-MM-DD"
   },
-  "message": "Brief description of what you're doing (not a question!)"
+  "message": "Human-friendly message about what you're doing"
 }
 
-DATE CALCULATIONS:
-- "tomorrow" = ${new Date(Date.now() + 86400000).toISOString().split("T")[0]}
-- "next Monday" = calculate from today
-
-VALIDATION RULES (the system will enforce these, but validate first):
-- Booking time must be within opening hours for that day
-- Booking end time (start + service duration) must not exceed closing time
-- No double-bookings for same staff at overlapping times
-- Cannot book in the past
-
-If you're missing REQUIRED info (customer name, date, time), ask for it with action: "answer".
-Otherwise, EXECUTE THE ACTION.`;
+DATES:
+- tomorrow = ${new Date(Date.now() + 86400000).toISOString().split("T")[0]}
+- day after tomorrow = ${new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0]}`;
 
     // Call Lovable AI
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -249,7 +261,7 @@ Otherwise, EXECUTE THE ACTION.`;
     
     console.log("Raw AI response:", assistantContent);
 
-    // Clean up response - remove markdown code blocks if present
+    // Clean up response - remove markdown code blocks
     assistantContent = assistantContent.trim();
     if (assistantContent.startsWith("```json")) {
       assistantContent = assistantContent.slice(7);
@@ -266,19 +278,18 @@ Otherwise, EXECUTE THE ACTION.`;
     try {
       parsed = JSON.parse(assistantContent);
     } catch (e) {
-      console.log("Failed to parse AI response as JSON, treating as plain text");
-      // If not valid JSON, return as plain message
+      console.log("Failed to parse AI response as JSON, returning as text");
       return new Response(
         JSON.stringify({ assistantMessage: assistantContent || "I'm not sure how to help with that.", action: null }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // We have valid JSON - execute the action
     const action = parsed.action;
     const params = parsed.params || {};
-    let friendlyMessage = parsed.message || "Request processed.";
+    let friendlyMessage = parsed.message || "";
 
+    // Execute actions
     if (action === "create_booking") {
       const result = await createBooking(supabase, businessId, verifiedUserId, params, services || [], staff || [], openingHours || []);
       return new Response(
@@ -292,7 +303,7 @@ Otherwise, EXECUTE THE ACTION.`;
     }
 
     if (action === "cancel_booking") {
-      const result = await cancelBooking(supabase, businessId, verifiedUserId, params);
+      const result = await cancelBooking(supabase, businessId, verifiedUserId, params, upcomingBookings || []);
       return new Response(
         JSON.stringify({ 
           assistantMessage: result.message, 
@@ -303,7 +314,7 @@ Otherwise, EXECUTE THE ACTION.`;
     }
 
     if (action === "reschedule_booking") {
-      const result = await rescheduleBooking(supabase, businessId, verifiedUserId, params, openingHours || []);
+      const result = await rescheduleBooking(supabase, businessId, verifiedUserId, params, openingHours || [], upcomingBookings || []);
       return new Response(
         JSON.stringify({ 
           assistantMessage: result.message, 
@@ -313,9 +324,17 @@ Otherwise, EXECUTE THE ACTION.`;
       );
     }
 
+    if (action === "get_schedule") {
+      const result = await getSchedule(supabase, businessId, params);
+      return new Response(
+        JSON.stringify({ assistantMessage: result.message, action: null }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Default: just answer
     return new Response(
-      JSON.stringify({ assistantMessage: friendlyMessage, action: null }),
+      JSON.stringify({ assistantMessage: friendlyMessage || "How can I help you?", action: null }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
@@ -328,7 +347,8 @@ Otherwise, EXECUTE THE ACTION.`;
   }
 });
 
-// Helper: Find service by name (case-insensitive, partial match)
+// ============ HELPER FUNCTIONS ============
+
 function findService(services: any[], name: string): any | null {
   if (!name || !services?.length) return null;
   const lower = name.toLowerCase();
@@ -337,7 +357,6 @@ function findService(services: any[], name: string): any | null {
     || services.find(s => lower.includes(s.name.toLowerCase()));
 }
 
-// Helper: Find staff by name (case-insensitive, partial match)
 function findStaff(staffList: any[], name: string): any | null {
   if (!name || !staffList?.length) return null;
   const lower = name.toLowerCase();
@@ -346,13 +365,11 @@ function findStaff(staffList: any[], name: string): any | null {
     || staffList.find(s => lower.includes(s.name.toLowerCase()));
 }
 
-// Helper: Convert JS day to DB day (JS: Sunday=0, DB: Monday=0, Sunday=6)
 function jsToDbDay(jsDay: number): number {
   return jsDay === 0 ? 6 : jsDay - 1;
 }
 
-// Helper: Check if time is within opening hours (using same logic as frontend useOpeningHours hook)
-function isWithinOpeningHours(openingHours: any[], date: Date, endDate: Date): { valid: boolean; reason?: string; openTime?: string; closeTime?: string } {
+function isWithinOpeningHours(openingHours: any[], date: Date, endDate: Date): { valid: boolean; reason?: string } {
   const jsDayOfWeek = date.getDay();
   const dbDayOfWeek = jsToDbDay(jsDayOfWeek);
   const hours = openingHours?.find((h: any) => h.day_of_week === dbDayOfWeek);
@@ -368,22 +385,61 @@ function isWithinOpeningHours(openingHours: any[], date: Date, endDate: Date): {
     return { valid: false, reason: `The business is closed on ${dayName}` };
   }
   
-  const timeStr = date.toTimeString().slice(0, 5); // HH:MM
+  const timeStr = date.toTimeString().slice(0, 5);
   const endTimeStr = endDate.toTimeString().slice(0, 5);
   
   if (timeStr < hours.open_time) {
-    return { valid: false, reason: `The business opens at ${hours.open_time} on ${dayName}`, openTime: hours.open_time, closeTime: hours.close_time };
+    return { valid: false, reason: `The business opens at ${hours.open_time} on ${dayName}` };
   }
   
-  // Check if booking end time exceeds closing time
   if (endTimeStr > hours.close_time) {
-    return { valid: false, reason: `The booking would end at ${endTimeStr}, but the business closes at ${hours.close_time} on ${dayName}`, openTime: hours.open_time, closeTime: hours.close_time };
+    return { valid: false, reason: `The booking would end at ${endTimeStr}, but the business closes at ${hours.close_time} on ${dayName}` };
   }
   
-  return { valid: true, openTime: hours.open_time, closeTime: hours.close_time };
+  return { valid: true };
 }
 
-// Create booking action
+// Find booking by code or by customer details
+function findBookingByCodeOrDetails(bookings: any[], params: any): any | null {
+  const { booking_code, customer_name, customer_phone, date } = params;
+  
+  // Try by booking code first
+  if (booking_code) {
+    const code = booking_code.toUpperCase().trim();
+    const found = bookings.find(b => b.booking_code?.toUpperCase() === code);
+    if (found) return found;
+  }
+  
+  // Try by customer details
+  if (customer_name || customer_phone) {
+    let matches = bookings;
+    
+    if (customer_name) {
+      const nameLower = customer_name.toLowerCase();
+      matches = matches.filter(b => b.customer_name.toLowerCase().includes(nameLower));
+    }
+    
+    if (customer_phone) {
+      const phoneClean = customer_phone.replace(/\D/g, "");
+      matches = matches.filter(b => b.customer_phone?.replace(/\D/g, "").includes(phoneClean));
+    }
+    
+    if (date) {
+      matches = matches.filter(b => b.start_time.startsWith(date));
+    }
+    
+    if (matches.length === 1) return matches[0];
+    if (matches.length > 1) {
+      // Return null but could suggest the user specify more
+      return null;
+    }
+  }
+  
+  return null;
+}
+
+// ============ ACTION HANDLERS ============
+
 async function createBooking(
   supabase: any,
   businessId: string,
@@ -393,9 +449,8 @@ async function createBooking(
   staffList: any[],
   openingHours: any[]
 ): Promise<{ success: boolean; message: string; metadata?: any }> {
-  const { customer_name, customer_phone, customer_email, service_name, staff_name, date, time, notes } = params;
+  const { customer_name, customer_phone, service_name, staff_name, date, time, notes } = params;
 
-  // Validate required fields
   if (!customer_name) {
     return { success: false, message: "I need the customer's name to create a booking. Who is the appointment for?" };
   }
@@ -403,42 +458,36 @@ async function createBooking(
     return { success: false, message: "I need a date and time for the booking. When would you like to schedule it?" };
   }
 
-  // Find service
   const service = findService(services, service_name);
   if (service_name && !service) {
     const availableServices = services?.map(s => s.name).join(", ") || "none";
     return { success: false, message: `I couldn't find the service "${service_name}". Available services: ${availableServices}` };
   }
 
-  // Find staff
   const staffMember = findStaff(staffList, staff_name);
   if (staff_name && !staffMember) {
     const availableStaff = staffList?.map(s => s.name).join(", ") || "none";
     return { success: false, message: `I couldn't find staff member "${staff_name}". Available staff: ${availableStaff}` };
   }
 
-  // Parse date and time
   const startDate = new Date(`${date}T${time}:00`);
   if (isNaN(startDate.getTime())) {
     return { success: false, message: "I couldn't understand the date/time. Please use format like '2024-01-15' and '14:30'." };
   }
 
-  // Check if date is in the past
   if (startDate < new Date()) {
     return { success: false, message: "I can't book appointments in the past. Please choose a future date and time." };
   }
 
-  // Calculate end time based on service duration
   const duration = service?.duration_minutes || 60;
   const endDate = new Date(startDate.getTime() + duration * 60000);
 
-  // Check opening hours
   const hoursCheck = isWithinOpeningHours(openingHours, startDate, endDate);
   if (!hoursCheck.valid) {
     return { success: false, message: `${hoursCheck.reason}. Please choose a different time.` };
   }
 
-  // Check for conflicts with existing bookings
+  // Check for conflicts
   if (staffMember) {
     const { data: conflicts } = await supabase
       .from("bookings")
@@ -450,7 +499,6 @@ async function createBooking(
       .gt("end_time", startDate.toISOString());
 
     if (conflicts && conflicts.length > 0) {
-      // Find alternative times
       const suggestedTime = new Date(startDate.getTime() + duration * 60000 + 30 * 60000);
       const suggestedStr = suggestedTime.toTimeString().slice(0, 5);
       return { 
@@ -460,17 +508,9 @@ async function createBooking(
     }
   }
 
-  // Create the booking
-  console.log("Creating booking:", {
-    businessId,
-    customer_name,
-    customer_phone,
-    service: service?.name,
-    staff: staffMember?.name,
-    startTime: startDate.toISOString(),
-    endTime: endDate.toISOString(),
-  });
+  console.log("Creating booking:", { businessId, customer_name, date, time, service: service?.name, staff: staffMember?.name });
 
+  // booking_code is auto-generated by database trigger
   const { data: booking, error: bookingError } = await supabase
     .from("bookings")
     .insert({
@@ -486,20 +526,19 @@ async function createBooking(
       created_by: "Aivia AI",
       created_by_user_id: userId,
     })
-    .select()
+    .select("id, booking_code")
     .single();
 
   if (bookingError) {
     console.error("Booking creation error:", bookingError);
-    return { success: false, message: `Sorry, I couldn't create the booking: ${bookingError.message}. Please try again or use the booking form.` };
+    return { success: false, message: `Sorry, I couldn't create the booking: ${bookingError.message}. Please try again.` };
   }
 
-  console.log("Booking created successfully:", booking.id);
+  console.log("Booking created:", booking.id, "Code:", booking.booking_code);
 
-  // Try to create/update customer record (non-blocking, won't fail the booking)
-  if (customer_phone) {
+  // Create/update customer (non-blocking)
+  if (customer_phone && customer_phone !== "Not provided") {
     try {
-      // Check if customer exists by phone
       const { data: existingCustomer } = await supabase
         .from("customers")
         .select("id")
@@ -508,29 +547,12 @@ async function createBooking(
         .maybeSingle();
 
       if (existingCustomer) {
-        // Update existing customer
-        await supabase
-          .from("customers")
-          .update({ 
-            name: customer_name,
-            email: customer_email || undefined,
-            total_visits: supabase.rpc ? undefined : undefined, // Can't increment easily here
-          })
-          .eq("id", existingCustomer.id);
+        await supabase.from("customers").update({ name: customer_name }).eq("id", existingCustomer.id);
       } else {
-        // Create new customer
-        await supabase
-          .from("customers")
-          .insert({
-            business_id: businessId,
-            name: customer_name,
-            phone: customer_phone,
-            email: customer_email || null,
-          });
+        await supabase.from("customers").insert({ business_id: businessId, name: customer_name, phone: customer_phone });
       }
-    } catch (custError) {
-      // Don't fail the booking if customer record fails
-      console.warn("Customer record update failed (non-blocking):", custError);
+    } catch (e) {
+      console.warn("Customer record failed (non-blocking):", e);
     }
   }
 
@@ -539,45 +561,37 @@ async function createBooking(
   
   return { 
     success: true, 
-    message: `✅ Booked! ${customer_name} with ${staffMember?.name || "any available staff"} for ${service?.name || "appointment"} on ${formattedDate} at ${formattedTime}.`,
-    metadata: { bookingId: booking.id }
+    message: `✅ Booked! ${customer_name} with ${staffMember?.name || "any available staff"} for ${service?.name || "appointment"} on ${formattedDate} at ${formattedTime}. Booking code: ${booking.booking_code}`,
+    metadata: { bookingId: booking.id, bookingCode: booking.booking_code }
   };
 }
 
-// Cancel booking action  
 async function cancelBooking(
   supabase: any,
   businessId: string,
   userId: string,
-  params: any
+  params: any,
+  upcomingBookings: any[]
 ): Promise<{ success: boolean; message: string }> {
-  const { booking_id } = params;
-
-  if (!booking_id) {
-    return { success: false, message: "Which booking would you like to cancel? Please specify the customer name or booking details." };
-  }
-
-  console.log("Attempting to cancel booking:", booking_id);
-
-  // Verify booking exists and belongs to this business
-  const { data: booking, error: fetchError } = await supabase
-    .from("bookings")
-    .select("*, customer_name, start_time")
-    .eq("id", booking_id)
-    .eq("business_id", businessId)
-    .single();
-
-  if (fetchError || !booking) {
-    console.log("Booking not found:", booking_id, fetchError);
-    return { success: false, message: "I couldn't find that booking. Please check the booking details or tell me the customer name." };
+  // Find booking by code or details
+  const booking = findBookingByCodeOrDetails(upcomingBookings, params);
+  
+  if (!booking) {
+    if (params.booking_code) {
+      return { success: false, message: `I couldn't find a booking with code "${params.booking_code}". Please check the code or tell me the customer's name and date.` };
+    }
+    if (params.customer_name) {
+      return { success: false, message: `I found multiple bookings for "${params.customer_name}". Can you give me the booking code or specify the date?` };
+    }
+    return { success: false, message: "Which booking would you like to cancel? Please give me the booking code (like PRE-A1B2) or the customer's name and date." };
   }
 
   if (booking.status === "cancelled") {
-    return { success: false, message: "This booking is already cancelled." };
+    return { success: false, message: `This booking (${booking.booking_code}) is already cancelled.` };
   }
 
-  // Cancel the booking
-  console.log("Cancelling booking for:", booking.customer_name);
+  console.log("Cancelling booking:", booking.booking_code, booking.customer_name);
+
   const { error } = await supabase
     .from("bookings")
     .update({ 
@@ -585,52 +599,53 @@ async function cancelBooking(
       cancelled_at: new Date().toISOString(), 
       cancelled_by_user_id: userId 
     })
-    .eq("id", booking_id);
+    .eq("id", booking.id);
 
   if (error) {
     console.error("Cancel booking error:", error);
-    return { success: false, message: `Sorry, I couldn't cancel the booking: ${error.message}. Please try again.` };
+    return { success: false, message: `Sorry, I couldn't cancel the booking: ${error.message}` };
   }
 
-  console.log("Booking cancelled successfully:", booking_id);
   const formattedDate = new Date(booking.start_time).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
-  return { success: true, message: `✅ Cancelled ${booking.customer_name}'s booking on ${formattedDate}.` };
+  return { success: true, message: `✅ Cancelled ${booking.customer_name}'s booking (${booking.booking_code}) on ${formattedDate}.` };
 }
 
-// Reschedule booking action
 async function rescheduleBooking(
   supabase: any,
   businessId: string,
   userId: string,
   params: any,
-  openingHours: any[]
+  openingHours: any[],
+  upcomingBookings: any[]
 ): Promise<{ success: boolean; message: string }> {
-  const { booking_id, new_date, new_time } = params;
+  const { new_date, new_time } = params;
 
-  if (!booking_id) {
-    return { success: false, message: "Which booking would you like to reschedule?" };
+  // Find booking
+  const booking = findBookingByCodeOrDetails(upcomingBookings, params);
+  
+  if (!booking) {
+    if (params.booking_code) {
+      return { success: false, message: `I couldn't find a booking with code "${params.booking_code}".` };
+    }
+    return { success: false, message: "Which booking would you like to reschedule? Please give me the booking code or customer details." };
   }
+
   if (!new_date || !new_time) {
-    return { success: false, message: "What date and time would you like to reschedule to?" };
-  }
-
-  // Get the booking with service info
-  const { data: booking, error: fetchError } = await supabase
-    .from("bookings")
-    .select("*, service:service_id(duration_minutes, name), staff:staff_id(name)")
-    .eq("id", booking_id)
-    .eq("business_id", businessId)
-    .single();
-
-  if (fetchError || !booking) {
-    return { success: false, message: "I couldn't find that booking." };
+    return { success: false, message: `Found ${booking.customer_name}'s booking (${booking.booking_code}). What date and time would you like to reschedule to?` };
   }
 
   if (booking.status === "cancelled") {
     return { success: false, message: "This booking is cancelled and can't be rescheduled." };
   }
 
-  const duration = booking.service?.duration_minutes || 60;
+  // Get service duration
+  const { data: serviceData } = await supabase
+    .from("services")
+    .select("duration_minutes")
+    .eq("id", booking.service_id)
+    .single();
+
+  const duration = serviceData?.duration_minutes || 60;
   const startDate = new Date(`${new_date}T${new_time}:00`);
   const endDate = new Date(startDate.getTime() + duration * 60000);
 
@@ -642,7 +657,6 @@ async function rescheduleBooking(
     return { success: false, message: "I can't reschedule to a past time." };
   }
 
-  // Check opening hours
   const hoursCheck = isWithinOpeningHours(openingHours, startDate, endDate);
   if (!hoursCheck.valid) {
     return { success: false, message: `${hoursCheck.reason}. Please choose a different time.` };
@@ -655,7 +669,7 @@ async function rescheduleBooking(
       .select("id")
       .eq("business_id", businessId)
       .eq("staff_id", booking.staff_id)
-      .neq("id", booking_id)
+      .neq("id", booking.id)
       .neq("status", "cancelled")
       .lt("start_time", endDate.toISOString())
       .gt("end_time", startDate.toISOString());
@@ -665,7 +679,8 @@ async function rescheduleBooking(
     }
   }
 
-  // Update the booking
+  console.log("Rescheduling booking:", booking.booking_code, "to", new_date, new_time);
+
   const { error } = await supabase
     .from("bookings")
     .update({
@@ -673,7 +688,7 @@ async function rescheduleBooking(
       end_time: endDate.toISOString(),
       last_modified_by_user_id: userId,
     })
-    .eq("id", booking_id);
+    .eq("id", booking.id);
 
   if (error) {
     console.error("Reschedule error:", error);
@@ -685,6 +700,47 @@ async function rescheduleBooking(
   
   return { 
     success: true, 
-    message: `✅ Rescheduled ${booking.customer_name}'s appointment to ${formattedDate} at ${formattedTime}.` 
+    message: `✅ Rescheduled ${booking.customer_name}'s appointment (${booking.booking_code}) to ${formattedDate} at ${formattedTime}.` 
   };
+}
+
+async function getSchedule(
+  supabase: any,
+  businessId: string,
+  params: any
+): Promise<{ message: string }> {
+  const { date, date_from, date_to } = params;
+  
+  let fromDate = date || date_from || new Date().toISOString().split("T")[0];
+  let toDate = date || date_to || fromDate;
+  
+  // Add one day to toDate to include the full day
+  const toDateObj = new Date(toDate);
+  toDateObj.setDate(toDateObj.getDate() + 1);
+  
+  const { data: bookings, error } = await supabase
+    .from("bookings")
+    .select("*, service:service_id(name), staff:staff_id(name)")
+    .eq("business_id", businessId)
+    .neq("status", "cancelled")
+    .gte("start_time", fromDate)
+    .lt("start_time", toDateObj.toISOString().split("T")[0])
+    .order("start_time");
+
+  if (error) {
+    return { message: "Sorry, I couldn't fetch the schedule." };
+  }
+
+  if (!bookings || bookings.length === 0) {
+    const dateStr = new Date(fromDate).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+    return { message: `No bookings scheduled for ${dateStr}.` };
+  }
+
+  const dateStr = new Date(fromDate).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  const bookingsList = bookings.map((b: any) => {
+    const time = new Date(b.start_time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    return `• ${time} - ${b.customer_name} with ${b.staff?.name || "TBD"} for ${b.service?.name || "appointment"} (${b.booking_code})`;
+  }).join("\n");
+
+  return { message: `📅 Schedule for ${dateStr}:\n${bookingsList}` };
 }
