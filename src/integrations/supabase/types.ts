@@ -1032,6 +1032,15 @@ export type Database = {
           status: string
         }[]
       }
+      get_pending_invite_for_email: {
+        Args: { p_email: string }
+        Returns: {
+          business_id: string
+          business_name: string
+          id: string
+          role: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
