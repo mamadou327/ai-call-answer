@@ -6,11 +6,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Protected emails that should NEVER be deleted
-const PROTECTED_EMAILS = [
-  "mlaye915@gmail.com",
-  "cogclt4@gmail.com"
-];
+// Get protected emails from environment variable or use defaults
+function getProtectedEmails(): string[] {
+  const envEmails = Deno.env.get('PROTECTED_EMAILS');
+  if (envEmails) {
+    return envEmails.split(',').map(e => e.trim().toLowerCase());
+  }
+  // Fallback to default protected emails
+  return [
+    "mlaye915@gmail.com",
+    "cogclt4@gmail.com"
+  ];
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -40,7 +47,7 @@ serve(async (req) => {
       );
     }
 
-    // Verify the caller is the super admin
+    // Verify the caller
     const token = authHeader.replace('Bearer ', '');
     const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(token);
     
@@ -52,8 +59,11 @@ serve(async (req) => {
       );
     }
 
-    // Check if caller is super admin
-    if (caller.email !== "mlaye915@gmail.com") {
+    // Check if caller is super_admin using the database function
+    const { data: isSuperAdmin, error: roleError } = await supabaseAdmin
+      .rpc('has_role', { _user_id: caller.id, _role: 'super_admin' });
+
+    if (roleError || !isSuperAdmin) {
       console.error("Unauthorized access attempt by:", caller.email);
       return new Response(
         JSON.stringify({ error: "Unauthorized - super admin only" }),
@@ -62,6 +72,9 @@ serve(async (req) => {
     }
 
     console.log("Starting test user cleanup by super admin:", caller.email);
+
+    const PROTECTED_EMAILS = getProtectedEmails();
+    console.log("Protected emails count:", PROTECTED_EMAILS.length);
 
     // Get all auth users
     const { data: { users: allUsers }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
@@ -75,18 +88,17 @@ serve(async (req) => {
 
     // Filter out protected users
     const usersToDelete = allUsers?.filter(
-      user => !PROTECTED_EMAILS.includes(user.email || "")
+      user => !PROTECTED_EMAILS.includes((user.email || "").toLowerCase())
     ) || [];
 
     console.log(`Users to delete: ${usersToDelete.length}`);
-    console.log("Protected emails:", PROTECTED_EMAILS);
 
     // Get protected user IDs
     const protectedUserIds = allUsers
-      ?.filter(user => PROTECTED_EMAILS.includes(user.email || ""))
+      ?.filter(user => PROTECTED_EMAILS.includes((user.email || "").toLowerCase()))
       .map(user => user.id) || [];
 
-    console.log("Protected user IDs:", protectedUserIds);
+    console.log("Protected user IDs count:", protectedUserIds.length);
 
     let deletedUsers = 0;
     let deletedMemberships = 0;
@@ -167,6 +179,9 @@ serve(async (req) => {
             await supabaseAdmin.from("staff_accounts").delete().eq("business_id", business.id);
             await supabaseAdmin.from("staff_time_off").delete().eq("business_id", business.id);
             await supabaseAdmin.from("calls_log").delete().eq("business_id", business.id);
+            await supabaseAdmin.from("messages").delete().eq("business_id", business.id);
+            await supabaseAdmin.from("customers").delete().eq("business_id", business.id);
+            await supabaseAdmin.from("customer_settings").delete().eq("business_id", business.id);
             
             // Delete staff (which may have staff_services)
             const { data: staffData } = await supabaseAdmin
@@ -250,7 +265,7 @@ serve(async (req) => {
       deletedBusinesses,
       deletedProfiles,
       deletedRoles,
-      protectedUsers: PROTECTED_EMAILS,
+      protectedUsersCount: PROTECTED_EMAILS.length,
       errors: errors.length > 0 ? errors : undefined
     };
 

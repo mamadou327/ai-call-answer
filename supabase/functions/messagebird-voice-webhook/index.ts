@@ -2,8 +2,44 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, messagebird-signature, messagebird-request-timestamp",
 };
+
+// MessageBird signature validation using Web Crypto API
+async function validateMessageBirdSignature(
+  signingKey: string,
+  signature: string,
+  timestamp: string,
+  body: string
+): Promise<boolean> {
+  try {
+    if (!signingKey || !signature || !timestamp) {
+      return false;
+    }
+    
+    // MessageBird signature format: timestamp.body
+    const payload = `${timestamp}.${body}`;
+    const encoder = new TextEncoder();
+    
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(signingKey),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    
+    const hashBuffer = await crypto.subtle.sign("HMAC", cryptoKey, encoder.encode(payload));
+    const computedSignature = Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    
+    return computedSignature === signature;
+  } catch (error) {
+    console.error("MessageBird signature validation error:", error);
+    return false;
+  }
+}
 
 // Generate MessageBird Call Flow XML response
 function callFlowResponse(message: string, hangup: boolean = true): Response {
@@ -83,7 +119,7 @@ Deno.serve(async (req) => {
     const pathParts = url.pathname.split("/");
     const token = pathParts[pathParts.length - 1];
 
-    console.log("MessageBird webhook called with token:", token);
+    console.log("MessageBird webhook called with token:", token?.substring(0, 8) + "...");
 
     if (!token || token === "messagebird-voice-webhook") {
       console.error("No token provided in URL");
@@ -115,7 +151,7 @@ Deno.serve(async (req) => {
     }
 
     if (!business) {
-      console.error("Business not found for token:", token);
+      console.error("Business not found for token");
       return callFlowResponse("This number is not configured in Aivia. Goodbye.");
     }
 
@@ -127,11 +163,36 @@ Deno.serve(async (req) => {
     }
 
     // Parse MessageBird parameters from query params or body
-    // MessageBird Flow Builder sends data via GET request with query params
     const fromNumber = url.searchParams.get("source") || url.searchParams.get("from") || "";
     const toNumber = url.searchParams.get("destination") || url.searchParams.get("to") || business.messagebird_phone_number || "";
     const callId = url.searchParams.get("callId") || url.searchParams.get("id") || "";
     const callerName = url.searchParams.get("callerName") || null;
+
+    // For POST requests, try to parse body and verify signature
+    let bodyText = "";
+    if (req.method === "POST") {
+      bodyText = await req.text();
+      
+      // Verify MessageBird signature if API key is available
+      const messageBirdApiKey = Deno.env.get("MESSAGEBIRD_API_KEY");
+      const signature = req.headers.get("messagebird-signature");
+      const timestamp = req.headers.get("messagebird-request-timestamp");
+      
+      if (messageBirdApiKey && signature && timestamp) {
+        const isValid = await validateMessageBirdSignature(
+          messageBirdApiKey,
+          signature,
+          timestamp,
+          bodyText
+        );
+        
+        if (!isValid) {
+          console.warn("Invalid MessageBird signature - request may be forged. Proceeding with caution.");
+        } else {
+          console.log("MessageBird signature validated successfully");
+        }
+      }
+    }
 
     console.log("Incoming MessageBird call:", {
       businessId: business.id,

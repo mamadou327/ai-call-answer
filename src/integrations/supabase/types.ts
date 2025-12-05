@@ -1006,10 +1006,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_staff_membership_with_code: {
+        Args: {
+          p_chair?: string
+          p_first_name: string
+          p_join_code: string
+          p_last_name: string
+          p_phone?: string
+          p_position?: string
+        }
+        Returns: string
+      }
       ensure_super_admin: { Args: never; Returns: undefined }
       generate_staff_join_code: {
         Args: { business_name: string }
         Returns: string
+      }
+      get_invite_by_token: {
+        Args: { p_token: string }
+        Returns: {
+          business_id: string
+          email: string
+          id: string
+          role: string
+          status: string
+        }[]
       }
       has_role: {
         Args: {
