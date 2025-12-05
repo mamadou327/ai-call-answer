@@ -52,7 +52,7 @@ export type Database = {
       }
       bookings: {
         Row: {
-          booking_code: string | null
+          booking_code: string
           business_id: string
           cancelled_at: string | null
           cancelled_by_user_id: string | null
@@ -73,7 +73,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          booking_code?: string | null
+          booking_code: string
           business_id: string
           cancelled_at?: string | null
           cancelled_by_user_id?: string | null
@@ -94,7 +94,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          booking_code?: string | null
+          booking_code?: string
           business_id?: string
           cancelled_at?: string | null
           cancelled_by_user_id?: string | null
@@ -1018,6 +1018,10 @@ export type Database = {
         Returns: string
       }
       ensure_super_admin: { Args: never; Returns: undefined }
+      generate_booking_code: {
+        Args: { p_business_name: string }
+        Returns: string
+      }
       generate_staff_join_code: {
         Args: { business_name: string }
         Returns: string
