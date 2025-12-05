@@ -12,6 +12,7 @@ import { format, isToday, startOfDay, endOfDay, addDays, startOfWeek, endOfWeek,
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { BookingDetailsDialog } from "@/components/dashboard/BookingDetailsDialog";
+import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
 
 interface Booking {
   id: string;
@@ -725,6 +726,15 @@ const StaffDashboard = () => {
           onOpenChange={setBookingDetailsOpen}
           onDelete={refreshBookings}
         />
+
+        {/* AI Assistant Chat */}
+        {user && businessId && (
+          <AiviaAssistantChat
+            businessId={businessId}
+            userId={user.id}
+            role="staff"
+          />
+        )}
       </main>
     </div>
   );
