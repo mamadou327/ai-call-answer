@@ -42,7 +42,7 @@ async function validateMessageBirdSignature(
 }
 
 // Generate MessageBird Call Flow XML response
-function callFlowResponse(message: string, hangup: boolean = true): Response {
+function callFlowXmlResponse(message: string, hangup: boolean = true): Response {
   // MessageBird uses a different XML format than Twilio
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <callFlow>
@@ -56,6 +56,31 @@ function callFlowResponse(message: string, hangup: boolean = true): Response {
       "Content-Type": "application/xml",
     },
   });
+}
+
+// Generate JSON response for Flow Builder
+function callFlowJsonResponse(greeting: string, businessName: string, aiEnabled: boolean): Response {
+  return new Response(
+    JSON.stringify({
+      greeting,
+      businessName,
+      aiEnabled,
+    }),
+    {
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+}
+
+// Check if JSON format is requested
+function wantsJsonResponse(req: Request, url: URL): boolean {
+  const formatParam = url.searchParams.get("format");
+  const acceptHeader = req.headers.get("Accept") || "";
+  return formatParam === "json" || acceptHeader.includes("application/json");
 }
 
 // Escape XML special characters
@@ -121,9 +146,15 @@ Deno.serve(async (req) => {
 
     console.log("MessageBird webhook called with token:", token?.substring(0, 8) + "...");
 
+    // Check if JSON format is requested
+    const useJson = wantsJsonResponse(req, url);
+
     if (!token || token === "messagebird-voice-webhook") {
       console.error("No token provided in URL");
-      return callFlowResponse("This number is not configured correctly. Goodbye.");
+      if (useJson) {
+        return callFlowJsonResponse("This number is not configured correctly. Goodbye.", "", false);
+      }
+      return callFlowXmlResponse("This number is not configured correctly. Goodbye.");
     }
 
     // Initialize Supabase client
@@ -147,19 +178,31 @@ Deno.serve(async (req) => {
 
     if (businessError) {
       console.error("Database error finding business:", businessError);
-      return callFlowResponse("We are experiencing technical difficulties. Please try again later. Goodbye.");
+      const errorMsg = "We are experiencing technical difficulties. Please try again later. Goodbye.";
+      if (useJson) {
+        return callFlowJsonResponse(errorMsg, "", false);
+      }
+      return callFlowXmlResponse(errorMsg);
     }
 
     if (!business) {
       console.error("Business not found for token");
-      return callFlowResponse("This number is not configured in Aivia. Goodbye.");
+      const errorMsg = "This number is not configured in Aivia. Goodbye.";
+      if (useJson) {
+        return callFlowJsonResponse(errorMsg, "", false);
+      }
+      return callFlowXmlResponse(errorMsg);
     }
 
     console.log("Found business:", business.id, business.business_name);
 
     if (!business.messagebird_enabled) {
       console.log("MessageBird disabled for business:", business.id);
-      return callFlowResponse("This Aivia line is not currently active. Goodbye.");
+      const errorMsg = "This Aivia line is not currently active. Goodbye.";
+      if (useJson) {
+        return callFlowJsonResponse(errorMsg, business.business_name, false);
+      }
+      return callFlowXmlResponse(errorMsg);
     }
 
     // Parse MessageBird parameters from query params or body
@@ -227,21 +270,32 @@ Deno.serve(async (req) => {
 
     // Generate greeting based on AI settings
     let greeting: string;
-    if (business.aivia_active) {
+    const aiEnabled = business.aivia_active;
+    
+    if (aiEnabled) {
       greeting = generateGreeting(business.business_name, aiSettings);
     } else {
       greeting = `Thank you for calling ${business.business_name}. Our AI assistant is currently unavailable. Please try again later or leave a message. Goodbye.`;
-      return callFlowResponse(greeting, true);
+      if (useJson) {
+        return callFlowJsonResponse(greeting, business.business_name, false);
+      }
+      return callFlowXmlResponse(greeting, true);
     }
 
-    // Return Call Flow XML with greeting
-    return callFlowResponse(
+    // For JSON response, return just the greeting data for Flow Builder
+    if (useJson) {
+      return callFlowJsonResponse(greeting, business.business_name, aiEnabled);
+    }
+
+    // Return Call Flow XML with greeting (legacy behavior)
+    return callFlowXmlResponse(
       `${greeting} I apologize, but our full AI booking system is being set up. Please call back later or contact the business directly. Goodbye.`,
       true
     );
 
   } catch (error) {
     console.error("Error processing MessageBird webhook:", error);
-    return callFlowResponse("We are experiencing technical difficulties. Please try again later. Goodbye.");
+    const errorMsg = "We are experiencing technical difficulties. Please try again later. Goodbye.";
+    return callFlowXmlResponse(errorMsg);
   }
 });
