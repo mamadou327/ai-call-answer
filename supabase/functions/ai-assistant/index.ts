@@ -167,23 +167,34 @@ ${customers?.slice(0, 15).map((c: any) => `• ${c.name}${c.phone ? ` (${c.phone
 
 YOUR CAPABILITIES:
 1. CREATE BOOKING - Book appointments
-2. CANCEL BOOKING - Cancel by booking code OR customer name+phone+date
+2. CANCEL BOOKING - Cancel by booking code OR customer name+date
 3. RESCHEDULE BOOKING - Move booking to new time
 4. GET SCHEDULE - Show bookings for a date range
 5. ANSWER QUESTIONS - About services, hours, availability
 
-IMPORTANT RULES:
-1. Execute actions IMMEDIATELY when you have enough info
-2. ALWAYS reference bookings by their CODE (like "PRE-A1B2") not by ID
-3. When user says "cancel my booking" or similar, ask for booking code OR customer details to find it
-4. Before cancelling/rescheduling, briefly confirm: "I found the booking for [customer] on [date]. Cancelling now."
-5. NEVER show raw JSON to users - always respond naturally
-6. If action succeeds, say so clearly. If it fails, explain why.
+SMART BOOKING LOOKUP (for cancel/reschedule):
+When the user wants to cancel or reschedule, try to find the booking using whatever info they give you:
 
-FINDING BOOKINGS:
-- By booking code: Direct match (e.g., "PRE-A1B2")
-- By customer: Name + phone + date/time to identify the right booking
-- Always confirm which booking before making changes
+1. FULL BOOKING CODE (e.g., "PRE-2647"):
+   - Use booking_code parameter for exact match
+
+2. LAST 4 DIGITS ONLY (e.g., "the code ends with 2647" or "code 2647"):
+   - Use booking_code_suffix parameter with just "2647"
+   - Backend will search for codes ending with these digits
+
+3. CUSTOMER NAME ONLY (e.g., "Cancel Jamal's booking"):
+   - Use customer_name parameter
+   - Backend will search upcoming bookings for that name
+   - DO NOT immediately ask for phone number!
+
+4. NAME + DATE/TIME (e.g., "Cancel Jamal's booking tomorrow at 3pm"):
+   - Use customer_name + date + time parameters
+   - This gives most accurate results
+
+IMPORTANT - DO NOT ASK FOR PHONE FIRST:
+- When user gives a name, TRY THE LOOKUP FIRST with just the name
+- Only ask for more details (like phone) if the backend returns multiple matches or zero matches
+- The backend will return candidate options if there's ambiguity
 
 RESPONSE FORMAT (JSON only, no markdown):
 {
@@ -198,14 +209,14 @@ RESPONSE FORMAT (JSON only, no markdown):
     "time": "HH:MM (24h)",
     "notes": "optional"
     
-    // For cancel_booking:
-    "booking_code": "PRE-XXXX" OR
-    "customer_name": "name",
-    "customer_phone": "phone",
-    "date": "YYYY-MM-DD"
+    // For cancel_booking / reschedule_booking:
+    "booking_code": "PRE-2647" (full code) OR
+    "booking_code_suffix": "2647" (last 4 digits only) OR
+    "customer_name": "Jamal" (name to search)
+    "date": "YYYY-MM-DD" (optional, helps narrow down)
+    "time": "HH:MM" (optional, helps narrow down)
     
-    // For reschedule_booking:
-    "booking_code": "PRE-XXXX" OR identify by customer+date
+    // Additional for reschedule_booking:
     "new_date": "YYYY-MM-DD",
     "new_time": "HH:MM"
     
@@ -219,7 +230,12 @@ RESPONSE FORMAT (JSON only, no markdown):
 
 DATES:
 - tomorrow = ${new Date(Date.now() + 86400000).toISOString().split("T")[0]}
-- day after tomorrow = ${new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0]}`;
+- day after tomorrow = ${new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0]}
+
+EXAMPLES:
+User: "Cancel Jamal's booking" → {"action":"cancel_booking","params":{"customer_name":"Jamal"},"message":"Looking for Jamal's booking..."}
+User: "Cancel booking 2647" → {"action":"cancel_booking","params":{"booking_code_suffix":"2647"},"message":"Looking for booking ending in 2647..."}
+User: "Cancel EXC-2647" → {"action":"cancel_booking","params":{"booking_code":"EXC-2647"},"message":"Cancelling booking EXC-2647..."}`;
 
     // Call Lovable AI
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -399,43 +415,117 @@ function isWithinOpeningHours(openingHours: any[], date: Date, endDate: Date): {
   return { valid: true };
 }
 
-// Find booking by code or by customer details
-function findBookingByCodeOrDetails(bookings: any[], params: any): any | null {
-  const { booking_code, customer_name, customer_phone, date } = params;
+// Format a booking for display
+function formatBookingSummary(booking: any): string {
+  const date = new Date(booking.start_time);
+  const dateStr = date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const timeStr = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const staffName = booking.staff?.name || "TBD";
+  const serviceName = booking.service?.name || "appointment";
+  return `${booking.booking_code} – ${booking.customer_name} – ${serviceName} – ${staffName} – ${dateStr} at ${timeStr}`;
+}
+
+// Smart booking lookup with flexible matching
+interface BookingSearchResult {
+  found: boolean;
+  booking?: any;
+  candidates?: any[];
+  message?: string;
+}
+
+function smartBookingLookup(bookings: any[], params: any): BookingSearchResult {
+  const { booking_code, booking_code_suffix, customer_name, customer_phone, date, time } = params;
   
-  // Try by booking code first
+  // 1. Try exact booking code match first
   if (booking_code) {
     const code = booking_code.toUpperCase().trim();
     const found = bookings.find(b => b.booking_code?.toUpperCase() === code);
-    if (found) return found;
+    if (found) {
+      return { found: true, booking: found };
+    }
+    return { 
+      found: false, 
+      message: `I couldn't find a booking with code "${booking_code}". You can tell me the customer's name and approximate appointment time, or give me a different booking code.` 
+    };
   }
   
-  // Try by customer details
-  if (customer_name || customer_phone) {
-    let matches = bookings;
+  // 2. Try suffix match (last 4 digits)
+  if (booking_code_suffix) {
+    const suffix = booking_code_suffix.trim().toUpperCase();
+    const matches = bookings.filter(b => b.booking_code?.endsWith(suffix) || b.booking_code?.endsWith(`-${suffix}`));
     
-    if (customer_name) {
-      const nameLower = customer_name.toLowerCase();
-      matches = matches.filter(b => b.customer_name.toLowerCase().includes(nameLower));
+    if (matches.length === 1) {
+      return { found: true, booking: matches[0] };
     }
-    
-    if (customer_phone) {
-      const phoneClean = customer_phone.replace(/\D/g, "");
-      matches = matches.filter(b => b.customer_phone?.replace(/\D/g, "").includes(phoneClean));
-    }
-    
-    if (date) {
-      matches = matches.filter(b => b.start_time.startsWith(date));
-    }
-    
-    if (matches.length === 1) return matches[0];
     if (matches.length > 1) {
-      // Return null but could suggest the user specify more
-      return null;
+      return {
+        found: false,
+        candidates: matches,
+        message: `I found multiple bookings ending with "${suffix}":\n${matches.map((b, i) => `${i + 1}) ${formatBookingSummary(b)}`).join("\n")}\n\nWhich booking code would you like me to use?`
+      };
     }
+    return { 
+      found: false, 
+      message: `I couldn't find any booking with a code ending in "${suffix}". Can you give me the full booking code, or tell me the customer's name and appointment time?` 
+    };
   }
   
-  return null;
+  // 3. Try customer name search (smart lookup without requiring phone)
+  if (customer_name) {
+    const nameLower = customer_name.toLowerCase().trim();
+    let matches = bookings.filter(b => b.customer_name.toLowerCase().includes(nameLower));
+    
+    // If date provided, filter by date
+    if (date && matches.length > 0) {
+      const dateMatches = matches.filter(b => b.start_time.startsWith(date));
+      if (dateMatches.length > 0) {
+        matches = dateMatches;
+      }
+    }
+    
+    // If time provided, filter by approximate time (within 2 hours)
+    if (time && matches.length > 0) {
+      const requestedHour = parseInt(time.split(":")[0]);
+      const timeMatches = matches.filter(b => {
+        const bookingHour = new Date(b.start_time).getHours();
+        return Math.abs(bookingHour - requestedHour) <= 2;
+      });
+      if (timeMatches.length > 0) {
+        matches = timeMatches;
+      }
+    }
+    
+    // If phone provided as extra confirmation, filter by it
+    if (customer_phone && matches.length > 1) {
+      const phoneClean = customer_phone.replace(/\D/g, "");
+      const phoneMatches = matches.filter(b => b.customer_phone?.replace(/\D/g, "").includes(phoneClean));
+      if (phoneMatches.length > 0) {
+        matches = phoneMatches;
+      }
+    }
+    
+    if (matches.length === 1) {
+      return { found: true, booking: matches[0] };
+    }
+    if (matches.length > 1) {
+      return {
+        found: false,
+        candidates: matches,
+        message: `I found ${matches.length} bookings for "${customer_name}":\n${matches.map((b, i) => `${i + 1}) ${formatBookingSummary(b)}`).join("\n")}\n\nPlease tell me the booking code of the one you mean.`
+      };
+    }
+    
+    return { 
+      found: false, 
+      message: `I couldn't find any upcoming booking for "${customer_name}". Can you give me the booking code, or confirm the date and time?` 
+    };
+  }
+  
+  // No sufficient info provided
+  return { 
+    found: false, 
+    message: "To find the booking, please give me either:\n• The booking code (like PRE-2647)\n• Or the customer's name and approximate appointment time" 
+  };
 }
 
 // ============ ACTION HANDLERS ============
@@ -573,18 +663,14 @@ async function cancelBooking(
   params: any,
   upcomingBookings: any[]
 ): Promise<{ success: boolean; message: string }> {
-  // Find booking by code or details
-  const booking = findBookingByCodeOrDetails(upcomingBookings, params);
+  // Use smart lookup
+  const result = smartBookingLookup(upcomingBookings, params);
   
-  if (!booking) {
-    if (params.booking_code) {
-      return { success: false, message: `I couldn't find a booking with code "${params.booking_code}". Please check the code or tell me the customer's name and date.` };
-    }
-    if (params.customer_name) {
-      return { success: false, message: `I found multiple bookings for "${params.customer_name}". Can you give me the booking code or specify the date?` };
-    }
-    return { success: false, message: "Which booking would you like to cancel? Please give me the booking code (like PRE-A1B2) or the customer's name and date." };
+  if (!result.found) {
+    return { success: false, message: result.message || "I couldn't find the booking." };
   }
+  
+  const booking = result.booking;
 
   if (booking.status === "cancelled") {
     return { success: false, message: `This booking (${booking.booking_code}) is already cancelled.` };
@@ -607,7 +693,8 @@ async function cancelBooking(
   }
 
   const formattedDate = new Date(booking.start_time).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
-  return { success: true, message: `✅ Cancelled ${booking.customer_name}'s booking (${booking.booking_code}) on ${formattedDate}.` };
+  const formattedTime = new Date(booking.start_time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return { success: true, message: `✅ Cancelled ${booking.customer_name}'s booking (${booking.booking_code}) on ${formattedDate} at ${formattedTime}.` };
 }
 
 async function rescheduleBooking(
@@ -620,18 +707,23 @@ async function rescheduleBooking(
 ): Promise<{ success: boolean; message: string }> {
   const { new_date, new_time } = params;
 
-  // Find booking
-  const booking = findBookingByCodeOrDetails(upcomingBookings, params);
+  // Use smart lookup
+  const result = smartBookingLookup(upcomingBookings, params);
   
-  if (!booking) {
-    if (params.booking_code) {
-      return { success: false, message: `I couldn't find a booking with code "${params.booking_code}".` };
-    }
-    return { success: false, message: "Which booking would you like to reschedule? Please give me the booking code or customer details." };
+  if (!result.found) {
+    return { success: false, message: result.message || "I couldn't find the booking." };
   }
+  
+  const booking = result.booking;
 
   if (!new_date || !new_time) {
-    return { success: false, message: `Found ${booking.customer_name}'s booking (${booking.booking_code}). What date and time would you like to reschedule to?` };
+    const currentDate = new Date(booking.start_time);
+    const dateStr = currentDate.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    const timeStr = currentDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    return { 
+      success: false, 
+      message: `Found ${booking.customer_name}'s booking (${booking.booking_code}) on ${dateStr} at ${timeStr}.\nWhat date and time would you like to reschedule to?` 
+    };
   }
 
   if (booking.status === "cancelled") {
