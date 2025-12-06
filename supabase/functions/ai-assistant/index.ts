@@ -53,93 +53,233 @@ async function handleAdminRequest(
 ): Promise<Response> {
   console.log(`[Aivia Admin] Processing request from admin ${adminUserId}`);
 
-  // Fetch platform-wide stats for context
+  // Fetch comprehensive platform-wide data for admin context
   const now = new Date();
   const todayStr = now.toISOString().split("T")[0];
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
+  // Comprehensive data fetching for admins
   const [
-    { count: totalBusinesses },
-    { count: approvedBusinesses },
-    { count: pendingBusinesses },
-    { count: totalBookings },
-    { count: weekBookings },
-    { count: totalStaff },
-    { count: totalCalls },
-    { count: totalMessages },
-    { data: recentSignups },
-    { data: topBusinesses },
+    { data: allBusinesses },
+    { data: allStaff },
+    { data: allBookings },
+    { data: allServices },
+    { data: allCalls },
+    { data: allMessages },
+    { data: allCustomers },
+    { data: allProfiles },
+    { data: allUserRoles },
+    { data: allStaffMemberships },
+    { data: pendingAdminRequests },
   ] = await Promise.all([
-    supabase.from("businesses").select("*", { count: "exact", head: true }),
-    supabase.from("businesses").select("*", { count: "exact", head: true }).eq("status", "approved"),
-    supabase.from("businesses").select("*", { count: "exact", head: true }).eq("status", "pending"),
-    supabase.from("bookings").select("*", { count: "exact", head: true }),
-    supabase.from("bookings").select("*", { count: "exact", head: true }).gte("created_at", weekAgo),
-    supabase.from("staff").select("*", { count: "exact", head: true }),
-    supabase.from("calls_log").select("*", { count: "exact", head: true }),
-    supabase.from("messages").select("*", { count: "exact", head: true }),
-    supabase.from("businesses").select("business_name, created_at, status").order("created_at", { ascending: false }).limit(10),
-    supabase.from("businesses").select("business_name, status").eq("status", "approved").limit(10),
+    supabase.from("businesses").select("*").order("created_at", { ascending: false }),
+    supabase.from("staff").select("*, business:business_id(business_name)").order("created_at", { ascending: false }),
+    supabase.from("bookings").select("*, service:service_id(name, price), staff:staff_id(name), business:business_id(business_name)").order("created_at", { ascending: false }).limit(500),
+    supabase.from("services").select("*, business:business_id(business_name)"),
+    supabase.from("calls_log").select("*, business:business_id(business_name)").order("created_at", { ascending: false }).limit(200),
+    supabase.from("messages").select("*, business:business_id(business_name)").order("created_at", { ascending: false }).limit(200),
+    supabase.from("customers").select("*, business:business_id(business_name)").order("created_at", { ascending: false }).limit(200),
+    supabase.from("profiles").select("*"),
+    supabase.from("user_roles").select("*"),
+    supabase.from("staff_memberships").select("*, business:business_id(business_name)"),
+    supabase.from("profiles").select("*").eq("admin_status", "pending"),
   ]);
 
+  // Calculate comprehensive stats
+  const businesses = allBusinesses || [];
+  const bookingsData = allBookings || [];
+  const services = allServices || [];
+  const calls = allCalls || [];
+  const messagesData = allMessages || [];
+  const customers = allCustomers || [];
+  const staffMemberships = allStaffMemberships || [];
+  
+  // Calculate revenue from bookings with services
+  let totalRevenue = 0;
+  let weekRevenue = 0;
+  let monthRevenue = 0;
+  
+  bookingsData.forEach((b: any) => {
+    const price = b.service?.price ? Number(b.service.price) : 0;
+    totalRevenue += price;
+    if (new Date(b.created_at) >= new Date(weekAgo)) weekRevenue += price;
+    if (new Date(b.created_at) >= new Date(monthAgo)) monthRevenue += price;
+  });
+
+  // Status breakdowns
+  const businessesByStatus = {
+    approved: businesses.filter((b: any) => b.status === "approved").length,
+    pending: businesses.filter((b: any) => b.status === "pending").length,
+    rejected: businesses.filter((b: any) => b.status === "rejected").length,
+    revoked: businesses.filter((b: any) => b.status === "revoked").length,
+  };
+
+  const bookingsByStatus = {
+    confirmed: bookingsData.filter((b: any) => b.status === "confirmed").length,
+    pending: bookingsData.filter((b: any) => b.status === "pending").length,
+    cancelled: bookingsData.filter((b: any) => b.status === "cancelled").length,
+    completed: bookingsData.filter((b: any) => b.status === "completed").length,
+  };
+
+  // Business details for reference
+  const businessDetails = businesses.slice(0, 20).map((b: any) => ({
+    name: b.business_name,
+    status: b.status,
+    phone: b.main_phone,
+    address: b.address,
+    website: b.website,
+    staffCount: b.staff_count,
+    aiviaActive: b.aivia_active,
+    twilioEnabled: b.twilio_enabled,
+    assignedNumber: b.assigned_aivia_number,
+    createdAt: new Date(b.created_at).toLocaleDateString(),
+  }));
+
+  // Recent activity
+  const recentBookings = bookingsData.slice(0, 15).map((b: any) => ({
+    customer: b.customer_name,
+    business: b.business?.business_name,
+    service: b.service?.name,
+    price: b.service?.price,
+    date: new Date(b.start_time).toLocaleDateString(),
+    time: new Date(b.start_time).toLocaleTimeString(),
+    status: b.status,
+  }));
+
+  const recentCalls = calls.slice(0, 15).map((c: any) => ({
+    business: c.business?.business_name,
+    caller: c.caller_name || c.caller_phone,
+    type: c.call_type,
+    outcome: c.call_outcome,
+    date: new Date(c.created_at).toLocaleDateString(),
+  }));
+
+  // Service pricing info
+  const servicePricing = services.map((s: any) => ({
+    name: s.name,
+    business: s.business?.business_name,
+    price: s.price,
+    duration: s.duration_minutes,
+  }));
+
   const adminSystemPrompt = `You are the Admin Assistant for the Aivia platform.
-You help administrators manage and monitor the entire platform.
+You have FULL ACCESS to all platform data and can answer ANY question about the business.
 
 ═══════════════════════════════════════════════════════════════
-PLATFORM STATISTICS (Live Data)
+CURRENT DATE & TIME
 ═══════════════════════════════════════════════════════════════
+NOW: ${now.toISOString()}
 TODAY: ${todayStr}
 
+═══════════════════════════════════════════════════════════════
+PLATFORM OVERVIEW
+═══════════════════════════════════════════════════════════════
 BUSINESSES:
-• Total: ${totalBusinesses || 0}
-• Approved: ${approvedBusinesses || 0}
-• Pending Approval: ${pendingBusinesses || 0}
+• Total: ${businesses.length}
+• Approved: ${businessesByStatus.approved}
+• Pending Approval: ${businessesByStatus.pending}
+• Rejected: ${businessesByStatus.rejected}
+• Revoked: ${businessesByStatus.revoked}
 
-ACTIVITY:
-• Total Bookings: ${totalBookings || 0}
-• Bookings This Week: ${weekBookings || 0}
-• Total Staff Members: ${totalStaff || 0}
-• Total Calls Logged: ${totalCalls || 0}
-• Total Messages: ${totalMessages || 0}
+USERS & STAFF:
+• Total Staff Members: ${(allStaff || []).length}
+• Staff Memberships: ${staffMemberships.length}
+• Active Memberships: ${staffMemberships.filter((m: any) => m.status === "active").length}
+• Pending Memberships: ${staffMemberships.filter((m: any) => m.status === "pending_approval").length}
+• User Profiles: ${(allProfiles || []).length}
+• User Roles Assigned: ${(allUserRoles || []).length}
+• Pending Admin Requests: ${(pendingAdminRequests || []).length}
 
-RECENT SIGNUPS:
-${recentSignups?.map((b: any) => `• ${b.business_name} (${b.status}) - ${new Date(b.created_at).toLocaleDateString()}`).join("\n") || "None"}
+BOOKINGS:
+• Total: ${bookingsData.length}
+• Confirmed: ${bookingsByStatus.confirmed}
+• Pending: ${bookingsByStatus.pending}
+• Completed: ${bookingsByStatus.completed}
+• Cancelled: ${bookingsByStatus.cancelled}
 
-TOP BUSINESSES:
-${topBusinesses?.map((b: any) => `• ${b.business_name}`).join("\n") || "None"}
+REVENUE:
+• Total Revenue (all time): £${totalRevenue.toFixed(2)}
+• Revenue This Month: £${monthRevenue.toFixed(2)}
+• Revenue This Week: £${weekRevenue.toFixed(2)}
 
-═══════════════════════════════════════════════════════════════
-YOUR CAPABILITIES
-═══════════════════════════════════════════════════════════════
+COMMUNICATIONS:
+• Total Calls Logged: ${calls.length}
+• Total Messages: ${messagesData.length}
+• Total Customers: ${customers.length}
 
-1. PLATFORM STATS
-   - Total businesses, users, bookings, calls
-   - Recent signups and activity
-   - Growth metrics
-
-2. BUSINESS OVERVIEW
-   - List pending approvals
-   - Business status summary
-   - Top performing businesses
-
-3. SYSTEM HEALTH
-   - Activity summary
-   - Usage patterns
-
-4. GENERAL QUESTIONS
-   - Platform information
-   - How-to guidance
+SERVICES:
+• Total Services Offered: ${services.length}
 
 ═══════════════════════════════════════════════════════════════
-RESPONSE FORMAT
+BUSINESS DIRECTORY (Top 20)
+═══════════════════════════════════════════════════════════════
+${businessDetails.map((b: any) => `• ${b.name} | ${b.status} | ${b.phone} | Staff: ${b.staffCount} | Aivia: ${b.aiviaActive ? "Active" : "Inactive"} | Created: ${b.createdAt}`).join("\n")}
+
+═══════════════════════════════════════════════════════════════
+RECENT BOOKINGS (Last 15)
+═══════════════════════════════════════════════════════════════
+${recentBookings.map((b: any) => `• ${b.customer} @ ${b.business} | ${b.service || "No service"} | £${b.price || 0} | ${b.date} ${b.time} | ${b.status}`).join("\n")}
+
+═══════════════════════════════════════════════════════════════
+RECENT CALLS (Last 15)
+═══════════════════════════════════════════════════════════════
+${recentCalls.map((c: any) => `• ${c.business} | ${c.caller} | ${c.type} | ${c.outcome || "No outcome"} | ${c.date}`).join("\n")}
+
+═══════════════════════════════════════════════════════════════
+SERVICE PRICING
+═══════════════════════════════════════════════════════════════
+${servicePricing.map((s: any) => `• ${s.name} @ ${s.business} | £${s.price} | ${s.duration}min`).join("\n")}
+
+═══════════════════════════════════════════════════════════════
+YOUR CAPABILITIES (UNLIMITED ACCESS)
 ═══════════════════════════════════════════════════════════════
 
-Always respond naturally and helpfully. Format data in a readable way.
-Use bullet points for lists. Include relevant stats when answering questions.
-Be concise but comprehensive.
+You can answer ANY question about the platform including:
 
-If asked about something you don't have data for, say so clearly.
+1. BUSINESS DATA
+   - Business details, status, settings
+   - Contact info, addresses, websites
+   - Twilio/MessageBird configuration
+   - Staff assignments
+
+2. FINANCIAL DATA
+   - Revenue breakdowns by period
+   - Service pricing
+   - Booking values
+
+3. USER DATA
+   - User counts and roles
+   - Staff memberships
+   - Admin requests
+   - Customer data
+
+4. ACTIVITY DATA
+   - Bookings (all statuses)
+   - Call logs
+   - Messages
+   - Customer interactions
+
+5. SYSTEM STATUS
+   - Integration status (Aivia, Twilio, etc.)
+   - Pending approvals
+   - Platform health
+
+6. GENERAL QUESTIONS
+   - You can research and provide helpful answers on ANY topic
+   - Use your knowledge to help with business questions
+   - Provide guidance and recommendations
+
+═══════════════════════════════════════════════════════════════
+RESPONSE GUIDELINES
+═══════════════════════════════════════════════════════════════
+
+- Answer any question asked, using the data provided above
+- Be helpful, accurate, and comprehensive
+- Format data clearly with bullet points
+- Include specific numbers and details
+- If the data above doesn't contain what's needed, say so but try to help
+- You are a powerful admin assistant - act like one!
 `;
 
   try {
