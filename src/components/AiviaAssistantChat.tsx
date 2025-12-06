@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageCircle, X, Send, Loader2, Bot, User } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Bot, User, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -13,9 +13,9 @@ interface Message {
 }
 
 interface AiviaAssistantChatProps {
-  businessId: string;
+  businessId?: string;
   userId: string;
-  role: "owner" | "staff";
+  role: "owner" | "staff" | "admin";
 }
 
 export const AiviaAssistantChat = ({ businessId, userId, role }: AiviaAssistantChatProps) => {
@@ -51,7 +51,7 @@ export const AiviaAssistantChat = ({ businessId, userId, role }: AiviaAssistantC
     try {
       const { data, error } = await supabase.functions.invoke("ai-assistant", {
         body: {
-          businessId,
+          businessId: businessId || null,
           userId,
           role,
           messages: newMessages,
@@ -80,6 +80,8 @@ export const AiviaAssistantChat = ({ businessId, userId, role }: AiviaAssistantC
     }
   };
 
+  const isAdmin = role === "admin";
+
   return (
     <>
       {/* Floating Button */}
@@ -87,24 +89,35 @@ export const AiviaAssistantChat = ({ businessId, userId, role }: AiviaAssistantC
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg",
-          "bg-primary hover:bg-primary/90 transition-all duration-200",
+          "transition-all duration-200",
+          isAdmin 
+            ? "bg-amber-600 hover:bg-amber-700" 
+            : "bg-primary hover:bg-primary/90",
           isOpen && "rotate-90"
         )}
         size="icon"
       >
-        {isOpen ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
+        {isOpen ? <X className="h-6 w-6" /> : (isAdmin ? <Shield className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />)}
       </Button>
 
       {/* Chat Panel */}
       {isOpen && (
         <Card className="fixed bottom-24 right-6 z-50 w-[380px] h-[500px] shadow-2xl flex flex-col animate-in slide-in-from-bottom-4 duration-200">
-          <CardHeader className="pb-3 border-b bg-primary text-primary-foreground rounded-t-lg">
+          <CardHeader className={cn(
+            "pb-3 border-b rounded-t-lg",
+            isAdmin 
+              ? "bg-amber-600 text-white" 
+              : "bg-primary text-primary-foreground"
+          )}>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Bot className="h-5 w-5" />
-              Ask Aivia
+              {isAdmin ? <Shield className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+              {isAdmin ? "Admin Assistant" : "Ask Aivia"}
             </CardTitle>
             <p className="text-sm opacity-90">
-              Book appointments, check schedules, and more
+              {isAdmin 
+                ? "Query platform stats, manage businesses, and more"
+                : "Book appointments, check schedules, and more"
+              }
             </p>
           </CardHeader>
 
@@ -113,10 +126,18 @@ export const AiviaAssistantChat = ({ businessId, userId, role }: AiviaAssistantC
             <ScrollArea className="flex-1 p-4" ref={scrollRef}>
               {messages.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">
-                  <Bot className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">Hi! I'm Aivia, your AI assistant.</p>
+                  {isAdmin ? <Shield className="h-12 w-12 mx-auto mb-3 opacity-50" /> : <Bot className="h-12 w-12 mx-auto mb-3 opacity-50" />}
+                  <p className="text-sm">
+                    {isAdmin 
+                      ? "Hi! I'm your Admin Assistant."
+                      : "Hi! I'm Aivia, your AI assistant."
+                    }
+                  </p>
                   <p className="text-xs mt-1">
-                    Try: "Book Joseph tomorrow at 3pm" or "What bookings do I have today?"
+                    {isAdmin 
+                      ? 'Try: "How many businesses are registered?" or "Show recent signups"'
+                      : 'Try: "Book Joseph tomorrow at 3pm" or "What bookings do I have today?"'
+                    }
                   </p>
                 </div>
               ) : (
@@ -130,15 +151,18 @@ export const AiviaAssistantChat = ({ businessId, userId, role }: AiviaAssistantC
                       )}
                     >
                       {msg.role === "assistant" && (
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <Bot className="h-4 w-4 text-primary" />
+                        <div className={cn(
+                          "h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0",
+                          isAdmin ? "bg-amber-100" : "bg-primary/10"
+                        )}>
+                          {isAdmin ? <Shield className="h-4 w-4 text-amber-600" /> : <Bot className="h-4 w-4 text-primary" />}
                         </div>
                       )}
                       <div
                         className={cn(
                           "max-w-[80%] rounded-lg px-3 py-2 text-sm",
                           msg.role === "user"
-                            ? "bg-primary text-primary-foreground"
+                            ? isAdmin ? "bg-amber-600 text-white" : "bg-primary text-primary-foreground"
                             : "bg-muted"
                         )}
                       >
@@ -153,8 +177,11 @@ export const AiviaAssistantChat = ({ businessId, userId, role }: AiviaAssistantC
                   ))}
                   {isLoading && (
                     <div className="flex gap-2 justify-start">
-                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Bot className="h-4 w-4 text-primary" />
+                      <div className={cn(
+                        "h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0",
+                        isAdmin ? "bg-amber-100" : "bg-primary/10"
+                      )}>
+                        {isAdmin ? <Shield className="h-4 w-4 text-amber-600" /> : <Bot className="h-4 w-4 text-primary" />}
                       </div>
                       <div className="bg-muted rounded-lg px-3 py-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -181,6 +208,7 @@ export const AiviaAssistantChat = ({ businessId, userId, role }: AiviaAssistantC
                   onClick={sendMessage}
                   disabled={!input.trim() || isLoading}
                   size="icon"
+                  className={isAdmin ? "bg-amber-600 hover:bg-amber-700" : ""}
                 >
                   {isLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
