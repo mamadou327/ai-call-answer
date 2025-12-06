@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameDay, addDays, startOfDay, endOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight, User, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, User, X, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { BookingDetailsDialog } from "./BookingDetailsDialog";
 import { useOpeningHours } from "@/hooks/use-opening-hours";
@@ -89,7 +89,8 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
       .lte("start_time", endDate.toISOString())
       .order("start_time", { ascending: true });
 
-    if (data) setBookings(data);
+    // Filter out cancelled bookings from display
+    if (data) setBookings(data.filter(b => b.status !== "cancelled"));
     setLoading(false);
   };
 
@@ -189,13 +190,23 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
             {dayBookings.map((booking) => (
               <div
                 key={booking.id}
-                className="p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+                className="p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors relative"
                 style={{ borderLeftColor: booking.staff?.color || "#3B82F6", borderLeftWidth: "4px" }}
                 onClick={() => handleBookingClick(booking)}
               >
+                {booking.status === "completed" && (
+                  <div className="absolute top-2 right-2">
+                    <Check className="w-5 h-5 text-green-500" />
+                  </div>
+                )}
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-medium">{booking.customer_name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{booking.customer_name}</p>
+                      {booking.status === "completed" && (
+                        <Badge variant="secondary" className="text-xs">Completed</Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">{booking.customer_phone}</p>
                     <p className="text-sm">{booking.service?.name}</p>
                     <p className="text-sm text-muted-foreground">
@@ -203,7 +214,9 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                     </p>
                   </div>
                   <div className="text-right">
-                    <Badge variant="outline" className="mb-2">{booking.status}</Badge>
+                    {booking.status !== "completed" && (
+                      <Badge variant="outline" className="mb-2">{booking.status}</Badge>
+                    )}
                     {booking.staff && (
                       <div className="flex items-center gap-1 text-sm">
                         <User className="w-3 h-3" />
@@ -282,12 +295,17 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                         dayBookings.map((booking) => (
                           <div
                             key={booking.id}
-                            className="text-xs p-1 rounded mb-1 text-white truncate cursor-pointer hover:opacity-80 transition-opacity"
+                            className="text-xs p-1 rounded mb-1 text-white truncate cursor-pointer hover:opacity-80 transition-opacity relative"
                             style={{ backgroundColor: booking.staff?.color || "#3B82F6" }}
-                            title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})`}
+                            title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})${booking.status === "completed" ? " ✓" : ""}`}
                             onClick={() => handleBookingClick(booking)}
                           >
-                            <p className="font-medium truncate">{booking.customer_name}</p>
+                            <div className="flex items-center gap-1">
+                              <p className="font-medium truncate flex-1">{booking.customer_name}</p>
+                              {booking.status === "completed" && (
+                                <Check className="w-3 h-3 flex-shrink-0" />
+                              )}
+                            </div>
                             <p className="truncate opacity-90">{booking.service?.name}</p>
                           </div>
                         ))
@@ -350,15 +368,25 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                   style={{ borderLeftColor: booking.staff?.color || "#3B82F6", borderLeftWidth: "4px" }}
                   onClick={() => handleBookingClick(booking)}
                 >
-                  <div>
-                    <p className="font-medium">{booking.customer_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(booking.start_time), "h:mm a")} - {booking.service?.name}
-                    </p>
+                  <div className="flex items-center gap-2">
+                    {booking.status === "completed" && (
+                      <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    )}
+                    <div>
+                      <p className="font-medium">{booking.customer_name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {format(new Date(booking.start_time), "h:mm a")} - {booking.service?.name}
+                      </p>
+                    </div>
                   </div>
-                  {booking.staff && (
-                    <Badge variant="secondary">{booking.staff.name}</Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {booking.status === "completed" && (
+                      <Badge variant="secondary" className="text-xs">Done</Badge>
+                    )}
+                    {booking.staff && (
+                      <Badge variant="outline">{booking.staff.name}</Badge>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
