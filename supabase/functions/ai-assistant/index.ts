@@ -24,9 +24,9 @@ interface Message {
 }
 
 interface RequestBody {
-  businessId: string;
+  businessId: string | null;
   userId: string;
-  role: "owner" | "staff";
+  role: "owner" | "staff" | "admin";
   messages: Message[];
 }
 
@@ -42,6 +42,148 @@ function dbToJsDay(dbDay: number): number {
 }
 
 // ============================================================================
+// ADMIN REQUEST HANDLER
+// ============================================================================
+
+async function handleAdminRequest(
+  supabase: any,
+  lovableApiKey: string,
+  messages: Message[],
+  adminUserId: string
+): Promise<Response> {
+  console.log(`[Aivia Admin] Processing request from admin ${adminUserId}`);
+
+  // Fetch platform-wide stats for context
+  const now = new Date();
+  const todayStr = now.toISOString().split("T")[0];
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [
+    { count: totalBusinesses },
+    { count: approvedBusinesses },
+    { count: pendingBusinesses },
+    { count: totalBookings },
+    { count: weekBookings },
+    { count: totalStaff },
+    { count: totalCalls },
+    { count: totalMessages },
+    { data: recentSignups },
+    { data: topBusinesses },
+  ] = await Promise.all([
+    supabase.from("businesses").select("*", { count: "exact", head: true }),
+    supabase.from("businesses").select("*", { count: "exact", head: true }).eq("status", "approved"),
+    supabase.from("businesses").select("*", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("bookings").select("*", { count: "exact", head: true }),
+    supabase.from("bookings").select("*", { count: "exact", head: true }).gte("created_at", weekAgo),
+    supabase.from("staff").select("*", { count: "exact", head: true }),
+    supabase.from("calls_log").select("*", { count: "exact", head: true }),
+    supabase.from("messages").select("*", { count: "exact", head: true }),
+    supabase.from("businesses").select("business_name, created_at, status").order("created_at", { ascending: false }).limit(10),
+    supabase.from("businesses").select("business_name, status").eq("status", "approved").limit(10),
+  ]);
+
+  const adminSystemPrompt = `You are the Admin Assistant for the Aivia platform.
+You help administrators manage and monitor the entire platform.
+
+═══════════════════════════════════════════════════════════════
+PLATFORM STATISTICS (Live Data)
+═══════════════════════════════════════════════════════════════
+TODAY: ${todayStr}
+
+BUSINESSES:
+• Total: ${totalBusinesses || 0}
+• Approved: ${approvedBusinesses || 0}
+• Pending Approval: ${pendingBusinesses || 0}
+
+ACTIVITY:
+• Total Bookings: ${totalBookings || 0}
+• Bookings This Week: ${weekBookings || 0}
+• Total Staff Members: ${totalStaff || 0}
+• Total Calls Logged: ${totalCalls || 0}
+• Total Messages: ${totalMessages || 0}
+
+RECENT SIGNUPS:
+${recentSignups?.map((b: any) => `• ${b.business_name} (${b.status}) - ${new Date(b.created_at).toLocaleDateString()}`).join("\n") || "None"}
+
+TOP BUSINESSES:
+${topBusinesses?.map((b: any) => `• ${b.business_name}`).join("\n") || "None"}
+
+═══════════════════════════════════════════════════════════════
+YOUR CAPABILITIES
+═══════════════════════════════════════════════════════════════
+
+1. PLATFORM STATS
+   - Total businesses, users, bookings, calls
+   - Recent signups and activity
+   - Growth metrics
+
+2. BUSINESS OVERVIEW
+   - List pending approvals
+   - Business status summary
+   - Top performing businesses
+
+3. SYSTEM HEALTH
+   - Activity summary
+   - Usage patterns
+
+4. GENERAL QUESTIONS
+   - Platform information
+   - How-to guidance
+
+═══════════════════════════════════════════════════════════════
+RESPONSE FORMAT
+═══════════════════════════════════════════════════════════════
+
+Always respond naturally and helpfully. Format data in a readable way.
+Use bullet points for lists. Include relevant stats when answering questions.
+Be concise but comprehensive.
+
+If asked about something you don't have data for, say so clearly.
+`;
+
+  try {
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: adminSystemPrompt },
+          ...messages.map((m) => ({ role: m.role, content: m.content })),
+        ],
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error("[Aivia Admin] AI Gateway error:", aiResponse.status, errorText);
+      return new Response(
+        JSON.stringify({ assistantMessage: "I'm having trouble processing your request. Please try again." }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const aiData = await aiResponse.json();
+    const assistantMessage = aiData.choices?.[0]?.message?.content || "I couldn't generate a response.";
+
+    return new Response(
+      JSON.stringify({ assistantMessage }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("[Aivia Admin] Error:", error);
+    return new Response(
+      JSON.stringify({ assistantMessage: "An error occurred. Please try again." }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+}
+
+// ============================================================================
 // MAIN HANDLER
 // ============================================================================
 
@@ -53,9 +195,17 @@ serve(async (req) => {
   try {
     const { businessId, userId, role, messages }: RequestBody = await req.json();
 
-    if (!businessId || !userId || !messages || messages.length === 0) {
+    if (!userId || !messages || messages.length === 0) {
       return new Response(
         JSON.stringify({ assistantMessage: "Missing required fields", action: null }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Admin role doesn't require businessId
+    if (role !== "admin" && !businessId) {
+      return new Response(
+        JSON.stringify({ assistantMessage: "Business ID required for non-admin roles", action: null }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -85,7 +235,28 @@ serve(async (req) => {
       );
     }
 
-    // Check access
+    // =========== ADMIN ROLE HANDLING ===========
+    if (role === "admin") {
+      // Check if user has admin role
+      const { data: adminRoles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .in("role", ["super_admin", "sub_admin"]);
+
+      if (!adminRoles || adminRoles.length === 0) {
+        return new Response(
+          JSON.stringify({ assistantMessage: "Unauthorized - Admin access required", action: null }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Handle admin-specific queries
+      return await handleAdminRequest(supabase, lovableApiKey, messages, user.id);
+    }
+
+    // =========== BUSINESS USER AUTHORIZATION ===========
+    // Check access for business-specific operations
     const [{ data: ownerCheck }, { data: staffCheck }] = await Promise.all([
       supabase.from("businesses").select("id").eq("id", businessId).eq("owner_id", user.id).single(),
       supabase.from("staff_memberships").select("id").eq("business_id", businessId).eq("user_id", user.id).eq("status", "active").single(),
@@ -98,8 +269,10 @@ serve(async (req) => {
       );
     }
 
+    // At this point, businessId is guaranteed to be non-null (checked earlier for non-admin roles)
+    const validBusinessId = businessId as string;
     const verifiedUserId = user.id;
-    console.log(`[Aivia] User ${verifiedUserId} accessing business ${businessId}`);
+    console.log(`[Aivia] User ${verifiedUserId} accessing business ${validBusinessId}`);
 
     // =========== FETCH BUSINESS CONTEXT ===========
     const now = new Date();
@@ -116,15 +289,15 @@ serve(async (req) => {
       { data: recentBookings },
       { data: customers },
     ] = await Promise.all([
-      supabase.from("businesses").select("*").eq("id", businessId).single(),
-      supabase.from("services").select("*").eq("business_id", businessId).order("name"),
-      supabase.from("staff").select("*").eq("business_id", businessId).order("name"),
-      supabase.from("opening_hours").select("*").eq("business_id", businessId).order("day_of_week"),
+      supabase.from("businesses").select("*").eq("id", validBusinessId).single(),
+      supabase.from("services").select("*").eq("business_id", validBusinessId).order("name"),
+      supabase.from("staff").select("*").eq("business_id", validBusinessId).order("name"),
+      supabase.from("opening_hours").select("*").eq("business_id", validBusinessId).order("day_of_week"),
       // Non-cancelled upcoming bookings for display
       supabase
         .from("bookings")
         .select("*, service:service_id(id, name, duration_minutes, price), staff:staff_id(id, name)")
-        .eq("business_id", businessId)
+        .eq("business_id", validBusinessId)
         .neq("status", "cancelled")
         .gte("start_time", todayStr)
         .order("start_time")
@@ -133,14 +306,14 @@ serve(async (req) => {
       supabase
         .from("bookings")
         .select("*, service:service_id(id, name, duration_minutes, price), staff:staff_id(id, name)")
-        .eq("business_id", businessId)
+        .eq("business_id", validBusinessId)
         .gte("start_time", weekAgo)
         .order("start_time", { ascending: false })
         .limit(200),
       supabase
         .from("bookings")
         .select("id, customer_name, service_id, staff_id, start_time, status")
-        .eq("business_id", businessId)
+        .eq("business_id", validBusinessId)
         .gte("start_time", weekAgo)
         .lt("start_time", todayStr)
         .order("start_time", { ascending: false })
@@ -148,7 +321,7 @@ serve(async (req) => {
       supabase
         .from("customers")
         .select("id, name, phone, email, preferred_staff_id, notes_preferences, total_visits")
-        .eq("business_id", businessId)
+        .eq("business_id", validBusinessId)
         .order("total_visits", { ascending: false })
         .limit(100),
     ]);
@@ -453,7 +626,7 @@ REMEMBER: ALWAYS respond with JSON. Never plain text.`;
     
     // CREATE BOOKING
     if (action === "create_booking") {
-      const result = await handleCreateBooking(supabase, businessId, verifiedUserId, params, {
+      const result = await handleCreateBooking(supabase, validBusinessId, verifiedUserId, params, {
         services: services || [],
         staff: staff || [],
         openingHours: openingHours || [],
@@ -464,13 +637,13 @@ REMEMBER: ALWAYS respond with JSON. Never plain text.`;
 
     // CANCEL BOOKING - use allBookings to find cancelled ones too
     if (action === "cancel_booking") {
-      const result = await handleCancelBooking(supabase, businessId, verifiedUserId, params, formattedAllBookings, allBookings || []);
+      const result = await handleCancelBooking(supabase, validBusinessId, verifiedUserId, params, formattedAllBookings, allBookings || []);
       return jsonResponse(result);
     }
 
     // RESCHEDULE BOOKING - use allBookings to find cancelled ones too
     if (action === "reschedule_booking") {
-      const result = await handleRescheduleBooking(supabase, businessId, verifiedUserId, params, {
+      const result = await handleRescheduleBooking(supabase, validBusinessId, verifiedUserId, params, {
         openingHours: openingHours || [],
         bookings: formattedAllBookings,
         rawBookings: allBookings || [],
@@ -490,7 +663,7 @@ REMEMBER: ALWAYS respond with JSON. Never plain text.`;
 
     // GET SCHEDULE
     if (action === "get_schedule") {
-      const result = await handleGetSchedule(supabase, businessId, params);
+      const result = await handleGetSchedule(supabase, validBusinessId, params);
       return jsonResponse({ assistantMessage: result, action: null });
     }
 
@@ -502,7 +675,7 @@ REMEMBER: ALWAYS respond with JSON. Never plain text.`;
 
     // GET STATS
     if (action === "get_stats") {
-      const result = await handleGetStats(supabase, businessId, params);
+      const result = await handleGetStats(supabase, validBusinessId, params);
       return jsonResponse({ assistantMessage: result, action: null });
     }
 

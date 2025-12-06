@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import WorldTracker from "@/components/WorldTracker";
 import { AdminAnalyticsDashboard } from "@/components/admin/AdminAnalyticsDashboard";
 import { ManageUsersTab } from "@/components/admin/ManageUsersTab";
+import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
 import { LayoutDashboard, Settings2 } from "lucide-react";
 
 // Super admin email constant
@@ -92,6 +93,7 @@ const AdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "admins" | "tracker" | "users">("analytics");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
@@ -142,6 +144,7 @@ const AdminDashboard = () => {
     const subAdmin = roles?.some(r => r.role === "sub_admin");
     
     setIsSuperAdmin(!!superAdmin);
+    setCurrentUserId(user.id);
 
     if (!superAdmin && !subAdmin) {
       navigate("/admin/login");
@@ -1503,6 +1506,14 @@ const AdminDashboard = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Admin AI Assistant Chat */}
+      {currentUserId && (
+        <AiviaAssistantChat
+          userId={currentUserId}
+          role="admin"
+        />
+      )}
     </div>
   );
 };
