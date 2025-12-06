@@ -17,7 +17,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import WorldTracker from "@/components/WorldTracker";
-import { DangerZoneSection } from "@/components/admin/DangerZoneSection";
+import { AdminAnalyticsDashboard } from "@/components/admin/AdminAnalyticsDashboard";
+import { ManageUsersTab } from "@/components/admin/ManageUsersTab";
+import { LayoutDashboard, Settings2 } from "lucide-react";
 
 // Super admin email constant
 const SUPER_ADMIN_EMAIL = "mlaye915@gmail.com";
@@ -90,7 +92,7 @@ const AdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState<"businesses" | "approved" | "admins" | "tracker">("businesses");
+  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "admins" | "tracker" | "users">("analytics");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
     can_manage_business_numbers: false,
@@ -636,6 +638,13 @@ const AdminDashboard = () => {
 
         <div className="flex gap-2 mb-6 flex-wrap">
           <Button
+            variant={activeTab === "analytics" ? "default" : "outline"}
+            onClick={() => setActiveTab("analytics")}
+          >
+            <LayoutDashboard className="w-4 h-4 mr-2" />
+            Analytics
+          </Button>
+          <Button
             variant={activeTab === "businesses" ? "default" : "outline"}
             onClick={() => setActiveTab("businesses")}
           >
@@ -680,7 +689,20 @@ const AdminDashboard = () => {
               World Tracker
             </Button>
           )}
+          {isSuperAdmin && (
+            <Button
+              variant={activeTab === "users" ? "default" : "outline"}
+              onClick={() => setActiveTab("users")}
+            >
+              <Settings2 className="w-4 h-4 mr-2" />
+              Manage Users
+            </Button>
+          )}
         </div>
+
+        {activeTab === "analytics" && (
+          <AdminAnalyticsDashboard />
+        )}
 
         {activeTab === "businesses" && (
           <Card>
@@ -858,11 +880,8 @@ const AdminDashboard = () => {
           </Card>
         )}
 
-        {/* Danger Zone - Super Admin Only */}
-        {isSuperAdmin && (
-          <div className="mt-8">
-            <DangerZoneSection />
-          </div>
+        {activeTab === "users" && isSuperAdmin && (
+          <ManageUsersTab />
         )}
       </div>
 
