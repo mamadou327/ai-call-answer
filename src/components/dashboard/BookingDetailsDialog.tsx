@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2, User, Clock, Phone, FileText, Calendar as CalendarIcon } from "lucide-react";
+import { Trash2, User, Clock, FileText, Calendar as CalendarIcon, CheckCircle, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -30,9 +30,15 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
       return;
     }
 
+    const { data: { user } } = await supabase.auth.getUser();
+
     const { error } = await supabase
       .from("bookings")
-      .update({ status: "cancelled" })
+      .update({ 
+        status: "cancelled",
+        cancelled_at: new Date().toISOString(),
+        cancelled_by_user_id: user?.id || null
+      })
       .eq("id", booking.id);
 
     if (error) {
@@ -45,6 +51,54 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
       toast({
         title: t("common.success"),
         description: t("bookingDetails.cancelSuccess"),
+      });
+      onDelete();
+      onOpenChange(false);
+    }
+  };
+
+  const handleMarkCompleted = async () => {
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: "completed" })
+      .eq("id", booking.id);
+
+    if (error) {
+      toast({
+        title: t("common.error"),
+        description: "Failed to mark booking as completed",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: t("common.success"),
+        description: "Booking marked as completed",
+      });
+      onDelete();
+      onOpenChange(false);
+    }
+  };
+
+  const handleReinstate = async () => {
+    const { error } = await supabase
+      .from("bookings")
+      .update({ 
+        status: "confirmed",
+        cancelled_at: null,
+        cancelled_by_user_id: null
+      })
+      .eq("id", booking.id);
+
+    if (error) {
+      toast({
+        title: t("common.error"),
+        description: "Failed to reinstate booking",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: t("common.success"),
+        description: "Booking reinstated successfully",
       });
       onDelete();
       onOpenChange(false);
@@ -92,6 +146,13 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
       onOpenChange(false);
       setIsRescheduling(false);
     }
+  };
+
+  const getStatusBadge = (status: string) => {
+    if (status === "confirmed") return "default";
+    if (status === "cancelled") return "destructive";
+    if (status === "completed") return "secondary";
+    return "secondary";
   };
 
   return (
@@ -159,7 +220,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
                 <div className="flex items-center gap-3">
                   <FileText className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium">{t("bookings.bookingCode")}</p>
+                    <p className="text-sm font-medium">Booking Code</p>
                     <p className="text-sm font-mono font-semibold text-primary">{booking.booking_code}</p>
                   </div>
                 </div>
@@ -169,16 +230,8 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
                 <Badge variant="outline" className="text-xs">
                   {t("bookings.createdBy")}: {booking.created_by}
                 </Badge>
-                <Badge
-                  variant={
-                    booking.status === "confirmed"
-                      ? "default"
-                      : booking.status === "cancelled"
-                      ? "destructive"
-                      : "secondary"
-                  }
-                >
-                  {t(`bookings.${booking.status}`)}
+                <Badge variant={getStatusBadge(booking.status)}>
+                  {booking.status === "completed" ? "Completed" : t(`bookings.${booking.status}`)}
                 </Badge>
               </div>
             </div>
@@ -201,14 +254,36 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
             </div>
           )}
 
-          <div className="flex gap-2 pt-4 border-t">
+          <div className="flex flex-wrap gap-2 pt-4 border-t">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
               {t("common.close")}
             </Button>
-            {!isRescheduling && booking.status !== "cancelled" && (
+            
+            {/* Cancelled booking - show reinstate */}
+            {booking.status === "cancelled" && (
+              <Button 
+                variant="outline" 
+                onClick={handleReinstate}
+                className="flex-1 border-green-500 text-green-600 hover:bg-green-50"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Reinstate
+              </Button>
+            )}
+
+            {/* Active booking - show done, reschedule, cancel */}
+            {!isRescheduling && booking.status !== "cancelled" && booking.status !== "completed" && (
               <>
                 <Button 
                   variant="secondary" 
+                  onClick={handleMarkCompleted}
+                  className="flex-1"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Done
+                </Button>
+                <Button 
+                  variant="outline" 
                   onClick={() => setIsRescheduling(true)}
                   className="flex-1"
                 >
@@ -225,6 +300,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
                 </Button>
               </>
             )}
+            
             {isRescheduling && (
               <>
                 <Button 
