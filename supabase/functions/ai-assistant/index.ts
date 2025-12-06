@@ -112,6 +112,7 @@ serve(async (req) => {
       { data: staff },
       { data: openingHours },
       { data: upcomingBookings },
+      { data: allBookings }, // Include cancelled bookings for lookup
       { data: recentBookings },
       { data: customers },
     ] = await Promise.all([
@@ -119,6 +120,7 @@ serve(async (req) => {
       supabase.from("services").select("*").eq("business_id", businessId).order("name"),
       supabase.from("staff").select("*").eq("business_id", businessId).order("name"),
       supabase.from("opening_hours").select("*").eq("business_id", businessId).order("day_of_week"),
+      // Non-cancelled upcoming bookings for display
       supabase
         .from("bookings")
         .select("*, service:service_id(id, name, duration_minutes, price), staff:staff_id(id, name)")
@@ -127,6 +129,14 @@ serve(async (req) => {
         .gte("start_time", todayStr)
         .order("start_time")
         .limit(100),
+      // ALL bookings (including cancelled) for lookups
+      supabase
+        .from("bookings")
+        .select("*, service:service_id(id, name, duration_minutes, price), staff:staff_id(id, name)")
+        .eq("business_id", businessId)
+        .gte("start_time", weekAgo)
+        .order("start_time", { ascending: false })
+        .limit(200),
       supabase
         .from("bookings")
         .select("id, customer_name, service_id, staff_id, start_time, status")
@@ -156,6 +166,23 @@ serve(async (req) => {
     })) || [];
 
     const formattedBookings = upcomingBookings?.map((b: any) => ({
+      code: b.booking_code,
+      id: b.id,
+      customer: b.customer_name,
+      phone: b.customer_phone,
+      date: new Date(b.start_time).toISOString().split("T")[0],
+      time: new Date(b.start_time).toTimeString().slice(0, 5),
+      endTime: new Date(b.end_time).toTimeString().slice(0, 5),
+      staffId: b.staff?.id,
+      staffName: b.staff?.name || "unassigned",
+      serviceId: b.service?.id,
+      serviceName: b.service?.name || "appointment",
+      duration: b.service?.duration_minutes || 60,
+      status: b.status,
+    })) || [];
+
+    // Format ALL bookings (including cancelled) for lookups
+    const formattedAllBookings = allBookings?.map((b: any) => ({
       code: b.booking_code,
       id: b.id,
       customer: b.customer_name,
@@ -435,18 +462,18 @@ REMEMBER: ALWAYS respond with JSON. Never plain text.`;
       return jsonResponse(result);
     }
 
-    // CANCEL BOOKING
+    // CANCEL BOOKING - use allBookings to find cancelled ones too
     if (action === "cancel_booking") {
-      const result = await handleCancelBooking(supabase, businessId, verifiedUserId, params, formattedBookings, upcomingBookings || []);
+      const result = await handleCancelBooking(supabase, businessId, verifiedUserId, params, formattedAllBookings, allBookings || []);
       return jsonResponse(result);
     }
 
-    // RESCHEDULE BOOKING
+    // RESCHEDULE BOOKING - use allBookings to find cancelled ones too
     if (action === "reschedule_booking") {
       const result = await handleRescheduleBooking(supabase, businessId, verifiedUserId, params, {
         openingHours: openingHours || [],
-        bookings: formattedBookings,
-        rawBookings: upcomingBookings || [],
+        bookings: formattedAllBookings,
+        rawBookings: allBookings || [],
       });
       return jsonResponse(result);
     }
