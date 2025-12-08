@@ -430,10 +430,13 @@ interface CallerInfo {
   totalVisits?: number;
   lastBooking?: {
     service: string;
+    serviceId: string;
     date: string;
     staff: string;
+    staffId: string;
   };
   preferredStaff?: string;
+  preferredStaffId?: string;
   upcomingBooking?: {
     code: string;
     service: string;
@@ -453,7 +456,7 @@ async function recognizeCaller(
   // Check customers table
   const { data: customer } = await supabase
     .from("customers")
-    .select("name, total_visits, preferred_staff_id, preferred_staff:preferred_staff_id(name)")
+    .select("name, total_visits, preferred_staff_id, preferred_staff:preferred_staff_id(id, name)")
     .eq("business_id", businessId)
     .or(`phone.ilike.%${normalizedPhone}%,phone.eq.${phone}`)
     .maybeSingle();
@@ -465,7 +468,7 @@ async function recognizeCaller(
   // Get their last completed booking
   const { data: lastBooking } = await supabase
     .from("bookings")
-    .select("start_time, service:service_id(name), staff:staff_id(name)")
+    .select("start_time, service_id, staff_id, service:service_id(id, name), staff:staff_id(id, name)")
     .eq("business_id", businessId)
     .ilike("customer_phone", `%${normalizedPhone}%`)
     .eq("status", "completed")
@@ -490,10 +493,13 @@ async function recognizeCaller(
     name: customer.name,
     totalVisits: customer.total_visits,
     preferredStaff: customer.preferred_staff?.name,
+    preferredStaffId: customer.preferred_staff?.id,
     lastBooking: lastBooking ? {
       service: lastBooking.service?.name || "appointment",
+      serviceId: lastBooking.service?.id || lastBooking.service_id,
       date: new Date(lastBooking.start_time).toLocaleDateString("en-GB"),
-      staff: lastBooking.staff?.name || ""
+      staff: lastBooking.staff?.name || "",
+      staffId: lastBooking.staff?.id || lastBooking.staff_id
     } : undefined,
     upcomingBooking: upcomingBooking ? {
       code: upcomingBooking.booking_code,
@@ -529,21 +535,62 @@ YOUR ROLE AS PHONE RECEPTIONIST
 ═══════════════════════════════════════════════════════════════
 
 Handle phone calls for bookings and inquiries. You can:
-1. CREATE BOOKINGS - Must collect: service, date/time, customer name
+1. CREATE BOOKINGS - Must collect: service, staff/barber, date/time, customer name
 2. CANCEL BOOKINGS - Need booking code or customer name
 3. RESCHEDULE BOOKINGS - Find booking first, then new date/time  
 4. ANSWER QUESTIONS - Services, pricing, opening hours, etc.
 5. TAKE MESSAGES - For the business owner/staff
 
 ═══════════════════════════════════════════════════════════════
-RETURNING CUSTOMERS
+CRITICAL: BOOKING FLOW (ALWAYS FOLLOW THIS ORDER)
+═══════════════════════════════════════════════════════════════
+
+For EVERY booking, you MUST collect these in order:
+1. SERVICE - What service do they want?
+2. STAFF/BARBER - Which staff member do they prefer?
+3. DATE/TIME - When do they want it?
+4. NAME - What's their name? (skip if returning customer with name known)
+
+NEVER create a booking without:
+- A specific service selected
+- A specific staff member selected
+- A confirmed date and time
+
+═══════════════════════════════════════════════════════════════
+RETURNING CUSTOMERS - PERSONALIZED BUT STILL ASK
 ═══════════════════════════════════════════════════════════════
 
 If CALLER INFO shows they're a returning customer:
 - Greet them by name warmly: "Hi [Name], lovely to hear from you again!"
 - If they have an UPCOMING BOOKING, mention it proactively
-- If they have a preferred staff member, offer to book with them
-- Use their history to make smarter suggestions
+- OFFER their usual service/staff as a suggestion, but STILL CONFIRM:
+  "Would you like your usual [service] with [preferred staff], or something different?"
+- If they say "the same" or "usual", use their last booking's service and preferred staff
+- If they want something different, go through the normal selection
+
+For NEW callers:
+- Ask for service first: "What service would you like today?"
+- Then ask for staff: "Which barber would you prefer? We have [list names]"
+- Then date/time, then name
+
+═══════════════════════════════════════════════════════════════
+SERVICE SELECTION (STEP 1)
+═══════════════════════════════════════════════════════════════
+
+- If caller says "I want to book" without a service, ASK which service
+- List services naturally: "We offer [service1], [service2], and [service3]. Which would you like?"
+- Match what they say to a service from the SERVICES list
+- Confirm their selection before moving to staff
+
+═══════════════════════════════════════════════════════════════
+STAFF SELECTION (STEP 2)
+═══════════════════════════════════════════════════════════════
+
+- ALWAYS ask which staff member they want, even for new customers
+- For returning customers: "Would you like [preferred staff] again, or someone else?"
+- For new customers: "Who would you like to see you? We have [list staff names]"
+- If they say "anyone" or "whoever is available", note that and find first available
+- Match what they say to a staff member from the STAFF list
 
 ═══════════════════════════════════════════════════════════════
 SMART DATE/TIME UNDERSTANDING
@@ -554,42 +601,29 @@ You understand natural date expressions:
 - "this Friday", "next Monday", "next week"
 - "this weekend", "Saturday", "Sunday"
 - "the 15th", "January 20th"
-- "in two days", "in a week"
 
 And natural time expressions:
 - "2pm", "2:30", "half past 2"
 - "morning", "afternoon", "evening"
-- "noon", "midday"
 
-Always confirm back clearly: "So that's Friday the 15th at 2pm?"
+Always confirm back clearly: "So that's Friday the 15th at 2pm with [staff name] for a [service]?"
 
 ═══════════════════════════════════════════════════════════════
 REAL-TIME AVAILABILITY
 ═══════════════════════════════════════════════════════════════
 
 AVAILABILITY INFO is provided in the context. Use it to:
-- Only offer times that are actually available
+- Only offer times when the SELECTED STAFF is available
 - If requested time is unavailable, apologize and offer alternatives
-- If no one is available, suggest the next available slots
-
-═══════════════════════════════════════════════════════════════
-CRITICAL: SERVICE SELECTION FOR BOOKINGS
-═══════════════════════════════════════════════════════════════
-
-When creating a booking, you MUST know which service:
-- If caller says "I want to book an appointment" WITHOUT specifying a service, ASK which service
-- List the services naturally: "We offer haircuts, beard trims, and skin fades. Which would you like?"
-- Only proceed after the service is confirmed
-- If they mention a specific service already, proceed to date/time
+- Check if that specific staff member is free at that time
 
 ═══════════════════════════════════════════════════════════════
 CONVERSATION FLOW - NATURAL DIALOGUE
 ═══════════════════════════════════════════════════════════════
 
 - Ask ONE question at a time
-- While gathering details, just ask the next required piece
-- DO NOT say "Is there anything else?" until an action is COMPLETE
-- ONLY after booking/cancelling/etc., ask if they need anything else
+- Collect: Service → Staff → Date/Time → Name (in that order)
+- DO NOT say "Is there anything else?" until booking is COMPLETE
 - Keep responses SHORT and natural (1-2 sentences)
 - Use contractions: "I've", "we're", "that's", "you're"
 - Add natural fillers occasionally: "Lovely", "Perfect", "Great"
@@ -606,7 +640,8 @@ Always respond with valid JSON:
 }
 
 ACTION PARAMETERS:
-- create_booking: { customer_name, customer_phone, service_name, staff_name (optional), date (YYYY-MM-DD), time (HH:MM) }
+- create_booking: { customer_name, customer_phone, service_name, staff_name, date (YYYY-MM-DD), time (HH:MM) }
+  NOTE: service_name AND staff_name are REQUIRED - do not create booking without both
 - cancel_booking: { booking_code or customer_name }
 - reschedule_booking: { booking_code or customer_name, new_date, new_time }
 
@@ -705,9 +740,20 @@ async function handleCreateBooking(
 ): Promise<{ success: boolean; code?: string; error?: string }> {
   const { customer_name, customer_phone, service_name, staff_name, date, time } = params;
 
+  // Validate required fields - service and staff are REQUIRED
   if (!customer_name || !date || !time) {
-    console.log("[VoiceAction] Create booking missing params:", params);
-    return { success: false, error: "Missing required information" };
+    console.log("[VoiceAction] Create booking missing basic params:", params);
+    return { success: false, error: "I need your name, preferred date and time to complete the booking" };
+  }
+
+  if (!service_name) {
+    console.log("[VoiceAction] Create booking missing service:", params);
+    return { success: false, error: "I need to know which service you'd like. What would you like to book?" };
+  }
+
+  if (!staff_name) {
+    console.log("[VoiceAction] Create booking missing staff:", params);
+    return { success: false, error: "I need to know which barber you'd prefer. Who would you like to see?" };
   }
 
   // Parse natural date/time if not in ISO format
@@ -725,28 +771,62 @@ async function handleCreateBooking(
     if (timeResult) parsedTime = timeResult;
   }
 
-  // Find service
+  // Find service - REQUIRED
   let serviceId = null;
   let duration = 60;
-  if (service_name && context.services) {
-    const service = context.services.find((s: any) => 
-      s.name.toLowerCase().includes(service_name.toLowerCase())
+  if (context.services) {
+    // Try exact match first
+    let service = context.services.find((s: any) => 
+      s.name.toLowerCase() === service_name.toLowerCase()
     );
+    // Then try partial match
+    if (!service) {
+      service = context.services.find((s: any) => 
+        s.name.toLowerCase().includes(service_name.toLowerCase()) ||
+        service_name.toLowerCase().includes(s.name.toLowerCase())
+      );
+    }
     if (service) {
       serviceId = service.id;
       duration = service.duration_minutes || 60;
+    } else {
+      console.log("[VoiceAction] Service not found:", service_name, "Available:", context.services.map((s: any) => s.name));
+      return { success: false, error: `I couldn't find a service called "${service_name}". We offer ${context.services.map((s: any) => s.name).join(", ")}` };
     }
   }
 
-  // Find staff
+  // Find staff - REQUIRED (unless "anyone" or "whoever")
   let staffId = null;
-  if (staff_name && context.staff) {
-    const staff = context.staff.find((s: any) =>
-      s.name.toLowerCase().includes(staff_name.toLowerCase())
+  const anyonePatterns = ["anyone", "anybody", "whoever", "any", "don't mind", "doesnt matter", "doesn't matter", "first available"];
+  const wantsAnyone = anyonePatterns.some(p => staff_name.toLowerCase().includes(p));
+  
+  if (wantsAnyone) {
+    // Pick first available staff member
+    if (context.staff && context.staff.length > 0) {
+      staffId = context.staff[0].id;
+    }
+  } else if (context.staff) {
+    // Try exact match first
+    let staff = context.staff.find((s: any) =>
+      s.name.toLowerCase() === staff_name.toLowerCase()
     );
+    // Then try partial match
+    if (!staff) {
+      staff = context.staff.find((s: any) =>
+        s.name.toLowerCase().includes(staff_name.toLowerCase()) ||
+        staff_name.toLowerCase().includes(s.name.toLowerCase())
+      );
+    }
     if (staff) {
       staffId = staff.id;
+    } else {
+      console.log("[VoiceAction] Staff not found:", staff_name, "Available:", context.staff.map((s: any) => s.name));
+      return { success: false, error: `I couldn't find "${staff_name}". We have ${context.staff.map((s: any) => s.name).join(", ")}` };
     }
+  }
+
+  if (!staffId) {
+    return { success: false, error: "I need to know which barber you'd prefer. Who would you like to see?" };
   }
 
   // Check availability before booking
