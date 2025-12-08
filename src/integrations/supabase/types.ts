@@ -506,12 +506,15 @@ export type Database = {
       }
       customers: {
         Row: {
+          blocked_at: string | null
+          blocked_reason: string | null
           business_id: string
           created_at: string
           email: string | null
           first_visit_date: string
           how_heard: string | null
           id: string
+          is_blocked: boolean
           marketing_consent: boolean | null
           name: string
           notes_preferences: string | null
@@ -521,12 +524,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          blocked_at?: string | null
+          blocked_reason?: string | null
           business_id: string
           created_at?: string
           email?: string | null
           first_visit_date?: string
           how_heard?: string | null
           id?: string
+          is_blocked?: boolean
           marketing_consent?: boolean | null
           name: string
           notes_preferences?: string | null
@@ -536,12 +542,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          blocked_at?: string | null
+          blocked_reason?: string | null
           business_id?: string
           created_at?: string
           email?: string | null
           first_visit_date?: string
           how_heard?: string | null
           id?: string
+          is_blocked?: boolean
           marketing_consent?: boolean | null
           name?: string
           notes_preferences?: string | null
