@@ -67,9 +67,9 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
           <h3 className="text-lg font-semibold">Staff Management</h3>
           <StaffInviteDialog businessId={businessId} businessName={business?.business_name || ""} />
         </div>
-        <StaffJoinCodeSection businessId={businessId} businessName={business?.business_name || ""} />
-        <StaffMembershipsManagement businessId={businessId} onUpdate={onUpdate} />
         <StaffManagement businessId={businessId} businessName={business?.business_name || ""} onUpdate={onUpdate} />
+        <StaffMembershipsManagement businessId={businessId} onUpdate={onUpdate} />
+        <StaffJoinCodeSection businessId={businessId} businessName={business?.business_name || ""} />
       </TabsContent>
 
       <TabsContent value="hours">
