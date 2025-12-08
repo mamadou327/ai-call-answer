@@ -46,31 +46,31 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
-// Get Polly voice based on settings
+// Get Polly voice based on settings - using neural voices for natural UK sound
 function getPollyVoice(voiceGender: string, primaryLanguage: string): string {
-  // UK English voices
+  // UK English neural voices
   if (primaryLanguage?.toLowerCase().includes("english")) {
-    return voiceGender === "male" ? "Polly.Brian" : "Polly.Amy";
+    return voiceGender === "male" ? "Polly.Brian-Neural" : "Polly.Amy-Neural";
   }
-  // US English fallback
-  return voiceGender === "male" ? "Polly.Matthew" : "Polly.Joanna";
+  // US English neural voices as fallback
+  return voiceGender === "male" ? "Polly.Matthew-Neural" : "Polly.Joanna-Neural";
 }
 
-// Generate TwiML response with Gather for speech input
+// Generate TwiML response with Gather for speech input - using en-GB for UK
 function twimlGather(
   sayText: string,
   gatherPrompt: string,
   actionUrl: string,
   voice: string,
-  timeout: number = 5
+  timeout: number = 6
 ): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}">${escapeXml(sayText)}</Say>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto">
-    <Say voice="${voice}">${escapeXml(gatherPrompt)}</Say>
+  <Say voice="${voice}" language="en-GB">${escapeXml(sayText)}</Say>
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
+    <Say voice="${voice}" language="en-GB">${escapeXml(gatherPrompt)}</Say>
   </Gather>
-  <Say voice="${voice}">I didn't hear anything. Please call back if you need assistance. Goodbye.</Say>
+  <Say voice="${voice}" language="en-GB">I didn't hear anything. Please call back if you need assistance. Goodbye.</Say>
   <Hangup/>
 </Response>`;
   
@@ -80,10 +80,10 @@ function twimlGather(
 }
 
 // Simple error TwiML
-function twimlError(message: string, voice: string = "Polly.Amy"): Response {
+function twimlError(message: string, voice: string = "Polly.Amy-Neural"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}">${escapeXml(message)}</Say>
+  <Say voice="${voice}" language="en-GB">${escapeXml(message)}</Say>
   <Hangup/>
 </Response>`;
   
