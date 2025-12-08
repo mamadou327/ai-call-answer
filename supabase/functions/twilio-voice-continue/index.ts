@@ -19,15 +19,12 @@ function escapeXml(text: string): string {
 }
 
 function getPollyVoice(voiceGender: string, primaryLanguage: string): string {
-  // Use neural voices for more natural UK English sound
   if (primaryLanguage?.toLowerCase().includes("english")) {
     return voiceGender === "male" ? "Polly.Brian-Neural" : "Polly.Amy-Neural";
   }
-  // US English neural voices as fallback
   return voiceGender === "male" ? "Polly.Matthew-Neural" : "Polly.Joanna-Neural";
 }
 
-// TwiML response with Gather for continuing conversation (no extra prompt - AI reply handles the question)
 function twimlContinue(sayText: string, actionUrl: string, voice: string, timeout: number = 6): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -42,7 +39,6 @@ function twimlContinue(sayText: string, actionUrl: string, voice: string, timeou
   });
 }
 
-// TwiML response for ending the call
 function twimlEnd(sayText: string, voice: string): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -55,7 +51,6 @@ function twimlEnd(sayText: string, voice: string): Response {
   });
 }
 
-// TwiML response for clarification
 function twimlClarify(sayText: string, actionUrl: string, voice: string): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -71,7 +66,6 @@ function twimlClarify(sayText: string, actionUrl: string, voice: string): Respon
   });
 }
 
-// Simple error TwiML
 function twimlError(message: string, voice: string = "Polly.Amy-Neural"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -91,12 +85,409 @@ function jsToDbDay(jsDay: number): number {
   return jsDay === 0 ? 6 : jsDay - 1;
 }
 
+function dbToJsDay(dbDay: number): number {
+  return dbDay === 6 ? 0 : dbDay + 1;
+}
+
 function formatDate(date: Date): string {
   return date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 }
 
 function formatTime(date: Date): string {
   return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+// ============================================================================
+// SMART DATE PARSING
+// ============================================================================
+
+function parseNaturalDate(input: string, now: Date): { date: string; dayName: string } | null {
+  const text = input.toLowerCase().trim();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+
+  // "today"
+  if (text.includes("today")) {
+    return { date: today.toISOString().split("T")[0], dayName: "today" };
+  }
+
+  // "tomorrow"
+  if (text.includes("tomorrow")) {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return { date: tomorrow.toISOString().split("T")[0], dayName: "tomorrow" };
+  }
+
+  // "day after tomorrow"
+  if (text.includes("day after tomorrow")) {
+    const dat = new Date(today);
+    dat.setDate(dat.getDate() + 2);
+    return { date: dat.toISOString().split("T")[0], dayName: DB_DAY_NAMES[jsToDbDay(dat.getDay())] };
+  }
+
+  // "this weekend" / "on the weekend" - find Saturday
+  if (text.includes("weekend") || text.includes("saturday") || text.includes("sunday")) {
+    const daysToSat = (6 - today.getDay() + 7) % 7 || 7;
+    if (text.includes("sunday")) {
+      const sun = new Date(today);
+      sun.setDate(sun.getDate() + ((7 - today.getDay()) % 7 || 7));
+      return { date: sun.toISOString().split("T")[0], dayName: "Sunday" };
+    }
+    const sat = new Date(today);
+    sat.setDate(sat.getDate() + daysToSat);
+    return { date: sat.toISOString().split("T")[0], dayName: "Saturday" };
+  }
+
+  // Day names: "monday", "next tuesday", "this friday"
+  const dayPatterns = [
+    { pattern: /\bmonday\b/, day: 1 },
+    { pattern: /\btuesday\b/, day: 2 },
+    { pattern: /\bwednesday\b/, day: 3 },
+    { pattern: /\bthursday\b/, day: 4 },
+    { pattern: /\bfriday\b/, day: 5 },
+    { pattern: /\bsaturday\b/, day: 6 },
+    { pattern: /\bsunday\b/, day: 0 },
+  ];
+
+  for (const { pattern, day } of dayPatterns) {
+    if (pattern.test(text)) {
+      const isNext = text.includes("next");
+      const currentDay = today.getDay();
+      let daysAhead = (day - currentDay + 7) % 7;
+      if (daysAhead === 0 && !text.includes("this")) daysAhead = 7;
+      if (isNext && daysAhead <= 7) daysAhead += 7;
+      const targetDate = new Date(today);
+      targetDate.setDate(targetDate.getDate() + daysAhead);
+      return { date: targetDate.toISOString().split("T")[0], dayName: DB_DAY_NAMES[jsToDbDay(day)] };
+    }
+  }
+
+  // "next week" - defaults to next Monday
+  if (text.includes("next week")) {
+    const currentDay = today.getDay();
+    const daysToMon = (1 - currentDay + 7) % 7 + 7;
+    const nextMon = new Date(today);
+    nextMon.setDate(nextMon.getDate() + daysToMon);
+    return { date: nextMon.toISOString().split("T")[0], dayName: "next Monday" };
+  }
+
+  // Specific date patterns: "15th", "the 20th", "January 15"
+  const dateMatch = text.match(/(\d{1,2})(?:st|nd|rd|th)?(?:\s+(?:of\s+)?(\w+))?/);
+  if (dateMatch) {
+    const dayNum = parseInt(dateMatch[1]);
+    const monthName = dateMatch[2];
+    const target = new Date(today);
+    
+    if (monthName) {
+      const months = ["january", "february", "march", "april", "may", "june", 
+                      "july", "august", "september", "october", "november", "december"];
+      const monthIdx = months.findIndex(m => monthName.toLowerCase().startsWith(m.slice(0, 3)));
+      if (monthIdx >= 0) {
+        target.setMonth(monthIdx);
+        target.setDate(dayNum);
+        if (target < today) target.setFullYear(target.getFullYear() + 1);
+        return { date: target.toISOString().split("T")[0], dayName: formatDate(target) };
+      }
+    } else {
+      target.setDate(dayNum);
+      if (target < today) target.setMonth(target.getMonth() + 1);
+      return { date: target.toISOString().split("T")[0], dayName: formatDate(target) };
+    }
+  }
+
+  return null;
+}
+
+function parseNaturalTime(input: string): string | null {
+  const text = input.toLowerCase().trim();
+  
+  // "2pm", "2 pm", "2:30pm", "14:00", "2 o'clock"
+  const timeMatch = text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm|o'?clock)?/);
+  if (timeMatch) {
+    let hour = parseInt(timeMatch[1]);
+    const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+    const period = timeMatch[3]?.toLowerCase();
+    
+    if (period === "pm" && hour < 12) hour += 12;
+    if (period === "am" && hour === 12) hour = 0;
+    if (!period && hour >= 1 && hour <= 7) hour += 12; // Assume afternoon for low hours
+    
+    return `${hour.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+  }
+
+  // Named times
+  if (text.includes("morning")) return "10:00";
+  if (text.includes("noon") || text.includes("midday")) return "12:00";
+  if (text.includes("afternoon")) return "14:00";
+  if (text.includes("evening")) return "17:00";
+
+  return null;
+}
+
+// ============================================================================
+// AVAILABILITY CHECKING
+// ============================================================================
+
+interface AvailabilityCheck {
+  isAvailable: boolean;
+  reason?: string;
+  suggestedSlots?: string[];
+}
+
+async function checkRealAvailability(
+  supabase: any,
+  businessId: string,
+  date: string,
+  time: string,
+  durationMinutes: number,
+  staffId: string | null,
+  openingHours: any[]
+): Promise<AvailabilityCheck> {
+  const requestedStart = new Date(`${date}T${time}:00`);
+  const requestedEnd = new Date(requestedStart.getTime() + durationMinutes * 60000);
+  const now = new Date();
+
+  // Check if it's in the past
+  if (requestedStart < now) {
+    return { isAvailable: false, reason: "That time has already passed" };
+  }
+
+  // Check opening hours
+  const jsDay = requestedStart.getDay();
+  const dbDay = jsToDbDay(jsDay);
+  const dayHours = openingHours.find((h: any) => h.day_of_week === dbDay);
+
+  if (!dayHours || dayHours.is_closed) {
+    return { 
+      isAvailable: false, 
+      reason: `We're closed on ${DB_DAY_NAMES[dbDay]}s`,
+      suggestedSlots: await findNextAvailableSlots(supabase, businessId, requestedStart, durationMinutes, staffId, openingHours)
+    };
+  }
+
+  const openTime = dayHours.open_time;
+  const closeTime = dayHours.close_time;
+  const requestedTimeStr = time;
+  const requestedEndTimeStr = `${requestedEnd.getHours().toString().padStart(2, "0")}:${requestedEnd.getMinutes().toString().padStart(2, "0")}`;
+
+  if (requestedTimeStr < openTime) {
+    return { 
+      isAvailable: false, 
+      reason: `We don't open until ${openTime.slice(0, 5)} on ${DB_DAY_NAMES[dbDay]}s`,
+      suggestedSlots: [openTime.slice(0, 5)]
+    };
+  }
+
+  if (requestedEndTimeStr > closeTime) {
+    return { 
+      isAvailable: false, 
+      reason: `Your appointment would end after we close at ${closeTime.slice(0, 5)}` 
+    };
+  }
+
+  // Check staff time off if staff specified
+  if (staffId) {
+    const { data: timeOff } = await supabase
+      .from("staff_time_off")
+      .select("*")
+      .eq("staff_id", staffId)
+      .eq("status", "approved")
+      .lte("start_time", requestedEnd.toISOString())
+      .gte("end_time", requestedStart.toISOString());
+
+    if (timeOff && timeOff.length > 0) {
+      return { 
+        isAvailable: false, 
+        reason: "That staff member is not available at that time",
+        suggestedSlots: await findNextAvailableSlots(supabase, businessId, requestedStart, durationMinutes, staffId, openingHours)
+      };
+    }
+  }
+
+  // Check for conflicting bookings
+  let query = supabase
+    .from("bookings")
+    .select("id, start_time, end_time, staff_id, staff:staff_id(name)")
+    .eq("business_id", businessId)
+    .neq("status", "cancelled")
+    .lt("start_time", requestedEnd.toISOString())
+    .gt("end_time", requestedStart.toISOString());
+
+  if (staffId) {
+    query = query.eq("staff_id", staffId);
+  }
+
+  const { data: conflicts } = await query;
+
+  if (conflicts && conflicts.length > 0) {
+    // If staff was specified, suggest another time
+    if (staffId) {
+      return { 
+        isAvailable: false, 
+        reason: "That time slot is already booked",
+        suggestedSlots: await findNextAvailableSlots(supabase, businessId, requestedStart, durationMinutes, staffId, openingHours)
+      };
+    }
+    
+    // If no staff specified, check if any staff is free
+    const { data: allStaff } = await supabase
+      .from("staff")
+      .select("id, name")
+      .eq("business_id", businessId);
+
+    if (allStaff) {
+      const bookedStaffIds = conflicts.map((c: any) => c.staff_id);
+      const availableStaff = allStaff.filter((s: any) => !bookedStaffIds.includes(s.id));
+      
+      if (availableStaff.length > 0) {
+        return { isAvailable: true }; // At least one staff member is available
+      }
+    }
+
+    return { 
+      isAvailable: false, 
+      reason: "All staff are booked at that time",
+      suggestedSlots: await findNextAvailableSlots(supabase, businessId, requestedStart, durationMinutes, null, openingHours)
+    };
+  }
+
+  return { isAvailable: true };
+}
+
+async function findNextAvailableSlots(
+  supabase: any,
+  businessId: string,
+  fromDate: Date,
+  durationMinutes: number,
+  staffId: string | null,
+  openingHours: any[]
+): Promise<string[]> {
+  const slots: string[] = [];
+  const checkDate = new Date(fromDate);
+  
+  for (let dayOffset = 0; dayOffset < 7 && slots.length < 3; dayOffset++) {
+    const date = new Date(checkDate);
+    date.setDate(date.getDate() + dayOffset);
+    const dbDay = jsToDbDay(date.getDay());
+    const dayHours = openingHours.find((h: any) => h.day_of_week === dbDay);
+    
+    if (!dayHours || dayHours.is_closed) continue;
+    
+    const openHour = parseInt(dayHours.open_time.split(":")[0]);
+    const closeHour = parseInt(dayHours.close_time.split(":")[0]);
+    
+    for (let hour = openHour; hour < closeHour && slots.length < 3; hour++) {
+      const timeStr = `${hour.toString().padStart(2, "0")}:00`;
+      const slotStart = new Date(`${date.toISOString().split("T")[0]}T${timeStr}:00`);
+      
+      if (slotStart < new Date()) continue;
+      
+      const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
+      
+      let query = supabase
+        .from("bookings")
+        .select("id")
+        .eq("business_id", businessId)
+        .neq("status", "cancelled")
+        .lt("start_time", slotEnd.toISOString())
+        .gt("end_time", slotStart.toISOString());
+      
+      if (staffId) query = query.eq("staff_id", staffId);
+      
+      const { data: conflicts } = await query;
+      
+      if (!conflicts || conflicts.length === 0) {
+        const dayName = dayOffset === 0 ? "today" : dayOffset === 1 ? "tomorrow" : DB_DAY_NAMES[dbDay];
+        slots.push(`${dayName} at ${hour > 12 ? hour - 12 : hour}${hour >= 12 ? "pm" : "am"}`);
+      }
+    }
+  }
+  
+  return slots;
+}
+
+// ============================================================================
+// CALLER RECOGNITION
+// ============================================================================
+
+interface CallerInfo {
+  isReturning: boolean;
+  name?: string;
+  totalVisits?: number;
+  lastBooking?: {
+    service: string;
+    date: string;
+    staff: string;
+  };
+  preferredStaff?: string;
+  upcomingBooking?: {
+    code: string;
+    service: string;
+    date: string;
+    time: string;
+  };
+}
+
+async function recognizeCaller(
+  supabase: any, 
+  businessId: string, 
+  phone: string
+): Promise<CallerInfo> {
+  // Normalize phone number for matching
+  const normalizedPhone = phone.replace(/\D/g, "").slice(-10);
+  
+  // Check customers table
+  const { data: customer } = await supabase
+    .from("customers")
+    .select("name, total_visits, preferred_staff_id, preferred_staff:preferred_staff_id(name)")
+    .eq("business_id", businessId)
+    .or(`phone.ilike.%${normalizedPhone}%,phone.eq.${phone}`)
+    .maybeSingle();
+
+  if (!customer) {
+    return { isReturning: false };
+  }
+
+  // Get their last completed booking
+  const { data: lastBooking } = await supabase
+    .from("bookings")
+    .select("start_time, service:service_id(name), staff:staff_id(name)")
+    .eq("business_id", businessId)
+    .ilike("customer_phone", `%${normalizedPhone}%`)
+    .eq("status", "completed")
+    .order("start_time", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // Check for upcoming bookings
+  const { data: upcomingBooking } = await supabase
+    .from("bookings")
+    .select("booking_code, start_time, service:service_id(name)")
+    .eq("business_id", businessId)
+    .ilike("customer_phone", `%${normalizedPhone}%`)
+    .neq("status", "cancelled")
+    .gte("start_time", new Date().toISOString())
+    .order("start_time")
+    .limit(1)
+    .maybeSingle();
+
+  return {
+    isReturning: true,
+    name: customer.name,
+    totalVisits: customer.total_visits,
+    preferredStaff: customer.preferred_staff?.name,
+    lastBooking: lastBooking ? {
+      service: lastBooking.service?.name || "appointment",
+      date: new Date(lastBooking.start_time).toLocaleDateString("en-GB"),
+      staff: lastBooking.staff?.name || ""
+    } : undefined,
+    upcomingBooking: upcomingBooking ? {
+      code: upcomingBooking.booking_code,
+      service: upcomingBooking.service?.name || "appointment",
+      date: new Date(upcomingBooking.start_time).toLocaleDateString("en-GB"),
+      time: formatTime(new Date(upcomingBooking.start_time))
+    } : undefined
+  };
 }
 
 // ============================================================================
@@ -115,7 +506,7 @@ async function processWithAI(
   userInput: string
 ): Promise<{ reply: string; action?: any; shouldEnd: boolean }> {
   
-  const systemPrompt = `You are an AI phone receptionist for a UK-based business. Speak naturally, warmly, and concisely.
+  const systemPrompt = `You are an AI phone receptionist for a UK-based business. Speak naturally, warmly, and concisely like a real human.
 
 ${businessContext}
 
@@ -131,26 +522,63 @@ Handle phone calls for bookings and inquiries. You can:
 5. TAKE MESSAGES - For the business owner/staff
 
 ═══════════════════════════════════════════════════════════════
+RETURNING CUSTOMERS
+═══════════════════════════════════════════════════════════════
+
+If CALLER INFO shows they're a returning customer:
+- Greet them by name warmly: "Hi [Name], lovely to hear from you again!"
+- If they have an UPCOMING BOOKING, mention it proactively
+- If they have a preferred staff member, offer to book with them
+- Use their history to make smarter suggestions
+
+═══════════════════════════════════════════════════════════════
+SMART DATE/TIME UNDERSTANDING
+═══════════════════════════════════════════════════════════════
+
+You understand natural date expressions:
+- "tomorrow", "today", "day after tomorrow"
+- "this Friday", "next Monday", "next week"
+- "this weekend", "Saturday", "Sunday"
+- "the 15th", "January 20th"
+- "in two days", "in a week"
+
+And natural time expressions:
+- "2pm", "2:30", "half past 2"
+- "morning", "afternoon", "evening"
+- "noon", "midday"
+
+Always confirm back clearly: "So that's Friday the 15th at 2pm?"
+
+═══════════════════════════════════════════════════════════════
+REAL-TIME AVAILABILITY
+═══════════════════════════════════════════════════════════════
+
+AVAILABILITY INFO is provided in the context. Use it to:
+- Only offer times that are actually available
+- If requested time is unavailable, apologize and offer alternatives
+- If no one is available, suggest the next available slots
+
+═══════════════════════════════════════════════════════════════
 CRITICAL: SERVICE SELECTION FOR BOOKINGS
 ═══════════════════════════════════════════════════════════════
 
-When creating a booking, you MUST know which service the caller wants.
-- If the caller says "I want to book an appointment" WITHOUT specifying a service, you MUST ask which service they'd like.
-- Look at the SERVICES list above and offer them as options.
-- Example: "Sure! We offer haircuts, beard trims, and skin fades. Which service would you like?"
-- Only proceed with date/time questions AFTER the service is confirmed.
-- If the caller mentions a specific service (e.g. "book a skin fade"), you can proceed to date/time.
+When creating a booking, you MUST know which service:
+- If caller says "I want to book an appointment" WITHOUT specifying a service, ASK which service
+- List the services naturally: "We offer haircuts, beard trims, and skin fades. Which would you like?"
+- Only proceed after the service is confirmed
+- If they mention a specific service already, proceed to date/time
 
 ═══════════════════════════════════════════════════════════════
-CONVERSATION FLOW - DO NOT REPEAT "ANYTHING ELSE"
+CONVERSATION FLOW - NATURAL DIALOGUE
 ═══════════════════════════════════════════════════════════════
 
 - Ask ONE question at a time
-- While gathering details (service, date, time, name), just ask the next required piece of info
-- DO NOT say "Is there anything else?" while still collecting booking details
-- ONLY ask "Is there anything else?" AFTER completing an action (booking confirmed, cancelled, etc.)
-- Keep responses SHORT (1-2 sentences for questions, 2-3 for confirmations)
-- Use natural UK English speech patterns
+- While gathering details, just ask the next required piece
+- DO NOT say "Is there anything else?" until an action is COMPLETE
+- ONLY after booking/cancelling/etc., ask if they need anything else
+- Keep responses SHORT and natural (1-2 sentences)
+- Use contractions: "I've", "we're", "that's", "you're"
+- Add natural fillers occasionally: "Lovely", "Perfect", "Great"
 
 ═══════════════════════════════════════════════════════════════
 RESPONSE FORMAT (JSON)
@@ -164,33 +592,11 @@ Always respond with valid JSON:
 }
 
 ACTION PARAMETERS:
-- create_booking: { customer_name, customer_phone (optional), service_name, staff_name (optional), date (YYYY-MM-DD), time (HH:MM) }
+- create_booking: { customer_name, customer_phone, service_name, staff_name (optional), date (YYYY-MM-DD), time (HH:MM) }
 - cancel_booking: { booking_code or customer_name }
 - reschedule_booking: { booking_code or customer_name, new_date, new_time }
 
-Set shouldEnd = true ONLY when caller says goodbye or explicitly says they're done.
-
-═══════════════════════════════════════════════════════════════
-EXAMPLES - NATURAL CONVERSATION FLOW
-═══════════════════════════════════════════════════════════════
-
-User: "I want to book an appointment"
-{"reply":"Of course! We offer haircuts, skin fades, beard trims, and children's cuts. Which service would you like?","action":null,"shouldEnd":false}
-
-User: "A haircut please"
-{"reply":"Lovely, a haircut. What day works best for you?","action":null,"shouldEnd":false}
-
-User: "Tomorrow"
-{"reply":"And what time would you prefer?","action":null,"shouldEnd":false}
-
-User: "2pm"
-{"reply":"Great, tomorrow at 2pm for a haircut. What name should I put the booking under?","action":null,"shouldEnd":false}
-
-User: "John Smith"
-{"reply":"Perfect! I've booked John Smith in for a haircut tomorrow at 2pm. Is there anything else I can help with?","action":{"type":"create_booking","params":{"customer_name":"John Smith","service_name":"haircut","date":"[TOMORROW_DATE]","time":"14:00"}},"shouldEnd":false}
-
-User: "No that's all thanks"
-{"reply":"Brilliant! Thanks for calling, have a lovely day. Goodbye!","action":null,"shouldEnd":true}`;
+Set shouldEnd = true ONLY when caller says goodbye or is done.`;
 
   const messages: Message[] = [
     { role: "system", content: systemPrompt },
@@ -223,7 +629,6 @@ User: "No that's all thanks"
     const data = await response.json();
     let content = data.choices?.[0]?.message?.content || "";
     
-    // Clean markdown if present
     content = content.trim();
     if (content.startsWith("```json")) content = content.slice(7);
     else if (content.startsWith("```")) content = content.slice(3);
@@ -238,7 +643,6 @@ User: "No that's all thanks"
         shouldEnd: parsed.shouldEnd === true
       };
     } catch {
-      // If JSON parsing fails, use the content as the reply
       return { reply: content || "How can I help you?", shouldEnd: false };
     }
   } catch (error) {
@@ -251,7 +655,7 @@ User: "No that's all thanks"
 }
 
 // ============================================================================
-// ACTION HANDLERS (simplified versions for voice)
+// ACTION HANDLERS
 // ============================================================================
 
 async function executeAction(
@@ -259,8 +663,8 @@ async function executeAction(
   businessId: string,
   action: any,
   context: any
-): Promise<string | null> {
-  if (!action || !action.type) return null;
+): Promise<{ success: boolean; code?: string; error?: string }> {
+  if (!action || !action.type) return { success: false };
 
   const { type, params } = action;
 
@@ -276,7 +680,7 @@ async function executeAction(
     return await handleRescheduleBooking(supabase, businessId, params, context);
   }
 
-  return null;
+  return { success: false };
 }
 
 async function handleCreateBooking(
@@ -284,12 +688,27 @@ async function handleCreateBooking(
   businessId: string,
   params: any,
   context: any
-): Promise<string | null> {
+): Promise<{ success: boolean; code?: string; error?: string }> {
   const { customer_name, customer_phone, service_name, staff_name, date, time } = params;
 
   if (!customer_name || !date || !time) {
     console.log("[VoiceAction] Create booking missing params:", params);
-    return null;
+    return { success: false, error: "Missing required information" };
+  }
+
+  // Parse natural date/time if not in ISO format
+  const now = new Date();
+  let parsedDate = date;
+  let parsedTime = time;
+
+  if (!date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const dateResult = parseNaturalDate(date, now);
+    if (dateResult) parsedDate = dateResult.date;
+  }
+
+  if (!time.match(/^\d{2}:\d{2}$/)) {
+    const timeResult = parseNaturalTime(time);
+    if (timeResult) parsedTime = timeResult;
   }
 
   // Find service
@@ -316,12 +735,33 @@ async function handleCreateBooking(
     }
   }
 
-  const startDate = new Date(`${date}T${time}:00`);
+  // Check availability before booking
+  const availability = await checkRealAvailability(
+    supabase,
+    businessId,
+    parsedDate,
+    parsedTime,
+    duration,
+    staffId,
+    context.openingHours
+  );
+
+  if (!availability.isAvailable) {
+    console.log("[VoiceAction] Slot not available:", availability.reason);
+    return { 
+      success: false, 
+      error: availability.reason + (availability.suggestedSlots?.length 
+        ? `. I have availability ${availability.suggestedSlots.join(", or ")}`
+        : "")
+    };
+  }
+
+  const startDate = new Date(`${parsedDate}T${parsedTime}:00`);
   const endDate = new Date(startDate.getTime() + duration * 60000);
 
   if (isNaN(startDate.getTime())) {
-    console.log("[VoiceAction] Invalid date/time:", date, time);
-    return null;
+    console.log("[VoiceAction] Invalid date/time:", parsedDate, parsedTime);
+    return { success: false, error: "Invalid date or time" };
   }
 
   const { data: booking, error } = await supabase
@@ -329,7 +769,7 @@ async function handleCreateBooking(
     .insert({
       business_id: businessId,
       customer_name,
-      customer_phone: customer_phone || "Phone call",
+      customer_phone: customer_phone || context.callerPhone || "Phone call",
       service_id: serviceId,
       staff_id: staffId,
       start_time: startDate.toISOString(),
@@ -342,11 +782,11 @@ async function handleCreateBooking(
 
   if (error) {
     console.error("[VoiceAction] Booking error:", error);
-    return null;
+    return { success: false, error: "Failed to create booking" };
   }
 
   console.log("[VoiceAction] Created booking:", booking.booking_code);
-  return booking.booking_code;
+  return { success: true, code: booking.booking_code };
 }
 
 async function handleCancelBooking(
@@ -354,7 +794,7 @@ async function handleCancelBooking(
   businessId: string,
   params: any,
   context: any
-): Promise<string | null> {
+): Promise<{ success: boolean; code?: string; error?: string }> {
   const { booking_code, customer_name } = params;
 
   let booking: any = null;
@@ -384,7 +824,7 @@ async function handleCancelBooking(
 
   if (!booking) {
     console.log("[VoiceAction] No booking found to cancel:", params);
-    return null;
+    return { success: false, error: "I couldn't find that booking" };
   }
 
   const { error } = await supabase
@@ -394,11 +834,11 @@ async function handleCancelBooking(
 
   if (error) {
     console.error("[VoiceAction] Cancel error:", error);
-    return null;
+    return { success: false, error: "Failed to cancel booking" };
   }
 
   console.log("[VoiceAction] Cancelled booking:", booking.booking_code);
-  return booking.booking_code;
+  return { success: true, code: booking.booking_code };
 }
 
 async function handleRescheduleBooking(
@@ -406,11 +846,11 @@ async function handleRescheduleBooking(
   businessId: string,
   params: any,
   context: any
-): Promise<string | null> {
+): Promise<{ success: boolean; code?: string; error?: string }> {
   const { booking_code, customer_name, new_date, new_time } = params;
 
   if (!new_date || !new_time) {
-    return null;
+    return { success: false, error: "I need a new date and time" };
   }
 
   let booking: any = null;
@@ -418,7 +858,7 @@ async function handleRescheduleBooking(
   if (booking_code) {
     const { data } = await supabase
       .from("bookings")
-      .select("id, booking_code, service_id, services:service_id(duration_minutes)")
+      .select("id, booking_code, service_id, staff_id, services:service_id(duration_minutes)")
       .eq("business_id", businessId)
       .ilike("booking_code", `%${booking_code}%`)
       .neq("status", "cancelled")
@@ -427,7 +867,7 @@ async function handleRescheduleBooking(
   } else if (customer_name) {
     const { data } = await supabase
       .from("bookings")
-      .select("id, booking_code, service_id, services:service_id(duration_minutes)")
+      .select("id, booking_code, service_id, staff_id, services:service_id(duration_minutes)")
       .eq("business_id", businessId)
       .ilike("customer_name", `%${customer_name}%`)
       .neq("status", "cancelled")
@@ -439,15 +879,51 @@ async function handleRescheduleBooking(
   }
 
   if (!booking) {
-    return null;
+    return { success: false, error: "I couldn't find that booking" };
   }
 
-  const startDate = new Date(`${new_date}T${new_time}:00`);
+  // Parse natural date/time
+  const now = new Date();
+  let parsedDate = new_date;
+  let parsedTime = new_time;
+
+  if (!new_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const dateResult = parseNaturalDate(new_date, now);
+    if (dateResult) parsedDate = dateResult.date;
+  }
+
+  if (!new_time.match(/^\d{2}:\d{2}$/)) {
+    const timeResult = parseNaturalTime(new_time);
+    if (timeResult) parsedTime = timeResult;
+  }
+
   const duration = booking.services?.duration_minutes || 60;
+
+  // Check availability
+  const availability = await checkRealAvailability(
+    supabase,
+    businessId,
+    parsedDate,
+    parsedTime,
+    duration,
+    booking.staff_id,
+    context.openingHours
+  );
+
+  if (!availability.isAvailable) {
+    return { 
+      success: false, 
+      error: availability.reason + (availability.suggestedSlots?.length 
+        ? `. I can offer ${availability.suggestedSlots.join(", or ")} instead`
+        : "")
+    };
+  }
+
+  const startDate = new Date(`${parsedDate}T${parsedTime}:00`);
   const endDate = new Date(startDate.getTime() + duration * 60000);
 
   if (isNaN(startDate.getTime())) {
-    return null;
+    return { success: false, error: "Invalid date or time" };
   }
 
   const { error } = await supabase
@@ -460,11 +936,11 @@ async function handleRescheduleBooking(
 
   if (error) {
     console.error("[VoiceAction] Reschedule error:", error);
-    return null;
+    return { success: false, error: "Failed to reschedule" };
   }
 
   console.log("[VoiceAction] Rescheduled booking:", booking.booking_code);
-  return booking.booking_code;
+  return { success: true, code: booking.booking_code };
 }
 
 // ============================================================================
@@ -482,7 +958,6 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    // Extract token from URL path
     const url = new URL(req.url);
     const pathParts = url.pathname.split("/");
     const token = pathParts[pathParts.length - 1];
@@ -552,7 +1027,6 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!conversation) {
-      // Create new conversation if not found
       const { data: newConv, error: convError } = await supabase
         .from("call_conversations")
         .insert({
@@ -571,8 +1045,19 @@ Deno.serve(async (req) => {
       conversation = newConv;
     }
 
-    // Get conversation history
     const messages: Message[] = conversation?.messages || [];
+
+    // Recognize caller
+    const callerInfo = await recognizeCaller(supabase, business.id, fromNumber);
+    console.log("[VoiceContinue] Caller info:", callerInfo);
+
+    // Update conversation with caller name if recognized
+    if (callerInfo.isReturning && callerInfo.name && !conversation?.caller_name) {
+      await supabase
+        .from("call_conversations")
+        .update({ caller_name: callerInfo.name })
+        .eq("call_sid", callSid);
+    }
 
     // Fetch business context for AI
     const [
@@ -593,7 +1078,7 @@ Deno.serve(async (req) => {
         .limit(20)
     ]);
 
-    // Build business context
+    // Build business context with caller info
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -607,10 +1092,30 @@ Deno.serve(async (req) => {
       close: h.close_time,
     })) || [];
 
+    // Build caller info section
+    let callerSection = `CALLER PHONE: ${fromNumber}\n`;
+    if (callerInfo.isReturning) {
+      callerSection += `RETURNING CUSTOMER: Yes
+CUSTOMER NAME: ${callerInfo.name}
+TOTAL VISITS: ${callerInfo.totalVisits || 0}`;
+      if (callerInfo.preferredStaff) {
+        callerSection += `\nPREFERRED STAFF: ${callerInfo.preferredStaff}`;
+      }
+      if (callerInfo.lastBooking) {
+        callerSection += `\nLAST VISIT: ${callerInfo.lastBooking.service} on ${callerInfo.lastBooking.date}${callerInfo.lastBooking.staff ? ` with ${callerInfo.lastBooking.staff}` : ""}`;
+      }
+      if (callerInfo.upcomingBooking) {
+        callerSection += `\nUPCOMING BOOKING: ${callerInfo.upcomingBooking.service} on ${callerInfo.upcomingBooking.date} at ${callerInfo.upcomingBooking.time} (Code: ${callerInfo.upcomingBooking.code})`;
+      }
+    } else {
+      callerSection += "RETURNING CUSTOMER: No (new caller)";
+    }
+
     const businessContext = `
 BUSINESS: ${business.business_name}
 ASSISTANT NAME: ${assistantName}
-CALLER PHONE: ${fromNumber}
+
+${callerSection}
 
 CURRENT DATE & TIME:
 - Now: ${now.toISOString()}
@@ -628,7 +1133,7 @@ ${formattedHours.map((h: any) => `- ${h.day}: ${h.isClosed ? "CLOSED" : `${h.ope
 
 UPCOMING BOOKINGS (for reference):
 ${upcomingBookings?.slice(0, 10).map((b: any) => 
-  `- ${b.booking_code}: ${b.customer_name} on ${new Date(b.start_time).toLocaleDateString()} at ${new Date(b.start_time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
+  `- ${b.booking_code}: ${b.customer_name} on ${new Date(b.start_time).toLocaleDateString()} at ${formatTime(new Date(b.start_time))}`
 ).join("\n") || "No upcoming bookings"}
 `;
 
@@ -637,10 +1142,20 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
     console.log("[VoiceContinue] AI result:", aiResult);
 
     // Execute any actions
+    let actionResult: { success: boolean; code?: string; error?: string } = { success: false };
     if (aiResult.action) {
-      const actionResult = await executeAction(supabase, business.id, aiResult.action, { services, staff });
-      if (actionResult) {
-        console.log("[VoiceContinue] Action executed, code:", actionResult);
+      actionResult = await executeAction(supabase, business.id, aiResult.action, { 
+        services, 
+        staff, 
+        openingHours,
+        callerPhone: fromNumber
+      });
+      console.log("[VoiceContinue] Action result:", actionResult);
+      
+      // If action failed, modify reply to include error
+      if (!actionResult.success && actionResult.error) {
+        aiResult.reply = actionResult.error;
+        aiResult.shouldEnd = false;
       }
     }
 
@@ -657,6 +1172,7 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
         messages: updatedMessages,
         status: aiResult.shouldEnd ? "completed" : "active",
         intent: aiResult.action?.type || conversation?.intent,
+        booking_id: actionResult.success && actionResult.code ? undefined : conversation?.booking_id,
       })
       .eq("call_sid", callSid);
 
@@ -669,7 +1185,7 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
           call_type: aiResult.action?.type === "create_booking" ? "new_booking" :
                      aiResult.action?.type === "cancel_booking" ? "cancel" :
                      aiResult.action?.type === "reschedule_booking" ? "reschedule" : "question",
-          summary: `Caller: ${speechResult.substring(0, 100)}...`,
+          summary: `Caller: ${speechResult.substring(0, 100)}${speechResult.length > 100 ? "..." : ""}`,
         })
         .eq("twilio_call_sid", callSid);
 
