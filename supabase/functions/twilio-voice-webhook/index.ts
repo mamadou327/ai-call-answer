@@ -123,17 +123,17 @@ async function getBusinessAiVoiceSettings(supabase: any, businessId: string) {
   };
 }
 
-// Generate greeting based on business and AI settings
+// Generate greeting based on business and AI settings - NO mention of AI
 function generateGreeting(businessName: string, settings: any): string {
   const { assistantName, tone } = settings;
   
   switch (tone) {
     case "formal":
-      return `Good day. Thank you for calling ${businessName}. My name is ${assistantName}, your virtual receptionist.`;
+      return `Good day. Thank you for calling ${businessName}. This is ${assistantName} speaking.`;
     case "casual":
-      return `Hey there! Thanks for calling ${businessName}! I'm ${assistantName}, your AI assistant.`;
+      return `Hey there! Thanks for calling ${businessName}! This is ${assistantName}.`;
     default:
-      return `Hi, thanks for calling ${businessName}. I'm ${assistantName}, your AI receptionist.`;
+      return `Hi, thanks for calling ${businessName}. This is ${assistantName}, how can I help?`;
   }
 }
 
@@ -210,7 +210,22 @@ Deno.serve(async (req) => {
     // Check if Aivia is active
     if (!business.aivia_active) {
       console.log(`[TwilioWebhook] Business ${business.business_name} has Aivia inactive`);
-      return twimlError(`Thank you for calling ${business.business_name}. Our AI assistant is currently unavailable. Please try again later. Goodbye.`);
+      return twimlError(`Thank you for calling ${business.business_name}. We're currently unable to take calls. Please try again later. Goodbye.`);
+    }
+
+    // Check if caller is blocked
+    const normalizedCaller = fromNumber.replace(/\D/g, "").slice(-10);
+    const { data: blockedCustomer } = await supabase
+      .from("customers")
+      .select("id, name, is_blocked")
+      .eq("business_id", business.id)
+      .eq("is_blocked", true)
+      .or(`phone.ilike.%${normalizedCaller}%,phone.eq.${fromNumber}`)
+      .maybeSingle();
+
+    if (blockedCustomer) {
+      console.log(`[TwilioWebhook] Blocked caller detected: ${fromNumber} (Customer: ${blockedCustomer.name})`);
+      return twimlError("I'm sorry, we're unable to take bookings from this number. If you believe this is an error, please contact the business directly. Goodbye.");
     }
 
     // Get business AI settings

@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Users, Download, Settings2, Phone, Mail, User, ChevronDown, ChevronUp, Calendar, MessageSquare, Heart, UserCheck, Loader2, Eye } from "lucide-react";
+import { Users, Download, Settings2, Phone, Mail, User, ChevronDown, ChevronUp, Calendar, MessageSquare, Heart, UserCheck, Loader2, Eye, Ban, Trash2, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -42,6 +42,9 @@ interface Customer {
   marketing_consent: boolean | null;
   notes_preferences: string | null;
   preferred_staff_id: string | null;
+  is_blocked: boolean;
+  blocked_reason: string | null;
+  blocked_at: string | null;
 }
 
 interface CustomerSettings {
@@ -76,6 +79,11 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
   const [exporting, setExporting] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerDetailOpen, setCustomerDetailOpen] = useState(false);
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [customerToAction, setCustomerToAction] = useState<Customer | null>(null);
+  const [blockReason, setBlockReason] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     loadCustomers();
@@ -232,6 +240,106 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
     setCustomerDetailOpen(true);
   };
 
+  const handleBlockClick = (customer: Customer, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCustomerToAction(customer);
+    setBlockReason("");
+    setBlockDialogOpen(true);
+  };
+
+  const handleDeleteClick = (customer: Customer, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCustomerToAction(customer);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleBlockCustomer = async () => {
+    if (!customerToAction) return;
+    setActionLoading(true);
+
+    const { error } = await supabase
+      .from("customers")
+      .update({
+        is_blocked: true,
+        blocked_reason: blockReason || null,
+        blocked_at: new Date().toISOString(),
+      })
+      .eq("id", customerToAction.id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to block customer.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Customer Blocked",
+        description: `${customerToAction.name} has been blocked and won't be able to book.`,
+      });
+      loadCustomers();
+    }
+
+    setActionLoading(false);
+    setBlockDialogOpen(false);
+    setCustomerToAction(null);
+  };
+
+  const handleUnblockCustomer = async (customer: Customer, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const { error } = await supabase
+      .from("customers")
+      .update({
+        is_blocked: false,
+        blocked_reason: null,
+        blocked_at: null,
+      })
+      .eq("id", customer.id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to unblock customer.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Customer Unblocked",
+        description: `${customer.name} can now book again.`,
+      });
+      loadCustomers();
+    }
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (!customerToAction) return;
+    setActionLoading(true);
+
+    // Delete related bookings first (or just the customer if cascade is set up)
+    const { error } = await supabase
+      .from("customers")
+      .delete()
+      .eq("id", customerToAction.id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete customer. They may have existing bookings.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Customer Deleted",
+        description: `${customerToAction.name} and their data have been removed.`,
+      });
+      loadCustomers();
+    }
+
+    setActionLoading(false);
+    setDeleteDialogOpen(false);
+    setCustomerToAction(null);
+  };
+
   const filteredCustomers = customers.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.phone?.includes(searchTerm) ||
@@ -364,12 +472,21 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
               {filteredCustomers.map((customer) => (
                 <div
                   key={customer.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                  className={cn(
+                    "flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer",
+                    customer.is_blocked && "border-destructive/50 bg-destructive/5"
+                  )}
                   onClick={() => handleViewCustomer(customer)}
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <p className="font-medium">{customer.name}</p>
+                      {customer.is_blocked && (
+                        <Badge variant="destructive" className="text-xs">
+                          <Ban className="w-3 h-3 mr-1" />
+                          Blocked
+                        </Badge>
+                      )}
                       <Badge variant="secondary" className="text-xs">
                         {customer.total_visits} {customer.total_visits === 1 ? 'visit' : 'visits'}
                       </Badge>
@@ -397,19 +514,51 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
                         <span className="text-xs">Via: {customer.how_heard}</span>
                       )}
                     </div>
-                    {customer.notes_preferences && (
+                    {customer.is_blocked && customer.blocked_reason && (
+                      <p className="text-xs text-destructive mt-1">
+                        Reason: {customer.blocked_reason}
+                      </p>
+                    )}
+                    {customer.notes_preferences && !customer.is_blocked && (
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
                         Notes: {customer.notes_preferences}
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <div className="text-right text-sm text-muted-foreground mr-2">
                       <p>First visit</p>
                       <p>{format(new Date(customer.first_visit_date), "MMM d, yyyy")}</p>
                     </div>
                     <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewCustomer(customer); }}>
                       <Eye className="w-4 h-4" />
+                    </Button>
+                    {customer.is_blocked ? (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={(e) => handleUnblockCustomer(customer, e)}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={(e) => handleBlockClick(customer, e)}
+                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                      >
+                        <Ban className="w-4 h-4" />
+                      </Button>
+                    )}
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={(e) => handleDeleteClick(customer, e)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
@@ -576,6 +725,90 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
         open={customerDetailOpen}
         onOpenChange={setCustomerDetailOpen}
       />
+
+      {/* Block Customer Dialog */}
+      <Dialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              Block Customer
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to block {customerToAction?.name}? They won't be able to make bookings via phone or any other method.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Reason (optional)</Label>
+              <Input
+                placeholder="e.g., No-show, inappropriate behavior..."
+                value={blockReason}
+                onChange={(e) => setBlockReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBlockDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleBlockCustomer}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Blocking...
+                </>
+              ) : (
+                <>
+                  <Ban className="w-4 h-4 mr-2" />
+                  Block Customer
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Customer Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" />
+              Delete Customer
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete {customerToAction?.name}? This will remove all their data from your system. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteCustomer}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Permanently
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
