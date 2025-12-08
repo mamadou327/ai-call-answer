@@ -38,10 +38,12 @@ function wrapWithProsody(text: string, rate: string): string {
 }
 
 function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: string = "108%", timeout: number = 6): Response {
+  // Put Say INSIDE Gather to enable barge-in (caller can interrupt while AI speaks)
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB"/>
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
+    <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
+  </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. If you need help, just give us another call. Goodbye!</prosody></Say>
   <Hangup/>
 </Response>`;
