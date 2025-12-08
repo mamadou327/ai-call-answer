@@ -19,21 +19,21 @@ function escapeXml(text: string): string {
 }
 
 function getPollyVoice(voiceGender: string, primaryLanguage: string): string {
+  // Use neural voices for more natural UK English sound
   if (primaryLanguage?.toLowerCase().includes("english")) {
-    return voiceGender === "male" ? "Polly.Brian" : "Polly.Amy";
+    return voiceGender === "male" ? "Polly.Brian-Neural" : "Polly.Amy-Neural";
   }
-  return voiceGender === "male" ? "Polly.Matthew" : "Polly.Joanna";
+  // US English neural voices as fallback
+  return voiceGender === "male" ? "Polly.Matthew-Neural" : "Polly.Joanna-Neural";
 }
 
-// TwiML response with Gather for continuing conversation
-function twimlContinue(sayText: string, actionUrl: string, voice: string, timeout: number = 5): Response {
+// TwiML response with Gather for continuing conversation (no extra prompt - AI reply handles the question)
+function twimlContinue(sayText: string, actionUrl: string, voice: string, timeout: number = 6): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}">${escapeXml(sayText)}</Say>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto">
-    <Say voice="${voice}">Is there anything else I can help you with?</Say>
-  </Gather>
-  <Say voice="${voice}">Thank you for calling. Goodbye!</Say>
+  <Say voice="${voice}" language="en-GB">${escapeXml(sayText)}</Say>
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB"/>
+  <Say voice="${voice}" language="en-GB">I didn't hear anything. If you need help, just give us another call. Goodbye!</Say>
   <Hangup/>
 </Response>`;
   
@@ -46,7 +46,7 @@ function twimlContinue(sayText: string, actionUrl: string, voice: string, timeou
 function twimlEnd(sayText: string, voice: string): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}">${escapeXml(sayText)}</Say>
+  <Say voice="${voice}" language="en-GB">${escapeXml(sayText)}</Say>
   <Hangup/>
 </Response>`;
   
@@ -59,10 +59,10 @@ function twimlEnd(sayText: string, voice: string): Response {
 function twimlClarify(sayText: string, actionUrl: string, voice: string): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="auto">
-    <Say voice="${voice}">${escapeXml(sayText)}</Say>
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="auto" language="en-GB">
+    <Say voice="${voice}" language="en-GB">${escapeXml(sayText)}</Say>
   </Gather>
-  <Say voice="${voice}">I still didn't catch that. Please call back if you need help. Goodbye!</Say>
+  <Say voice="${voice}" language="en-GB">I still didn't catch that. Please call back if you need help. Goodbye!</Say>
   <Hangup/>
 </Response>`;
   
@@ -72,10 +72,10 @@ function twimlClarify(sayText: string, actionUrl: string, voice: string): Respon
 }
 
 // Simple error TwiML
-function twimlError(message: string, voice: string = "Polly.Amy"): Response {
+function twimlError(message: string, voice: string = "Polly.Amy-Neural"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}">${escapeXml(message)}</Say>
+  <Say voice="${voice}" language="en-GB">${escapeXml(message)}</Say>
   <Hangup/>
 </Response>`;
   
@@ -115,7 +115,7 @@ async function processWithAI(
   userInput: string
 ): Promise<{ reply: string; action?: any; shouldEnd: boolean }> {
   
-  const systemPrompt = `You are an AI phone receptionist. You speak naturally and concisely for voice conversations.
+  const systemPrompt = `You are an AI phone receptionist for a UK-based business. Speak naturally, warmly, and concisely.
 
 ${businessContext}
 
@@ -123,23 +123,34 @@ ${businessContext}
 YOUR ROLE AS PHONE RECEPTIONIST
 ═══════════════════════════════════════════════════════════════
 
-You handle phone calls for bookings and general inquiries. You can:
-1. CREATE BOOKINGS - Ask for name, service, preferred date/time, staff preference
-2. CANCEL BOOKINGS - Ask for booking code or customer name
-3. RESCHEDULE BOOKINGS - Find booking first, then get new date/time
-4. ANSWER QUESTIONS - About services, pricing, opening hours, etc.
-5. TAKE MESSAGES - If someone needs to leave a message for the business
+Handle phone calls for bookings and inquiries. You can:
+1. CREATE BOOKINGS - Must collect: service, date/time, customer name
+2. CANCEL BOOKINGS - Need booking code or customer name
+3. RESCHEDULE BOOKINGS - Find booking first, then new date/time  
+4. ANSWER QUESTIONS - Services, pricing, opening hours, etc.
+5. TAKE MESSAGES - For the business owner/staff
 
 ═══════════════════════════════════════════════════════════════
-VOICE CONVERSATION GUIDELINES
+CRITICAL: SERVICE SELECTION FOR BOOKINGS
 ═══════════════════════════════════════════════════════════════
 
-- Keep responses SHORT (1-3 sentences max for voice)
-- Be warm, natural, and conversational
-- Confirm important details back to the caller
-- If you need information, ask ONE question at a time
-- Use natural speech patterns (avoid bullet points, formatting)
-- When confirming a booking, say date, time, and service clearly
+When creating a booking, you MUST know which service the caller wants.
+- If the caller says "I want to book an appointment" WITHOUT specifying a service, you MUST ask which service they'd like.
+- Look at the SERVICES list above and offer them as options.
+- Example: "Sure! We offer haircuts, beard trims, and skin fades. Which service would you like?"
+- Only proceed with date/time questions AFTER the service is confirmed.
+- If the caller mentions a specific service (e.g. "book a skin fade"), you can proceed to date/time.
+
+═══════════════════════════════════════════════════════════════
+CONVERSATION FLOW - DO NOT REPEAT "ANYTHING ELSE"
+═══════════════════════════════════════════════════════════════
+
+- Ask ONE question at a time
+- While gathering details (service, date, time, name), just ask the next required piece of info
+- DO NOT say "Is there anything else?" while still collecting booking details
+- ONLY ask "Is there anything else?" AFTER completing an action (booking confirmed, cancelled, etc.)
+- Keep responses SHORT (1-2 sentences for questions, 2-3 for confirmations)
+- Use natural UK English speech patterns
 
 ═══════════════════════════════════════════════════════════════
 RESPONSE FORMAT (JSON)
@@ -147,9 +158,9 @@ RESPONSE FORMAT (JSON)
 
 Always respond with valid JSON:
 {
-  "reply": "What you say to the caller (natural voice text)",
+  "reply": "What you say to the caller",
   "action": null or { "type": "create_booking|cancel_booking|reschedule_booking", "params": {...} },
-  "shouldEnd": false or true (true only if conversation is clearly finished)
+  "shouldEnd": false or true
 }
 
 ACTION PARAMETERS:
@@ -157,24 +168,29 @@ ACTION PARAMETERS:
 - cancel_booking: { booking_code or customer_name }
 - reschedule_booking: { booking_code or customer_name, new_date, new_time }
 
-Set shouldEnd to true ONLY when:
-- The caller says goodbye, bye, thanks that's all, etc.
-- You've completed a booking and they don't need anything else
-- They explicitly say they're done
+Set shouldEnd = true ONLY when caller says goodbye or explicitly says they're done.
 
-EXAMPLES:
+═══════════════════════════════════════════════════════════════
+EXAMPLES - NATURAL CONVERSATION FLOW
+═══════════════════════════════════════════════════════════════
 
-User: "I'd like to book a haircut"
-{"reply":"Of course! I'd be happy to help you book a haircut. What day works best for you?","action":null,"shouldEnd":false}
+User: "I want to book an appointment"
+{"reply":"Of course! We offer haircuts, skin fades, beard trims, and children's cuts. Which service would you like?","action":null,"shouldEnd":false}
 
-User: "Tomorrow at 2pm please"
-{"reply":"Great, tomorrow at 2pm for a haircut. And what name should I put the booking under?","action":null,"shouldEnd":false}
+User: "A haircut please"
+{"reply":"Lovely, a haircut. What day works best for you?","action":null,"shouldEnd":false}
+
+User: "Tomorrow"
+{"reply":"And what time would you prefer?","action":null,"shouldEnd":false}
+
+User: "2pm"
+{"reply":"Great, tomorrow at 2pm for a haircut. What name should I put the booking under?","action":null,"shouldEnd":false}
 
 User: "John Smith"
-{"reply":"Perfect! I've booked John Smith for a haircut tomorrow at 2pm. Is there anything else I can help you with?","action":{"type":"create_booking","params":{"customer_name":"John Smith","service_name":"haircut","date":"[TOMORROW_DATE]","time":"14:00"}},"shouldEnd":false}
+{"reply":"Perfect! I've booked John Smith in for a haircut tomorrow at 2pm. Is there anything else I can help with?","action":{"type":"create_booking","params":{"customer_name":"John Smith","service_name":"haircut","date":"[TOMORROW_DATE]","time":"14:00"}},"shouldEnd":false}
 
-User: "No, that's all thanks"
-{"reply":"You're all set! Thanks for calling. Have a great day, goodbye!","action":null,"shouldEnd":true}`;
+User: "No that's all thanks"
+{"reply":"Brilliant! Thanks for calling, have a lovely day. Goodbye!","action":null,"shouldEnd":true}`;
 
   const messages: Message[] = [
     { role: "system", content: systemPrompt },
