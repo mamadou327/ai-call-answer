@@ -328,6 +328,63 @@ export type Database = {
         }
         Relationships: []
       }
+      call_conversations: {
+        Row: {
+          booking_id: string | null
+          business_id: string
+          call_sid: string
+          caller_name: string | null
+          caller_phone: string
+          created_at: string
+          id: string
+          intent: string | null
+          messages: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          booking_id?: string | null
+          business_id: string
+          call_sid: string
+          caller_name?: string | null
+          caller_phone: string
+          created_at?: string
+          id?: string
+          intent?: string | null
+          messages?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string | null
+          business_id?: string
+          call_sid?: string
+          caller_name?: string | null
+          caller_phone?: string
+          created_at?: string
+          id?: string
+          intent?: string | null
+          messages?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_conversations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_conversations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calls_log: {
         Row: {
           booking_id: string | null
