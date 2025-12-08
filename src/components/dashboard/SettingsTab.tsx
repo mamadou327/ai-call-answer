@@ -8,6 +8,8 @@ import { StaffJoinCodeSection } from "./settings/StaffJoinCodeSection";
 import { StaffMembershipsManagement } from "./settings/StaffMembershipsManagement";
 import { StaffInviteDialog } from "./settings/StaffInviteDialog";
 import { CustomersManagement } from "./settings/CustomersManagement";
+import { AISettingsTab } from "./settings/AISettingsTab";
+import { PoliciesTab } from "./settings/PoliciesTab";
 
 interface SettingsTabProps {
   businessId: string;
@@ -19,16 +21,24 @@ interface SettingsTabProps {
 
 export const SettingsTab = ({ businessId, business, activeSection, onUpdate, currency = "GBP" }: SettingsTabProps) => {
   const mapSection = (section: string) => {
-    if (["policies", "assistant", "localization", "ai", "accounts"].includes(section)) {
+    if (["localization", "accounts"].includes(section)) {
       return "business";
+    }
+    if (["assistant"].includes(section)) {
+      return "ai";
+    }
+    if (["policies"].includes(section)) {
+      return "policies";
     }
     return section;
   };
 
   return (
     <Tabs defaultValue={mapSection(activeSection || "business")} className="space-y-6">
-      <TabsList className="grid w-full grid-cols-6 lg:w-auto">
+      <TabsList className="grid w-full grid-cols-8 lg:w-auto">
         <TabsTrigger value="business">Business</TabsTrigger>
+        <TabsTrigger value="ai">AI</TabsTrigger>
+        <TabsTrigger value="policies">Policies</TabsTrigger>
         <TabsTrigger value="services">Services</TabsTrigger>
         <TabsTrigger value="staff">Staff</TabsTrigger>
         <TabsTrigger value="hours">Hours</TabsTrigger>
@@ -38,6 +48,14 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
 
       <TabsContent value="business">
         <BusinessInfoForm businessId={businessId} business={business} onUpdate={onUpdate} />
+      </TabsContent>
+
+      <TabsContent value="ai">
+        <AISettingsTab businessId={businessId} business={business} onUpdate={onUpdate} />
+      </TabsContent>
+
+      <TabsContent value="policies">
+        <PoliciesTab businessId={businessId} onUpdate={onUpdate} />
       </TabsContent>
 
       <TabsContent value="services">
