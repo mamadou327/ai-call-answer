@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, Copy, Check, AlertCircle } from "lucide-react";
+import { Phone, Copy, Check, AlertCircle, PhoneCall, Bot } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -12,6 +12,7 @@ interface TwilioSettingsProps {
     twilio_phone_number: string | null;
     twilio_enabled: boolean | null;
     twilio_webhook_token: string | null;
+    aivia_active: boolean | null;
   } | null;
 }
 
@@ -39,6 +40,7 @@ export const TwilioSettings = ({ business }: TwilioSettingsProps) => {
   };
 
   const isConfigured = business?.twilio_enabled && business?.twilio_phone_number;
+  const isFullyActive = isConfigured && business?.aivia_active;
 
   return (
     <Card>
@@ -64,11 +66,40 @@ export const TwilioSettings = ({ business }: TwilioSettingsProps) => {
           </div>
         ) : (
           <>
+            {/* AI Receptionist Status Banner */}
+            {isFullyActive ? (
+              <div className="flex items-start gap-3 p-4 bg-primary/10 border border-primary/20 rounded-lg">
+                <Bot className="w-5 h-5 text-primary mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-primary">AI Receptionist Active</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Your Aivia AI receptionist is handling calls on this number. Callers can book appointments, 
+                    ask questions, and manage their bookings through natural conversation.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-3 p-4 bg-warning/10 border border-warning/20 rounded-lg">
+                <PhoneCall className="w-5 h-5 text-warning mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-warning">Aivia Not Active</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Twilio is enabled but Aivia is not active. Enable Aivia to start handling calls with AI.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <Label className="text-sm font-medium">Status:</Label>
               <Badge variant={business?.twilio_enabled ? "default" : "secondary"}>
                 {business?.twilio_enabled ? "Enabled" : "Disabled"}
               </Badge>
+              {business?.aivia_active && (
+                <Badge variant="outline" className="border-primary text-primary">
+                  AI Active
+                </Badge>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -78,6 +109,9 @@ export const TwilioSettings = ({ business }: TwilioSettingsProps) => {
                 readOnly
                 className="bg-muted"
               />
+              <p className="text-xs text-muted-foreground">
+                Callers to this number will speak with your Aivia AI receptionist
+              </p>
             </div>
 
             {business?.twilio_webhook_token && (
@@ -103,7 +137,7 @@ export const TwilioSettings = ({ business }: TwilioSettingsProps) => {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  This URL is configured in Twilio to handle incoming calls
+                  Configure this URL in Twilio's "A call comes in" webhook setting
                 </p>
               </div>
             )}
