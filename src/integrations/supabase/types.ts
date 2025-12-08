@@ -259,6 +259,9 @@ export type Database = {
           porting_instructions: string | null
           porting_status: string | null
           secondary_phone: string | null
+          sms_on_cancellation: boolean
+          sms_on_confirmation: boolean
+          sms_on_reminder: boolean
           staff_count: number
           staff_join_code: string | null
           staff_join_expires_at: string | null
@@ -287,6 +290,9 @@ export type Database = {
           porting_instructions?: string | null
           porting_status?: string | null
           secondary_phone?: string | null
+          sms_on_cancellation?: boolean
+          sms_on_confirmation?: boolean
+          sms_on_reminder?: boolean
           staff_count?: number
           staff_join_code?: string | null
           staff_join_expires_at?: string | null
@@ -315,6 +321,9 @@ export type Database = {
           porting_instructions?: string | null
           porting_status?: string | null
           secondary_phone?: string | null
+          sms_on_cancellation?: boolean
+          sms_on_confirmation?: boolean
+          sms_on_reminder?: boolean
           staff_count?: number
           staff_join_code?: string | null
           staff_join_expires_at?: string | null
