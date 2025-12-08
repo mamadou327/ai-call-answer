@@ -1,62 +1,101 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Phone, Copy, Check, AlertCircle } from "lucide-react";
-import { useState } from "react";
+import { Switch } from "@/components/ui/switch";
+import { MessageSquare, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface MessageBirdSettingsProps {
   business: {
+    id: string;
     messagebird_phone_number: string | null;
     messagebird_enabled: boolean | null;
-    messagebird_token: string | null;
+    sms_on_confirmation?: boolean;
+    sms_on_cancellation?: boolean;
+    sms_on_reminder?: boolean;
   } | null;
+  onUpdate?: () => void;
 }
 
-export const MessageBirdSettings = ({ business }: MessageBirdSettingsProps) => {
+export const MessageBirdSettings = ({ business, onUpdate }: MessageBirdSettingsProps) => {
   const { toast } = useToast();
-  const [copied, setCopied] = useState(false);
+  const [smsOnConfirmation, setSmsOnConfirmation] = useState(false);
+  const [smsOnCancellation, setSmsOnCancellation] = useState(false);
+  const [smsOnReminder, setSmsOnReminder] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const getWebhookUrl = () => {
-    if (!business?.messagebird_token) return "";
-    return `https://aiviaapp.co.uk/api/messagebird/voice/${business.messagebird_token}`;
-  };
-
-  const copyWebhookUrl = () => {
-    const url = getWebhookUrl();
-    if (!url) return;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    toast({
-      title: "Copied",
-      description: "Webhook URL copied to clipboard",
-    });
-  };
+  useEffect(() => {
+    if (business) {
+      setSmsOnConfirmation(business.sms_on_confirmation ?? false);
+      setSmsOnCancellation(business.sms_on_cancellation ?? false);
+      setSmsOnReminder(business.sms_on_reminder ?? false);
+    }
+  }, [business]);
 
   const isConfigured = business?.messagebird_enabled && business?.messagebird_phone_number;
+
+  const handleToggleChange = async (
+    field: 'sms_on_confirmation' | 'sms_on_cancellation' | 'sms_on_reminder',
+    value: boolean
+  ) => {
+    if (!business?.id) return;
+
+    // Update local state immediately
+    if (field === 'sms_on_confirmation') setSmsOnConfirmation(value);
+    if (field === 'sms_on_cancellation') setSmsOnCancellation(value);
+    if (field === 'sms_on_reminder') setSmsOnReminder(value);
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('businesses')
+        .update({ [field]: value })
+        .eq('id', business.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Saved",
+        description: "SMS notification settings updated",
+      });
+      onUpdate?.();
+    } catch (error: any) {
+      console.error('Error updating SMS settings:', error);
+      // Revert on error
+      if (field === 'sms_on_confirmation') setSmsOnConfirmation(!value);
+      if (field === 'sms_on_cancellation') setSmsOnCancellation(!value);
+      if (field === 'sms_on_reminder') setSmsOnReminder(!value);
+      toast({
+        title: "Error",
+        description: "Failed to update SMS settings",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Phone className="w-5 h-5" />
-          MessageBird & Voice Calls
+          <MessageSquare className="w-5 h-5" />
+          SMS Notifications (MessageBird)
         </CardTitle>
         <CardDescription>
-          Your MessageBird voice configuration (read-only - contact admin to modify)
+          Configure SMS notifications for booking updates
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         {!isConfigured ? (
           <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
             <AlertCircle className="w-5 h-5 text-muted-foreground mt-0.5" />
             <div>
-              <p className="text-sm font-medium">MessageBird Not Configured</p>
+              <p className="text-sm font-medium">SMS Not Configured</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Contact your Aivia administrator to set up MessageBird voice calls for your business.
+                Contact your Aivia administrator to set up SMS notifications for your business.
               </p>
             </div>
           </div>
@@ -64,47 +103,68 @@ export const MessageBirdSettings = ({ business }: MessageBirdSettingsProps) => {
           <>
             <div className="flex items-center gap-2">
               <Label className="text-sm font-medium">Status:</Label>
-              <Badge variant={business?.messagebird_enabled ? "default" : "secondary"}>
-                {business?.messagebird_enabled ? "Enabled" : "Disabled"}
-              </Badge>
+              <Badge variant="default">Enabled</Badge>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">MessageBird Phone Number</Label>
-              <Input
-                value={business?.messagebird_phone_number || "Not assigned"}
-                readOnly
-                className="bg-muted"
-              />
-            </div>
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">SMS Notifications</h4>
+              <p className="text-xs text-muted-foreground">
+                Choose when to send SMS notifications to customers
+              </p>
 
-            {business?.messagebird_token && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Webhook URL (Answer URL)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={getWebhookUrl()}
-                    readOnly
-                    className="bg-muted font-mono text-xs"
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="sms-confirmation" className="text-sm">
+                      Booking Confirmation
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Send SMS when a booking is confirmed
+                    </p>
+                  </div>
+                  <Switch
+                    id="sms-confirmation"
+                    checked={smsOnConfirmation}
+                    onCheckedChange={(checked) => handleToggleChange('sms_on_confirmation', checked)}
+                    disabled={saving}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={copyWebhookUrl}
-                  >
-                    {copied ? (
-                      <Check className="w-4 h-4 text-success" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Use this URL in MessageBird Flow Builder's "Fetch call flow from URL" step
-                </p>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="sms-cancellation" className="text-sm">
+                      Booking Cancellation
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Send SMS when a booking is cancelled
+                    </p>
+                  </div>
+                  <Switch
+                    id="sms-cancellation"
+                    checked={smsOnCancellation}
+                    onCheckedChange={(checked) => handleToggleChange('sms_on_cancellation', checked)}
+                    disabled={saving}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="sms-reminder" className="text-sm">
+                      Booking Reminder
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Send SMS reminder before appointments
+                    </p>
+                  </div>
+                  <Switch
+                    id="sms-reminder"
+                    checked={smsOnReminder}
+                    onCheckedChange={(checked) => handleToggleChange('sms_on_reminder', checked)}
+                    disabled={saving}
+                  />
+                </div>
               </div>
-            )}
+            </div>
           </>
         )}
       </CardContent>
