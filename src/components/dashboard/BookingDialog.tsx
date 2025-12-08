@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { CalendarIcon, AlertCircle } from "lucide-react";
+import { CalendarIcon, AlertCircle, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOpeningHours } from "@/hooks/use-opening-hours";
 import { useBookingValidation } from "@/hooks/use-booking-validation";
@@ -40,6 +40,19 @@ interface StaffService {
   service_id: string;
 }
 
+interface Customer {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  preferred_staff_id: string | null;
+}
+
+interface LastBooking {
+  service_id: string | null;
+  staff_id: string | null;
+}
+
 export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: BookingDialogProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -49,6 +62,15 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
   const [staffServices, setStaffServices] = useState<StaffService[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [timeError, setTimeError] = useState<string | null>(null);
+  
+  // Customer autocomplete state
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const customerInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
   const [formData, setFormData] = useState({
     customer_name: "",
     customer_phone: "",
@@ -67,8 +89,88 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
       loadServices();
       loadStaff();
       loadStaffServices();
+      loadCustomers();
     }
   }, [open, businessId]);
+
+  // Load customers for autocomplete
+  const loadCustomers = async () => {
+    const { data } = await supabase
+      .from("customers")
+      .select("id, name, phone, email, preferred_staff_id")
+      .eq("business_id", businessId)
+      .eq("is_blocked", false);
+    if (data) setCustomers(data);
+  };
+
+  // Filter customers based on input
+  useEffect(() => {
+    if (formData.customer_name.length >= 2 && !selectedCustomerId) {
+      const searchTerm = formData.customer_name.toLowerCase();
+      const matches = customers.filter(c => 
+        c.name.toLowerCase().includes(searchTerm)
+      );
+      setFilteredCustomers(matches.slice(0, 5)); // Limit to 5 results
+      setShowCustomerDropdown(matches.length > 0);
+    } else {
+      setFilteredCustomers([]);
+      setShowCustomerDropdown(false);
+    }
+  }, [formData.customer_name, customers, selectedCustomerId]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current && 
+        !dropdownRef.current.contains(e.target as Node) &&
+        customerInputRef.current &&
+        !customerInputRef.current.contains(e.target as Node)
+      ) {
+        setShowCustomerDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Handle customer selection from dropdown
+  const handleSelectCustomer = async (customer: Customer) => {
+    setSelectedCustomerId(customer.id);
+    setShowCustomerDropdown(false);
+    
+    // Get last booking for this customer to get their usual service
+    const { data: lastBooking } = await supabase
+      .from("bookings")
+      .select("service_id, staff_id")
+      .eq("business_id", businessId)
+      .eq("customer_phone", customer.phone)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Determine staff - prefer customer's preferred staff, then last booking's staff
+    const staffId = customer.preferred_staff_id || lastBooking?.staff_id || "";
+    const serviceId = lastBooking?.service_id || "";
+    
+    // Get duration from service if available
+    const service = services.find(s => s.id === serviceId);
+    
+    setFormData(prev => ({
+      ...prev,
+      customer_name: customer.name,
+      customer_phone: customer.phone || "",
+      staff_id: staffId,
+      service_id: serviceId,
+      duration: service?.duration_minutes || prev.duration,
+    }));
+  };
+
+  // Clear customer selection when name is manually edited
+  const handleCustomerNameChange = (value: string) => {
+    setSelectedCustomerId(null);
+    setFormData({ ...formData, customer_name: value });
+  };
 
   // Filter staff when service changes
   useEffect(() => {
@@ -277,6 +379,7 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
         notes: "",
       });
       setSelectedDate(undefined);
+      setSelectedCustomerId(null);
     } catch (error: any) {
       console.error("Booking creation error:", error);
       toast({
@@ -306,14 +409,55 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
           <DialogDescription>Create a new booking manually</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
+          <div className="space-y-2 relative">
             <Label htmlFor="customer_name">Customer Name *</Label>
-            <Input
-              id="customer_name"
-              value={formData.customer_name}
-              onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-              required
-            />
+            <div className="relative">
+              <Input
+                ref={customerInputRef}
+                id="customer_name"
+                value={formData.customer_name}
+                onChange={(e) => handleCustomerNameChange(e.target.value)}
+                onFocus={() => {
+                  if (formData.customer_name.length >= 2 && filteredCustomers.length > 0) {
+                    setShowCustomerDropdown(true);
+                  }
+                }}
+                required
+                autoComplete="off"
+                placeholder="Start typing to search existing customers..."
+              />
+              {selectedCustomerId && (
+                <User className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
+              )}
+            </div>
+            
+            {/* Customer autocomplete dropdown */}
+            {showCustomerDropdown && filteredCustomers.length > 0 && (
+              <div
+                ref={dropdownRef}
+                className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto"
+              >
+                {filteredCustomers.map((customer) => (
+                  <button
+                    key={customer.id}
+                    type="button"
+                    className="w-full px-3 py-2 text-left hover:bg-accent transition-colors flex flex-col"
+                    onClick={() => handleSelectCustomer(customer)}
+                  >
+                    <span className="font-medium">{customer.name}</span>
+                    {customer.phone && (
+                      <span className="text-xs text-muted-foreground">{customer.phone}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+            
+            {selectedCustomerId && (
+              <p className="text-xs text-primary">
+                Returning customer - details auto-filled (you can edit them)
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
