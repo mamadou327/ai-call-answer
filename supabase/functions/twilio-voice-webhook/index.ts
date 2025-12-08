@@ -56,21 +56,31 @@ function getPollyVoice(voiceGender: string, primaryLanguage: string): string {
   return voiceGender === "male" ? "Polly.Matthew-Neural" : "Polly.Joanna-Neural";
 }
 
+// Get speech rate based on settings
+function getSpeechRate(voiceSpeed: string): string {
+  switch (voiceSpeed) {
+    case "slow": return "95%";
+    case "fast": return "115%";
+    default: return "108%"; // Slightly faster than default for natural pace
+  }
+}
+
 // Generate TwiML response with Gather for speech input - using en-GB for UK
 function twimlGather(
   sayText: string,
   gatherPrompt: string,
   actionUrl: string,
   voice: string,
+  rate: string = "108%",
   timeout: number = 6
 ): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}" language="en-GB">${escapeXml(sayText)}</Say>
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
-    <Say voice="${voice}" language="en-GB">${escapeXml(gatherPrompt)}</Say>
+    <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(gatherPrompt)}</prosody></Say>
   </Gather>
-  <Say voice="${voice}" language="en-GB">I didn't hear anything. Please call back if you need assistance. Goodbye.</Say>
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. Please call back if you need assistance. Goodbye.</prosody></Say>
   <Hangup/>
 </Response>`;
   
@@ -80,10 +90,10 @@ function twimlGather(
 }
 
 // Simple error TwiML
-function twimlError(message: string, voice: string = "Polly.Amy-Neural"): Response {
+function twimlError(message: string, voice: string = "Polly.Amy-Neural", rate: string = "108%"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}" language="en-GB">${escapeXml(message)}</Say>
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(message)}</prosody></Say>
   <Hangup/>
 </Response>`;
   
@@ -206,7 +216,8 @@ Deno.serve(async (req) => {
     // Get business AI settings
     const aiSettings = await getBusinessAiVoiceSettings(supabase, business.id);
     const voice = getPollyVoice(aiSettings.voiceGender, aiSettings.primaryLanguage);
-    console.log("[TwilioWebhook] AI Settings:", aiSettings, "Voice:", voice);
+    const rate = getSpeechRate(aiSettings.voiceSpeed);
+    console.log("[TwilioWebhook] AI Settings:", aiSettings, "Voice:", voice, "Rate:", rate);
 
     // Log the call
     const { error: logError } = await supabase
@@ -256,6 +267,7 @@ Deno.serve(async (req) => {
       "How can I help you today?",
       continueUrl,
       voice,
+      rate,
       6
     );
 

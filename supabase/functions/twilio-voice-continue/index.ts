@@ -25,12 +25,24 @@ function getPollyVoice(voiceGender: string, primaryLanguage: string): string {
   return voiceGender === "male" ? "Polly.Matthew-Neural" : "Polly.Joanna-Neural";
 }
 
-function twimlContinue(sayText: string, actionUrl: string, voice: string, timeout: number = 6): Response {
+function getSpeechRate(voiceSpeed: string): string {
+  switch (voiceSpeed) {
+    case "slow": return "95%";
+    case "fast": return "115%";
+    default: return "108%"; // Slightly faster than default for natural pace
+  }
+}
+
+function wrapWithProsody(text: string, rate: string): string {
+  return `<prosody rate="${rate}">${text}</prosody>`;
+}
+
+function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: string = "108%", timeout: number = 6): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}" language="en-GB">${escapeXml(sayText)}</Say>
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB"/>
-  <Say voice="${voice}" language="en-GB">I didn't hear anything. If you need help, just give us another call. Goodbye!</Say>
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. If you need help, just give us another call. Goodbye!</prosody></Say>
   <Hangup/>
 </Response>`;
   
@@ -39,10 +51,10 @@ function twimlContinue(sayText: string, actionUrl: string, voice: string, timeou
   });
 }
 
-function twimlEnd(sayText: string, voice: string): Response {
+function twimlEnd(sayText: string, voice: string, rate: string = "108%"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}" language="en-GB">${escapeXml(sayText)}</Say>
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   <Hangup/>
 </Response>`;
   
@@ -51,13 +63,13 @@ function twimlEnd(sayText: string, voice: string): Response {
   });
 }
 
-function twimlClarify(sayText: string, actionUrl: string, voice: string): Response {
+function twimlClarify(sayText: string, actionUrl: string, voice: string, rate: string = "108%"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="auto" language="en-GB">
-    <Say voice="${voice}" language="en-GB">${escapeXml(sayText)}</Say>
+    <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   </Gather>
-  <Say voice="${voice}" language="en-GB">I still didn't catch that. Please call back if you need help. Goodbye!</Say>
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I still didn't catch that. Please call back if you need help. Goodbye!</prosody></Say>
   <Hangup/>
 </Response>`;
   
@@ -66,10 +78,10 @@ function twimlClarify(sayText: string, actionUrl: string, voice: string): Respon
   });
 }
 
-function twimlError(message: string, voice: string = "Polly.Amy-Neural"): Response {
+function twimlError(message: string, voice: string = "Polly.Amy-Neural", rate: string = "108%"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}" language="en-GB">${escapeXml(message)}</Say>
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(message)}</prosody></Say>
   <Hangup/>
 </Response>`;
   
@@ -1001,11 +1013,12 @@ Deno.serve(async (req) => {
     // Get business settings
     const { data: settings } = await supabase
       .from("business_settings")
-      .select("assistant_name, tone, primary_language, voice_gender")
+      .select("assistant_name, tone, primary_language, voice_gender, voice_speed")
       .eq("business_id", business.id)
       .maybeSingle();
 
     const voice = getPollyVoice(settings?.voice_gender || "female", settings?.primary_language || "English");
+    const rate = getSpeechRate(settings?.voice_speed || "normal");
     const assistantName = settings?.assistant_name || "Aivia";
     const continueUrl = `${supabaseUrl}/functions/v1/twilio-voice-continue/${token}`;
 
@@ -1015,7 +1028,8 @@ Deno.serve(async (req) => {
       return twimlClarify(
         "Sorry, I didn't catch that. Could you please repeat what you need help with?",
         continueUrl,
-        voice
+        voice,
+        rate
       );
     }
 
@@ -1189,11 +1203,11 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
         })
         .eq("twilio_call_sid", callSid);
 
-      return twimlEnd(aiResult.reply, voice);
+      return twimlEnd(aiResult.reply, voice, rate);
     }
 
     // Continue the conversation
-    return twimlContinue(aiResult.reply, continueUrl, voice);
+    return twimlContinue(aiResult.reply, continueUrl, voice, rate);
 
   } catch (error) {
     console.error("[VoiceContinue] Error:", error);
