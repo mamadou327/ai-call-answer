@@ -1,6 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Helper function to convert ArrayBuffer to base64 without stack overflow
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -55,6 +65,15 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("ElevenLabs API error:", response.status, errorText);
+      
+      // Return a more specific error message
+      if (response.status === 401) {
+        return new Response(
+          JSON.stringify({ error: "ElevenLabs API quota exceeded or authentication failed. Please check your API key." }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
       return new Response(
         JSON.stringify({ error: "Failed to generate audio" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -62,7 +81,8 @@ serve(async (req) => {
     }
 
     const audioBuffer = await response.arrayBuffer();
-    const base64Audio = btoa(String.fromCharCode(...new Uint8Array(audioBuffer)));
+    // Use chunked encoding to avoid stack overflow on large buffers
+    const base64Audio = arrayBufferToBase64(audioBuffer);
 
     return new Response(
       JSON.stringify({ 
