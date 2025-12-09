@@ -46,13 +46,104 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
-// Get Polly voice based on settings - using neural voices for natural UK sound
+// ElevenLabs voice mapping based on settings
+function getElevenLabsVoiceId(voiceGender: string): string {
+  // High-quality conversational voices
+  // Female voices: Sarah (warm), Charlotte (friendly), Alice (professional)
+  // Male voices: George (warm), Brian (conversational), Daniel (friendly)
+  switch (voiceGender) {
+    case "male":
+      return "JBFqnCBsd6RMkjVDRZzb"; // George - warm and professional
+    case "neutral":
+      return "SAz9YHcvj6GT2YYXdXww"; // River - neutral/androgynous
+    default:
+      return "EXAVITQu4vr4xnSDxMaL"; // Sarah - warm and natural female voice
+  }
+}
+
+// Generate audio using ElevenLabs TTS
+async function generateElevenLabsAudio(
+  text: string,
+  voiceId: string
+): Promise<ArrayBuffer | null> {
+  const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
+  if (!apiKey) {
+    console.error("[ElevenLabs] API key not configured");
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: "POST",
+        headers: {
+          "Accept": "audio/mpeg",
+          "Content-Type": "application/json",
+          "xi-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          text: text,
+          model_id: "eleven_turbo_v2_5", // Fast, high quality, multilingual
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0.3, // Slight expressiveness for natural conversation
+            use_speaker_boost: true,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[ElevenLabs] API error:", response.status, errorText);
+      return null;
+    }
+
+    return await response.arrayBuffer();
+  } catch (error) {
+    console.error("[ElevenLabs] Error generating audio:", error);
+    return null;
+  }
+}
+
+// Upload audio to Supabase storage and get public URL
+async function uploadAudioToStorage(
+  supabase: any,
+  audioBuffer: ArrayBuffer,
+  fileName: string
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage
+      .from("call-recordings")
+      .upload(`tts/${fileName}`, audioBuffer, {
+        contentType: "audio/mpeg",
+        upsert: true,
+      });
+
+    if (error) {
+      console.error("[Storage] Upload error:", error);
+      return null;
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from("call-recordings")
+      .getPublicUrl(`tts/${fileName}`);
+
+    return urlData?.publicUrl || null;
+  } catch (error) {
+    console.error("[Storage] Error uploading audio:", error);
+    return null;
+  }
+}
+
+// Get Polly voice as fallback
 function getPollyVoice(voiceGender: string, primaryLanguage: string): string {
-  // UK English neural voices
   if (primaryLanguage?.toLowerCase().includes("english")) {
     return voiceGender === "male" ? "Polly.Brian-Neural" : "Polly.Amy-Neural";
   }
-  // US English neural voices as fallback
   return voiceGender === "male" ? "Polly.Matthew-Neural" : "Polly.Joanna-Neural";
 }
 
@@ -61,54 +152,40 @@ function getSpeechRate(voiceSpeed: string): string {
   switch (voiceSpeed) {
     case "slow": return "95%";
     case "fast": return "115%";
-    default: return "108%"; // Slightly faster than default for natural pace
+    default: return "108%";
   }
 }
 
-// Generate TwiML response with Gather for speech input - using en-GB for UK
-function twimlGather(
+// Generate TwiML with ElevenLabs audio (Play) or fallback to Polly (Say)
+function twimlGatherWithAudio(
+  audioUrl: string | null,
   sayText: string,
   gatherPrompt: string,
-  actionUrl: string,
-  voice: string,
-  rate: string = "108%",
-  timeout: number = 6
-): Response {
-  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
-    <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(gatherPrompt)}</prosody></Say>
-  </Gather>
-  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. Please call back if you need assistance. Goodbye.</prosody></Say>
-  <Hangup/>
-</Response>`;
-  
-  return new Response(twiml, {
-    headers: { ...corsHeaders, "Content-Type": "text/xml" },
-  });
-}
-
-// Generate TwiML response with recording enabled
-function twimlGatherWithRecording(
-  sayText: string,
-  gatherPrompt: string,
+  gatherAudioUrl: string | null,
   actionUrl: string,
   recordingCallbackUrl: string,
-  voice: string,
+  fallbackVoice: string,
   rate: string = "108%",
   timeout: number = 6
 ): Response {
+  let playOrSay1 = audioUrl 
+    ? `<Play>${audioUrl}</Play>`
+    : `<Say voice="${fallbackVoice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>`;
+  
+  let playOrSay2 = gatherAudioUrl
+    ? `<Play>${gatherAudioUrl}</Play>`
+    : `<Say voice="${fallbackVoice}" language="en-GB"><prosody rate="${rate}">${escapeXml(gatherPrompt)}</prosody></Say>`;
+
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Start>
     <Record recordingStatusCallback="${recordingCallbackUrl}" recordingStatusCallbackEvent="completed" recordingStatusCallbackMethod="POST"/>
   </Start>
-  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
+  ${playOrSay1}
   <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
-    <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(gatherPrompt)}</prosody></Say>
+    ${playOrSay2}
   </Gather>
-  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. Please call back if you need assistance. Goodbye.</prosody></Say>
+  <Say voice="${fallbackVoice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. Please call back if you need assistance. Goodbye.</prosody></Say>
   <Hangup/>
 </Response>`;
   
@@ -151,7 +228,7 @@ async function getBusinessAiVoiceSettings(supabase: any, businessId: string) {
   };
 }
 
-// Generate greeting based on business and AI settings - NO mention of AI
+// Generate greeting based on business and AI settings
 function generateGreeting(businessName: string, settings: any): string {
   const { assistantName, tone } = settings;
   
@@ -258,9 +335,11 @@ Deno.serve(async (req) => {
 
     // Get business AI settings
     const aiSettings = await getBusinessAiVoiceSettings(supabase, business.id);
-    const voice = getPollyVoice(aiSettings.voiceGender, aiSettings.primaryLanguage);
+    const fallbackVoice = getPollyVoice(aiSettings.voiceGender, aiSettings.primaryLanguage);
     const rate = getSpeechRate(aiSettings.voiceSpeed);
-    console.log("[TwilioWebhook] AI Settings:", aiSettings, "Voice:", voice, "Rate:", rate);
+    const elevenLabsVoiceId = getElevenLabsVoiceId(aiSettings.voiceGender);
+    
+    console.log("[TwilioWebhook] AI Settings:", aiSettings, "ElevenLabs Voice:", elevenLabsVoiceId);
 
     // Log the call
     const { error: logError } = await supabase
@@ -296,22 +375,54 @@ Deno.serve(async (req) => {
       console.error("[TwilioWebhook] Error creating conversation:", convError);
     }
 
-    // Generate greeting
-    const greeting = generateGreeting(business.business_name, aiSettings);
+    // Generate greeting text
+    const greetingText = generateGreeting(business.business_name, aiSettings);
+    const gatherPromptText = "How can I help you today?";
     
-    // Build the continue URL and recording callback URL
+    // Build URLs
     const continueUrl = `${supabaseUrl}/functions/v1/twilio-voice-continue/${token}`;
     const recordingCallbackUrl = `${supabaseUrl}/functions/v1/twilio-recording-callback/${token}`;
 
-    console.log("[TwilioWebhook] Returning greeting with Gather and Recording, continue URL:", continueUrl);
+    // Try to generate ElevenLabs audio for more natural voice
+    let greetingAudioUrl: string | null = null;
+    let gatherAudioUrl: string | null = null;
+    
+    const elevenlabsKey = Deno.env.get("ELEVENLABS_API_KEY");
+    if (elevenlabsKey) {
+      console.log("[TwilioWebhook] Generating ElevenLabs audio...");
+      
+      // Generate audio for greeting and gather prompt in parallel
+      const [greetingAudio, gatherAudio] = await Promise.all([
+        generateElevenLabsAudio(greetingText, elevenLabsVoiceId),
+        generateElevenLabsAudio(gatherPromptText, elevenLabsVoiceId),
+      ]);
 
-    // Return TwiML with greeting, Gather, and recording enabled
-    return twimlGatherWithRecording(
-      greeting,
-      "How can I help you today?",
+      if (greetingAudio) {
+        const greetingFileName = `greeting_${callSid}_${Date.now()}.mp3`;
+        greetingAudioUrl = await uploadAudioToStorage(supabase, greetingAudio, greetingFileName);
+        console.log("[TwilioWebhook] Greeting audio URL:", greetingAudioUrl ? "generated" : "failed");
+      }
+
+      if (gatherAudio) {
+        const gatherFileName = `gather_${callSid}_${Date.now()}.mp3`;
+        gatherAudioUrl = await uploadAudioToStorage(supabase, gatherAudio, gatherFileName);
+        console.log("[TwilioWebhook] Gather audio URL:", gatherAudioUrl ? "generated" : "failed");
+      }
+    } else {
+      console.log("[TwilioWebhook] ElevenLabs API key not set, using Polly fallback");
+    }
+
+    console.log("[TwilioWebhook] Returning TwiML with", greetingAudioUrl ? "ElevenLabs" : "Polly", "voice");
+
+    // Return TwiML with ElevenLabs audio or Polly fallback
+    return twimlGatherWithAudio(
+      greetingAudioUrl,
+      greetingText,
+      gatherPromptText,
+      gatherAudioUrl,
       continueUrl,
       recordingCallbackUrl,
-      voice,
+      fallbackVoice,
       rate,
       6
     );
