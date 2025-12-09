@@ -82,7 +82,7 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
 
     if (count !== null) setBookingsCount(count);
 
-    // Load today's appointments (always show today regardless of filter)
+    // Load today's appointments (always show today regardless of filter, exclude cancelled)
     const { data: todayData } = await supabase
       .from("bookings")
       .select(`
@@ -91,13 +91,14 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
         staff:staff_id(name)
       `)
       .eq("business_id", businessId)
+      .neq("status", "cancelled")
       .gte("start_time", startOfDay(today).toISOString())
       .lte("start_time", endOfDay(today).toISOString())
       .order("start_time", { ascending: true });
 
     if (todayData) setTodaysAppointments(todayData);
 
-    // Load upcoming bookings (next 5 from now)
+    // Load upcoming bookings (next 5 from now, exclude cancelled)
     const { data: upcomingData } = await supabase
       .from("bookings")
       .select(`
@@ -106,6 +107,7 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
         staff:staff_id(name)
       `)
       .eq("business_id", businessId)
+      .neq("status", "cancelled")
       .gte("start_time", new Date().toISOString())
       .order("start_time", { ascending: true })
       .limit(5);
