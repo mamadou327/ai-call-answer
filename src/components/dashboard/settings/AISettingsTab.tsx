@@ -8,7 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { WebsiteAnalysis } from "./WebsiteAnalysis";
-import { Bot, Globe, Sparkles } from "lucide-react";
+import { VoiceSelector } from "./VoiceSelector";
+import { Bot, Globe } from "lucide-react";
 
 interface AISettingsTabProps {
   businessId: string;
@@ -27,6 +28,7 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
     tone: "neutral" as "casual" | "neutral" | "formal",
     voice_gender: "female" as "male" | "female" | "neutral",
     voice_speed: "normal" as "slow" | "normal" | "fast",
+    elevenlabs_voice_id: null as string | null,
   });
 
   useEffect(() => {
@@ -47,6 +49,7 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
         tone: (data.tone || "neutral") as "casual" | "neutral" | "formal",
         voice_gender: (data.voice_gender || "female") as "male" | "female" | "neutral",
         voice_speed: (data.voice_speed || "normal") as "slow" | "normal" | "fast",
+        elevenlabs_voice_id: (data as any).elevenlabs_voice_id || null,
       });
     }
   };
@@ -101,7 +104,7 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
             </CardTitle>
             <CardDescription>{t("assistantSettings.description")}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label>{t("assistantSettings.assistantName")} *</Label>
               <Input
@@ -148,40 +151,29 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>{t("assistantSettings.voiceGender")} *</Label>
-                <Select
-                  value={settingsData.voice_gender}
-                  onValueChange={(value: "male" | "female" | "neutral") => setSettingsData({ ...settingsData, voice_gender: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="female">{t("assistantSettings.female")}</SelectItem>
-                    <SelectItem value="male">{t("assistantSettings.male")}</SelectItem>
-                    <SelectItem value="neutral">{t("assistantSettings.neutralGender")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label>{t("assistantSettings.voiceSpeed")} *</Label>
+              <Select
+                value={settingsData.voice_speed}
+                onValueChange={(value: "slow" | "normal" | "fast") => setSettingsData({ ...settingsData, voice_speed: value })}
+              >
+                <SelectTrigger className="w-full md:w-[200px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="slow">{t("assistantSettings.slow")}</SelectItem>
+                  <SelectItem value="normal">{t("assistantSettings.normal")}</SelectItem>
+                  <SelectItem value="fast">{t("assistantSettings.fast")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-              <div className="space-y-2">
-                <Label>{t("assistantSettings.voiceSpeed")} *</Label>
-                <Select
-                  value={settingsData.voice_speed}
-                  onValueChange={(value: "slow" | "normal" | "fast") => setSettingsData({ ...settingsData, voice_speed: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="slow">{t("assistantSettings.slow")}</SelectItem>
-                    <SelectItem value="normal">{t("assistantSettings.normal")}</SelectItem>
-                    <SelectItem value="fast">{t("assistantSettings.fast")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Voice Selector with Preview */}
+            <div className="pt-4 border-t">
+              <VoiceSelector
+                selectedVoiceId={settingsData.elevenlabs_voice_id}
+                onVoiceSelect={(voiceId) => setSettingsData({ ...settingsData, elevenlabs_voice_id: voiceId })}
+              />
             </div>
 
             <Button type="submit" disabled={loading} className="w-full md:w-auto">
