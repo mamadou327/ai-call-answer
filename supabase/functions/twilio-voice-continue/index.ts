@@ -33,95 +33,14 @@ function getSpeechRate(voiceSpeed: string): string {
   }
 }
 
-// ElevenLabs voice mapping based on settings (fallback if no custom voice selected)
-function getDefaultElevenLabsVoiceId(voiceGender: string): string {
-  switch (voiceGender) {
-    case "male":
-      return "JBFqnCBsd6RMkjVDRZzb"; // George - warm and professional
-    case "neutral":
-      return "SAz9YHcvj6GT2YYXdXww"; // River - neutral/androgynous
-    default:
-      return "EXAVITQu4vr4xnSDxMaL"; // Sarah - warm and natural female voice
-  }
-}
+// Note: ElevenLabs audio generation removed - Twilio doesn't support data URIs
+// and storage uploads add too much latency. Using Polly voices instead for speed.
 
-// Generate audio using ElevenLabs TTS - returns base64 string for faster response
-async function generateElevenLabsAudioBase64(
-  text: string,
-  voiceId: string
-): Promise<string | null> {
-  const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
-  if (!apiKey) {
-    console.error("[ElevenLabs] API key not configured");
-    return null;
-  }
-
-  try {
-    console.log("[ElevenLabs] Generating audio for text length:", text.length);
-    const startTime = Date.now();
-    
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        method: "POST",
-        headers: {
-          "Accept": "audio/mpeg",
-          "Content-Type": "application/json",
-          "xi-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          text: text,
-          model_id: "eleven_turbo_v2_5", // Fast, high quality, multilingual
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.0, // Reduced for faster generation
-            use_speaker_boost: false, // Disabled for speed
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[ElevenLabs] API error:", response.status, errorText);
-      return null;
-    }
-
-    const audioBuffer = await response.arrayBuffer();
-    console.log("[ElevenLabs] Audio generated in", Date.now() - startTime, "ms");
-    
-    // Convert to base64 for data URI
-    const uint8Array = new Uint8Array(audioBuffer);
-    let binary = "";
-    const chunkSize = 8192;
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
-      binary += String.fromCharCode(...chunk);
-    }
-    return btoa(binary);
-  } catch (error) {
-    console.error("[ElevenLabs] Error generating audio:", error);
-    return null;
-  }
-}
-
-// Create a data URI from base64 audio (faster than storage upload)
-function createAudioDataUri(base64Audio: string): string {
-  return `data:audio/mpeg;base64,${base64Audio}`;
-}
-
-function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: string = "108%", timeout: number = 6, audioUrl: string | null = null): Response {
-  // Use Play if we have ElevenLabs audio, otherwise use Say with Polly
-  const playOrSay = audioUrl 
-    ? `<Play>${audioUrl}</Play>`
-    : `<Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>`;
-  
-  // Put Say/Play INSIDE Gather to enable barge-in (caller can interrupt while AI speaks)
+function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: string = "108%", timeout: number = 6): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
-    ${playOrSay}
+    <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. If you need help, just give us another call. Goodbye!</prosody></Say>
   <Hangup/>
@@ -132,14 +51,10 @@ function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: 
   });
 }
 
-function twimlEnd(sayText: string, voice: string, rate: string = "108%", audioUrl: string | null = null): Response {
-  const playOrSay = audioUrl 
-    ? `<Play>${audioUrl}</Play>`
-    : `<Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>`;
-  
+function twimlEnd(sayText: string, voice: string, rate: string = "108%"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  ${playOrSay}
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   <Hangup/>
 </Response>`;
   
@@ -148,15 +63,11 @@ function twimlEnd(sayText: string, voice: string, rate: string = "108%", audioUr
   });
 }
 
-function twimlClarify(sayText: string, actionUrl: string, voice: string, rate: string = "108%", audioUrl: string | null = null): Response {
-  const playOrSay = audioUrl 
-    ? `<Play>${audioUrl}</Play>`
-    : `<Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>`;
-  
+function twimlClarify(sayText: string, actionUrl: string, voice: string, rate: string = "108%"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="auto" language="en-GB">
-    ${playOrSay}
+    <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I still didn't catch that. Please call back if you need help. Goodbye!</prosody></Say>
   <Hangup/>
@@ -1197,31 +1108,17 @@ Deno.serve(async (req) => {
     const rate = getSpeechRate(settings?.voice_speed || "normal");
     const assistantName = settings?.assistant_name || "Aivia";
     const continueUrl = `${supabaseUrl}/functions/v1/twilio-voice-continue/${token}`;
-    
-    // Determine ElevenLabs voice ID (custom or default based on gender)
-    const elevenLabsVoiceId = settings?.elevenlabs_voice_id || getDefaultElevenLabsVoiceId(settings?.voice_gender || "female");
-    const hasElevenLabsKey = !!Deno.env.get("ELEVENLABS_API_KEY");
 
     // Handle empty speech result
     if (!speechResult || speechResult.trim() === "") {
       console.log("[VoiceContinue] No speech detected, asking for clarification");
       const clarifyText = "Sorry, I didn't catch that. Could you please repeat what you need help with?";
       
-      // Try to generate ElevenLabs audio for clarification (fast path - no storage)
-      let clarifyAudioUrl: string | null = null;
-      if (hasElevenLabsKey) {
-        const base64Audio = await generateElevenLabsAudioBase64(clarifyText, elevenLabsVoiceId);
-        if (base64Audio) {
-          clarifyAudioUrl = createAudioDataUri(base64Audio);
-        }
-      }
-      
       return twimlClarify(
         clarifyText,
         continueUrl,
         voice,
-        rate,
-        clarifyAudioUrl
+        rate
       );
     }
 
@@ -1382,17 +1279,6 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
       })
       .eq("call_sid", callSid);
 
-    // Generate ElevenLabs audio for the AI reply (fast path - no storage upload)
-    let replyAudioUrl: string | null = null;
-    if (hasElevenLabsKey && aiResult.reply) {
-      console.log("[VoiceContinue] Generating ElevenLabs audio for reply");
-      const base64Audio = await generateElevenLabsAudioBase64(aiResult.reply, elevenLabsVoiceId);
-      if (base64Audio) {
-        replyAudioUrl = createAudioDataUri(base64Audio);
-        console.log("[VoiceContinue] Audio data URI generated successfully");
-      }
-    }
-
     // Update call log outcome if ending
     if (aiResult.shouldEnd) {
       await supabase
@@ -1406,11 +1292,11 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
         })
         .eq("twilio_call_sid", callSid);
 
-      return twimlEnd(aiResult.reply, voice, rate, replyAudioUrl);
+      return twimlEnd(aiResult.reply, voice, rate);
     }
 
     // Continue the conversation
-    return twimlContinue(aiResult.reply, continueUrl, voice, rate, 6, replyAudioUrl);
+    return twimlContinue(aiResult.reply, continueUrl, voice, rate, 6);
 
   } catch (error) {
     console.error("[VoiceContinue] Error:", error);

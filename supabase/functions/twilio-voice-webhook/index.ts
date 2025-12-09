@@ -5,37 +5,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-twilio-signature",
 };
 
-// Normalize phone number to E.164 format for comparison
-function normalizePhoneNumber(phone: string | null | undefined): string {
-  if (!phone) return "";
-  let normalized = phone.replace(/[^\d+]/g, "");
-  if (normalized.length > 10 && !normalized.startsWith("+")) {
-    normalized = "+" + normalized;
-  }
-  return normalized;
-}
-
-// Compare two phone numbers after normalization
-function phoneNumbersMatch(phone1: string | null | undefined, phone2: string | null | undefined): boolean {
-  const norm1 = normalizePhoneNumber(phone1);
-  const norm2 = normalizePhoneNumber(phone2);
-  
-  if (!norm1 || !norm2) return false;
-  if (norm1 === norm2) return true;
-  
-  const digits1 = norm1.replace(/^\+/, "");
-  const digits2 = norm2.replace(/^\+/, "");
-  
-  if (digits1 === digits2) return true;
-  
-  const last10_1 = digits1.slice(-10);
-  const last10_2 = digits2.slice(-10);
-  
-  if (last10_1.length >= 10 && last10_1 === last10_2) return true;
-  
-  return false;
-}
-
 // Escape XML special characters
 function escapeXml(text: string): string {
   return text
@@ -46,85 +15,8 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
-// ElevenLabs voice mapping based on settings (fallback if no custom voice selected)
-function getDefaultElevenLabsVoiceId(voiceGender: string): string {
-  switch (voiceGender) {
-    case "male":
-      return "JBFqnCBsd6RMkjVDRZzb"; // George - warm and professional
-    case "neutral":
-      return "SAz9YHcvj6GT2YYXdXww"; // River - neutral/androgynous
-    default:
-      return "EXAVITQu4vr4xnSDxMaL"; // Sarah - warm and natural female voice
-  }
-}
-
-// Generate audio using ElevenLabs TTS - returns base64 for data URI (faster than storage)
-async function generateElevenLabsAudioBase64(
-  text: string,
-  voiceId: string
-): Promise<string | null> {
-  const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
-  if (!apiKey) {
-    console.error("[ElevenLabs] API key not configured");
-    return null;
-  }
-
-  try {
-    console.log("[ElevenLabs] Generating audio for:", text.substring(0, 50) + "...");
-    const startTime = Date.now();
-    
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        method: "POST",
-        headers: {
-          "Accept": "audio/mpeg",
-          "Content-Type": "application/json",
-          "xi-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          text: text,
-          model_id: "eleven_turbo_v2_5", // Fast, high quality, multilingual
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.0, // Reduced for faster generation
-            use_speaker_boost: false, // Disabled for speed
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[ElevenLabs] API error:", response.status, errorText);
-      return null;
-    }
-
-    const audioBuffer = await response.arrayBuffer();
-    console.log("[ElevenLabs] Audio generated in", Date.now() - startTime, "ms");
-    
-    // Convert to base64
-    const uint8Array = new Uint8Array(audioBuffer);
-    let binary = "";
-    const chunkSize = 8192;
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
-      binary += String.fromCharCode(...chunk);
-    }
-    return btoa(binary);
-  } catch (error) {
-    console.error("[ElevenLabs] Error generating audio:", error);
-    return null;
-  }
-}
-
-// Create data URI from base64 audio (faster than storage upload)
-function createAudioDataUri(base64Audio: string): string {
-  return `data:audio/mpeg;base64,${base64Audio}`;
-}
-
-// Get Polly voice as fallback
+// Get Polly voice based on settings
+// Note: Using Polly for speed - Twilio doesn't support data URIs and storage uploads add latency
 function getPollyVoice(voiceGender: string, primaryLanguage: string): string {
   if (primaryLanguage?.toLowerCase().includes("english")) {
     return voiceGender === "male" ? "Polly.Brian-Neural" : "Polly.Amy-Neural";
@@ -141,44 +33,6 @@ function getSpeechRate(voiceSpeed: string): string {
   }
 }
 
-// Generate TwiML with ElevenLabs audio (Play) or fallback to Polly (Say)
-function twimlGatherWithAudio(
-  audioUrl: string | null,
-  sayText: string,
-  gatherPrompt: string,
-  gatherAudioUrl: string | null,
-  actionUrl: string,
-  recordingCallbackUrl: string,
-  fallbackVoice: string,
-  rate: string = "108%",
-  timeout: number = 6
-): Response {
-  let playOrSay1 = audioUrl 
-    ? `<Play>${audioUrl}</Play>`
-    : `<Say voice="${fallbackVoice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>`;
-  
-  let playOrSay2 = gatherAudioUrl
-    ? `<Play>${gatherAudioUrl}</Play>`
-    : `<Say voice="${fallbackVoice}" language="en-GB"><prosody rate="${rate}">${escapeXml(gatherPrompt)}</prosody></Say>`;
-
-  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Start>
-    <Record recordingStatusCallback="${recordingCallbackUrl}" recordingStatusCallbackEvent="completed" recordingStatusCallbackMethod="POST"/>
-  </Start>
-  ${playOrSay1}
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
-    ${playOrSay2}
-  </Gather>
-  <Say voice="${fallbackVoice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. Please call back if you need assistance. Goodbye.</prosody></Say>
-  <Hangup/>
-</Response>`;
-  
-  return new Response(twiml, {
-    headers: { ...corsHeaders, "Content-Type": "text/xml" },
-  });
-}
-
 // Simple error TwiML
 function twimlError(message: string, voice: string = "Polly.Amy-Neural", rate: string = "108%"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -192,11 +46,39 @@ function twimlError(message: string, voice: string = "Polly.Amy-Neural", rate: s
   });
 }
 
+// Generate TwiML with Polly voice (fast - no network upload needed)
+function twimlGatherWithPolly(
+  sayText: string,
+  gatherPrompt: string,
+  actionUrl: string,
+  recordingCallbackUrl: string,
+  voice: string,
+  rate: string = "108%",
+  timeout: number = 6
+): Response {
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Start>
+    <Record recordingStatusCallback="${recordingCallbackUrl}" recordingStatusCallbackEvent="completed" recordingStatusCallbackMethod="POST"/>
+  </Start>
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
+    <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(gatherPrompt)}</prosody></Say>
+  </Gather>
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. Please call back if you need assistance. Goodbye.</prosody></Say>
+  <Hangup/>
+</Response>`;
+  
+  return new Response(twiml, {
+    headers: { ...corsHeaders, "Content-Type": "text/xml" },
+  });
+}
+
 // Helper function to get business AI voice settings
 async function getBusinessAiVoiceSettings(supabase: any, businessId: string) {
   const { data: settings, error } = await supabase
     .from("business_settings")
-    .select("assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id")
+    .select("assistant_name, tone, primary_language, voice_gender, voice_speed")
     .eq("business_id", businessId)
     .maybeSingle();
 
@@ -210,7 +92,6 @@ async function getBusinessAiVoiceSettings(supabase: any, businessId: string) {
     primaryLanguage: settings?.primary_language || "English",
     voiceGender: settings?.voice_gender || "female",
     voiceSpeed: settings?.voice_speed || "normal",
-    elevenLabsVoiceId: settings?.elevenlabs_voice_id || null,
   };
 }
 
@@ -273,9 +154,7 @@ Deno.serve(async (req) => {
         id,
         business_name,
         twilio_enabled,
-        aivia_active,
-        assigned_aivia_number,
-        twilio_phone_number
+        aivia_active
       `)
       .eq("twilio_webhook_token", token)
       .maybeSingle();
@@ -321,12 +200,10 @@ Deno.serve(async (req) => {
 
     // Get business AI settings
     const aiSettings = await getBusinessAiVoiceSettings(supabase, business.id);
-    const fallbackVoice = getPollyVoice(aiSettings.voiceGender, aiSettings.primaryLanguage);
+    const pollyVoice = getPollyVoice(aiSettings.voiceGender, aiSettings.primaryLanguage);
     const rate = getSpeechRate(aiSettings.voiceSpeed);
-    // Use custom voice ID if set, otherwise fall back to default based on gender
-    const elevenLabsVoiceId = aiSettings.elevenLabsVoiceId || getDefaultElevenLabsVoiceId(aiSettings.voiceGender);
     
-    console.log("[TwilioWebhook] AI Settings:", aiSettings, "ElevenLabs Voice:", elevenLabsVoiceId);
+    console.log("[TwilioWebhook] AI Settings:", aiSettings, "Polly Voice:", pollyVoice);
 
     // Log the call
     const { error: logError } = await supabase
@@ -370,44 +247,15 @@ Deno.serve(async (req) => {
     const continueUrl = `${supabaseUrl}/functions/v1/twilio-voice-continue/${token}`;
     const recordingCallbackUrl = `${supabaseUrl}/functions/v1/twilio-recording-callback/${token}`;
 
-    // Try to generate ElevenLabs audio for more natural voice (fast path - no storage)
-    let greetingAudioUrl: string | null = null;
-    let gatherAudioUrl: string | null = null;
-    
-    const elevenlabsKey = Deno.env.get("ELEVENLABS_API_KEY");
-    if (elevenlabsKey) {
-      console.log("[TwilioWebhook] Generating ElevenLabs audio (fast mode)...");
-      
-      // Generate audio for greeting and gather prompt in parallel
-      const [greetingBase64, gatherBase64] = await Promise.all([
-        generateElevenLabsAudioBase64(greetingText, elevenLabsVoiceId),
-        generateElevenLabsAudioBase64(gatherPromptText, elevenLabsVoiceId),
-      ]);
+    console.log("[TwilioWebhook] Returning TwiML with Polly voice:", pollyVoice);
 
-      if (greetingBase64) {
-        greetingAudioUrl = createAudioDataUri(greetingBase64);
-        console.log("[TwilioWebhook] Greeting audio: data URI generated");
-      }
-
-      if (gatherBase64) {
-        gatherAudioUrl = createAudioDataUri(gatherBase64);
-        console.log("[TwilioWebhook] Gather audio: data URI generated");
-      }
-    } else {
-      console.log("[TwilioWebhook] ElevenLabs API key not set, using Polly fallback");
-    }
-
-    console.log("[TwilioWebhook] Returning TwiML with", greetingAudioUrl ? "ElevenLabs" : "Polly", "voice");
-
-    // Return TwiML with ElevenLabs audio or Polly fallback
-    return twimlGatherWithAudio(
-      greetingAudioUrl,
+    // Return TwiML with Polly voice (fast - no ElevenLabs latency)
+    return twimlGatherWithPolly(
       greetingText,
       gatherPromptText,
-      gatherAudioUrl,
       continueUrl,
       recordingCallbackUrl,
-      fallbackVoice,
+      pollyVoice,
       rate,
       6
     );
