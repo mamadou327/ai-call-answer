@@ -182,6 +182,7 @@ export type Database = {
           country: string | null
           created_at: string | null
           currency: string | null
+          elevenlabs_voice_id: string | null
           id: string
           max_days_advance: number | null
           min_booking_notice_hours: number | null
@@ -201,6 +202,7 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           currency?: string | null
+          elevenlabs_voice_id?: string | null
           id?: string
           max_days_advance?: number | null
           min_booking_notice_hours?: number | null
@@ -220,6 +222,7 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           currency?: string | null
+          elevenlabs_voice_id?: string | null
           id?: string
           max_days_advance?: number | null
           min_booking_notice_hours?: number | null

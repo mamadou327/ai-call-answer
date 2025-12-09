@@ -46,11 +46,8 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
-// ElevenLabs voice mapping based on settings
-function getElevenLabsVoiceId(voiceGender: string): string {
-  // High-quality conversational voices
-  // Female voices: Sarah (warm), Charlotte (friendly), Alice (professional)
-  // Male voices: George (warm), Brian (conversational), Daniel (friendly)
+// ElevenLabs voice mapping based on settings (fallback if no custom voice selected)
+function getDefaultElevenLabsVoiceId(voiceGender: string): string {
   switch (voiceGender) {
     case "male":
       return "JBFqnCBsd6RMkjVDRZzb"; // George - warm and professional
@@ -211,7 +208,7 @@ function twimlError(message: string, voice: string = "Polly.Amy-Neural", rate: s
 async function getBusinessAiVoiceSettings(supabase: any, businessId: string) {
   const { data: settings, error } = await supabase
     .from("business_settings")
-    .select("assistant_name, tone, primary_language, voice_gender, voice_speed")
+    .select("assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id")
     .eq("business_id", businessId)
     .maybeSingle();
 
@@ -225,6 +222,7 @@ async function getBusinessAiVoiceSettings(supabase: any, businessId: string) {
     primaryLanguage: settings?.primary_language || "English",
     voiceGender: settings?.voice_gender || "female",
     voiceSpeed: settings?.voice_speed || "normal",
+    elevenLabsVoiceId: settings?.elevenlabs_voice_id || null,
   };
 }
 
@@ -337,7 +335,8 @@ Deno.serve(async (req) => {
     const aiSettings = await getBusinessAiVoiceSettings(supabase, business.id);
     const fallbackVoice = getPollyVoice(aiSettings.voiceGender, aiSettings.primaryLanguage);
     const rate = getSpeechRate(aiSettings.voiceSpeed);
-    const elevenLabsVoiceId = getElevenLabsVoiceId(aiSettings.voiceGender);
+    // Use custom voice ID if set, otherwise fall back to default based on gender
+    const elevenLabsVoiceId = aiSettings.elevenLabsVoiceId || getDefaultElevenLabsVoiceId(aiSettings.voiceGender);
     
     console.log("[TwilioWebhook] AI Settings:", aiSettings, "ElevenLabs Voice:", elevenLabsVoiceId);
 
