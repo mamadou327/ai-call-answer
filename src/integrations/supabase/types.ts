@@ -407,9 +407,11 @@ export type Database = {
           id: string
           needs_review: boolean | null
           provider: string | null
+          recording_url: string | null
           summary: string | null
           tags: string[] | null
           to_number: string | null
+          transcription: string | null
           twilio_call_sid: string | null
         }
         Insert: {
@@ -424,9 +426,11 @@ export type Database = {
           id?: string
           needs_review?: boolean | null
           provider?: string | null
+          recording_url?: string | null
           summary?: string | null
           tags?: string[] | null
           to_number?: string | null
+          transcription?: string | null
           twilio_call_sid?: string | null
         }
         Update: {
@@ -441,9 +445,11 @@ export type Database = {
           id?: string
           needs_review?: boolean | null
           provider?: string | null
+          recording_url?: string | null
           summary?: string | null
           tags?: string[] | null
           to_number?: string | null
+          transcription?: string | null
           twilio_call_sid?: string | null
         }
         Relationships: [

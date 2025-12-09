@@ -89,6 +89,34 @@ function twimlGather(
   });
 }
 
+// Generate TwiML response with recording enabled
+function twimlGatherWithRecording(
+  sayText: string,
+  gatherPrompt: string,
+  actionUrl: string,
+  recordingCallbackUrl: string,
+  voice: string,
+  rate: string = "108%",
+  timeout: number = 6
+): Response {
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Start>
+    <Record recordingStatusCallback="${recordingCallbackUrl}" recordingStatusCallbackEvent="completed" recordingStatusCallbackMethod="POST"/>
+  </Start>
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
+    <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(gatherPrompt)}</prosody></Say>
+  </Gather>
+  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. Please call back if you need assistance. Goodbye.</prosody></Say>
+  <Hangup/>
+</Response>`;
+  
+  return new Response(twiml, {
+    headers: { ...corsHeaders, "Content-Type": "text/xml" },
+  });
+}
+
 // Simple error TwiML
 function twimlError(message: string, voice: string = "Polly.Amy-Neural", rate: string = "108%"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -271,16 +299,18 @@ Deno.serve(async (req) => {
     // Generate greeting
     const greeting = generateGreeting(business.business_name, aiSettings);
     
-    // Build the continue URL
+    // Build the continue URL and recording callback URL
     const continueUrl = `${supabaseUrl}/functions/v1/twilio-voice-continue/${token}`;
+    const recordingCallbackUrl = `${supabaseUrl}/functions/v1/twilio-recording-callback/${token}`;
 
-    console.log("[TwilioWebhook] Returning greeting with Gather, continue URL:", continueUrl);
+    console.log("[TwilioWebhook] Returning greeting with Gather and Recording, continue URL:", continueUrl);
 
-    // Return TwiML with greeting and Gather
-    return twimlGather(
+    // Return TwiML with greeting, Gather, and recording enabled
+    return twimlGatherWithRecording(
       greeting,
       "How can I help you today?",
       continueUrl,
+      recordingCallbackUrl,
       voice,
       rate,
       6

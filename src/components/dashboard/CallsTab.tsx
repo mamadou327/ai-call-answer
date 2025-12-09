@@ -1,10 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Phone, Clock, User, Calendar } from "lucide-react";
+import { Phone, Calendar, ChevronRight, Headphones } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { CallDetailsDialog } from "./CallDetailsDialog";
 
 interface CallsTabProps {
   businessId?: string;
@@ -23,6 +24,8 @@ interface CallLog {
   booking_id: string | null;
   created_at: string;
   provider: string | null;
+  recording_url: string | null;
+  transcription: string | null;
 }
 
 const callTypeLabels: Record<string, string> = {
@@ -47,6 +50,8 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
   const { t } = useTranslation();
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCall, setSelectedCall] = useState<CallLog | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     if (businessId) {
@@ -73,8 +78,13 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
     setLoading(false);
   };
 
+  const handleCallClick = (call: CallLog) => {
+    setSelectedCall(call);
+    setDialogOpen(true);
+  };
+
   const formatDuration = (ms: number | null) => {
-    if (!ms) return "N/A";
+    if (!ms) return null;
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
@@ -102,72 +112,64 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
               <p className="text-sm">{t("dashboard.callsDescription")}</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {calls.map((call) => (
-                <div key={call.id} className="flex items-start gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                  <div className="bg-primary/10 p-2 rounded-lg">
-                    <Phone className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <p className="font-semibold flex items-center gap-2">
-                          <User className="w-4 h-4" />
-                          {call.caller_name || "Unknown Caller"}
-                        </p>
-                        <p className="text-sm text-muted-foreground">{call.caller_phone}</p>
+            <div className="space-y-2">
+              {calls.map((call) => {
+                const displayName = call.caller_name || call.caller_phone;
+                const duration = formatDuration(call.duration_ms);
+                const hasRecording = !!call.recording_url;
+
+                return (
+                  <div
+                    key={call.id}
+                    onClick={() => handleCallClick(call)}
+                    className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group"
+                  >
+                    <div className="bg-primary/10 p-2 rounded-lg shrink-0">
+                      <Phone className="w-5 h-5 text-primary" />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-semibold truncate">{displayName}</p>
+                        {hasRecording && (
+                          <Headphones className="w-4 h-4 text-muted-foreground shrink-0" />
+                        )}
                       </div>
-                      <Badge variant={callTypeBadgeVariants[call.call_type] || "outline"}>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {format(new Date(call.created_at), "MMM d, h:mm a")}
+                        </span>
+                        {duration && (
+                          <span>{duration}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant={callTypeBadgeVariants[call.call_type] || "outline"} className="hidden sm:flex">
                         {callTypeLabels[call.call_type] || call.call_type}
                       </Badge>
-                    </div>
-                    
-                    {call.summary && (
-                      <p className="text-sm text-muted-foreground mb-2">{call.summary}</p>
-                    )}
-                    
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {format(new Date(call.created_at), "MMM d, yyyy 'at' h:mm a")}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {formatDuration(call.duration_ms)}
-                      </span>
-                      {call.provider && (
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {call.provider}
-                        </Badge>
-                      )}
-                      {call.booking_id && (
-                        <Badge variant="outline" className="text-xs">
-                          Booking updated
-                        </Badge>
-                      )}
                       {call.needs_review && (
                         <Badge variant="destructive" className="text-xs">
-                          Needs Review
+                          Review
                         </Badge>
                       )}
+                      <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
                     </div>
-                    
-                    {call.tags && call.tags.length > 0 && (
-                      <div className="flex gap-1 mt-2">
-                        {call.tags.map((tag, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <CallDetailsDialog
+        call={selectedCall}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
     </div>
   );
 };
