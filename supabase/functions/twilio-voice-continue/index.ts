@@ -45,11 +45,11 @@ function getDefaultElevenLabsVoiceId(voiceGender: string): string {
   }
 }
 
-// Generate audio using ElevenLabs TTS
-async function generateElevenLabsAudio(
+// Generate audio using ElevenLabs TTS - returns base64 string for faster response
+async function generateElevenLabsAudioBase64(
   text: string,
   voiceId: string
-): Promise<ArrayBuffer | null> {
+): Promise<string | null> {
   const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
   if (!apiKey) {
     console.error("[ElevenLabs] API key not configured");
@@ -57,6 +57,9 @@ async function generateElevenLabsAudio(
   }
 
   try {
+    console.log("[ElevenLabs] Generating audio for text length:", text.length);
+    const startTime = Date.now();
+    
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
       {
@@ -72,8 +75,8 @@ async function generateElevenLabsAudio(
           voice_settings: {
             stability: 0.5,
             similarity_boost: 0.75,
-            style: 0.3, // Slight expressiveness for natural conversation
-            use_speaker_boost: true,
+            style: 0.0, // Reduced for faster generation
+            use_speaker_boost: false, // Disabled for speed
           },
         }),
       }
@@ -85,42 +88,27 @@ async function generateElevenLabsAudio(
       return null;
     }
 
-    return await response.arrayBuffer();
+    const audioBuffer = await response.arrayBuffer();
+    console.log("[ElevenLabs] Audio generated in", Date.now() - startTime, "ms");
+    
+    // Convert to base64 for data URI
+    const uint8Array = new Uint8Array(audioBuffer);
+    let binary = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+      binary += String.fromCharCode(...chunk);
+    }
+    return btoa(binary);
   } catch (error) {
     console.error("[ElevenLabs] Error generating audio:", error);
     return null;
   }
 }
 
-// Upload audio to Supabase storage and get public URL
-async function uploadAudioToStorage(
-  supabase: any,
-  audioBuffer: ArrayBuffer,
-  fileName: string
-): Promise<string | null> {
-  try {
-    const { data, error } = await supabase.storage
-      .from("call-recordings")
-      .upload(`tts/${fileName}`, audioBuffer, {
-        contentType: "audio/mpeg",
-        upsert: true,
-      });
-
-    if (error) {
-      console.error("[Storage] Upload error:", error);
-      return null;
-    }
-
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from("call-recordings")
-      .getPublicUrl(`tts/${fileName}`);
-
-    return urlData?.publicUrl || null;
-  } catch (error) {
-    console.error("[Storage] Error uploading audio:", error);
-    return null;
-  }
+// Create a data URI from base64 audio (faster than storage upload)
+function createAudioDataUri(base64Audio: string): string {
+  return `data:audio/mpeg;base64,${base64Audio}`;
 }
 
 function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: string = "108%", timeout: number = 6, audioUrl: string | null = null): Response {
@@ -755,6 +743,9 @@ Set shouldEnd = true ONLY when caller says goodbye or is done.`;
   ];
 
   try {
+    console.log("[VoiceAI] Calling AI gateway...");
+    const aiStartTime = Date.now();
+    
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -762,10 +753,12 @@ Set shouldEnd = true ONLY when caller says goodbye or is done.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-flash-lite", // Faster model for voice responses
         messages,
       }),
     });
+    
+    console.log("[VoiceAI] AI response time:", Date.now() - aiStartTime, "ms");
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -1214,12 +1207,12 @@ Deno.serve(async (req) => {
       console.log("[VoiceContinue] No speech detected, asking for clarification");
       const clarifyText = "Sorry, I didn't catch that. Could you please repeat what you need help with?";
       
-      // Try to generate ElevenLabs audio for clarification
+      // Try to generate ElevenLabs audio for clarification (fast path - no storage)
       let clarifyAudioUrl: string | null = null;
       if (hasElevenLabsKey) {
-        const audioBuffer = await generateElevenLabsAudio(clarifyText, elevenLabsVoiceId);
-        if (audioBuffer) {
-          clarifyAudioUrl = await uploadAudioToStorage(supabase, audioBuffer, `clarify-${callSid}-${Date.now()}.mp3`);
+        const base64Audio = await generateElevenLabsAudioBase64(clarifyText, elevenLabsVoiceId);
+        if (base64Audio) {
+          clarifyAudioUrl = createAudioDataUri(base64Audio);
         }
       }
       
@@ -1389,14 +1382,14 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
       })
       .eq("call_sid", callSid);
 
-    // Generate ElevenLabs audio for the AI reply
+    // Generate ElevenLabs audio for the AI reply (fast path - no storage upload)
     let replyAudioUrl: string | null = null;
     if (hasElevenLabsKey && aiResult.reply) {
       console.log("[VoiceContinue] Generating ElevenLabs audio for reply");
-      const audioBuffer = await generateElevenLabsAudio(aiResult.reply, elevenLabsVoiceId);
-      if (audioBuffer) {
-        replyAudioUrl = await uploadAudioToStorage(supabase, audioBuffer, `reply-${callSid}-${Date.now()}.mp3`);
-        console.log("[VoiceContinue] Audio URL generated:", replyAudioUrl ? "success" : "failed");
+      const base64Audio = await generateElevenLabsAudioBase64(aiResult.reply, elevenLabsVoiceId);
+      if (base64Audio) {
+        replyAudioUrl = createAudioDataUri(base64Audio);
+        console.log("[VoiceContinue] Audio data URI generated successfully");
       }
     }
 
