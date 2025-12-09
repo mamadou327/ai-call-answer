@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import aiviaLogo from "@/assets/aivia-logo.png";
 import { Phone, Calendar, MessageSquare, BarChart, CheckCircle2 } from "lucide-react";
-import HowItWorks from "@/components/HowItWorks";
+import HowItWorksDialog from "@/components/HowItWorksDialog";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -49,21 +49,13 @@ const Index = () => {
           <Button size="lg" onClick={() => navigate("/auth")} className="text-lg px-8">
             Start Free Trial
           </Button>
-          <Button 
-            size="lg" 
-            variant="outline" 
-            onClick={() => {
-              document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" });
-            }} 
-            className="text-lg px-8"
-          >
-            See How It Works
-          </Button>
+          <HowItWorksDialog>
+            <Button size="lg" variant="outline" className="text-lg px-8">
+              See How It Works
+            </Button>
+          </HowItWorksDialog>
         </div>
       </section>
-
-      {/* How It Works */}
-      <HowItWorks />
 
       {/* Features */}
       <section className="container mx-auto px-4 py-16 bg-muted/50">
