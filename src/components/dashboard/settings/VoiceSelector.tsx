@@ -4,220 +4,127 @@ import { Volume2, ChevronDown, Play, Loader2, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Voice {
   id: string;
   name: string;
   description: string;
   gender: "female" | "male";
-  lang?: string; // BCP 47 language code for Web Speech API
 }
 
-// Polly Neural voices that sound natural and human-like
-const POLLY_VOICES: Record<string, Voice[]> = {
+// ElevenLabs voices - natural, human-like voices
+const ELEVENLABS_VOICES: Record<string, Voice[]> = {
   English: [
-    // British English - Neural voices only
-    { id: "Polly.Amy-Neural", name: "Amy", description: "Natural British female", gender: "female", lang: "en-GB" },
-    { id: "Polly.Emma-Neural", name: "Emma", description: "Warm British female", gender: "female", lang: "en-GB" },
-    { id: "Polly.Arthur-Neural", name: "Arthur", description: "Professional British male", gender: "male", lang: "en-GB" },
-    { id: "Polly.Brian-Neural", name: "Brian", description: "Confident British male", gender: "male", lang: "en-GB" },
-    // US English - Neural voices
-    { id: "Polly.Joanna-Neural", name: "Joanna", description: "Friendly US female", gender: "female", lang: "en-US" },
-    { id: "Polly.Kendra-Neural", name: "Kendra", description: "Professional US female", gender: "female", lang: "en-US" },
-    { id: "Polly.Salli-Neural", name: "Salli", description: "Warm US female", gender: "female", lang: "en-US" },
-    { id: "Polly.Matthew-Neural", name: "Matthew", description: "Natural US male", gender: "male", lang: "en-US" },
-    { id: "Polly.Stephen-Neural", name: "Stephen", description: "Authoritative US male", gender: "male", lang: "en-US" },
+    // Female voices
+    { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", description: "Warm & professional American", gender: "female" },
+    { id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", description: "Upbeat & friendly American", gender: "female" },
+    { id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte", description: "Confident British accent", gender: "female" },
+    { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", description: "Warm & conversational British", gender: "female" },
+    { id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", description: "Warm British narrator", gender: "female" },
+    // Male voices
+    { id: "CwhRBWXzGAHq8TQ4Fs17", name: "Roger", description: "Confident American male", gender: "male" },
+    { id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", description: "Casual Australian male", gender: "male" },
+    { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", description: "Warm British narrator", gender: "male" },
+    { id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam", description: "Articulate American male", gender: "male" },
+    { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", description: "Authoritative British male", gender: "male" },
   ],
   Spanish: [
-    // Spanish Neural voices
-    { id: "Polly.Lucia-Neural", name: "Lucía", description: "Natural Spanish female", gender: "female", lang: "es-ES" },
-    { id: "Polly.Lupe-Neural", name: "Lupe", description: "Warm Mexican Spanish female", gender: "female", lang: "es-MX" },
-    { id: "Polly.Mia-Neural", name: "Mia", description: "Professional Mexican female", gender: "female", lang: "es-MX" },
-    { id: "Polly.Sergio-Neural", name: "Sergio", description: "Natural Spanish male", gender: "male", lang: "es-ES" },
-    { id: "Polly.Andres-Neural", name: "Andrés", description: "Friendly Mexican male", gender: "male", lang: "es-MX" },
+    { id: "gD1IexrzCvsXPHUuT0s3", name: "Sofia", description: "Warm Spanish female", gender: "female" },
+    { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", description: "Multilingual female", gender: "female" },
+    { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", description: "Multilingual male", gender: "male" },
   ],
   French: [
-    // French Neural voices
-    { id: "Polly.Lea-Neural", name: "Léa", description: "Natural French female", gender: "female", lang: "fr-FR" },
-    { id: "Polly.Remi-Neural", name: "Rémi", description: "Professional French male", gender: "male", lang: "fr-FR" },
-    // Canadian French
-    { id: "Polly.Gabrielle-Neural", name: "Gabrielle", description: "Warm Canadian French female", gender: "female", lang: "fr-CA" },
-    { id: "Polly.Liam-Neural", name: "Liam", description: "Natural Canadian French male", gender: "male", lang: "fr-CA" },
+    { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", description: "Multilingual female", gender: "female" },
+    { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", description: "Multilingual male", gender: "male" },
   ],
   German: [
-    // German Neural voices
-    { id: "Polly.Vicki-Neural", name: "Vicki", description: "Natural German female", gender: "female", lang: "de-DE" },
-    { id: "Polly.Hannah-Neural", name: "Hannah", description: "Warm Austrian German female", gender: "female", lang: "de-AT" },
-    { id: "Polly.Daniel-Neural", name: "Daniel", description: "Professional German male", gender: "male", lang: "de-DE" },
+    { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", description: "Multilingual female", gender: "female" },
+    { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", description: "Multilingual male", gender: "male" },
   ],
-};
-
-// Sample text for previews
-const SAMPLE_TEXTS: Record<string, string> = {
-  English: "Hello, thank you for calling. How can I help you today?",
-  Spanish: "Hola, gracias por llamar. ¿En qué puedo ayudarle hoy?",
-  French: "Bonjour, merci d'avoir appelé. Comment puis-je vous aider aujourd'hui?",
-  German: "Hallo, danke für Ihren Anruf. Wie kann ich Ihnen heute helfen?",
 };
 
 interface VoiceSelectorProps {
   selectedVoiceId: string | null;
   onVoiceSelect: (voiceId: string) => void;
   primaryLanguage: string;
+  businessName?: string;
 }
 
-export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage }: VoiceSelectorProps) => {
+export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage, businessName }: VoiceSelectorProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
-  const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Get voices for the selected language
   const voices = useMemo(() => {
-    return POLLY_VOICES[primaryLanguage] || POLLY_VOICES.English;
+    return ELEVENLABS_VOICES[primaryLanguage] || ELEVENLABS_VOICES.English;
   }, [primaryLanguage]);
 
   const selectedVoice = voices.find(v => v.id === selectedVoiceId);
 
-  const playVoicePreview = (voice: Voice, e: React.MouseEvent) => {
+  const playVoicePreview = async (voice: Voice, e: React.MouseEvent) => {
     e.stopPropagation();
 
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+    // Stop any current audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
     }
 
+    // If already playing this voice, just stop
     if (playingVoiceId === voice.id) {
       setPlayingVoiceId(null);
       return;
     }
 
-    if (!window.speechSynthesis) {
-      toast.error("Voice preview not supported in this browser");
-      return;
-    }
+    setLoadingVoiceId(voice.id);
 
-    // Wait for voices to load
-    let availableVoices = window.speechSynthesis.getVoices();
-    if (availableVoices.length === 0) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        availableVoices = window.speechSynthesis.getVoices();
-        speakWithVoice(voice, availableVoices);
-      };
-    } else {
-      speakWithVoice(voice, availableVoices);
-    }
-  };
-
-  const speakWithVoice = (voice: Voice, availableVoices: SpeechSynthesisVoice[]) => {
-    const sampleText = SAMPLE_TEXTS[primaryLanguage] || SAMPLE_TEXTS.English;
-    const utterance = new SpeechSynthesisUtterance(sampleText);
-    
-    // Get the base language code (e.g., "en" from "en-GB")
-    const baseLang = voice.lang?.split("-")[0] || "en";
-    const region = voice.lang?.split("-")[1] || "";
-    
-    // Find voices matching the language and try to match gender
-    const langVoices = availableVoices.filter(v => v.lang.startsWith(baseLang));
-    
-    // Prioritize voices that match the specific region (e.g., en-GB vs en-US)
-    let matchingVoice: SpeechSynthesisVoice | undefined;
-    
-    if (region) {
-      // Try to find exact regional match with gender preference
-      matchingVoice = langVoices.find(v => {
-        const isRightRegion = v.lang.includes(region);
-        const nameLower = v.name.toLowerCase();
-        const isFemale = nameLower.includes('female') || nameLower.includes('samantha') || 
-                         nameLower.includes('victoria') || nameLower.includes('karen') ||
-                         nameLower.includes('moira') || nameLower.includes('fiona') ||
-                         nameLower.includes('zira') || nameLower.includes('hazel');
-        const isMale = nameLower.includes('male') || nameLower.includes('daniel') || 
-                       nameLower.includes('alex') || nameLower.includes('david') ||
-                       nameLower.includes('fred') || nameLower.includes('thomas');
-        
-        if (voice.gender === "female") {
-          return isRightRegion && (isFemale || !isMale);
-        } else {
-          return isRightRegion && (isMale || !isFemale);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-voice-preview', {
+        body: { 
+          voiceId: voice.id, 
+          businessName: businessName || 'your business' 
         }
       });
-      
-      // Fallback to any voice in that region
-      if (!matchingVoice) {
-        matchingVoice = langVoices.find(v => v.lang.includes(region));
-      }
-    }
-    
-    // Fallback to any voice in the language with gender preference
-    if (!matchingVoice) {
-      matchingVoice = langVoices.find(v => {
-        const nameLower = v.name.toLowerCase();
-        if (voice.gender === "female") {
-          return !nameLower.includes('male') || nameLower.includes('female');
-        } else {
-          return nameLower.includes('male') || nameLower.includes('daniel') || nameLower.includes('david');
-        }
-      }) || langVoices[0];
-    }
-    
-    if (matchingVoice) {
-      utterance.voice = matchingVoice;
-    }
-    
-    utterance.lang = voice.lang || "en-GB";
-    
-    // Create distinct voice characteristics based on the voice type
-    // Each voice gets unique pitch, rate and volume adjustments
-    const voiceSettings: Record<string, { pitch: number; rate: number }> = {
-      // English voices - each sounds distinct
-      "Polly.Amy-Neural": { pitch: 1.15, rate: 1.0 },      // Higher pitch, natural British female
-      "Polly.Emma-Neural": { pitch: 1.05, rate: 0.95 },    // Warm, slightly slower
-      "Polly.Arthur-Neural": { pitch: 0.75, rate: 0.95 },  // Deep professional male
-      "Polly.Brian-Neural": { pitch: 0.85, rate: 1.05 },   // Confident, slightly faster
-      "Polly.Joanna-Neural": { pitch: 1.1, rate: 1.0 },    // Friendly US female
-      "Polly.Kendra-Neural": { pitch: 1.0, rate: 0.98 },   // Professional, measured
-      "Polly.Salli-Neural": { pitch: 1.08, rate: 0.92 },   // Warm, relaxed
-      "Polly.Matthew-Neural": { pitch: 0.8, rate: 1.0 },   // Natural US male
-      "Polly.Stephen-Neural": { pitch: 0.7, rate: 0.9 },   // Deep, authoritative
-      // Spanish voices
-      "Polly.Lucia-Neural": { pitch: 1.12, rate: 1.0 },
-      "Polly.Lupe-Neural": { pitch: 1.05, rate: 0.95 },
-      "Polly.Mia-Neural": { pitch: 1.0, rate: 1.02 },
-      "Polly.Sergio-Neural": { pitch: 0.78, rate: 0.98 },
-      "Polly.Andres-Neural": { pitch: 0.85, rate: 1.0 },
-      // French voices
-      "Polly.Lea-Neural": { pitch: 1.1, rate: 1.0 },
-      "Polly.Remi-Neural": { pitch: 0.8, rate: 0.95 },
-      "Polly.Gabrielle-Neural": { pitch: 1.05, rate: 0.98 },
-      "Polly.Liam-Neural": { pitch: 0.75, rate: 1.0 },
-      // German voices
-      "Polly.Vicki-Neural": { pitch: 1.08, rate: 1.0 },
-      "Polly.Hannah-Neural": { pitch: 1.02, rate: 0.95 },
-      "Polly.Daniel-Neural": { pitch: 0.82, rate: 0.98 },
-    };
-    
-    const settings = voiceSettings[voice.id] || { 
-      pitch: voice.gender === "female" ? 1.1 : 0.8, 
-      rate: 1.0 
-    };
-    
-    utterance.pitch = settings.pitch;
-    utterance.rate = settings.rate;
 
-    utterance.onstart = () => setPlayingVoiceId(voice.id);
-    utterance.onend = () => setPlayingVoiceId(null);
-    utterance.onerror = () => {
-      setPlayingVoiceId(null);
-      toast.error("Could not play voice preview");
-    };
+      if (error) throw error;
+      if (!data?.audioUrl) throw new Error('No audio received');
 
-    speechSynthRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
+      // Create and play audio
+      const audio = new Audio(data.audioUrl);
+      audioRef.current = audio;
+
+      audio.onplay = () => {
+        setPlayingVoiceId(voice.id);
+        setLoadingVoiceId(null);
+      };
+
+      audio.onended = () => {
+        setPlayingVoiceId(null);
+        audioRef.current = null;
+      };
+
+      audio.onerror = () => {
+        setPlayingVoiceId(null);
+        setLoadingVoiceId(null);
+        toast.error("Could not play voice preview");
+      };
+
+      await audio.play();
+    } catch (error) {
+      console.error('Voice preview error:', error);
+      setLoadingVoiceId(null);
+      toast.error("Could not generate voice preview");
+    }
   };
 
   const stopPreview = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
     }
     setPlayingVoiceId(null);
   };
@@ -225,6 +132,7 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage 
   const renderVoiceCard = (voice: Voice) => {
     const isSelected = selectedVoiceId === voice.id;
     const isPlaying = playingVoiceId === voice.id;
+    const isLoading = loadingVoiceId === voice.id;
 
     return (
       <div
@@ -250,9 +158,12 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage 
           size="icon"
           className="h-8 w-8 shrink-0"
           onClick={(e) => isPlaying ? stopPreview(e) : playVoicePreview(voice, e)}
+          disabled={isLoading}
           title={isPlaying ? "Stop preview" : "Play preview"}
         >
-          {isPlaying ? (
+          {isLoading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : isPlaying ? (
             <Square className="h-3.5 w-3.5 fill-current" />
           ) : (
             <Play className="h-3.5 w-3.5" />
@@ -293,8 +204,7 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage 
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-4 space-y-4">
           <p className="text-sm text-muted-foreground">
-            Select a voice for your phone assistant. Click play to hear a preview. 
-            <span className="text-xs italic block mt-1">Note: Previews are approximate - actual call quality is higher.</span>
+            Select a natural-sounding voice for your phone assistant. Click play to hear each voice.
           </p>
 
           {/* Female Voices */}
