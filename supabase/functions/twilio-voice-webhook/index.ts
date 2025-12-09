@@ -58,11 +58,11 @@ function getDefaultElevenLabsVoiceId(voiceGender: string): string {
   }
 }
 
-// Generate audio using ElevenLabs TTS
-async function generateElevenLabsAudio(
+// Generate audio using ElevenLabs TTS - returns base64 for data URI (faster than storage)
+async function generateElevenLabsAudioBase64(
   text: string,
   voiceId: string
-): Promise<ArrayBuffer | null> {
+): Promise<string | null> {
   const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
   if (!apiKey) {
     console.error("[ElevenLabs] API key not configured");
@@ -70,6 +70,9 @@ async function generateElevenLabsAudio(
   }
 
   try {
+    console.log("[ElevenLabs] Generating audio for:", text.substring(0, 50) + "...");
+    const startTime = Date.now();
+    
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
       {
@@ -85,8 +88,8 @@ async function generateElevenLabsAudio(
           voice_settings: {
             stability: 0.5,
             similarity_boost: 0.75,
-            style: 0.3, // Slight expressiveness for natural conversation
-            use_speaker_boost: true,
+            style: 0.0, // Reduced for faster generation
+            use_speaker_boost: false, // Disabled for speed
           },
         }),
       }
@@ -98,42 +101,27 @@ async function generateElevenLabsAudio(
       return null;
     }
 
-    return await response.arrayBuffer();
+    const audioBuffer = await response.arrayBuffer();
+    console.log("[ElevenLabs] Audio generated in", Date.now() - startTime, "ms");
+    
+    // Convert to base64
+    const uint8Array = new Uint8Array(audioBuffer);
+    let binary = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+      binary += String.fromCharCode(...chunk);
+    }
+    return btoa(binary);
   } catch (error) {
     console.error("[ElevenLabs] Error generating audio:", error);
     return null;
   }
 }
 
-// Upload audio to Supabase storage and get public URL
-async function uploadAudioToStorage(
-  supabase: any,
-  audioBuffer: ArrayBuffer,
-  fileName: string
-): Promise<string | null> {
-  try {
-    const { data, error } = await supabase.storage
-      .from("call-recordings")
-      .upload(`tts/${fileName}`, audioBuffer, {
-        contentType: "audio/mpeg",
-        upsert: true,
-      });
-
-    if (error) {
-      console.error("[Storage] Upload error:", error);
-      return null;
-    }
-
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from("call-recordings")
-      .getPublicUrl(`tts/${fileName}`);
-
-    return urlData?.publicUrl || null;
-  } catch (error) {
-    console.error("[Storage] Error uploading audio:", error);
-    return null;
-  }
+// Create data URI from base64 audio (faster than storage upload)
+function createAudioDataUri(base64Audio: string): string {
+  return `data:audio/mpeg;base64,${base64Audio}`;
 }
 
 // Get Polly voice as fallback
@@ -382,30 +370,28 @@ Deno.serve(async (req) => {
     const continueUrl = `${supabaseUrl}/functions/v1/twilio-voice-continue/${token}`;
     const recordingCallbackUrl = `${supabaseUrl}/functions/v1/twilio-recording-callback/${token}`;
 
-    // Try to generate ElevenLabs audio for more natural voice
+    // Try to generate ElevenLabs audio for more natural voice (fast path - no storage)
     let greetingAudioUrl: string | null = null;
     let gatherAudioUrl: string | null = null;
     
     const elevenlabsKey = Deno.env.get("ELEVENLABS_API_KEY");
     if (elevenlabsKey) {
-      console.log("[TwilioWebhook] Generating ElevenLabs audio...");
+      console.log("[TwilioWebhook] Generating ElevenLabs audio (fast mode)...");
       
       // Generate audio for greeting and gather prompt in parallel
-      const [greetingAudio, gatherAudio] = await Promise.all([
-        generateElevenLabsAudio(greetingText, elevenLabsVoiceId),
-        generateElevenLabsAudio(gatherPromptText, elevenLabsVoiceId),
+      const [greetingBase64, gatherBase64] = await Promise.all([
+        generateElevenLabsAudioBase64(greetingText, elevenLabsVoiceId),
+        generateElevenLabsAudioBase64(gatherPromptText, elevenLabsVoiceId),
       ]);
 
-      if (greetingAudio) {
-        const greetingFileName = `greeting_${callSid}_${Date.now()}.mp3`;
-        greetingAudioUrl = await uploadAudioToStorage(supabase, greetingAudio, greetingFileName);
-        console.log("[TwilioWebhook] Greeting audio URL:", greetingAudioUrl ? "generated" : "failed");
+      if (greetingBase64) {
+        greetingAudioUrl = createAudioDataUri(greetingBase64);
+        console.log("[TwilioWebhook] Greeting audio: data URI generated");
       }
 
-      if (gatherAudio) {
-        const gatherFileName = `gather_${callSid}_${Date.now()}.mp3`;
-        gatherAudioUrl = await uploadAudioToStorage(supabase, gatherAudio, gatherFileName);
-        console.log("[TwilioWebhook] Gather audio URL:", gatherAudioUrl ? "generated" : "failed");
+      if (gatherBase64) {
+        gatherAudioUrl = createAudioDataUri(gatherBase64);
+        console.log("[TwilioWebhook] Gather audio: data URI generated");
       }
     } else {
       console.log("[TwilioWebhook] ElevenLabs API key not set, using Polly fallback");
