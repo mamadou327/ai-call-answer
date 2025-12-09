@@ -18,24 +18,116 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
-function getPollyVoice(voiceGender: string, primaryLanguage: string): string {
-  if (primaryLanguage?.toLowerCase().includes("english")) {
-    return voiceGender === "male" ? "Polly.Brian-Neural" : "Polly.Amy-Neural";
+// Default ElevenLabs voice IDs
+const DEFAULT_VOICES = {
+  female: "EXAVITQu4vr4xnSDxMaL", // Sarah
+  male: "CwhRBWXzGAHq8TQ4Fs17", // Roger
+};
+
+// Generate audio with ElevenLabs and upload to storage
+async function generateAndUploadAudio(
+  supabase: any,
+  text: string,
+  voiceId: string,
+  callSid: string,
+  messageId: string
+): Promise<string | null> {
+  const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
+  
+  if (!ELEVENLABS_API_KEY) {
+    console.error("[VoiceContinue] ELEVENLABS_API_KEY not configured");
+    return null;
   }
-  return voiceGender === "male" ? "Polly.Matthew-Neural" : "Polly.Joanna-Neural";
+
+  try {
+    console.log(`[VoiceContinue] Generating ElevenLabs audio`);
+    const startTime = Date.now();
+    
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": ELEVENLABS_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_turbo_v2_5", // Fastest model
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[VoiceContinue] ElevenLabs API error:", response.status, errorText);
+      return null;
+    }
+
+    const audioBuffer = await response.arrayBuffer();
+    console.log(`[VoiceContinue] ElevenLabs audio generated in ${Date.now() - startTime}ms`);
+
+    // Upload to storage
+    const fileName = `voice-responses/${callSid}/${messageId}-${Date.now()}.mp3`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from("call-recordings")
+      .upload(fileName, audioBuffer, {
+        contentType: "audio/mpeg",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error("[VoiceContinue] Storage upload error:", uploadError);
+      return null;
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from("call-recordings")
+      .getPublicUrl(fileName);
+
+    console.log(`[VoiceContinue] Audio uploaded, total time: ${Date.now() - startTime}ms`);
+    return urlData?.publicUrl || null;
+  } catch (error) {
+    console.error("[VoiceContinue] Error generating audio:", error);
+    return null;
+  }
 }
 
-function getSpeechRate(voiceSpeed: string): string {
-  switch (voiceSpeed) {
-    case "slow": return "95%";
-    case "fast": return "115%";
-    default: return "108%"; // Slightly faster than default for natural pace
-  }
+// TwiML with ElevenLabs audio
+function twimlContinueWithAudio(audioUrl: string, actionUrl: string, timeout: number = 6): Response {
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
+    <Play>${audioUrl}</Play>
+  </Gather>
+  <Say voice="Polly.Amy-Neural" language="en-GB"><prosody rate="108%">I didn't hear anything. If you need help, just give us another call. Goodbye!</prosody></Say>
+  <Hangup/>
+</Response>`;
+  
+  return new Response(twiml, {
+    headers: { ...corsHeaders, "Content-Type": "text/xml" },
+  });
 }
 
-// Note: ElevenLabs audio generation removed - Twilio doesn't support data URIs
-// and storage uploads add too much latency. Using Polly voices instead for speed.
+function twimlEndWithAudio(audioUrl: string): Response {
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Play>${audioUrl}</Play>
+  <Hangup/>
+</Response>`;
+  
+  return new Response(twiml, {
+    headers: { ...corsHeaders, "Content-Type": "text/xml" },
+  });
+}
 
+// Fallback Polly TwiML functions
 function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: string = "108%", timeout: number = 6): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -70,6 +162,21 @@ function twimlClarify(sayText: string, actionUrl: string, voice: string, rate: s
     <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I still didn't catch that. Please call back if you need help. Goodbye!</prosody></Say>
+  <Hangup/>
+</Response>`;
+  
+  return new Response(twiml, {
+    headers: { ...corsHeaders, "Content-Type": "text/xml" },
+  });
+}
+
+function twimlClarifyWithAudio(audioUrl: string, actionUrl: string): Response {
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="auto" language="en-GB">
+    <Play>${audioUrl}</Play>
+  </Gather>
+  <Say voice="Polly.Amy-Neural" language="en-GB"><prosody rate="108%">I still didn't catch that. Please call back if you need help. Goodbye!</prosody></Say>
   <Hangup/>
 </Response>`;
   
@@ -1165,8 +1272,10 @@ Deno.serve(async (req) => {
       .eq("business_id", business.id)
       .maybeSingle();
 
-    const voice = getPollyVoice(settings?.voice_gender || "female", settings?.primary_language || "English");
-    const rate = getSpeechRate(settings?.voice_speed || "normal");
+    // Determine ElevenLabs voice ID
+    const voiceId = settings?.elevenlabs_voice_id || DEFAULT_VOICES[settings?.voice_gender as keyof typeof DEFAULT_VOICES] || DEFAULT_VOICES.female;
+    const pollyVoice = settings?.voice_gender === "male" ? "Polly.Brian-Neural" : "Polly.Amy-Neural";
+    const rate = "108%";
     const assistantName = settings?.assistant_name || "Aivia";
     const continueUrl = `${supabaseUrl}/functions/v1/twilio-voice-continue/${token}`;
 
@@ -1175,12 +1284,14 @@ Deno.serve(async (req) => {
       console.log("[VoiceContinue] No speech detected, asking for clarification");
       const clarifyText = "Sorry, I didn't catch that. Could you please repeat what you need help with?";
       
-      return twimlClarify(
-        clarifyText,
-        continueUrl,
-        voice,
-        rate
-      );
+      // Try ElevenLabs first
+      const audioUrl = await generateAndUploadAudio(supabase, clarifyText, voiceId, callSid, `clarify-${Date.now()}`);
+      if (audioUrl) {
+        return twimlClarifyWithAudio(audioUrl, continueUrl);
+      }
+      
+      // Fallback to Polly
+      return twimlClarify(clarifyText, continueUrl, pollyVoice, rate);
     }
 
     // Get or create conversation
@@ -1354,11 +1465,22 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
         })
         .eq("twilio_call_sid", callSid);
 
-      return twimlEnd(aiResult.reply, voice, rate);
+      // Try ElevenLabs for end message
+      const endAudioUrl = await generateAndUploadAudio(supabase, aiResult.reply, voiceId, callSid, `end-${Date.now()}`);
+      if (endAudioUrl) {
+        return twimlEndWithAudio(endAudioUrl);
+      }
+      return twimlEnd(aiResult.reply, pollyVoice, rate);
     }
 
-    // Continue the conversation
-    return twimlContinue(aiResult.reply, continueUrl, voice, rate, 6);
+    // Continue the conversation with ElevenLabs
+    const continueAudioUrl = await generateAndUploadAudio(supabase, aiResult.reply, voiceId, callSid, `reply-${Date.now()}`);
+    if (continueAudioUrl) {
+      return twimlContinueWithAudio(continueAudioUrl, continueUrl, 6);
+    }
+    
+    // Fallback to Polly
+    return twimlContinue(aiResult.reply, continueUrl, pollyVoice, rate, 6);
 
   } catch (error) {
     console.error("[VoiceContinue] Error:", error);
