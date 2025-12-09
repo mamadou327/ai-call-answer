@@ -79,42 +79,129 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage 
   const selectedVoice = voices.find(v => v.id === selectedVoiceId);
 
   const playVoicePreview = (voice: Voice, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent selecting the voice when clicking play
+    e.stopPropagation();
 
-    // Cancel any current speech
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
 
-    // If already playing this voice, stop it
     if (playingVoiceId === voice.id) {
       setPlayingVoiceId(null);
       return;
     }
 
-    // Check if Web Speech API is available
     if (!window.speechSynthesis) {
       toast.error("Voice preview not supported in this browser");
       return;
     }
 
+    // Wait for voices to load
+    let availableVoices = window.speechSynthesis.getVoices();
+    if (availableVoices.length === 0) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        availableVoices = window.speechSynthesis.getVoices();
+        speakWithVoice(voice, availableVoices);
+      };
+    } else {
+      speakWithVoice(voice, availableVoices);
+    }
+  };
+
+  const speakWithVoice = (voice: Voice, availableVoices: SpeechSynthesisVoice[]) => {
     const sampleText = SAMPLE_TEXTS[primaryLanguage] || SAMPLE_TEXTS.English;
     const utterance = new SpeechSynthesisUtterance(sampleText);
-    utterance.lang = voice.lang || "en-GB";
     
-    // Try to find a matching voice
-    const availableVoices = window.speechSynthesis.getVoices();
-    const matchingVoice = availableVoices.find(v => 
-      v.lang.startsWith(voice.lang?.split("-")[0] || "en") &&
-      (voice.gender === "female" ? !v.name.toLowerCase().includes("male") : v.name.toLowerCase().includes("male"))
-    ) || availableVoices.find(v => v.lang.startsWith(voice.lang?.split("-")[0] || "en"));
+    // Get the base language code (e.g., "en" from "en-GB")
+    const baseLang = voice.lang?.split("-")[0] || "en";
+    const region = voice.lang?.split("-")[1] || "";
+    
+    // Find voices matching the language and try to match gender
+    const langVoices = availableVoices.filter(v => v.lang.startsWith(baseLang));
+    
+    // Prioritize voices that match the specific region (e.g., en-GB vs en-US)
+    let matchingVoice: SpeechSynthesisVoice | undefined;
+    
+    if (region) {
+      // Try to find exact regional match with gender preference
+      matchingVoice = langVoices.find(v => {
+        const isRightRegion = v.lang.includes(region);
+        const nameLower = v.name.toLowerCase();
+        const isFemale = nameLower.includes('female') || nameLower.includes('samantha') || 
+                         nameLower.includes('victoria') || nameLower.includes('karen') ||
+                         nameLower.includes('moira') || nameLower.includes('fiona') ||
+                         nameLower.includes('zira') || nameLower.includes('hazel');
+        const isMale = nameLower.includes('male') || nameLower.includes('daniel') || 
+                       nameLower.includes('alex') || nameLower.includes('david') ||
+                       nameLower.includes('fred') || nameLower.includes('thomas');
+        
+        if (voice.gender === "female") {
+          return isRightRegion && (isFemale || !isMale);
+        } else {
+          return isRightRegion && (isMale || !isFemale);
+        }
+      });
+      
+      // Fallback to any voice in that region
+      if (!matchingVoice) {
+        matchingVoice = langVoices.find(v => v.lang.includes(region));
+      }
+    }
+    
+    // Fallback to any voice in the language with gender preference
+    if (!matchingVoice) {
+      matchingVoice = langVoices.find(v => {
+        const nameLower = v.name.toLowerCase();
+        if (voice.gender === "female") {
+          return !nameLower.includes('male') || nameLower.includes('female');
+        } else {
+          return nameLower.includes('male') || nameLower.includes('daniel') || nameLower.includes('david');
+        }
+      }) || langVoices[0];
+    }
     
     if (matchingVoice) {
       utterance.voice = matchingVoice;
     }
-
-    utterance.rate = 1.0;
-    utterance.pitch = voice.gender === "female" ? 1.1 : 0.9;
+    
+    utterance.lang = voice.lang || "en-GB";
+    
+    // Create distinct voice characteristics based on the voice type
+    // Each voice gets unique pitch, rate and volume adjustments
+    const voiceSettings: Record<string, { pitch: number; rate: number }> = {
+      // English voices - each sounds distinct
+      "Polly.Amy-Neural": { pitch: 1.15, rate: 1.0 },      // Higher pitch, natural British female
+      "Polly.Emma-Neural": { pitch: 1.05, rate: 0.95 },    // Warm, slightly slower
+      "Polly.Arthur-Neural": { pitch: 0.75, rate: 0.95 },  // Deep professional male
+      "Polly.Brian-Neural": { pitch: 0.85, rate: 1.05 },   // Confident, slightly faster
+      "Polly.Joanna-Neural": { pitch: 1.1, rate: 1.0 },    // Friendly US female
+      "Polly.Kendra-Neural": { pitch: 1.0, rate: 0.98 },   // Professional, measured
+      "Polly.Salli-Neural": { pitch: 1.08, rate: 0.92 },   // Warm, relaxed
+      "Polly.Matthew-Neural": { pitch: 0.8, rate: 1.0 },   // Natural US male
+      "Polly.Stephen-Neural": { pitch: 0.7, rate: 0.9 },   // Deep, authoritative
+      // Spanish voices
+      "Polly.Lucia-Neural": { pitch: 1.12, rate: 1.0 },
+      "Polly.Lupe-Neural": { pitch: 1.05, rate: 0.95 },
+      "Polly.Mia-Neural": { pitch: 1.0, rate: 1.02 },
+      "Polly.Sergio-Neural": { pitch: 0.78, rate: 0.98 },
+      "Polly.Andres-Neural": { pitch: 0.85, rate: 1.0 },
+      // French voices
+      "Polly.Lea-Neural": { pitch: 1.1, rate: 1.0 },
+      "Polly.Remi-Neural": { pitch: 0.8, rate: 0.95 },
+      "Polly.Gabrielle-Neural": { pitch: 1.05, rate: 0.98 },
+      "Polly.Liam-Neural": { pitch: 0.75, rate: 1.0 },
+      // German voices
+      "Polly.Vicki-Neural": { pitch: 1.08, rate: 1.0 },
+      "Polly.Hannah-Neural": { pitch: 1.02, rate: 0.95 },
+      "Polly.Daniel-Neural": { pitch: 0.82, rate: 0.98 },
+    };
+    
+    const settings = voiceSettings[voice.id] || { 
+      pitch: voice.gender === "female" ? 1.1 : 0.8, 
+      rate: 1.0 
+    };
+    
+    utterance.pitch = settings.pitch;
+    utterance.rate = settings.rate;
 
     utterance.onstart = () => setPlayingVoiceId(voice.id);
     utterance.onend = () => setPlayingVoiceId(null);
@@ -206,7 +293,8 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage 
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-4 space-y-4">
           <p className="text-sm text-muted-foreground">
-            Select a natural-sounding voice for your phone assistant. Voices are filtered based on your primary language.
+            Select a voice for your phone assistant. Click play to hear a preview. 
+            <span className="text-xs italic block mt-1">Note: Previews are approximate - actual call quality is higher.</span>
           </p>
 
           {/* Female Voices */}
