@@ -761,7 +761,10 @@ ACTION PARAMETERS:
   NOTE: service_name AND staff_name are REQUIRED - do not create booking without both
 - cancel_booking: { booking_code or customer_name }
 - reschedule_booking: { booking_code or customer_name, new_date, new_time }
-- leave_message: { message, recipient_type ("all"|"owner"|"staff"), recipient_staff_name (if for specific staff), is_urgent (boolean) }
+- leave_message: { message, recipient_type ("all"|"admin"|"staff"), recipient_staff_name (if for specific staff), is_urgent (boolean) }
+  NOTE: recipient_type must be EXACTLY one of: "all", "admin", or "staff"
+
+CRITICAL: Your response must be ONLY the JSON object. Do NOT include any text before or after the JSON. Do NOT repeat the reply text outside the JSON.
 
 Set shouldEnd = true ONLY when caller says goodbye or is done.`;
 
@@ -807,16 +810,58 @@ Set shouldEnd = true ONLY when caller says goodbye or is done.`;
     if (content.endsWith("```")) content = content.slice(0, -3);
     content = content.trim();
 
+    // Try to extract the first valid JSON object from the content
+    // Sometimes the AI outputs text followed by JSON, or multiple JSON objects
+    let parsed: any = null;
+    
+    // First, try parsing the whole content
     try {
-      const parsed = JSON.parse(content);
+      parsed = JSON.parse(content);
+    } catch {
+      // Look for a JSON object pattern in the content
+      const jsonMatch = content.match(/\{[\s\S]*?"reply"\s*:\s*"[^"]*"[\s\S]*?\}/);
+      if (jsonMatch) {
+        try {
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch {
+          // Try to find just the first complete JSON object
+          let braceCount = 0;
+          let startIdx = -1;
+          for (let i = 0; i < content.length; i++) {
+            if (content[i] === '{') {
+              if (startIdx === -1) startIdx = i;
+              braceCount++;
+            } else if (content[i] === '}') {
+              braceCount--;
+              if (braceCount === 0 && startIdx !== -1) {
+                try {
+                  parsed = JSON.parse(content.substring(startIdx, i + 1));
+                  break;
+                } catch { startIdx = -1; }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (parsed && parsed.reply) {
+      // Clean up the reply - remove any embedded JSON that got duplicated
+      let cleanReply = parsed.reply;
+      const jsonInReply = cleanReply.indexOf('\n{');
+      if (jsonInReply > 0) {
+        cleanReply = cleanReply.substring(0, jsonInReply).trim();
+      }
+      
       return {
-        reply: parsed.reply || "How can I help you?",
+        reply: cleanReply || "How can I help you?",
         action: parsed.action || null,
         shouldEnd: parsed.shouldEnd === true
       };
-    } catch {
-      return { reply: content || "How can I help you?", shouldEnd: false };
     }
+    
+    // Fallback: just return the content as reply
+    return { reply: content || "How can I help you?", shouldEnd: false };
   } catch (error) {
     console.error("[VoiceAI] Error calling AI:", error);
     return {
