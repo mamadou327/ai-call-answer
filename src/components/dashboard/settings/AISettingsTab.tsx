@@ -173,6 +173,7 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
               <VoiceSelector
                 selectedVoiceId={settingsData.elevenlabs_voice_id}
                 onVoiceSelect={(voiceId) => setSettingsData({ ...settingsData, elevenlabs_voice_id: voiceId })}
+                businessName={business?.business_name || "your business"}
               />
             </div>
 
