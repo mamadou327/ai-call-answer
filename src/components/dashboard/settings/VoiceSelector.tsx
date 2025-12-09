@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Play, Pause, Volume2, ChevronDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -13,16 +14,16 @@ interface Voice {
   gender: "female" | "male" | "neutral";
 }
 
+// British ElevenLabs voices only
 const ELEVENLABS_VOICES: Voice[] = [
-  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", description: "Warm & natural", gender: "female" },
-  { id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", description: "Calm & professional", gender: "female" },
-  { id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte", description: "Friendly & warm", gender: "female" },
-  { id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", description: "Soft & gentle", gender: "female" },
-  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", description: "Warm & professional", gender: "male" },
-  { id: "nPczCjzI2devNBz1zQrb", name: "Brian", description: "Conversational", gender: "male" },
-  { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", description: "Friendly & clear", gender: "male" },
-  { id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam", description: "Young & energetic", gender: "male" },
-  { id: "SAz9YHcvj6GT2YYXdXww", name: "River", description: "Neutral & smooth", gender: "neutral" },
+  { id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte", description: "Warm & friendly British", gender: "female" },
+  { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", description: "Confident British", gender: "female" },
+  { id: "ThT5KcBeYPX3keUQqHPh", name: "Dorothy", description: "Pleasant British", gender: "female" },
+  { id: "cgSgspJ2msm6clMCkdW9", name: "Jessica", description: "Expressive British", gender: "female" },
+  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", description: "Warm British professional", gender: "male" },
+  { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", description: "Authoritative British", gender: "male" },
+  { id: "SOYHLrjzK2X1ezoPC6cr", name: "Harry", description: "Young British", gender: "male" },
+  { id: "N2lVS1w4EtoT3dr4eOWO", name: "Callum", description: "Intense British", gender: "male" },
 ];
 
 interface VoiceSelectorProps {
@@ -36,7 +37,17 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const [audioCache, setAudioCache] = useState<Record<string, string>>({});
+  const [customVoiceId, setCustomVoiceId] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Check if selected voice is a custom one (not in our list)
+  const isCustomVoice = selectedVoiceId && !ELEVENLABS_VOICES.find(v => v.id === selectedVoiceId);
+
+  useEffect(() => {
+    if (isCustomVoice && selectedVoiceId) {
+      setCustomVoiceId(selectedVoiceId);
+    }
+  }, [selectedVoiceId, isCustomVoice]);
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -48,7 +59,7 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
     };
   }, []);
 
-  const handlePlayPreview = async (voice: Voice) => {
+  const handlePlayPreview = async (voiceId: string) => {
     // Stop current audio if playing
     if (audioRef.current) {
       audioRef.current.pause();
@@ -56,29 +67,29 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
     }
 
     // If clicking same voice, just stop
-    if (playingVoiceId === voice.id) {
+    if (playingVoiceId === voiceId) {
       setPlayingVoiceId(null);
       return;
     }
 
     // Check cache first
-    if (audioCache[voice.id]) {
-      playAudio(voice.id, audioCache[voice.id]);
+    if (audioCache[voiceId]) {
+      playAudio(voiceId, audioCache[voiceId]);
       return;
     }
 
     // Generate new audio
-    setLoadingVoiceId(voice.id);
+    setLoadingVoiceId(voiceId);
     try {
       const { data, error } = await supabase.functions.invoke("generate-voice-preview", {
-        body: { voiceId: voice.id, businessName: businessName || "your business" },
+        body: { voiceId, businessName: businessName || "your business" },
       });
 
       if (error) throw error;
 
       // Cache the audio
-      setAudioCache(prev => ({ ...prev, [voice.id]: data.audioUrl }));
-      playAudio(voice.id, data.audioUrl);
+      setAudioCache(prev => ({ ...prev, [voiceId]: data.audioUrl }));
+      playAudio(voiceId, data.audioUrl);
     } catch (error) {
       console.error("Error generating preview:", error);
     } finally {
@@ -98,6 +109,12 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
     };
   };
 
+  const handleCustomVoiceSubmit = () => {
+    if (customVoiceId.trim()) {
+      onVoiceSelect(customVoiceId.trim());
+    }
+  };
+
   const selectedVoice = ELEVENLABS_VOICES.find(v => v.id === selectedVoiceId);
 
   const renderVoiceCard = (voice: Voice) => {
@@ -114,7 +131,10 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/50 hover:bg-muted/50"
         )}
-        onClick={() => onVoiceSelect(voice.id)}
+        onClick={() => {
+          onVoiceSelect(voice.id);
+          setCustomVoiceId("");
+        }}
       >
         <Button
           type="button"
@@ -124,7 +144,7 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
           disabled={isLoading}
           onClick={(e) => {
             e.stopPropagation();
-            handlePlayPreview(voice);
+            handlePlayPreview(voice.id);
           }}
         >
           {isLoading ? (
@@ -152,7 +172,6 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
 
   const femaleVoices = ELEVENLABS_VOICES.filter(v => v.gender === "female");
   const maleVoices = ELEVENLABS_VOICES.filter(v => v.gender === "male");
-  const neutralVoices = ELEVENLABS_VOICES.filter(v => v.gender === "neutral");
 
   return (
     <div className="space-y-2">
@@ -166,16 +185,18 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
             <div className="flex items-center gap-2">
               <Volume2 className="h-4 w-4 text-muted-foreground" />
               <span>AI Voice</span>
-              {selectedVoice && (
+              {selectedVoice ? (
                 <span className="text-muted-foreground">— {selectedVoice.name}</span>
-              )}
+              ) : isCustomVoice ? (
+                <span className="text-muted-foreground">— Custom Voice</span>
+              ) : null}
             </div>
             <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-4 space-y-4">
           <p className="text-sm text-muted-foreground">
-            Click play to hear each voice say your business greeting, then select your preferred voice.
+            Click play to hear each voice say your business greeting, then select your preferred British voice.
           </p>
 
           {/* Female Voices */}
@@ -194,12 +215,46 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
             </div>
           </div>
 
-          {/* Neutral Voices */}
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Neutral Voices</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {neutralVoices.map(renderVoiceCard)}
+          {/* Custom Voice ID */}
+          <div className="space-y-2 pt-4 border-t">
+            <Label className="text-sm font-medium">Custom ElevenLabs Voice ID</Label>
+            <p className="text-xs text-muted-foreground">
+              Have your own ElevenLabs voice? Paste the Voice ID here.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="e.g. EXAVITQu4vr4xnSDxMaL"
+                value={customVoiceId}
+                onChange={(e) => setCustomVoiceId(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={!customVoiceId.trim() || loadingVoiceId === customVoiceId}
+                onClick={() => handlePlayPreview(customVoiceId.trim())}
+              >
+                {loadingVoiceId === customVoiceId ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : playingVoiceId === customVoiceId ? (
+                  <Pause className="h-4 w-4" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleCustomVoiceSubmit}
+                disabled={!customVoiceId.trim()}
+              >
+                Use This Voice
+              </Button>
             </div>
+            {isCustomVoice && (
+              <p className="text-xs text-primary">Currently using custom voice ID</p>
+            )}
           </div>
         </CollapsibleContent>
       </Collapsible>
