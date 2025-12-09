@@ -629,13 +629,23 @@ CONVERSATION FLOW - NATURAL DIALOGUE
 - Add natural fillers occasionally: "Lovely", "Perfect", "Great"
 
 ═══════════════════════════════════════════════════════════════
+TAKING MESSAGES (STEP 5)
+═══════════════════════════════════════════════════════════════
+
+When a caller wants to leave a message:
+- Ask who the message is for (business owner, specific staff, or all staff)
+- Ask what message they'd like to leave
+- Confirm the message back to them
+- Mark as urgent if they mention it's urgent or time-sensitive
+
+═══════════════════════════════════════════════════════════════
 RESPONSE FORMAT (JSON)
 ═══════════════════════════════════════════════════════════════
 
 Always respond with valid JSON:
 {
   "reply": "What you say to the caller",
-  "action": null or { "type": "create_booking|cancel_booking|reschedule_booking", "params": {...} },
+  "action": null or { "type": "create_booking|cancel_booking|reschedule_booking|leave_message", "params": {...} },
   "shouldEnd": false or true
 }
 
@@ -644,6 +654,7 @@ ACTION PARAMETERS:
   NOTE: service_name AND staff_name are REQUIRED - do not create booking without both
 - cancel_booking: { booking_code or customer_name }
 - reschedule_booking: { booking_code or customer_name, new_date, new_time }
+- leave_message: { message, recipient_type ("all"|"owner"|"staff"), recipient_staff_name (if for specific staff), is_urgent (boolean) }
 
 Set shouldEnd = true ONLY when caller says goodbye or is done.`;
 
@@ -734,7 +745,57 @@ async function executeAction(
     return await handleRescheduleBooking(supabase, businessId, params, context);
   }
 
+  if (type === "leave_message") {
+    return await handleLeaveMessage(supabase, businessId, params, context);
+  }
+
   return { success: false };
+}
+
+async function handleLeaveMessage(
+  supabase: any,
+  businessId: string,
+  params: any,
+  context: any
+): Promise<{ success: boolean; error?: string }> {
+  const { message, recipient_type, recipient_staff_name, is_urgent } = params;
+
+  if (!message || message.trim() === "") {
+    return { success: false, error: "I didn't catch the message. What would you like me to pass on?" };
+  }
+
+  // Find staff ID if message is for specific staff
+  let recipientStaffId = null;
+  if (recipient_type === "staff" && recipient_staff_name && context.staff) {
+    const staff = context.staff.find((s: any) => 
+      s.name.toLowerCase().includes(recipient_staff_name.toLowerCase()) ||
+      recipient_staff_name.toLowerCase().includes(s.name.toLowerCase())
+    );
+    if (staff) {
+      recipientStaffId = staff.id;
+    }
+  }
+
+  const { error } = await supabase
+    .from("messages")
+    .insert({
+      business_id: businessId,
+      caller_phone: context.callerPhone,
+      caller_name: context.callerName || null,
+      content: message,
+      recipient_type: recipient_type || "all",
+      recipient_staff_id: recipientStaffId,
+      is_urgent: is_urgent === true,
+      is_read: false,
+    });
+
+  if (error) {
+    console.error("[VoiceAction] Leave message error:", error);
+    return { success: false, error: "I couldn't save that message. Would you like to try again?" };
+  }
+
+  console.log("[VoiceAction] Message saved successfully");
+  return { success: true };
 }
 
 async function handleCreateBooking(
@@ -1247,11 +1308,12 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
     // Execute any actions
     let actionResult: { success: boolean; code?: string; error?: string } = { success: false };
     if (aiResult.action) {
-      actionResult = await executeAction(supabase, business.id, aiResult.action, { 
+    actionResult = await executeAction(supabase, business.id, aiResult.action, { 
         services, 
         staff, 
         openingHours,
-        callerPhone: fromNumber
+        callerPhone: fromNumber,
+        callerName: callerInfo.name || null
       });
       console.log("[VoiceContinue] Action result:", actionResult);
       
