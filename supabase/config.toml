@@ -6,6 +6,12 @@ verify_jwt = false
 [functions.twilio-voice-continue]
 verify_jwt = false
 
+[functions.twilio-recording-callback]
+verify_jwt = false
+
+[functions.twilio-transcription-callback]
+verify_jwt = false
+
 [functions.messagebird-voice-webhook]
 verify_jwt = false
 
