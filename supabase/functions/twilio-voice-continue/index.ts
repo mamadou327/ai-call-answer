@@ -33,16 +33,107 @@ function getSpeechRate(voiceSpeed: string): string {
   }
 }
 
-function wrapWithProsody(text: string, rate: string): string {
-  return `<prosody rate="${rate}">${text}</prosody>`;
+// ElevenLabs voice mapping based on settings (fallback if no custom voice selected)
+function getDefaultElevenLabsVoiceId(voiceGender: string): string {
+  switch (voiceGender) {
+    case "male":
+      return "JBFqnCBsd6RMkjVDRZzb"; // George - warm and professional
+    case "neutral":
+      return "SAz9YHcvj6GT2YYXdXww"; // River - neutral/androgynous
+    default:
+      return "EXAVITQu4vr4xnSDxMaL"; // Sarah - warm and natural female voice
+  }
 }
 
-function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: string = "108%", timeout: number = 6): Response {
-  // Put Say INSIDE Gather to enable barge-in (caller can interrupt while AI speaks)
+// Generate audio using ElevenLabs TTS
+async function generateElevenLabsAudio(
+  text: string,
+  voiceId: string
+): Promise<ArrayBuffer | null> {
+  const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
+  if (!apiKey) {
+    console.error("[ElevenLabs] API key not configured");
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: "POST",
+        headers: {
+          "Accept": "audio/mpeg",
+          "Content-Type": "application/json",
+          "xi-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          text: text,
+          model_id: "eleven_turbo_v2_5", // Fast, high quality, multilingual
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0.3, // Slight expressiveness for natural conversation
+            use_speaker_boost: true,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[ElevenLabs] API error:", response.status, errorText);
+      return null;
+    }
+
+    return await response.arrayBuffer();
+  } catch (error) {
+    console.error("[ElevenLabs] Error generating audio:", error);
+    return null;
+  }
+}
+
+// Upload audio to Supabase storage and get public URL
+async function uploadAudioToStorage(
+  supabase: any,
+  audioBuffer: ArrayBuffer,
+  fileName: string
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage
+      .from("call-recordings")
+      .upload(`tts/${fileName}`, audioBuffer, {
+        contentType: "audio/mpeg",
+        upsert: true,
+      });
+
+    if (error) {
+      console.error("[Storage] Upload error:", error);
+      return null;
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from("call-recordings")
+      .getPublicUrl(`tts/${fileName}`);
+
+    return urlData?.publicUrl || null;
+  } catch (error) {
+    console.error("[Storage] Error uploading audio:", error);
+    return null;
+  }
+}
+
+function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: string = "108%", timeout: number = 6, audioUrl: string | null = null): Response {
+  // Use Play if we have ElevenLabs audio, otherwise use Say with Polly
+  const playOrSay = audioUrl 
+    ? `<Play>${audioUrl}</Play>`
+    : `<Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>`;
+  
+  // Put Say/Play INSIDE Gather to enable barge-in (caller can interrupt while AI speaks)
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
-    <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
+    ${playOrSay}
   </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. If you need help, just give us another call. Goodbye!</prosody></Say>
   <Hangup/>
@@ -53,10 +144,14 @@ function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: 
   });
 }
 
-function twimlEnd(sayText: string, voice: string, rate: string = "108%"): Response {
+function twimlEnd(sayText: string, voice: string, rate: string = "108%", audioUrl: string | null = null): Response {
+  const playOrSay = audioUrl 
+    ? `<Play>${audioUrl}</Play>`
+    : `<Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>`;
+  
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
+  ${playOrSay}
   <Hangup/>
 </Response>`;
   
@@ -65,11 +160,15 @@ function twimlEnd(sayText: string, voice: string, rate: string = "108%"): Respon
   });
 }
 
-function twimlClarify(sayText: string, actionUrl: string, voice: string, rate: string = "108%"): Response {
+function twimlClarify(sayText: string, actionUrl: string, voice: string, rate: string = "108%", audioUrl: string | null = null): Response {
+  const playOrSay = audioUrl 
+    ? `<Play>${audioUrl}</Play>`
+    : `<Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>`;
+  
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="auto" language="en-GB">
-    <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
+    ${playOrSay}
   </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I still didn't catch that. Please call back if you need help. Goodbye!</prosody></Say>
   <Hangup/>
@@ -1097,7 +1196,7 @@ Deno.serve(async (req) => {
     // Get business settings
     const { data: settings } = await supabase
       .from("business_settings")
-      .select("assistant_name, tone, primary_language, voice_gender, voice_speed")
+      .select("assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id")
       .eq("business_id", business.id)
       .maybeSingle();
 
@@ -1105,15 +1204,31 @@ Deno.serve(async (req) => {
     const rate = getSpeechRate(settings?.voice_speed || "normal");
     const assistantName = settings?.assistant_name || "Aivia";
     const continueUrl = `${supabaseUrl}/functions/v1/twilio-voice-continue/${token}`;
+    
+    // Determine ElevenLabs voice ID (custom or default based on gender)
+    const elevenLabsVoiceId = settings?.elevenlabs_voice_id || getDefaultElevenLabsVoiceId(settings?.voice_gender || "female");
+    const hasElevenLabsKey = !!Deno.env.get("ELEVENLABS_API_KEY");
 
     // Handle empty speech result
     if (!speechResult || speechResult.trim() === "") {
       console.log("[VoiceContinue] No speech detected, asking for clarification");
+      const clarifyText = "Sorry, I didn't catch that. Could you please repeat what you need help with?";
+      
+      // Try to generate ElevenLabs audio for clarification
+      let clarifyAudioUrl: string | null = null;
+      if (hasElevenLabsKey) {
+        const audioBuffer = await generateElevenLabsAudio(clarifyText, elevenLabsVoiceId);
+        if (audioBuffer) {
+          clarifyAudioUrl = await uploadAudioToStorage(supabase, audioBuffer, `clarify-${callSid}-${Date.now()}.mp3`);
+        }
+      }
+      
       return twimlClarify(
-        "Sorry, I didn't catch that. Could you please repeat what you need help with?",
+        clarifyText,
         continueUrl,
         voice,
-        rate
+        rate,
+        clarifyAudioUrl
       );
     }
 
@@ -1274,6 +1389,17 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
       })
       .eq("call_sid", callSid);
 
+    // Generate ElevenLabs audio for the AI reply
+    let replyAudioUrl: string | null = null;
+    if (hasElevenLabsKey && aiResult.reply) {
+      console.log("[VoiceContinue] Generating ElevenLabs audio for reply");
+      const audioBuffer = await generateElevenLabsAudio(aiResult.reply, elevenLabsVoiceId);
+      if (audioBuffer) {
+        replyAudioUrl = await uploadAudioToStorage(supabase, audioBuffer, `reply-${callSid}-${Date.now()}.mp3`);
+        console.log("[VoiceContinue] Audio URL generated:", replyAudioUrl ? "success" : "failed");
+      }
+    }
+
     // Update call log outcome if ending
     if (aiResult.shouldEnd) {
       await supabase
@@ -1287,11 +1413,11 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
         })
         .eq("twilio_call_sid", callSid);
 
-      return twimlEnd(aiResult.reply, voice, rate);
+      return twimlEnd(aiResult.reply, voice, rate, replyAudioUrl);
     }
 
     // Continue the conversation
-    return twimlContinue(aiResult.reply, continueUrl, voice, rate);
+    return twimlContinue(aiResult.reply, continueUrl, voice, rate, 6, replyAudioUrl);
 
   } catch (error) {
     console.error("[VoiceContinue] Error:", error);
