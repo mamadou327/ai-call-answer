@@ -1,8 +1,9 @@
-import { useRef, useMemo, useState, useEffect, Suspense } from 'react';
+import { useRef, useMemo, useState, useEffect, Suspense, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Sphere, Line, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface ActivityPoint {
   id: string;
@@ -11,6 +12,7 @@ interface ActivityPoint {
   type: 'booking' | 'business';
   name: string;
   timestamp: Date;
+  isNew?: boolean; // Flag for newly added items via realtime
 }
 
 interface ArcData {
@@ -18,6 +20,7 @@ interface ArcData {
   start: THREE.Vector3;
   end: THREE.Vector3;
   color: string;
+  isNew?: boolean;
 }
 
 // Geocoding lookup - maps cities/regions to approximate coordinates
@@ -351,10 +354,156 @@ export function GlobeActivityTracker() {
   const [activities, setActivities] = useState<ActivityPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ totalBookings: 0, totalBusinesses: 0, activeRegions: 0 });
+  const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
+  const [newActivityFlash, setNewActivityFlash] = useState<string | null>(null);
+  const { toast } = useToast();
+  const businessAddressCache = useRef<Map<string, string>>(new Map());
+
+  // Handle new booking from realtime
+  const handleNewBooking = useCallback(async (payload: any) => {
+    console.log('[Globe] New booking received:', payload.new);
+    const booking = payload.new;
+    
+    // Get the business address
+    let address = businessAddressCache.current.get(booking.business_id);
+    if (!address) {
+      const { data } = await supabase
+        .from('businesses')
+        .select('address')
+        .eq('id', booking.business_id)
+        .maybeSingle();
+      address = data?.address || 'UK';
+      businessAddressCache.current.set(booking.business_id, address);
+    }
+    
+    const coords = extractLocationFromAddress(address);
+    if (coords) {
+      const newActivity: ActivityPoint = {
+        id: `book-${booking.id}`,
+        lat: coords.lat,
+        lng: coords.lng,
+        type: 'booking',
+        name: booking.customer_name,
+        timestamp: new Date(booking.created_at),
+        isNew: true,
+      };
+      
+      // Add to front of list
+      setActivities(prev => [newActivity, ...prev.slice(0, 49)]);
+      setStats(prev => ({ ...prev, totalBookings: prev.totalBookings + 1 }));
+      setNewActivityFlash('booking');
+      
+      toast({
+        title: "📅 New Booking",
+        description: `${booking.customer_name} just made a booking`,
+      });
+      
+      // Clear flash after animation
+      setTimeout(() => setNewActivityFlash(null), 2000);
+    }
+  }, [toast]);
+
+  // Handle new business from realtime
+  const handleNewBusiness = useCallback((payload: any) => {
+    console.log('[Globe] New business received:', payload.new);
+    const business = payload.new;
+    
+    // Only show approved businesses
+    if (business.status !== 'approved') return;
+    
+    const coords = extractLocationFromAddress(business.address || 'UK');
+    if (coords) {
+      const newActivity: ActivityPoint = {
+        id: `biz-${business.id}`,
+        lat: coords.lat,
+        lng: coords.lng,
+        type: 'business',
+        name: business.business_name,
+        timestamp: new Date(business.created_at),
+        isNew: true,
+      };
+      
+      // Cache the address
+      businessAddressCache.current.set(business.id, business.address || 'UK');
+      
+      // Add to front of list
+      setActivities(prev => [newActivity, ...prev.slice(0, 49)]);
+      setStats(prev => ({ 
+        ...prev, 
+        totalBusinesses: prev.totalBusinesses + 1,
+        activeRegions: prev.activeRegions + 1 
+      }));
+      setNewActivityFlash('business');
+      
+      toast({
+        title: "🏢 New Business",
+        description: `${business.business_name} just signed up`,
+      });
+      
+      // Clear flash after animation
+      setTimeout(() => setNewActivityFlash(null), 2000);
+    }
+  }, [toast]);
+
+  // Handle business update (for when a business gets approved)
+  const handleBusinessUpdate = useCallback((payload: any) => {
+    console.log('[Globe] Business updated:', payload.new);
+    const business = payload.new;
+    const oldBusiness = payload.old;
+    
+    // If business just got approved, add it
+    if (oldBusiness?.status !== 'approved' && business.status === 'approved') {
+      handleNewBusiness({ new: business });
+    }
+  }, [handleNewBusiness]);
 
   useEffect(() => {
     loadActivityData();
-  }, []);
+    
+    // Set up realtime subscriptions
+    const channel = supabase
+      .channel('globe-activity-tracker')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'bookings',
+        },
+        handleNewBooking
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'businesses',
+        },
+        handleNewBusiness
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'businesses',
+        },
+        handleBusinessUpdate
+      )
+      .subscribe((status) => {
+        console.log('[Globe] Realtime subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          setRealtimeStatus('connected');
+        } else if (status === 'CHANNEL_ERROR') {
+          setRealtimeStatus('error');
+        }
+      });
+
+    return () => {
+      console.log('[Globe] Cleaning up realtime subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [handleNewBooking, handleNewBusiness, handleBusinessUpdate]);
 
   const loadActivityData = async () => {
     try {
@@ -381,6 +530,11 @@ export function GlobeActivityTracker() {
         .in('id', businessIds);
 
       const addressMap = new Map(businessAddresses?.map(b => [b.id, b.address]) || []);
+      
+      // Cache addresses
+      addressMap.forEach((address, id) => {
+        businessAddressCache.current.set(id, address);
+      });
 
       const activityPoints: ActivityPoint[] = [];
       const regions = new Set<string>();
@@ -398,6 +552,7 @@ export function GlobeActivityTracker() {
             timestamp: new Date(biz.created_at),
           });
           regions.add(biz.address?.split(',').pop()?.trim() || 'Unknown');
+          businessAddressCache.current.set(biz.id, biz.address || 'UK');
         }
       });
 
@@ -435,15 +590,32 @@ export function GlobeActivityTracker() {
       {/* Stats overlay */}
       <div className="absolute top-4 left-4 z-10 space-y-2">
         <div className="bg-background/80 backdrop-blur-sm border rounded-lg px-4 py-2">
-          <h3 className="text-lg font-semibold">Global Activity</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">Global Activity</h3>
+            {/* Realtime status indicator */}
+            <div className="flex items-center gap-1">
+              <div className={`w-2 h-2 rounded-full ${
+                realtimeStatus === 'connected' ? 'bg-green-500 animate-pulse' : 
+                realtimeStatus === 'error' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'
+              }`} />
+              <span className="text-xs text-muted-foreground">
+                {realtimeStatus === 'connected' ? 'Live' : 
+                 realtimeStatus === 'error' ? 'Offline' : 'Connecting'}
+              </span>
+            </div>
+          </div>
           <p className="text-sm text-muted-foreground">Real-time booking & signup locations</p>
         </div>
         <div className="flex gap-2">
-          <div className="bg-background/80 backdrop-blur-sm border rounded-lg px-3 py-2">
+          <div className={`bg-background/80 backdrop-blur-sm border rounded-lg px-3 py-2 transition-all ${
+            newActivityFlash === 'booking' ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-background' : ''
+          }`}>
             <div className="text-2xl font-bold text-primary">{stats.totalBookings}</div>
             <div className="text-xs text-muted-foreground">Bookings</div>
           </div>
-          <div className="bg-background/80 backdrop-blur-sm border rounded-lg px-3 py-2">
+          <div className={`bg-background/80 backdrop-blur-sm border rounded-lg px-3 py-2 transition-all ${
+            newActivityFlash === 'business' ? 'ring-2 ring-green-500 ring-offset-2 ring-offset-background' : ''
+          }`}>
             <div className="text-2xl font-bold text-green-500">{stats.totalBusinesses}</div>
             <div className="text-xs text-muted-foreground">Businesses</div>
           </div>
