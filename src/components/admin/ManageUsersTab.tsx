@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ChevronDown, ChevronUp, Users, UserX, ShieldCheck, ShieldX } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, Users, UserX, ShieldCheck, ShieldX, Eye } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DangerZoneSection } from "./DangerZoneSection";
+import { BusinessDetailsDialog } from "./BusinessDetailsDialog";
 
 interface AppUser {
   user_id: string;
@@ -29,6 +30,24 @@ interface AppUser {
   is_active: boolean;
   role: string | null;
   business_name?: string | null;
+  business_id?: string | null;
+}
+
+interface BusinessDetails {
+  id: string;
+  business_name: string;
+  owner_email: string | null;
+  owner_name: string | null;
+  main_phone: string;
+  secondary_phone?: string | null;
+  address: string;
+  website?: string | null;
+  status: string;
+  created_at: string | null;
+  staff_count: number;
+  plan_tier?: string | null;
+  aivia_active: boolean;
+  assigned_aivia_number?: string | null;
 }
 
 const PROTECTED_EMAILS = ["mlaye915@gmail.com", "cogclt4@gmail.com"];
@@ -42,6 +61,8 @@ export const ManageUsersTab = () => {
   const [password, setPassword] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
+  const [selectedBusiness, setSelectedBusiness] = useState<BusinessDetails | null>(null);
+  const [showBusinessDialog, setShowBusinessDialog] = useState(false);
 
   const loadUsers = async () => {
     setIsLoading(true);
@@ -56,10 +77,10 @@ export const ManageUsersTab = () => {
       // Get all businesses to map owners
       const { data: businesses } = await supabase
         .from("businesses")
-        .select("owner_id, business_name");
+        .select("id, owner_id, business_name, main_phone, secondary_phone, address, website, status, created_at, staff_count, plan_tier, aivia_active, assigned_aivia_number");
 
       const businessMap = new Map(
-        (businesses || []).map((b) => [b.owner_id, b.business_name])
+        (businesses || []).map((b) => [b.owner_id, { name: b.business_name, id: b.id }])
       );
 
       // Get all user roles
@@ -71,16 +92,23 @@ export const ManageUsersTab = () => {
       });
 
       // Build user list
-      const userList: AppUser[] = (profiles || []).map((p) => ({
-        user_id: p.user_id,
-        email: p.email || "",
-        first_name: p.first_name,
-        last_name: p.last_name,
-        created_at: p.created_at,
-        is_active: p.admin_status !== "inactive",
-        role: roleMap.get(p.user_id) || "business_owner",
-        business_name: businessMap.get(p.user_id) || null,
-      }));
+      const userList: AppUser[] = (profiles || []).map((p) => {
+        const businessInfo = businessMap.get(p.user_id);
+        return {
+          user_id: p.user_id,
+          email: p.email || "",
+          first_name: p.first_name,
+          last_name: p.last_name,
+          created_at: p.created_at,
+          is_active: p.admin_status !== "inactive",
+          role: roleMap.get(p.user_id) || "business_owner",
+          business_name: businessInfo?.name || null,
+          business_id: businessInfo?.id || null,
+        };
+      });
+
+      // Store businesses for detail lookup
+      (window as any).__businessesData = businesses;
 
       setUsers(userList);
     } catch (error: any) {
@@ -186,6 +214,33 @@ export const ManageUsersTab = () => {
     }
   };
 
+  const viewBusinessDetails = async (businessId: string, user: AppUser) => {
+    const businessesData = (window as any).__businessesData || [];
+    const business = businessesData.find((b: any) => b.id === businessId);
+    
+    if (business) {
+      setSelectedBusiness({
+        id: business.id,
+        business_name: business.business_name,
+        owner_email: user.email,
+        owner_name: user.first_name && user.last_name 
+          ? `${user.first_name} ${user.last_name}` 
+          : user.first_name || user.last_name || null,
+        main_phone: business.main_phone,
+        secondary_phone: business.secondary_phone,
+        address: business.address,
+        website: business.website,
+        status: business.status,
+        created_at: business.created_at,
+        staff_count: business.staff_count,
+        plan_tier: business.plan_tier,
+        aivia_active: business.aivia_active,
+        assigned_aivia_number: business.assigned_aivia_number,
+      });
+      setShowBusinessDialog(true);
+    }
+  };
+
   const UserTable = ({ userList, showToggle = true }: { userList: AppUser[]; showToggle?: boolean }) => (
     <Table>
       <TableHeader>
@@ -209,7 +264,19 @@ export const ManageUsersTab = () => {
                   : "—"}
               </TableCell>
               <TableCell>{user.email}</TableCell>
-              <TableCell>{user.business_name || "—"}</TableCell>
+              <TableCell>
+                {user.business_name ? (
+                  <button
+                    onClick={() => user.business_id && viewBusinessDetails(user.business_id, user)}
+                    className="flex items-center gap-2 text-primary hover:underline cursor-pointer"
+                  >
+                    {user.business_name}
+                    <Eye className="w-3 h-3" />
+                  </button>
+                ) : (
+                  "—"
+                )}
+              </TableCell>
               <TableCell>{getRoleBadge(user.role)}</TableCell>
               <TableCell>
                 {user.created_at
@@ -356,6 +423,13 @@ export const ManageUsersTab = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Business Details Dialog */}
+      <BusinessDetailsDialog 
+        business={selectedBusiness} 
+        open={showBusinessDialog} 
+        onOpenChange={setShowBusinessDialog} 
+      />
     </div>
   );
 };

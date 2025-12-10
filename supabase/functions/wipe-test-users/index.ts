@@ -71,9 +71,27 @@ serve(async (req) => {
       );
     }
 
-    console.log("Starting test user cleanup by super admin:", caller.email);
+    // Parse request body for specific business cleanup
+    let requestBody: { businessId?: string } = {};
+    try {
+      const bodyText = await req.text();
+      if (bodyText) {
+        requestBody = JSON.parse(bodyText);
+      }
+    } catch (e) {
+      // No body or invalid JSON - proceed with full cleanup
+    }
 
     const PROTECTED_EMAILS = getProtectedEmails();
+
+    // If businessId is provided, do specific business cleanup
+    if (requestBody.businessId) {
+      console.log(`Starting specific business cleanup for: ${requestBody.businessId}`);
+      return await cleanupSpecificBusiness(supabaseAdmin, requestBody.businessId, PROTECTED_EMAILS);
+    }
+
+    // Otherwise, do full cleanup
+    console.log("Starting full test user cleanup by super admin:", caller.email);
     console.log("Protected emails count:", PROTECTED_EMAILS.length);
 
     // Get all auth users
@@ -92,13 +110,6 @@ serve(async (req) => {
     ) || [];
 
     console.log(`Users to delete: ${usersToDelete.length}`);
-
-    // Get protected user IDs
-    const protectedUserIds = allUsers
-      ?.filter(user => PROTECTED_EMAILS.includes((user.email || "").toLowerCase()))
-      .map(user => user.id) || [];
-
-    console.log("Protected user IDs count:", protectedUserIds.length);
 
     let deletedUsers = 0;
     let deletedMemberships = 0;
@@ -169,47 +180,8 @@ serve(async (req) => {
 
         if (userBusinesses && userBusinesses.length > 0) {
           for (const business of userBusinesses) {
-            // Delete business-related data first
-            await supabaseAdmin.from("opening_hours").delete().eq("business_id", business.id);
-            await supabaseAdmin.from("services").delete().eq("business_id", business.id);
-            await supabaseAdmin.from("business_settings").delete().eq("business_id", business.id);
-            await supabaseAdmin.from("business_number_selection").delete().eq("business_id", business.id);
-            await supabaseAdmin.from("staff_memberships").delete().eq("business_id", business.id);
-            await supabaseAdmin.from("staff_invites").delete().eq("business_id", business.id);
-            await supabaseAdmin.from("staff_accounts").delete().eq("business_id", business.id);
-            await supabaseAdmin.from("staff_time_off").delete().eq("business_id", business.id);
-            await supabaseAdmin.from("calls_log").delete().eq("business_id", business.id);
-            await supabaseAdmin.from("messages").delete().eq("business_id", business.id);
-            await supabaseAdmin.from("customers").delete().eq("business_id", business.id);
-            await supabaseAdmin.from("customer_settings").delete().eq("business_id", business.id);
-            
-            // Delete staff (which may have staff_services)
-            const { data: staffData } = await supabaseAdmin
-              .from("staff")
-              .select("id")
-              .eq("business_id", business.id);
-            
-            if (staffData) {
-              for (const staff of staffData) {
-                await supabaseAdmin.from("staff_services").delete().eq("staff_id", staff.id);
-              }
-            }
-            await supabaseAdmin.from("staff").delete().eq("business_id", business.id);
-            
-            // Delete bookings for this business
-            await supabaseAdmin.from("bookings").delete().eq("business_id", business.id);
-            
-            // Finally delete the business
-            const { error: bizError } = await supabaseAdmin
-              .from("businesses")
-              .delete()
-              .eq("id", business.id);
-            
-            if (!bizError) {
-              deletedBusinesses++;
-            } else {
-              console.error(`Error deleting business ${business.id}:`, bizError);
-            }
+            await deleteBusinessData(supabaseAdmin, business.id);
+            deletedBusinesses++;
           }
         }
 
@@ -290,3 +262,188 @@ serve(async (req) => {
     );
   }
 });
+
+// Helper function to delete all data associated with a business
+async function deleteBusinessData(supabaseAdmin: any, businessId: string) {
+  console.log(`Deleting data for business: ${businessId}`);
+  
+  // Delete business-related data first
+  await supabaseAdmin.from("call_conversations").delete().eq("business_id", businessId);
+  await supabaseAdmin.from("opening_hours").delete().eq("business_id", businessId);
+  await supabaseAdmin.from("business_settings").delete().eq("business_id", businessId);
+  await supabaseAdmin.from("business_number_selection").delete().eq("business_id", businessId);
+  await supabaseAdmin.from("staff_memberships").delete().eq("business_id", businessId);
+  await supabaseAdmin.from("staff_invites").delete().eq("business_id", businessId);
+  await supabaseAdmin.from("staff_accounts").delete().eq("business_id", businessId);
+  await supabaseAdmin.from("staff_time_off").delete().eq("business_id", businessId);
+  await supabaseAdmin.from("calls_log").delete().eq("business_id", businessId);
+  await supabaseAdmin.from("messages").delete().eq("business_id", businessId);
+  await supabaseAdmin.from("customers").delete().eq("business_id", businessId);
+  await supabaseAdmin.from("customer_settings").delete().eq("business_id", businessId);
+  
+  // Delete staff (which may have staff_services)
+  const { data: staffData } = await supabaseAdmin
+    .from("staff")
+    .select("id")
+    .eq("business_id", businessId);
+  
+  if (staffData) {
+    for (const staff of staffData) {
+      await supabaseAdmin.from("staff_services").delete().eq("staff_id", staff.id);
+    }
+  }
+  await supabaseAdmin.from("staff").delete().eq("business_id", businessId);
+  
+  // Delete services
+  await supabaseAdmin.from("services").delete().eq("business_id", businessId);
+  
+  // Delete bookings for this business
+  await supabaseAdmin.from("bookings").delete().eq("business_id", businessId);
+  
+  // Finally delete the business
+  const { error: bizError } = await supabaseAdmin
+    .from("businesses")
+    .delete()
+    .eq("id", businessId);
+  
+  if (bizError) {
+    console.error(`Error deleting business ${businessId}:`, bizError);
+    throw bizError;
+  }
+  
+  console.log(`Successfully deleted business: ${businessId}`);
+}
+
+// Cleanup a specific business and optionally its owner
+async function cleanupSpecificBusiness(supabaseAdmin: any, businessId: string, protectedEmails: string[]) {
+  const errors: string[] = [];
+  let deletedUsers = 0;
+  let deletedBusinesses = 0;
+  let deletedBookings = 0;
+  let deletedStaff = 0;
+  let deletedServices = 0;
+  let deletedProfiles = 0;
+  let deletedRoles = 0;
+  let deletedMemberships = 0;
+
+  try {
+    // Get business details first
+    const { data: business, error: bizError } = await supabaseAdmin
+      .from("businesses")
+      .select("id, owner_id, business_name")
+      .eq("id", businessId)
+      .single();
+
+    if (bizError || !business) {
+      return new Response(
+        JSON.stringify({ error: "Business not found" }),
+        { status: 404, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`Cleaning up business: ${business.business_name} (${businessId})`);
+
+    // Count items before deletion for summary
+    const { count: bookingsCount } = await supabaseAdmin
+      .from("bookings")
+      .select("*", { count: 'exact', head: true })
+      .eq("business_id", businessId);
+    
+    const { count: staffCount } = await supabaseAdmin
+      .from("staff")
+      .select("*", { count: 'exact', head: true })
+      .eq("business_id", businessId);
+
+    const { count: servicesCount } = await supabaseAdmin
+      .from("services")
+      .select("*", { count: 'exact', head: true })
+      .eq("business_id", businessId);
+
+    const { count: membershipsCount } = await supabaseAdmin
+      .from("staff_memberships")
+      .select("*", { count: 'exact', head: true })
+      .eq("business_id", businessId);
+
+    // Delete the business and all related data
+    await deleteBusinessData(supabaseAdmin, businessId);
+    deletedBusinesses = 1;
+    deletedBookings = bookingsCount || 0;
+    deletedStaff = staffCount || 0;
+    deletedServices = servicesCount || 0;
+    deletedMemberships = membershipsCount || 0;
+
+    // Get owner info
+    const { data: ownerData } = await supabaseAdmin.auth.admin.getUserById(business.owner_id);
+    const ownerEmail = ownerData?.user?.email || "";
+
+    // Delete owner if not protected
+    if (!protectedEmails.includes(ownerEmail.toLowerCase())) {
+      console.log(`Deleting owner: ${ownerEmail}`);
+      
+      // Delete owner's profile
+      const { data: profileData } = await supabaseAdmin
+        .from("profiles")
+        .delete()
+        .eq("user_id", business.owner_id)
+        .select();
+      deletedProfiles = profileData?.length || 0;
+
+      // Delete owner's roles
+      const { data: rolesData } = await supabaseAdmin
+        .from("user_roles")
+        .delete()
+        .eq("user_id", business.owner_id)
+        .select();
+      deletedRoles = rolesData?.length || 0;
+
+      // Delete admin permissions
+      await supabaseAdmin
+        .from("admin_permissions")
+        .delete()
+        .eq("user_id", business.owner_id);
+
+      // Delete auth user
+      const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(business.owner_id);
+      if (deleteUserError) {
+        errors.push(`Failed to delete owner: ${deleteUserError.message}`);
+      } else {
+        deletedUsers = 1;
+      }
+    } else {
+      console.log(`Owner ${ownerEmail} is protected, not deleting`);
+    }
+
+    const summary = {
+      success: true,
+      deletedBusinesses,
+      deletedUsers,
+      deletedBookings,
+      deletedStaff,
+      deletedServices,
+      deletedMemberships,
+      deletedProfiles,
+      deletedRoles,
+      errors: errors.length > 0 ? errors : undefined
+    };
+
+    console.log("Business cleanup complete:", summary);
+
+    return new Response(
+      JSON.stringify(summary),
+      { 
+        status: 200, 
+        headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } 
+      }
+    );
+
+  } catch (error: any) {
+    console.error("Business cleanup error:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { 
+        status: 500, 
+        headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } 
+      }
+    );
+  }
+}

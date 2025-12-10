@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,15 +14,46 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const PROTECTED_EMAILS = ["mlaye915@gmail.com", "cogclt4@gmail.com"];
 
+interface Business {
+  id: string;
+  business_name: string;
+  owner_id: string;
+}
+
 export const DangerZoneSection = () => {
   const { toast } = useToast();
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string>("");
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [cleanupMode, setCleanupMode] = useState<"all" | "specific">("specific");
+
+  useEffect(() => {
+    loadBusinesses();
+  }, []);
+
+  const loadBusinesses = async () => {
+    const { data } = await supabase
+      .from("businesses")
+      .select("id, business_name, owner_id")
+      .order("business_name");
+    
+    if (data) {
+      setBusinesses(data);
+    }
+  };
 
   const handleWipeUsers = async () => {
     if (confirmText !== "DELETE") return;
@@ -41,6 +72,9 @@ export const DangerZoneSection = () => {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
+        body: cleanupMode === "specific" && selectedBusinessId ? {
+          businessId: selectedBusinessId
+        } : undefined,
       });
 
       if (error) throw error;
@@ -49,22 +83,28 @@ export const DangerZoneSection = () => {
 
       toast({
         title: "Cleanup Complete",
-        description: `Deleted ${data.deletedUsers} users, ${data.deletedBusinesses} businesses, ${data.deletedMemberships} memberships.`,
+        description: cleanupMode === "specific" 
+          ? `Cleaned up data for selected business.`
+          : `Deleted ${data.deletedUsers} users, ${data.deletedBusinesses} businesses.`,
       });
 
       setShowConfirmDialog(false);
       setConfirmText("");
+      setSelectedBusinessId("");
+      loadBusinesses(); // Refresh list
     } catch (error: any) {
       console.error("Wipe error:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to wipe test users",
+        description: error.message || "Failed to perform cleanup",
         variant: "destructive",
       });
     } finally {
       setIsDeleting(false);
     }
   };
+
+  const selectedBusiness = businesses.find(b => b.id === selectedBusinessId);
 
   return (
     <>
@@ -79,37 +119,91 @@ export const DangerZoneSection = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="p-4 bg-background border border-destructive/20 rounded-lg">
-            <h4 className="font-medium mb-2">Delete All Test Users</h4>
-            <p className="text-sm text-muted-foreground mb-3">
-              This will permanently delete all user accounts and related data EXCEPT:
-            </p>
-            <ul className="text-sm text-muted-foreground mb-4 list-disc list-inside space-y-1">
-              {PROTECTED_EMAILS.map(email => (
-                <li key={email} className="font-mono">{email}</li>
-              ))}
-            </ul>
-            <p className="text-sm text-destructive mb-4">
-              This action cannot be undone. All businesses, staff memberships, profiles, and related data for deleted users will be removed.
-            </p>
-            <Button
-              variant="destructive"
-              onClick={() => setShowConfirmDialog(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete All Users Except Main Admins
-            </Button>
+          {/* Cleanup Mode Selection */}
+          <div className="space-y-3">
+            <Label>Cleanup Mode</Label>
+            <Select value={cleanupMode} onValueChange={(v) => setCleanupMode(v as "all" | "specific")}>
+              <SelectTrigger className="bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-background border">
+                <SelectItem value="specific">Specific Business</SelectItem>
+                <SelectItem value="all">All Test Users (except protected)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
+          {cleanupMode === "specific" && (
+            <div className="space-y-3">
+              <Label>Select Business to Clean Up</Label>
+              <Select value={selectedBusinessId} onValueChange={setSelectedBusinessId}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Choose a business..." />
+                </SelectTrigger>
+                <SelectContent className="bg-background border max-h-60">
+                  {businesses.map((business) => (
+                    <SelectItem key={business.id} value={business.id}>
+                      {business.business_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {selectedBusinessId && (
+                <div className="p-4 bg-background border border-destructive/20 rounded-lg">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    This will permanently delete:
+                  </p>
+                  <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                    <li>The business "{selectedBusiness?.business_name}"</li>
+                    <li>All bookings for this business</li>
+                    <li>All staff records and memberships</li>
+                    <li>All services and opening hours</li>
+                    <li>All call logs and messages</li>
+                    <li>The owner's account (unless protected)</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {cleanupMode === "all" && (
+            <div className="p-4 bg-background border border-destructive/20 rounded-lg">
+              <h4 className="font-medium mb-2">Delete All Test Users</h4>
+              <p className="text-sm text-muted-foreground mb-3">
+                This will permanently delete all user accounts and related data EXCEPT:
+              </p>
+              <ul className="text-sm text-muted-foreground mb-4 list-disc list-inside space-y-1">
+                {PROTECTED_EMAILS.map(email => (
+                  <li key={email} className="font-mono">{email}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <Button
+            variant="destructive"
+            onClick={() => setShowConfirmDialog(true)}
+            disabled={cleanupMode === "specific" && !selectedBusinessId}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            {cleanupMode === "specific" 
+              ? "Delete Selected Business" 
+              : "Delete All Users Except Main Admins"}
+          </Button>
 
           {result && (
             <div className="p-4 bg-muted rounded-lg text-sm">
               <h4 className="font-medium mb-2">Last Cleanup Result:</h4>
               <ul className="space-y-1">
-                <li>Users deleted: {result.deletedUsers}</li>
-                <li>Businesses deleted: {result.deletedBusinesses}</li>
-                <li>Staff memberships deleted: {result.deletedMemberships}</li>
-                <li>Profiles deleted: {result.deletedProfiles}</li>
-                <li>User roles deleted: {result.deletedRoles}</li>
+                {result.deletedUsers !== undefined && <li>Users deleted: {result.deletedUsers}</li>}
+                {result.deletedBusinesses !== undefined && <li>Businesses deleted: {result.deletedBusinesses}</li>}
+                {result.deletedMemberships !== undefined && <li>Staff memberships deleted: {result.deletedMemberships}</li>}
+                {result.deletedProfiles !== undefined && <li>Profiles deleted: {result.deletedProfiles}</li>}
+                {result.deletedRoles !== undefined && <li>User roles deleted: {result.deletedRoles}</li>}
+                {result.deletedBookings !== undefined && <li>Bookings deleted: {result.deletedBookings}</li>}
+                {result.deletedStaff !== undefined && <li>Staff deleted: {result.deletedStaff}</li>}
+                {result.deletedServices !== undefined && <li>Services deleted: {result.deletedServices}</li>}
               </ul>
               {result.errors && result.errors.length > 0 && (
                 <div className="mt-2 text-destructive">
@@ -135,14 +229,26 @@ export const DangerZoneSection = () => {
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
-                <p>
-                  You are about to <strong className="text-destructive">permanently delete</strong> all users and related data except:
-                </p>
-                <ul className="list-disc list-inside text-sm space-y-1">
-                  {PROTECTED_EMAILS.map(email => (
-                    <li key={email} className="font-mono">{email}</li>
-                  ))}
-                </ul>
+                {cleanupMode === "specific" ? (
+                  <>
+                    <p>
+                      You are about to <strong className="text-destructive">permanently delete</strong> the business:
+                    </p>
+                    <p className="font-mono font-bold">{selectedBusiness?.business_name}</p>
+                    <p>And all associated data including bookings, staff, services, and the owner account.</p>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      You are about to <strong className="text-destructive">permanently delete</strong> all users and related data except:
+                    </p>
+                    <ul className="list-disc list-inside text-sm space-y-1">
+                      {PROTECTED_EMAILS.map(email => (
+                        <li key={email} className="font-mono">{email}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
                 <p className="text-destructive font-medium">
                   This action cannot be undone!
                 </p>
@@ -186,7 +292,7 @@ export const DangerZoneSection = () => {
               ) : (
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete All Test Users
+                  {cleanupMode === "specific" ? "Delete Business" : "Delete All Test Users"}
                 </>
               )}
             </Button>
