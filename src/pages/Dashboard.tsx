@@ -200,12 +200,12 @@ const Dashboard = () => {
   }
   return <div className="min-h-screen bg-secondary/30">
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="container h-16 flex-row flex items-center justify-between mx-0 my-0 px-[8px]">
-          <div className="flex items-center gap-3">
-            <img src={aiviaLogo} alt="Aivia" className="h-12 w-auto object-fill" />
-            <span className="text-base font-mono font-extrabold">AIVIA</span>
+        <div className="h-14 sm:h-16 flex items-center justify-between px-3 sm:px-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <img src={aiviaLogo} alt="Aivia" className="h-8 sm:h-12 w-auto object-fill" />
+            <span className="text-sm sm:text-base font-mono font-extrabold hidden xs:inline">AIVIA</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center">
             {business && user && <AccountMenu businessName={business.business_name} userEmail={user.email || ""} planTier={business.plan_tier} aiviaActive={business.aivia_active} businessId={business.id} onAiviaToggle={active => setBusiness({
             ...business,
             aivia_active: active
@@ -214,7 +214,7 @@ const Dashboard = () => {
         </div>
       </header>
 
-      <main className="container py-8">
+      <main className="px-3 sm:px-4 md:container py-4 sm:py-8">
         {business?.status === "approved" && business && <>
             {!isStaffView && !isSetupComplete && <div className="mb-6">
                 <SetupChecklist items={checklistItems} onItemClick={handleChecklistItemClick} />
@@ -224,33 +224,33 @@ const Dashboard = () => {
                 You are viewing as staff for <strong>{business.business_name}</strong>
               </div>}
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className="h-auto p-1 bg-muted/50 rounded-lg flex flex-wrap gap-1 w-fit">
-                <TabsTrigger value="dashboard" className="flex items-center gap-2 px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span className="hidden sm:inline">{t("dashboard.title")}</span>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+              <TabsList className="h-auto p-1 bg-muted/50 rounded-lg flex gap-0.5 sm:gap-1 w-full sm:w-fit overflow-x-auto">
+                <TabsTrigger value="dashboard" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                  <LayoutDashboard className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline truncate">{t("dashboard.title")}</span>
                 </TabsTrigger>
-                <TabsTrigger value="calendar" className="flex items-center gap-2 px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
-                  <Calendar className="w-4 h-4" />
-                  <span className="hidden sm:inline">{t("dashboard.calendar")}</span>
+                <TabsTrigger value="calendar" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                  <Calendar className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline truncate">{t("dashboard.calendar")}</span>
                 </TabsTrigger>
                 {!isStaffView && <>
-                    <TabsTrigger value="calls" className="flex items-center gap-2 px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
-                      <PhoneCall className="w-4 h-4" />
-                      <span className="hidden sm:inline">{t("dashboard.calls")}</span>
+                    <TabsTrigger value="calls" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                      <PhoneCall className="w-4 h-4 shrink-0" />
+                      <span className="hidden sm:inline truncate">{t("dashboard.calls")}</span>
                     </TabsTrigger>
-                    <TabsTrigger value="messages" className="flex items-center gap-2 px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
-                      <MessageSquare className="w-4 h-4" />
-                      <span className="hidden sm:inline">{t("dashboard.messages")}</span>
+                    <TabsTrigger value="messages" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                      <MessageSquare className="w-4 h-4 shrink-0" />
+                      <span className="hidden sm:inline truncate">{t("dashboard.messages")}</span>
                     </TabsTrigger>
                   </>}
-                <TabsTrigger value="bookings" className="flex items-center gap-2 px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
-                  <Calendar className="w-4 h-4" />
-                  <span className="hidden sm:inline">{t("dashboard.bookings")}</span>
+                <TabsTrigger value="bookings" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                  <Calendar className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline truncate">{t("dashboard.bookings")}</span>
                 </TabsTrigger>
-                {!isStaffView && <TabsTrigger value="settings" className="flex items-center gap-2 px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
-                    <Settings className="w-4 h-4" />
-                    <span className="hidden sm:inline">{t("dashboard.settings")}</span>
+                {!isStaffView && <TabsTrigger value="settings" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                    <Settings className="w-4 h-4 shrink-0" />
+                    <span className="hidden sm:inline truncate">{t("dashboard.settings")}</span>
                   </TabsTrigger>}
               </TabsList>
 
