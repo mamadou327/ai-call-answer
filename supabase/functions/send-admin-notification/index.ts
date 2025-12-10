@@ -8,12 +8,17 @@ const corsHeaders = {
 };
 
 interface AdminNotificationRequest {
-  businessName: string;
-  ownerName: string;
-  ownerEmail: string;
-  phone: string;
+  businessName?: string;
+  ownerName?: string;
+  ownerEmail?: string;
+  phone?: string;
   website?: string;
-  address: string;
+  address?: string;
+  // For staff signups
+  signupType?: "business" | "staff";
+  staffName?: string;
+  staffEmail?: string;
+  staffBusinessName?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -38,16 +43,41 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Email configuration missing");
     }
 
-    const { businessName, ownerName, ownerEmail, phone, website, address }: AdminNotificationRequest = await req.json();
-    console.log("Sending admin notification for business:", businessName);
+    const body: AdminNotificationRequest = await req.json();
+    const { signupType = "business" } = body;
 
     const resend = new Resend(resendApiKey);
 
-    const emailResponse = await resend.emails.send({
-      from: resendFromEmail,
-      to: [adminEmail],
-      subject: `New business signup awaiting approval - ${businessName}`,
-      html: `
+    let emailSubject: string;
+    let emailHtml: string;
+
+    if (signupType === "staff") {
+      // Staff signup notification
+      const { staffName, staffEmail, staffBusinessName } = body;
+      console.log("Sending admin notification for staff signup:", staffEmail);
+
+      emailSubject = `New staff signup - ${staffName || staffEmail}`;
+      emailHtml = `
+        <h1>New Staff Signup</h1>
+        <p>A new staff member has signed up:</p>
+        
+        <h2>Staff Information</h2>
+        <ul>
+          <li><strong>Name:</strong> ${staffName || 'Not provided'}</li>
+          <li><strong>Email:</strong> ${staffEmail}</li>
+          ${staffBusinessName ? `<li><strong>Business:</strong> ${staffBusinessName}</li>` : ''}
+        </ul>
+        
+        <p>Please review this in the admin dashboard if needed.</p>
+        <p><a href="https://d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com/admin" style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">Go to Admin Dashboard</a></p>
+      `;
+    } else {
+      // Business signup notification
+      const { businessName, ownerName, ownerEmail, phone, website, address } = body;
+      console.log("Sending admin notification for business:", businessName);
+
+      emailSubject = `New business signup awaiting approval - ${businessName}`;
+      emailHtml = `
         <h1>New Business Signup</h1>
         <p>A new business has signed up and is awaiting approval:</p>
         
@@ -63,7 +93,14 @@ const handler = async (req: Request): Promise<Response> => {
         
         <p>Please review this application in the admin dashboard.</p>
         <p><a href="https://d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com/admin" style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">Go to Admin Dashboard</a></p>
-      `,
+      `;
+    }
+
+    const emailResponse = await resend.emails.send({
+      from: resendFromEmail,
+      to: [adminEmail],
+      subject: emailSubject,
+      html: emailHtml,
     });
 
     console.log("Admin notification sent successfully:", emailResponse);
