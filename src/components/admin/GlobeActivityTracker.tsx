@@ -302,8 +302,8 @@ export function GlobeActivityTracker() {
   };
 
   const latLngToXY = (lat: number, lng: number) => {
-    const x = ((lng - ukBounds.minLng) / (ukBounds.maxLng - ukBounds.minLng)) * 400;
-    const y = ((ukBounds.maxLat - lat) / (ukBounds.maxLat - ukBounds.minLat)) * 500;
+    const x = ((lng - ukBounds.minLng) / (ukBounds.maxLng - ukBounds.minLng)) * 500;
+    const y = ((ukBounds.maxLat - lat) / (ukBounds.maxLat - ukBounds.minLat)) * 700;
     return { x, y };
   };
 
@@ -313,8 +313,8 @@ export function GlobeActivityTracker() {
     
     if (svgRect && containerRect) {
       const { x, y } = latLngToXY(business.lat, business.lng);
-      const scaleX = svgRect.width / 400;
-      const scaleY = svgRect.height / 500;
+      const scaleX = svgRect.width / 500;
+      const scaleY = svgRect.height / 700;
       
       setTooltipPosition({
         x: x * scaleX + (svgRect.left - containerRect.left),
@@ -398,21 +398,21 @@ export function GlobeActivityTracker() {
                 </div>
               ) : (
                 <>
-                  {/* SVG UK Map */}
-                  <svg viewBox="0 0 400 500" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+                  {/* SVG UK Map - Accurate representation */}
+                  <svg viewBox="0 0 500 700" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
                     {/* Defs for gradients and filters */}
                     <defs>
-                      <linearGradient id="scotlandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#22c55e" />
-                        <stop offset="100%" stopColor="#16a34a" />
+                      <linearGradient id="landGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#4ade80" />
+                        <stop offset="100%" stopColor="#22c55e" />
                       </linearGradient>
-                      <linearGradient id="englandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#22c55e" />
-                        <stop offset="100%" stopColor="#15803d" />
+                      <linearGradient id="scotlandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#34d399" />
+                        <stop offset="100%" stopColor="#10b981" />
                       </linearGradient>
                       <linearGradient id="walesGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#16a34a" />
-                        <stop offset="100%" stopColor="#14532d" />
+                        <stop offset="0%" stopColor="#22c55e" />
+                        <stop offset="100%" stopColor="#16a34a" />
                       </linearGradient>
                       <linearGradient id="niGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#4ade80" />
@@ -430,102 +430,154 @@ export function GlobeActivityTracker() {
                         </feMerge>
                       </filter>
                       <filter id="shadow">
-                        <feDropShadow dx="2" dy="2" stdDeviation="2" floodOpacity="0.3"/>
+                        <feDropShadow dx="1" dy="2" stdDeviation="2" floodOpacity="0.2"/>
                       </filter>
                     </defs>
                     
-                    {/* Ireland (Republic) - lighter, in background */}
+                    {/* Republic of Ireland - background, lighter */}
                     <path
-                      d="M 55 200
-                         C 45 180, 50 160, 65 150
-                         C 75 145, 85 145, 95 150
-                         C 100 155, 100 165, 95 175
-                         C 90 180, 85 178, 85 185
-                         C 88 195, 95 200, 90 210
-                         C 85 225, 75 235, 65 240
-                         C 55 245, 45 240, 40 230
-                         C 35 220, 40 210, 45 205
-                         C 50 202, 52 202, 55 200 Z"
+                      d="M 95 280 
+                         C 85 260, 90 235, 100 215
+                         C 108 200, 120 190, 135 185
+                         C 150 180, 165 182, 175 190
+                         C 182 195, 185 205, 182 215
+                         C 180 225, 172 232, 170 245
+                         C 170 260, 178 275, 175 290
+                         C 172 305, 162 320, 148 335
+                         C 135 348, 118 355, 100 350
+                         C 85 345, 75 330, 72 310
+                         C 70 295, 78 282, 95 280 Z"
                       fill="url(#irelandGradient)"
                       stroke="#166534"
                       strokeWidth="1"
+                      opacity="0.7"
                       filter="url(#shadow)"
                     />
                     
                     {/* Northern Ireland */}
                     <path
-                      d="M 95 150
-                         C 105 145, 118 148, 125 155
-                         C 130 162, 128 172, 120 178
-                         C 112 182, 100 180, 95 175
-                         C 90 168, 92 158, 95 150 Z"
+                      d="M 155 200
+                         C 170 195, 188 198, 200 208
+                         C 210 216, 215 228, 210 240
+                         C 205 250, 192 255, 178 252
+                         C 165 250, 155 240, 152 228
+                         C 148 215, 150 205, 155 200 Z"
                       fill="url(#niGradient)"
                       stroke="#166534"
                       strokeWidth="1.5"
                       filter="url(#shadow)"
                     />
                     
-                    {/* Scotland */}
+                    {/* Scotland - main landmass */}
                     <path
-                      d="M 180 45
-                         C 195 40, 215 42, 230 50
-                         C 245 58, 255 72, 260 90
-                         C 268 115, 270 140, 262 165
-                         C 255 185, 240 195, 220 200
-                         C 200 205, 180 202, 165 195
-                         C 155 190, 150 182, 148 172
-                         C 145 160, 150 145, 160 135
-                         C 168 127, 175 130, 180 125
-                         C 178 115, 168 110, 165 100
-                         C 160 85, 165 70, 175 55
-                         C 177 50, 178 47, 180 45 Z
-                         
-                         M 140 90
-                         C 145 85, 155 85, 160 92
-                         C 165 100, 160 110, 152 115
-                         C 145 118, 138 115, 135 108
-                         C 132 100, 135 93, 140 90 Z"
+                      d="M 270 60
+                         C 290 55, 315 60, 335 75
+                         C 355 90, 368 115, 375 145
+                         C 382 175, 380 205, 370 235
+                         C 362 260, 348 280, 328 295
+                         C 312 308, 292 315, 272 318
+                         C 258 320, 245 318, 235 312
+                         C 225 305, 220 295, 222 282
+                         C 225 268, 238 258, 245 245
+                         C 248 235, 242 225, 235 218
+                         C 225 208, 212 205, 205 195
+                         C 198 185, 198 172, 205 160
+                         C 212 148, 225 140, 235 135
+                         C 242 132, 248 138, 255 135
+                         C 260 130, 258 118, 255 108
+                         C 250 95, 255 78, 270 60 Z"
                       fill="url(#scotlandGradient)"
                       stroke="#166534"
                       strokeWidth="1.5"
-                      fillRule="evenodd"
                       filter="url(#shadow)"
                     />
                     
-                    {/* England */}
+                    {/* Scotland - Highlands bump */}
                     <path
-                      d="M 165 195
-                         C 180 190, 200 192, 220 200
-                         C 240 208, 255 220, 268 240
-                         C 280 260, 288 285, 290 310
-                         C 292 335, 288 360, 278 382
-                         C 268 402, 252 418, 235 430
-                         C 218 442, 198 448, 180 445
-                         C 168 443, 160 438, 155 430
-                         C 150 420, 152 408, 158 398
-                         C 162 390, 170 385, 172 378
-                         C 172 372, 165 368, 160 362
-                         C 152 352, 148 340, 150 328
-                         C 152 318, 158 310, 155 300
-                         C 150 288, 140 280, 138 268
-                         C 135 255, 142 242, 150 232
-                         C 155 225, 158 220, 155 212
-                         C 152 205, 158 198, 165 195 Z"
-                      fill="url(#englandGradient)"
+                      d="M 225 85
+                         C 235 78, 250 80, 258 90
+                         C 265 100, 262 115, 252 122
+                         C 242 128, 228 125, 222 115
+                         C 215 105, 218 92, 225 85 Z"
+                      fill="url(#scotlandGradient)"
+                      stroke="#166534"
+                      strokeWidth="1"
+                    />
+                    
+                    {/* Outer Hebrides */}
+                    <path
+                      d="M 180 100
+                         C 185 90, 195 88, 202 95
+                         C 208 102, 208 115, 202 125
+                         C 196 135, 185 140, 178 135
+                         C 172 128, 175 110, 180 100 Z"
+                      fill="url(#scotlandGradient)"
+                      stroke="#166534"
+                      strokeWidth="1"
+                      opacity="0.9"
+                    />
+                    
+                    {/* Shetland Islands - small group */}
+                    <g transform="translate(380, 25)">
+                      <circle cx="0" cy="0" r="8" fill="url(#scotlandGradient)" stroke="#166534" strokeWidth="1" />
+                      <circle cx="12" cy="5" r="5" fill="url(#scotlandGradient)" stroke="#166534" strokeWidth="1" />
+                      <circle cx="-5" cy="12" r="4" fill="url(#scotlandGradient)" stroke="#166534" strokeWidth="1" />
+                    </g>
+                    
+                    {/* Orkney Islands */}
+                    <g transform="translate(335, 55)">
+                      <ellipse cx="0" cy="0" rx="12" ry="8" fill="url(#scotlandGradient)" stroke="#166534" strokeWidth="1" />
+                      <circle cx="15" cy="-5" r="5" fill="url(#scotlandGradient)" stroke="#166534" strokeWidth="1" />
+                    </g>
+                    
+                    {/* England - main landmass */}
+                    <path
+                      d="M 272 318
+                         C 295 312, 320 318, 345 335
+                         C 368 350, 388 375, 400 405
+                         C 412 435, 415 468, 408 500
+                         C 402 530, 388 558, 368 580
+                         C 350 600, 328 615, 305 622
+                         C 285 628, 265 628, 248 620
+                         C 235 614, 228 602, 225 588
+                         C 222 575, 228 562, 238 550
+                         C 248 538, 262 530, 268 518
+                         C 272 508, 265 498, 255 490
+                         C 242 480, 225 475, 218 462
+                         C 210 448, 215 432, 225 420
+                         C 232 410, 242 405, 245 395
+                         C 248 385, 242 375, 235 368
+                         C 225 358, 212 355, 210 345
+                         C 208 335, 218 325, 232 320
+                         C 248 315, 262 318, 272 318 Z"
+                      fill="url(#landGradient)"
                       stroke="#166534"
                       strokeWidth="1.5"
                       filter="url(#shadow)"
+                    />
+                    
+                    {/* East Anglia bulge */}
+                    <path
+                      d="M 400 405
+                         C 418 400, 435 410, 445 425
+                         C 452 438, 450 455, 440 465
+                         C 430 475, 415 478, 405 472
+                         C 395 465, 395 450, 400 435
+                         C 402 422, 400 410, 400 405 Z"
+                      fill="url(#landGradient)"
+                      stroke="#166534"
+                      strokeWidth="1"
                     />
                     
                     {/* Wales */}
                     <path
-                      d="M 138 320
-                         C 145 315, 155 318, 160 328
-                         C 162 335, 160 345, 155 355
-                         C 150 365, 145 372, 138 378
-                         C 130 385, 120 388, 112 382
-                         C 105 376, 102 365, 108 352
-                         C 115 340, 128 325, 138 320 Z"
+                      d="M 218 450
+                         C 235 445, 248 455, 255 470
+                         C 260 485, 258 502, 248 518
+                         C 240 532, 228 542, 212 545
+                         C 198 548, 182 542, 172 530
+                         C 165 520, 165 505, 175 492
+                         C 185 478, 200 465, 218 450 Z"
                       fill="url(#walesGradient)"
                       stroke="#166534"
                       strokeWidth="1.5"
@@ -534,65 +586,75 @@ export function GlobeActivityTracker() {
                     
                     {/* Cornwall peninsula */}
                     <path
-                      d="M 158 430
-                         C 145 432, 130 428, 118 420
-                         C 108 412, 102 402, 108 395
-                         C 115 390, 128 392, 140 398
-                         C 152 405, 162 418, 158 430 Z"
-                      fill="url(#englandGradient)"
+                      d="M 225 588
+                         C 210 592, 190 590, 172 582
+                         C 155 575, 140 562, 135 548
+                         C 132 538, 140 530, 155 528
+                         C 172 526, 192 535, 208 548
+                         C 222 560, 232 575, 225 588 Z"
+                      fill="url(#landGradient)"
                       stroke="#166534"
                       strokeWidth="1"
                     />
                     
+                    {/* Isle of Wight */}
+                    <ellipse cx="348" cy="610" rx="15" ry="8" fill="url(#landGradient)" stroke="#166534" strokeWidth="1" />
+                    
+                    {/* Isle of Man */}
+                    <ellipse cx="215" cy="340" rx="12" ry="15" fill="url(#landGradient)" stroke="#166534" strokeWidth="1" />
+                    
+                    {/* Anglesey */}
+                    <ellipse cx="185" cy="425" rx="18" ry="12" fill="url(#walesGradient)" stroke="#166534" strokeWidth="1" />
+                    
                     {/* Region Labels */}
-                    <text x="200" y="85" textAnchor="middle" className="fill-white text-[11px] font-semibold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>Scotland</text>
-                    <text x="110" y="168" textAnchor="middle" className="fill-white text-[9px] font-medium" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>Northern</text>
-                    <text x="110" y="178" textAnchor="middle" className="fill-white text-[9px] font-medium" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>Ireland</text>
-                    <text x="65" y="200" textAnchor="middle" className="fill-white text-[10px] font-medium" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>Ireland</text>
-                    <text x="220" y="320" textAnchor="middle" className="fill-white text-[11px] font-semibold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>England</text>
-                    <text x="128" y="355" textAnchor="middle" className="fill-white text-[10px] font-semibold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>Wales</text>
+                    <text x="305" y="180" textAnchor="middle" className="fill-white text-[14px] font-bold" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.6)' }}>Scotland</text>
+                    <text x="180" y="225" textAnchor="middle" className="fill-white text-[10px] font-medium" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>N. Ireland</text>
+                    <text x="125" y="295" textAnchor="middle" className="fill-white/80 text-[11px] font-medium" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>Ireland</text>
+                    <text x="330" y="470" textAnchor="middle" className="fill-white text-[14px] font-bold" style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.6)' }}>England</text>
+                    <text x="205" y="500" textAnchor="middle" className="fill-white text-[12px] font-semibold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>Wales</text>
                     
                     {/* Major city markers (small dots) */}
                     {[
-                      { name: 'London', lat: 51.5074, lng: -0.1278 },
-                      { name: 'Manchester', lat: 53.4808, lng: -2.2426 },
-                      { name: 'Birmingham', lat: 52.4862, lng: -1.8904 },
-                      { name: 'Edinburgh', lat: 55.9533, lng: -3.1883 },
-                      { name: 'Cardiff', lat: 51.4816, lng: -3.1791 },
-                      { name: 'Belfast', lat: 54.5973, lng: -5.9301 },
-                      { name: 'Glasgow', lat: 55.8642, lng: -4.2518 },
-                      { name: 'Liverpool', lat: 53.4084, lng: -2.9916 },
-                      { name: 'Leeds', lat: 53.8008, lng: -1.5491 },
-                      { name: 'Bristol', lat: 51.4545, lng: -2.5879 },
-                    ].map((city) => {
-                      const { x, y } = latLngToXY(city.lat, city.lng);
-                      return (
-                        <g key={city.name}>
-                          <circle
-                            cx={x}
-                            cy={y}
-                            r="3"
-                            fill="#1f2937"
-                            stroke="white"
-                            strokeWidth="1"
-                          />
-                          <text
-                            x={x}
-                            y={y - 8}
-                            textAnchor="middle"
-                            className="fill-slate-700 dark:fill-slate-300 text-[8px] font-medium pointer-events-none"
-                          >
-                            {city.name}
-                          </text>
-                        </g>
-                      );
-                    })}
+                      { name: 'London', x: 380, y: 540 },
+                      { name: 'Manchester', x: 280, y: 410 },
+                      { name: 'Birmingham', x: 305, y: 465 },
+                      { name: 'Edinburgh', x: 295, y: 285 },
+                      { name: 'Cardiff', x: 238, y: 530 },
+                      { name: 'Belfast', x: 178, y: 225 },
+                      { name: 'Glasgow', x: 265, y: 295 },
+                      { name: 'Liverpool', x: 255, y: 415 },
+                      { name: 'Leeds', x: 315, y: 400 },
+                      { name: 'Bristol', x: 275, y: 535 },
+                      { name: 'Newcastle', x: 320, y: 355 },
+                      { name: 'Aberdeen', x: 345, y: 195 },
+                    ].map((city) => (
+                      <g key={city.name}>
+                        <circle
+                          cx={city.x}
+                          cy={city.y}
+                          r="4"
+                          fill="#1f2937"
+                          stroke="white"
+                          strokeWidth="1.5"
+                        />
+                        <text
+                          x={city.x}
+                          y={city.y - 10}
+                          textAnchor="middle"
+                          className="fill-slate-700 dark:fill-slate-300 text-[9px] font-medium pointer-events-none"
+                        >
+                          {city.name}
+                        </text>
+                      </g>
+                    ))}
                     
                     {/* Business markers */}
                     {businesses.map((business) => {
-                      const { x, y } = latLngToXY(business.lat, business.lng);
+                      // Convert lat/lng to SVG coordinates for new viewBox
+                      const x = ((business.lng - (-10.5)) / (2 - (-10.5))) * 500;
+                      const y = ((59 - business.lat) / (59 - 49.5)) * 700;
                       const hasBookings = business.bookingsCount > 0;
-                      const size = hasBookings ? 10 : 7;
+                      const size = hasBookings ? 12 : 8;
                       
                       return (
                         <g
@@ -615,7 +677,7 @@ export function GlobeActivityTracker() {
                               <animate
                                 attributeName="r"
                                 from={size}
-                                to={size + 15}
+                                to={size + 18}
                                 dur="2s"
                                 repeatCount="indefinite"
                               />
