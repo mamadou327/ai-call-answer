@@ -323,12 +323,12 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
 
   const renderMonthView = () => {
     return (
-      <div className="flex gap-6">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         <Calendar
           mode="single"
           selected={selectedDate}
           onSelect={(date) => date && setSelectedDate(date)}
-          className="rounded-md border"
+          className="rounded-md border mx-auto lg:mx-0"
           modifiers={{
             hasBookings: bookings.map(b => new Date(b.start_time)),
             closed: (date) => isDayClosed(date),
@@ -342,8 +342,8 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
         />
         <div className="flex-1">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">
-              Appointments on {format(selectedDate, "MMMM d, yyyy")}
+            <h3 className="text-base lg:text-lg font-semibold">
+              {format(selectedDate, "MMM d, yyyy")}
             </h3>
             {isDayClosed(selectedDate) && (
               <Badge variant="destructive" className="flex items-center gap-1">
@@ -358,13 +358,13 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
               <p>Business Closed</p>
             </div>
           ) : getBookingsForDate(selectedDate).length === 0 ? (
-            <p className="text-muted-foreground">No appointments</p>
+            <p className="text-muted-foreground text-sm">No appointments</p>
           ) : (
             <div className="space-y-2">
               {getBookingsForDate(selectedDate).map((booking) => (
                 <div
                   key={booking.id}
-                  className="p-3 rounded-lg border flex justify-between items-center cursor-pointer hover:bg-muted/50 transition-colors"
+                  className="p-3 rounded-lg border flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors"
                   style={{ borderLeftColor: booking.staff?.color || "#3B82F6", borderLeftWidth: "4px" }}
                   onClick={() => handleBookingClick(booking)}
                 >
@@ -373,18 +373,18 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                       <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
                     )}
                     <div>
-                      <p className="font-medium">{booking.customer_name}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="font-medium text-sm">{booking.customer_name}</p>
+                      <p className="text-xs text-muted-foreground">
                         {format(new Date(booking.start_time), "h:mm a")} - {booking.service?.name}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 pl-6 sm:pl-0">
                     {booking.status === "completed" && (
                       <Badge variant="secondary" className="text-xs">Done</Badge>
                     )}
                     {booking.staff && (
-                      <Badge variant="outline">{booking.staff.name}</Badge>
+                      <Badge variant="outline" className="text-xs">{booking.staff.name}</Badge>
                     )}
                   </div>
                 </div>
@@ -399,49 +399,54 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{t("dashboard.calendar")}</CardTitle>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={navigatePrevious}>
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-lg sm:text-xl">{t("dashboard.calendar")}</CardTitle>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex items-center justify-between sm:justify-start gap-2">
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={navigatePrevious}>
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <span className="min-w-[200px] text-center font-medium">
+              <span className="min-w-[140px] sm:min-w-[200px] text-center text-sm sm:text-base font-medium">
                 {view === "month" 
-                  ? format(selectedDate, "MMMM yyyy")
+                  ? format(selectedDate, "MMM yyyy")
                   : view === "week"
-                  ? `Week of ${format(startOfWeek(selectedDate, { weekStartsOn: 1 }), "MMM d")}`
-                  : format(selectedDate, "MMMM d, yyyy")}
+                  ? `${format(startOfWeek(selectedDate, { weekStartsOn: 1 }), "MMM d")}`
+                  : format(selectedDate, "MMM d, yyyy")}
               </span>
-              <Button variant="outline" size="icon" onClick={navigateNext}>
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={navigateNext}>
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setSelectedDate(new Date())}>
-              Today
-            </Button>
-            <div className="flex gap-1">
-              <Button
-                variant={view === "day" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setView("day")}
-              >
-                Day
+            <div className="flex items-center justify-between gap-2">
+              <Button variant="outline" size="sm" className="h-8 text-xs sm:text-sm" onClick={() => setSelectedDate(new Date())}>
+                Today
               </Button>
-              <Button
-                variant={view === "week" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setView("week")}
-              >
-                Week
-              </Button>
-              <Button
-                variant={view === "month" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setView("month")}
-              >
-                Month
-              </Button>
+              <div className="flex gap-1">
+                <Button
+                  variant={view === "day" ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 px-2 sm:px-3 text-xs sm:text-sm"
+                  onClick={() => setView("day")}
+                >
+                  Day
+                </Button>
+                <Button
+                  variant={view === "week" ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 px-2 sm:px-3 text-xs sm:text-sm"
+                  onClick={() => setView("week")}
+                >
+                  Week
+                </Button>
+                <Button
+                  variant={view === "month" ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 px-2 sm:px-3 text-xs sm:text-sm"
+                  onClick={() => setView("month")}
+                >
+                  Month
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
