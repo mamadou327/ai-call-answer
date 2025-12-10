@@ -1,9 +1,59 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
+import { encode as encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-twilio-signature",
 };
+
+// ============================================================================
+// TWILIO SIGNATURE VALIDATION
+// ============================================================================
+
+async function validateTwilioSignature(
+  authToken: string,
+  url: string,
+  params: Record<string, string>,
+  signature: string | null
+): Promise<boolean> {
+  if (!signature) {
+    console.error("[VoiceContinue] No X-Twilio-Signature header provided");
+    return false;
+  }
+
+  try {
+    // Sort params alphabetically and concatenate
+    const sortedKeys = Object.keys(params).sort();
+    let dataString = url;
+    for (const key of sortedKeys) {
+      dataString += key + params[key];
+    }
+
+    // Create HMAC-SHA1 signature
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(authToken);
+    const key = await crypto.subtle.importKey(
+      "raw",
+      keyData,
+      { name: "HMAC", hash: "SHA-1" },
+      false,
+      ["sign"]
+    );
+    
+    const data = encoder.encode(dataString);
+    const signatureBuffer = await crypto.subtle.sign("HMAC", key, data);
+    const expectedSignature = encodeBase64(new Uint8Array(signatureBuffer));
+
+    const isValid = expectedSignature === signature;
+    if (!isValid) {
+      console.error("[VoiceContinue] Signature mismatch");
+    }
+    return isValid;
+  } catch (error) {
+    console.error("[VoiceContinue] Error validating signature:", error);
+    return false;
+  }
+}
 
 // ============================================================================
 // HELPERS
@@ -86,13 +136,18 @@ async function generateAndUploadAudio(
       return null;
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
+    // Get signed URL (valid for 60 seconds)
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from("call-recordings")
-      .getPublicUrl(fileName);
+      .createSignedUrl(fileName, 60);
+
+    if (signedUrlError || !signedUrlData?.signedUrl) {
+      console.error("[VoiceContinue] Failed to create signed URL:", signedUrlError);
+      return null;
+    }
 
     console.log(`[VoiceContinue] Audio uploaded, total time: ${Date.now() - startTime}ms`);
-    return urlData?.publicUrl || null;
+    return signedUrlData.signedUrl;
   } catch (error) {
     console.error("[VoiceContinue] Error generating audio:", error);
     return null;
@@ -1285,6 +1340,22 @@ Deno.serve(async (req) => {
     const params: Record<string, string> = {};
     for (const [key, value] of formData.entries()) {
       params[key] = value.toString();
+    }
+
+    // Validate Twilio signature
+    const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+    if (twilioAuthToken) {
+      const signature = req.headers.get("x-twilio-signature");
+      const fullUrl = req.url;
+      
+      const isValid = await validateTwilioSignature(twilioAuthToken, fullUrl, params, signature);
+      if (!isValid) {
+        console.error("[VoiceContinue] Invalid Twilio signature - rejecting request");
+        return new Response("Forbidden", { status: 403, headers: corsHeaders });
+      }
+      console.log("[VoiceContinue] Twilio signature validated successfully");
+    } else {
+      console.warn("[VoiceContinue] TWILIO_AUTH_TOKEN not set - skipping signature validation");
     }
 
     const callSid = params.CallSid || "";
