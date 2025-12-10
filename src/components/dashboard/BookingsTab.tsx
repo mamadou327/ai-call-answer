@@ -164,57 +164,55 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{t("bookings.title")}</CardTitle>
-          <Button onClick={() => setDialogOpen(true)}>
+        <CardHeader className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between p-4 sm:p-6">
+          <CardTitle className="text-base sm:text-lg">{t("bookings.title")}</CardTitle>
+          <Button onClick={() => setDialogOpen(true)} size="sm" className="w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             {t("bookings.newBooking")}
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
           {loading ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>{t("common.loading")}</p>
+            <div className="text-center py-8 sm:py-12 text-muted-foreground">
+              <p className="text-sm">{t("common.loading")}</p>
             </div>
           ) : activeBookings.length === 0 && cancelledBookings.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Calendar className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg mb-2">{t("bookings.noBookingsYet")}</p>
-              <p className="text-sm">{t("bookings.description")}</p>
+            <div className="text-center py-8 sm:py-12 text-muted-foreground">
+              <Calendar className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 opacity-50" />
+              <p className="text-base sm:text-lg mb-2">{t("bookings.noBookingsYet")}</p>
+              <p className="text-xs sm:text-sm">{t("bookings.description")}</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {/* Active Bookings */}
               <div className="space-y-2">
                 {(showAll ? activeBookings : activeBookings.slice(0, 5)).map((booking) => (
                   <div
                     key={booking.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer gap-2 sm:gap-4"
                     onClick={() => handleBookingClick(booking)}
                   >
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{booking.customer_name}</p>
-                          {booking.status === "completed" && (
-                            <Check className="h-4 w-4 text-green-500" />
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Clock className="h-4 w-4" />
-                          <span>{format(new Date(booking.start_time), "MMM d, yyyy 'at' h:mm a")}</span>
-                        </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm sm:text-base truncate">{booking.customer_name}</p>
+                        {booking.status === "completed" && (
+                          <Check className="h-4 w-4 text-green-500 shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+                        <Clock className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                        <span className="truncate">{format(new Date(booking.start_time), "MMM d 'at' h:mm a")}</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        {booking.creator_name || booking.created_by}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className="text-[10px] sm:text-xs flex items-center gap-1">
+                        <User className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                        <span className="truncate max-w-[80px] sm:max-w-none">{booking.creator_name || booking.created_by}</span>
                       </Badge>
-                      <Badge variant={getStatusBadge(booking.status)}>
+                      <Badge variant={getStatusBadge(booking.status)} className="text-[10px] sm:text-xs">
                         {booking.status === "completed" ? "Completed" : t(`bookings.${booking.status}`)}
                       </Badge>
                     </div>
@@ -223,7 +221,8 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
                 {activeBookings.length > 5 && (
                   <Button
                     variant="outline"
-                    className="w-full mt-2"
+                    className="w-full mt-2 text-sm"
+                    size="sm"
                     onClick={() => setShowAll(!showAll)}
                   >
                     {showAll ? "Show Less" : `Show More (${activeBookings.length - 5} more)`}
@@ -237,10 +236,11 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
                   <CollapsibleTrigger asChild>
                     <Button
                       variant="outline"
-                      className="w-full justify-between border-destructive/30 text-destructive hover:bg-destructive/10"
+                      size="sm"
+                      className="w-full justify-between border-destructive/30 text-destructive hover:bg-destructive/10 text-sm"
                     >
                       <span className="flex items-center gap-2">
-                        Cancelled Bookings ({cancelledBookings.length})
+                        Cancelled ({cancelledBookings.length})
                       </span>
                       {cancelledOpen ? (
                         <ChevronUp className="h-4 w-4" />
@@ -253,37 +253,35 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
                     {cancelledBookings.map((booking) => (
                       <div
                         key={booking.id}
-                        className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5 hover:bg-destructive/10 transition-colors cursor-pointer"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 border border-destructive/20 rounded-lg bg-destructive/5 hover:bg-destructive/10 transition-colors cursor-pointer gap-2 sm:gap-4"
                         onClick={() => handleBookingClick(booking)}
                       >
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="flex-1">
-                            <p className="font-medium text-muted-foreground line-through">
-                              {booking.customer_name}
-                            </p>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Clock className="h-4 w-4" />
-                              <span>{format(new Date(booking.start_time), "MMM d, yyyy 'at' h:mm a")}</span>
-                            </div>
-                            {booking.cancelled_at && (
-                              <p className="text-xs text-destructive mt-1">
-                                Cancelled on {format(new Date(booking.cancelled_at), "MMM d, yyyy")}
-                              </p>
-                            )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm sm:text-base text-muted-foreground line-through truncate">
+                            {booking.customer_name}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+                            <Clock className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                            <span className="truncate">{format(new Date(booking.start_time), "MMM d 'at' h:mm a")}</span>
                           </div>
+                          {booking.cancelled_at && (
+                            <p className="text-[10px] sm:text-xs text-destructive mt-1">
+                              Cancelled {format(new Date(booking.cancelled_at), "MMM d")}
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            className="border-green-500 text-green-600 hover:bg-green-50"
+                            className="border-green-500 text-green-600 hover:bg-green-50 text-xs h-7 sm:h-8 px-2 sm:px-3"
                             onClick={(e) => handleReinstateBooking(e, booking.id)}
                           >
-                            <RotateCcw className="h-4 w-4 mr-1" />
-                            Reinstate
+                            <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                            <span className="hidden xs:inline">Reinstate</span>
                           </Button>
-                          <Badge variant="destructive">
+                          <Badge variant="destructive" className="text-[10px] sm:text-xs">
                             {t("bookings.cancelled")}
                           </Badge>
                         </div>

@@ -162,13 +162,13 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Date Range Selector */}
-      <div className="flex justify-between items-center gap-4 flex-wrap">
-        <h2 className="text-2xl font-bold">{t("dashboard.analytics")}</h2>
-        <div className="flex gap-2 items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <h2 className="text-xl sm:text-2xl font-bold">{t("dashboard.analytics")}</h2>
+        <div className="flex gap-2 items-center flex-wrap">
           <Select value={dateRange} onValueChange={(value: any) => setDateRange(value)}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[140px] sm:w-[180px] h-9 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -188,78 +188,78 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
       </div>
 
       {/* Key Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">{t("dashboard.totalBookings")}</CardTitle>
-            <CalendarCheck className="w-4 h-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">{t("dashboard.totalBookings")}</CardTitle>
+            <CalendarCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{bookingsCount}</div>
-            <p className="text-xs text-muted-foreground">{getPeriodLabel()}</p>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-xl sm:text-2xl font-bold">{bookingsCount}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{getPeriodLabel()}</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">{t("dashboard.totalCalls")}</CardTitle>
-            <Phone className="w-4 h-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">{t("dashboard.totalCalls")}</CardTitle>
+            <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">{getPeriodLabel()}</p>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-xl sm:text-2xl font-bold">0</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{getPeriodLabel()}</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">{t("dashboard.messages")}</CardTitle>
-            <MessageSquare className="w-4 h-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">{t("dashboard.messages")}</CardTitle>
+            <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">{t("dashboard.unread")}</p>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-xl sm:text-2xl font-bold">0</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{t("dashboard.unread")}</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">{t("dashboard.revenue")}</CardTitle>
-            <DollarSign className="w-4 h-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">{t("dashboard.revenue")}</CardTitle>
+            <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{currencySymbol}{revenue.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">{getPeriodLabel()}</p>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-xl sm:text-2xl font-bold">{currencySymbol}{revenue.toFixed(2)}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{getPeriodLabel()}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Today's Appointments */}
       <Card>
-        <CardHeader>
-          <CardTitle>{t("dashboard.todaysAppointments")}</CardTitle>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-base sm:text-lg">{t("dashboard.todaysAppointments")}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
           {todaysAppointments.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <CalendarCheck className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>{t("dashboard.noAppointments")}</p>
+            <div className="text-center py-6 sm:py-8 text-muted-foreground">
+              <CalendarCheck className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 opacity-50" />
+              <p className="text-sm sm:text-base">{t("dashboard.noAppointments")}</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {todaysAppointments.map((appointment) => (
-                <div key={appointment.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{appointment.customer_name}</p>
-                    <p className="text-sm text-muted-foreground">
+                <div key={appointment.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm sm:text-base truncate">{appointment.customer_name}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
                       {format(new Date(appointment.start_time), "h:mm a")} - {format(new Date(appointment.end_time), "h:mm a")}
                     </p>
                     {appointment.service && (
-                      <p className="text-xs text-muted-foreground">{appointment.service.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{appointment.service.name}</p>
                     )}
                   </div>
-                  <div className="text-right">
-                    <Badge variant="outline" className="mb-1">{appointment.status}</Badge>
+                  <div className="flex sm:flex-col items-center sm:items-end gap-2 sm:gap-1">
+                    <Badge variant="outline" className="text-xs">{appointment.status}</Badge>
                     {appointment.staff && (
                       <p className="text-xs text-muted-foreground">with {appointment.staff.name}</p>
                     )}
@@ -271,46 +271,46 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
         {/* Recent Messages */}
         <Card>
-          <CardHeader>
-            <CardTitle>{t("dashboard.recentMessages")}</CardTitle>
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-base sm:text-lg">{t("dashboard.recentMessages")}</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>{t("dashboard.noMessages")}</p>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-center py-6 sm:py-8 text-muted-foreground">
+              <MessageSquare className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 opacity-50" />
+              <p className="text-sm sm:text-base">{t("dashboard.noMessages")}</p>
             </div>
           </CardContent>
         </Card>
 
         {/* Upcoming Bookings */}
         <Card>
-          <CardHeader>
-            <CardTitle>{t("dashboard.upcomingBookings")}</CardTitle>
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-base sm:text-lg">{t("dashboard.upcomingBookings")}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
             {upcomingBookings.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Calendar className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>{t("dashboard.noBookings")}</p>
+              <div className="text-center py-6 sm:py-8 text-muted-foreground">
+                <Calendar className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 opacity-50" />
+                <p className="text-sm sm:text-base">{t("dashboard.noBookings")}</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {upcomingBookings.map((booking) => (
-                  <div key={booking.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">{booking.customer_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {format(new Date(booking.start_time), "PPP 'at' p")}
+                  <div key={booking.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm sm:text-base truncate">{booking.customer_name}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
+                        {format(new Date(booking.start_time), "MMM d 'at' h:mm a")}
                       </p>
                       {booking.service && (
-                        <p className="text-xs text-muted-foreground">{booking.service.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{booking.service.name}</p>
                       )}
                     </div>
-                    <div className="text-right">
-                      <Badge variant="outline" className="mb-1">{booking.status}</Badge>
+                    <div className="flex sm:flex-col items-center sm:items-end gap-2 sm:gap-1">
+                      <Badge variant="outline" className="text-xs">{booking.status}</Badge>
                       {booking.staff && (
                         <p className="text-xs text-muted-foreground">with {booking.staff.name}</p>
                       )}
