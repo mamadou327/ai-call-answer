@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { AlertTriangle, Trash2, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, Trash2, Loader2, ChevronDown, ChevronUp, Shield } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -24,6 +24,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const PROTECTED_EMAILS = ["mlaye915@gmail.com"];
+const SUPER_ADMIN_EMAILS = ["mo@aiviaapp.co.uk", "mlaye915@gmail.com"];
 
 interface UserItem {
   id: string;
@@ -42,10 +43,21 @@ export const DangerZoneSection = () => {
   const [result, setResult] = useState<any>(null);
   const [cleanupMode, setCleanupMode] = useState<"all" | "specific">("specific");
   const [isOpen, setIsOpen] = useState(false);
+  const [isAdminSectionOpen, setIsAdminSectionOpen] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [selectedAdminEmail, setSelectedAdminEmail] = useState<string>("");
 
   useEffect(() => {
     loadUsers();
+    getCurrentUserEmail();
   }, []);
+
+  const getCurrentUserEmail = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    setCurrentUserEmail(user?.email || null);
+  };
+
+  const isSuperAdmin = currentUserEmail && SUPER_ADMIN_EMAILS.includes(currentUserEmail.toLowerCase());
 
   const loadUsers = async () => {
     // Get all profiles (users)
@@ -288,6 +300,60 @@ export const DangerZoneSection = () => {
           </CollapsibleContent>
         </Card>
       </Collapsible>
+
+      {isSuperAdmin && (
+        <Collapsible open={isAdminSectionOpen} onOpenChange={setIsAdminSectionOpen}>
+          <Card className="border-primary/50 bg-primary/5">
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-primary/10 transition-colors">
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Shield className="h-5 w-5" />
+                    Super Admins
+                  </div>
+                  {isAdminSectionOpen ? (
+                    <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  View super admin accounts. Click to expand.
+                </CardDescription>
+              </CardHeader>
+            </CollapsibleTrigger>
+            
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <Label>Super Admin Accounts</Label>
+                  <Select value={selectedAdminEmail} onValueChange={setSelectedAdminEmail}>
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder="Select an admin..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border">
+                      {SUPER_ADMIN_EMAILS.map((email) => (
+                        <SelectItem key={email} value={email}>
+                          {email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  {selectedAdminEmail && (
+                    <div className="p-4 bg-background border border-primary/20 rounded-lg">
+                      <p className="text-sm font-medium text-primary">{selectedAdminEmail}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        This account has super admin privileges and cannot be deactivated.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
 
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
