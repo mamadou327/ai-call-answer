@@ -927,6 +927,7 @@ export type Database = {
           first_name: string | null
           id: string
           last_name: string | null
+          linked_staff_id: string | null
           phone: string | null
           position: string | null
           revoked_at: string | null
@@ -942,6 +943,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           last_name?: string | null
+          linked_staff_id?: string | null
           phone?: string | null
           position?: string | null
           revoked_at?: string | null
@@ -957,6 +959,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           last_name?: string | null
+          linked_staff_id?: string | null
           phone?: string | null
           position?: string | null
           revoked_at?: string | null
@@ -970,6 +973,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_memberships_linked_staff_id_fkey"
+            columns: ["linked_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]

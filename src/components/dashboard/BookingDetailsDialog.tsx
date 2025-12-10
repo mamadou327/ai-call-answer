@@ -1,27 +1,37 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2, User, Clock, FileText, Calendar as CalendarIcon, CheckCircle, RotateCcw } from "lucide-react";
+import { Trash2, User, Clock, FileText, Calendar as CalendarIcon, CheckCircle, RotateCcw, Edit, Save, X } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface BookingDetailsDialogProps {
   booking: any;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDelete: () => void;
+  isStaffView?: boolean;
 }
 
-export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: BookingDetailsDialogProps) => {
+export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, isStaffView = false }: BookingDetailsDialogProps) => {
   const { toast } = useToast();
   const { t } = useTranslation();
   const [isRescheduling, setIsRescheduling] = useState(false);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [newStartTime, setNewStartTime] = useState("");
+  const [editedNotes, setEditedNotes] = useState("");
+
+  useEffect(() => {
+    if (booking) {
+      setEditedNotes(booking.notes || "");
+    }
+  }, [booking]);
 
   if (!booking) return null;
 
@@ -148,6 +158,28 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
     }
   };
 
+  const handleSaveNotes = async () => {
+    const { error } = await supabase
+      .from("bookings")
+      .update({ notes: editedNotes.trim() || null })
+      .eq("id", booking.id);
+
+    if (error) {
+      toast({
+        title: t("common.error"),
+        description: "Failed to save notes",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: t("common.success"),
+        description: "Notes saved successfully",
+      });
+      setIsEditingNotes(false);
+      onDelete(); // Refresh data
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     if (status === "confirmed") return "default";
     if (status === "cancelled") return "destructive";
@@ -206,15 +238,57 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete }: 
                 </div>
               )}
 
-              {booking.notes && (
-                <div className="flex items-start gap-3">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                  <div>
+              {/* Notes section with edit capability */}
+              <div className="flex items-start gap-3">
+                <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">{t("bookings.notes")}</p>
-                    <p className="text-sm text-muted-foreground">{booking.notes}</p>
+                    {!isEditingNotes && booking.status !== "cancelled" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2"
+                        onClick={() => setIsEditingNotes(true)}
+                      >
+                        <Edit className="w-3 h-3 mr-1" />
+                        Edit
+                      </Button>
+                    )}
                   </div>
+                  {isEditingNotes ? (
+                    <div className="space-y-2 mt-1">
+                      <Textarea
+                        value={editedNotes}
+                        onChange={(e) => setEditedNotes(e.target.value)}
+                        placeholder="Add notes about this booking..."
+                        className="min-h-[80px] text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={handleSaveNotes}>
+                          <Save className="w-3 h-3 mr-1" />
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setIsEditingNotes(false);
+                            setEditedNotes(booking.notes || "");
+                          }}
+                        >
+                          <X className="w-3 h-3 mr-1" />
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {booking.notes || "No notes"}
+                    </p>
+                  )}
                 </div>
-              )}
+              </div>
 
               {booking.booking_code && (
                 <div className="flex items-center gap-3">

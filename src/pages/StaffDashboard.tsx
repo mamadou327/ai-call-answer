@@ -71,10 +71,10 @@ const StaffDashboard = () => {
 
     setUser(user);
 
-    // Check if user is staff with active membership
+    // Check if user is staff with active membership - include linked_staff_id
     const { data: membership } = await supabase
       .from("staff_memberships")
-      .select("status, business_id, first_name, last_name")
+      .select("status, business_id, first_name, last_name, linked_staff_id")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -111,25 +111,42 @@ const StaffDashboard = () => {
       setBusinessId(business.id);
     }
 
-    // Find matching staff record by email or name
-    const { data: staffRecords } = await supabase
-      .from("staff")
-      .select("id, name, email")
-      .eq("business_id", membership.business_id);
+    // Use linked_staff_id if available, otherwise find by email/name
+    let foundStaffId = membership.linked_staff_id;
+    let foundStaffName = `${membership.first_name || ''} ${membership.last_name || ''}`.trim();
 
-    const staffRecord = staffRecords?.find(s => 
-      s.email === user.email || 
-      s.name === `${membership.first_name} ${membership.last_name}`.trim()
-    );
+    if (!foundStaffId) {
+      // Fallback: Find matching staff record by email or name
+      const { data: staffRecords } = await supabase
+        .from("staff")
+        .select("id, name, email")
+        .eq("business_id", membership.business_id);
 
-    if (staffRecord) {
-      setStaffId(staffRecord.id);
-      setStaffName(staffRecord.name);
-      await loadStaffData(membership.business_id, staffRecord.id);
+      const staffRecord = staffRecords?.find(s => 
+        s.email === user.email || 
+        s.name === `${membership.first_name} ${membership.last_name}`.trim()
+      );
+
+      if (staffRecord) {
+        foundStaffId = staffRecord.id;
+        foundStaffName = staffRecord.name;
+      }
     } else {
-      setStaffName(`${membership.first_name || ''} ${membership.last_name || ''}`.trim());
-      await loadStaffData(membership.business_id, null);
+      // Get staff name from linked record
+      const { data: linkedStaff } = await supabase
+        .from("staff")
+        .select("id, name")
+        .eq("id", foundStaffId)
+        .single();
+      
+      if (linkedStaff) {
+        foundStaffName = linkedStaff.name;
+      }
     }
+
+    setStaffId(foundStaffId);
+    setStaffName(foundStaffName);
+    await loadStaffData(membership.business_id, foundStaffId);
 
     setLoading(false);
   };
@@ -725,6 +742,7 @@ const StaffDashboard = () => {
           open={bookingDetailsOpen}
           onOpenChange={setBookingDetailsOpen}
           onDelete={refreshBookings}
+          isStaffView={true}
         />
 
         {/* AI Assistant Chat */}
