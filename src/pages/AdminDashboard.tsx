@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import WorldTracker from "@/components/WorldTracker";
+import { GlobeActivityTracker } from "@/components/admin/GlobeActivityTracker";
 import { AdminAnalyticsDashboard } from "@/components/admin/AdminAnalyticsDashboard";
 import { ManageUsersTab } from "@/components/admin/ManageUsersTab";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
@@ -826,7 +826,7 @@ const AdminDashboard = () => {
         )}
 
         {activeTab === "tracker" && (
-          <WorldTracker />
+          <GlobeActivityTracker />
         )}
 
         {activeTab === "admins" && isSuperAdmin && (
