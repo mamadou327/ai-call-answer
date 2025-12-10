@@ -55,6 +55,8 @@ interface BusinessDetails {
 
 // Protected admin emails that cannot be deactivated
 const PROTECTED_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
+// Admin emails for the Active Admins section
+const ADMIN_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
 
 interface PendingAdmin {
   user_id: string;
@@ -91,6 +93,7 @@ export const ManageUsersTab = ({
   const [password, setPassword] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
+  const [showAdmins, setShowAdmins] = useState(false);
   const [selectedBusiness, setSelectedBusiness] = useState<BusinessDetails | null>(null);
   const [showBusinessDialog, setShowBusinessDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
@@ -255,7 +258,9 @@ export const ManageUsersTab = ({
     }
   };
 
-  const activeUsers = users.filter((u) => u.is_active);
+  // Separate admin users from regular users
+  const adminUsers = users.filter((u) => ADMIN_EMAILS.includes(u.email.toLowerCase()));
+  const activeUsers = users.filter((u) => u.is_active && !ADMIN_EMAILS.includes(u.email.toLowerCase()));
   const inactiveUsers = users.filter((u) => !u.is_active);
 
   const getRoleBadge = (role: string | null) => {
@@ -425,6 +430,38 @@ export const ManageUsersTab = ({
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {/* Active Admins - Collapsible */}
+      {adminUsers.length > 0 && (
+        <Collapsible open={showAdmins} onOpenChange={setShowAdmins}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-primary" />
+                    Active Admins
+                    <Badge className="bg-primary/10 text-primary">{adminUsers.length}</Badge>
+                  </div>
+                  {showAdmins ? (
+                    <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Admin accounts with full platform access
+                </CardDescription>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent>
+                <UserTable userList={adminUsers} showToggle={false} />
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       )}
 
       {/* Active Users */}
