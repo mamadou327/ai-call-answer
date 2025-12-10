@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Phone, DollarSign, CalendarDays, MapPin, Building2, Clock, TrendingUp, Activity } from 'lucide-react';
@@ -16,18 +15,9 @@ interface BusinessPoint {
   status: string;
   createdAt: Date;
   bookingsCount: number;
-}
-
-interface BusinessDetails {
-  id: string;
-  business_name: string;
-  address: string;
-  main_phone: string;
-  status: string;
-  created_at: string;
-  bookings_count: number;
-  calls_count: number;
+  callsCount: number;
   revenue: number;
+  phone: string;
 }
 
 // UK Cities with coordinates
@@ -104,72 +94,9 @@ export function GlobeActivityTracker() {
   const [regionStats, setRegionStats] = useState<Record<string, number>>({});
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const [newActivityFlash, setNewActivityFlash] = useState<string | null>(null);
-  const [selectedBusiness, setSelectedBusiness] = useState<BusinessDetails | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [hoveredBusiness, setHoveredBusiness] = useState<BusinessPoint | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const { toast } = useToast();
-
-  const handleBusinessClick = useCallback(async (business: BusinessPoint) => {
-    try {
-      const { data: bizData } = await supabase
-        .from('businesses')
-        .select('*')
-        .eq('id', business.id)
-        .maybeSingle();
-      
-      if (!bizData) {
-        toast({ title: 'Error', description: 'Business not found', variant: 'destructive' });
-        return;
-      }
-
-      const { count: bookingsCount } = await supabase
-        .from('bookings')
-        .select('*', { count: 'exact', head: true })
-        .eq('business_id', business.id);
-
-      const { count: callsCount } = await supabase
-        .from('calls_log')
-        .select('*', { count: 'exact', head: true })
-        .eq('business_id', business.id);
-
-      const { data: bookingsWithServices } = await supabase
-        .from('bookings')
-        .select('service_id')
-        .eq('business_id', business.id)
-        .not('service_id', 'is', null);
-
-      let revenue = 0;
-      if (bookingsWithServices && bookingsWithServices.length > 0) {
-        const serviceIds = [...new Set(bookingsWithServices.map(b => b.service_id).filter(Boolean))];
-        if (serviceIds.length > 0) {
-          const { data: services } = await supabase
-            .from('services')
-            .select('id, price')
-            .in('id', serviceIds);
-          
-          if (services) {
-            const priceMap = new Map(services.map(s => [s.id, Number(s.price) || 0]));
-            revenue = bookingsWithServices.reduce((sum, b) => sum + (priceMap.get(b.service_id!) || 0), 0);
-          }
-        }
-      }
-
-      setSelectedBusiness({
-        id: bizData.id,
-        business_name: bizData.business_name,
-        address: bizData.address,
-        main_phone: bizData.main_phone,
-        status: bizData.status,
-        created_at: bizData.created_at,
-        bookings_count: bookingsCount || 0,
-        calls_count: callsCount || 0,
-        revenue,
-      });
-      setDialogOpen(true);
-    } catch (error) {
-      console.error('Error fetching business details:', error);
-      toast({ title: 'Error', description: 'Failed to load business details', variant: 'destructive' });
-    }
-  }, [toast]);
 
   const handleNewBooking = useCallback(async (payload: any) => {
     const booking = payload.new;
@@ -206,6 +133,9 @@ export function GlobeActivityTracker() {
       status: business.status,
       createdAt: new Date(business.created_at),
       bookingsCount: 0,
+      callsCount: 0,
+      revenue: 0,
+      phone: business.main_phone || '',
     };
     
     setBusinesses(prev => [newBusiness, ...prev]);
@@ -258,7 +188,7 @@ export function GlobeActivityTracker() {
     try {
       const { data: businessData } = await supabase
         .from('businesses')
-        .select('id, business_name, address, created_at, status')
+        .select('id, business_name, address, created_at, status, main_phone')
         .eq('status', 'approved')
         .order('created_at', { ascending: false });
 
@@ -280,10 +210,20 @@ export function GlobeActivityTracker() {
         bookingCountMap.set(b.business_id, (bookingCountMap.get(b.business_id) || 0) + 1);
       });
 
-      // Get total revenue
+      // Get call counts per business
+      const { data: callCounts } = await supabase
+        .from('calls_log')
+        .select('business_id');
+
+      const callCountMap = new Map<string, number>();
+      callCounts?.forEach(c => {
+        callCountMap.set(c.business_id, (callCountMap.get(c.business_id) || 0) + 1);
+      });
+
+      // Get bookings with services for revenue
       const { data: bookingsWithServices } = await supabase
         .from('bookings')
-        .select('service_id')
+        .select('business_id, service_id')
         .not('service_id', 'is', null);
 
       const { data: allServices } = await supabase
@@ -292,10 +232,14 @@ export function GlobeActivityTracker() {
       
       const priceMap = new Map(allServices?.map(s => [s.id, Number(s.price) || 0]) || []);
       
+      // Calculate revenue per business
+      const revenueMap = new Map<string, number>();
       let totalRevenue = 0;
       bookingsWithServices?.forEach(booking => {
         if (booking.service_id && priceMap.has(booking.service_id)) {
-          totalRevenue += priceMap.get(booking.service_id) || 0;
+          const price = priceMap.get(booking.service_id) || 0;
+          totalRevenue += price;
+          revenueMap.set(booking.business_id, (revenueMap.get(booking.business_id) || 0) + price);
         }
       });
 
@@ -313,6 +257,9 @@ export function GlobeActivityTracker() {
           status: biz.status,
           createdAt: new Date(biz.created_at),
           bookingsCount: bookingCountMap.get(biz.id) || 0,
+          callsCount: callCountMap.get(biz.id) || 0,
+          revenue: revenueMap.get(biz.id) || 0,
+          phone: biz.main_phone || '',
         };
         businessPoints.push(point);
         regions[location.region] = (regions[location.region] || 0) + 1;
@@ -346,11 +293,11 @@ export function GlobeActivityTracker() {
     [regionStats]
   );
 
-  // UK bounds for SVG viewBox
+  // UK bounds for SVG viewBox (adjusted for proper UK shape)
   const ukBounds = {
     minLat: 49.5,
     maxLat: 59,
-    minLng: -8.5,
+    minLng: -10.5,
     maxLng: 2,
   };
 
@@ -358,6 +305,27 @@ export function GlobeActivityTracker() {
     const x = ((lng - ukBounds.minLng) / (ukBounds.maxLng - ukBounds.minLng)) * 400;
     const y = ((ukBounds.maxLat - lat) / (ukBounds.maxLat - ukBounds.minLat)) * 500;
     return { x, y };
+  };
+
+  const handleMouseEnter = (business: BusinessPoint, event: React.MouseEvent<SVGGElement>) => {
+    const svgRect = (event.currentTarget.closest('svg') as SVGElement)?.getBoundingClientRect();
+    const containerRect = (event.currentTarget.closest('.map-container') as HTMLElement)?.getBoundingClientRect();
+    
+    if (svgRect && containerRect) {
+      const { x, y } = latLngToXY(business.lat, business.lng);
+      const scaleX = svgRect.width / 400;
+      const scaleY = svgRect.height / 500;
+      
+      setTooltipPosition({
+        x: x * scaleX + (svgRect.left - containerRect.left),
+        y: y * scaleY + (svgRect.top - containerRect.top),
+      });
+    }
+    setHoveredBusiness(business);
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredBusiness(null);
   };
 
   return (
@@ -420,7 +388,7 @@ export function GlobeActivityTracker() {
         {/* SVG Map */}
         <Card className="lg:col-span-3 overflow-hidden">
           <CardContent className="p-4">
-            <div className="relative h-[500px] bg-gradient-to-b from-blue-50 to-blue-100 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden">
+            <div className="map-container relative h-[500px] bg-gradient-to-b from-sky-100 to-sky-200 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden">
               {loading ? (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
@@ -431,12 +399,28 @@ export function GlobeActivityTracker() {
               ) : (
                 <>
                   {/* SVG UK Map */}
-                  <svg viewBox="0 0 400 500" className="w-full h-full">
-                    {/* UK Outline (simplified) */}
+                  <svg viewBox="0 0 400 500" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+                    {/* Defs for gradients and filters */}
                     <defs>
-                      <linearGradient id="ukGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.2" />
-                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.1" />
+                      <linearGradient id="scotlandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#22c55e" />
+                        <stop offset="100%" stopColor="#16a34a" />
+                      </linearGradient>
+                      <linearGradient id="englandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#22c55e" />
+                        <stop offset="100%" stopColor="#15803d" />
+                      </linearGradient>
+                      <linearGradient id="walesGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#16a34a" />
+                        <stop offset="100%" stopColor="#14532d" />
+                      </linearGradient>
+                      <linearGradient id="niGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#4ade80" />
+                        <stop offset="100%" stopColor="#22c55e" />
+                      </linearGradient>
+                      <linearGradient id="irelandGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#86efac" />
+                        <stop offset="100%" stopColor="#4ade80" />
                       </linearGradient>
                       <filter id="glow">
                         <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
@@ -445,69 +429,176 @@ export function GlobeActivityTracker() {
                           <feMergeNode in="SourceGraphic"/>
                         </feMerge>
                       </filter>
+                      <filter id="shadow">
+                        <feDropShadow dx="2" dy="2" stdDeviation="2" floodOpacity="0.3"/>
+                      </filter>
                     </defs>
                     
-                    {/* Simplified UK shape */}
+                    {/* Ireland (Republic) - lighter, in background */}
                     <path
-                      d="M 200 50 
-                         Q 230 60 250 100 
-                         Q 270 130 280 180
-                         Q 290 220 285 260
-                         Q 280 300 260 340
-                         Q 250 370 240 390
-                         Q 230 420 210 440
-                         Q 190 460 170 450
-                         Q 150 440 140 410
-                         Q 130 380 135 340
-                         Q 140 300 150 260
-                         Q 145 220 140 180
-                         Q 135 140 145 100
-                         Q 160 60 200 50 Z"
-                      fill="url(#ukGradient)"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth="2"
-                      opacity="0.5"
-                    />
-                    
-                    {/* Scotland */}
-                    <path
-                      d="M 180 50 
-                         Q 200 40 220 50
-                         Q 240 60 250 90
-                         Q 255 110 245 130
-                         Q 230 140 210 135
-                         Q 190 140 175 130
-                         Q 165 115 170 90
-                         Q 175 65 180 50 Z"
-                      fill="url(#ukGradient)"
-                      stroke="hsl(var(--primary))"
+                      d="M 55 200
+                         C 45 180, 50 160, 65 150
+                         C 75 145, 85 145, 95 150
+                         C 100 155, 100 165, 95 175
+                         C 90 180, 85 178, 85 185
+                         C 88 195, 95 200, 90 210
+                         C 85 225, 75 235, 65 240
+                         C 55 245, 45 240, 40 230
+                         C 35 220, 40 210, 45 205
+                         C 50 202, 52 202, 55 200 Z"
+                      fill="url(#irelandGradient)"
+                      stroke="#166534"
                       strokeWidth="1"
-                      opacity="0.3"
+                      filter="url(#shadow)"
                     />
                     
                     {/* Northern Ireland */}
                     <path
-                      d="M 100 150 
-                         Q 120 140 140 145
-                         Q 150 155 145 175
-                         Q 135 190 115 185
-                         Q 95 180 100 150 Z"
-                      fill="url(#ukGradient)"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth="1"
-                      opacity="0.3"
+                      d="M 95 150
+                         C 105 145, 118 148, 125 155
+                         C 130 162, 128 172, 120 178
+                         C 112 182, 100 180, 95 175
+                         C 90 168, 92 158, 95 150 Z"
+                      fill="url(#niGradient)"
+                      stroke="#166534"
+                      strokeWidth="1.5"
+                      filter="url(#shadow)"
                     />
+                    
+                    {/* Scotland */}
+                    <path
+                      d="M 180 45
+                         C 195 40, 215 42, 230 50
+                         C 245 58, 255 72, 260 90
+                         C 268 115, 270 140, 262 165
+                         C 255 185, 240 195, 220 200
+                         C 200 205, 180 202, 165 195
+                         C 155 190, 150 182, 148 172
+                         C 145 160, 150 145, 160 135
+                         C 168 127, 175 130, 180 125
+                         C 178 115, 168 110, 165 100
+                         C 160 85, 165 70, 175 55
+                         C 177 50, 178 47, 180 45 Z
+                         
+                         M 140 90
+                         C 145 85, 155 85, 160 92
+                         C 165 100, 160 110, 152 115
+                         C 145 118, 138 115, 135 108
+                         C 132 100, 135 93, 140 90 Z"
+                      fill="url(#scotlandGradient)"
+                      stroke="#166534"
+                      strokeWidth="1.5"
+                      fillRule="evenodd"
+                      filter="url(#shadow)"
+                    />
+                    
+                    {/* England */}
+                    <path
+                      d="M 165 195
+                         C 180 190, 200 192, 220 200
+                         C 240 208, 255 220, 268 240
+                         C 280 260, 288 285, 290 310
+                         C 292 335, 288 360, 278 382
+                         C 268 402, 252 418, 235 430
+                         C 218 442, 198 448, 180 445
+                         C 168 443, 160 438, 155 430
+                         C 150 420, 152 408, 158 398
+                         C 162 390, 170 385, 172 378
+                         C 172 372, 165 368, 160 362
+                         C 152 352, 148 340, 150 328
+                         C 152 318, 158 310, 155 300
+                         C 150 288, 140 280, 138 268
+                         C 135 255, 142 242, 150 232
+                         C 155 225, 158 220, 155 212
+                         C 152 205, 158 198, 165 195 Z"
+                      fill="url(#englandGradient)"
+                      stroke="#166534"
+                      strokeWidth="1.5"
+                      filter="url(#shadow)"
+                    />
+                    
+                    {/* Wales */}
+                    <path
+                      d="M 138 320
+                         C 145 315, 155 318, 160 328
+                         C 162 335, 160 345, 155 355
+                         C 150 365, 145 372, 138 378
+                         C 130 385, 120 388, 112 382
+                         C 105 376, 102 365, 108 352
+                         C 115 340, 128 325, 138 320 Z"
+                      fill="url(#walesGradient)"
+                      stroke="#166534"
+                      strokeWidth="1.5"
+                      filter="url(#shadow)"
+                    />
+                    
+                    {/* Cornwall peninsula */}
+                    <path
+                      d="M 158 430
+                         C 145 432, 130 428, 118 420
+                         C 108 412, 102 402, 108 395
+                         C 115 390, 128 392, 140 398
+                         C 152 405, 162 418, 158 430 Z"
+                      fill="url(#englandGradient)"
+                      stroke="#166534"
+                      strokeWidth="1"
+                    />
+                    
+                    {/* Region Labels */}
+                    <text x="200" y="85" textAnchor="middle" className="fill-white text-[11px] font-semibold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>Scotland</text>
+                    <text x="110" y="168" textAnchor="middle" className="fill-white text-[9px] font-medium" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>Northern</text>
+                    <text x="110" y="178" textAnchor="middle" className="fill-white text-[9px] font-medium" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>Ireland</text>
+                    <text x="65" y="200" textAnchor="middle" className="fill-white text-[10px] font-medium" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>Ireland</text>
+                    <text x="220" y="320" textAnchor="middle" className="fill-white text-[11px] font-semibold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>England</text>
+                    <text x="128" y="355" textAnchor="middle" className="fill-white text-[10px] font-semibold" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>Wales</text>
+                    
+                    {/* Major city markers (small dots) */}
+                    {[
+                      { name: 'London', lat: 51.5074, lng: -0.1278 },
+                      { name: 'Manchester', lat: 53.4808, lng: -2.2426 },
+                      { name: 'Birmingham', lat: 52.4862, lng: -1.8904 },
+                      { name: 'Edinburgh', lat: 55.9533, lng: -3.1883 },
+                      { name: 'Cardiff', lat: 51.4816, lng: -3.1791 },
+                      { name: 'Belfast', lat: 54.5973, lng: -5.9301 },
+                      { name: 'Glasgow', lat: 55.8642, lng: -4.2518 },
+                      { name: 'Liverpool', lat: 53.4084, lng: -2.9916 },
+                      { name: 'Leeds', lat: 53.8008, lng: -1.5491 },
+                      { name: 'Bristol', lat: 51.4545, lng: -2.5879 },
+                    ].map((city) => {
+                      const { x, y } = latLngToXY(city.lat, city.lng);
+                      return (
+                        <g key={city.name}>
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r="3"
+                            fill="#1f2937"
+                            stroke="white"
+                            strokeWidth="1"
+                          />
+                          <text
+                            x={x}
+                            y={y - 8}
+                            textAnchor="middle"
+                            className="fill-slate-700 dark:fill-slate-300 text-[8px] font-medium pointer-events-none"
+                          >
+                            {city.name}
+                          </text>
+                        </g>
+                      );
+                    })}
                     
                     {/* Business markers */}
                     {businesses.map((business) => {
                       const { x, y } = latLngToXY(business.lat, business.lng);
                       const hasBookings = business.bookingsCount > 0;
-                      const size = hasBookings ? 8 : 6;
+                      const size = hasBookings ? 10 : 7;
                       
                       return (
                         <g
                           key={business.id}
-                          onClick={() => handleBusinessClick(business)}
+                          onMouseEnter={(e) => handleMouseEnter(business, e)}
+                          onMouseLeave={handleMouseLeave}
                           style={{ cursor: 'pointer' }}
                         >
                           {/* Pulse animation for active businesses */}
@@ -524,13 +615,13 @@ export function GlobeActivityTracker() {
                               <animate
                                 attributeName="r"
                                 from={size}
-                                to={size + 12}
+                                to={size + 15}
                                 dur="2s"
                                 repeatCount="indefinite"
                               />
                               <animate
                                 attributeName="opacity"
-                                from="0.5"
+                                from="0.6"
                                 to="0"
                                 dur="2s"
                                 repeatCount="indefinite"
@@ -543,41 +634,82 @@ export function GlobeActivityTracker() {
                             cx={x}
                             cy={y}
                             r={size}
-                            fill={hasBookings ? 'hsl(var(--primary))' : '#94a3b8'}
+                            fill={hasBookings ? 'hsl(var(--primary))' : '#64748b'}
                             stroke="white"
-                            strokeWidth="2"
+                            strokeWidth="2.5"
                             filter={hasBookings ? 'url(#glow)' : undefined}
                           />
                           
-                          {/* Hover tooltip */}
-                          <title>{business.name} - {business.bookingsCount} bookings</title>
+                          {/* Inner dot */}
+                          <circle
+                            cx={x}
+                            cy={y}
+                            r={size / 3}
+                            fill="white"
+                            opacity="0.8"
+                          />
                         </g>
                       );
                     })}
-                    
-                    {/* Major city labels */}
-                    {[
-                      { name: 'London', lat: 51.5074, lng: -0.1278 },
-                      { name: 'Manchester', lat: 53.4808, lng: -2.2426 },
-                      { name: 'Birmingham', lat: 52.4862, lng: -1.8904 },
-                      { name: 'Edinburgh', lat: 55.9533, lng: -3.1883 },
-                      { name: 'Cardiff', lat: 51.4816, lng: -3.1791 },
-                      { name: 'Belfast', lat: 54.5973, lng: -5.9301 },
-                    ].map((city) => {
-                      const { x, y } = latLngToXY(city.lat, city.lng);
-                      return (
-                        <text
-                          key={city.name}
-                          x={x}
-                          y={y - 12}
-                          textAnchor="middle"
-                          className="fill-muted-foreground text-[8px] font-medium pointer-events-none"
-                        >
-                          {city.name}
-                        </text>
-                      );
-                    })}
                   </svg>
+                  
+                  {/* Hover Tooltip */}
+                  {hoveredBusiness && (
+                    <div 
+                      className="absolute z-50 pointer-events-none"
+                      style={{
+                        left: tooltipPosition.x,
+                        top: tooltipPosition.y,
+                        transform: 'translate(-50%, -100%) translateY(-15px)',
+                      }}
+                    >
+                      <div className="bg-background border border-border rounded-lg shadow-xl p-4 min-w-[280px]">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Building2 className="h-5 w-5 text-primary" />
+                          <span className="font-semibold text-foreground">{hoveredBusiness.name}</span>
+                        </div>
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <MapPin className="h-4 w-4" />
+                            <span>{hoveredBusiness.address}</span>
+                          </div>
+                          
+                          {hoveredBusiness.phone && (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Phone className="h-4 w-4" />
+                              <span>{hoveredBusiness.phone}</span>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Clock className="h-4 w-4" />
+                            <span>Joined {format(hoveredBusiness.createdAt, 'PPP')}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-border">
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-primary">{hoveredBusiness.bookingsCount}</div>
+                            <div className="text-xs text-muted-foreground">Bookings</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-orange-500">{hoveredBusiness.callsCount}</div>
+                            <div className="text-xs text-muted-foreground">Calls</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-emerald-500">{formatCurrency(hoveredBusiness.revenue)}</div>
+                            <div className="text-xs text-muted-foreground">Revenue</div>
+                          </div>
+                        </div>
+                        
+                        {/* Tooltip arrow */}
+                        <div className="absolute left-1/2 bottom-0 transform -translate-x-1/2 translate-y-full">
+                          <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-background" style={{ filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.1))' }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Realtime indicator */}
                   <div className="absolute top-4 right-4">
@@ -591,13 +723,13 @@ export function GlobeActivityTracker() {
                   </div>
                   
                   {/* Legend */}
-                  <div className="absolute bottom-4 left-4 bg-background/80 backdrop-blur-sm rounded-lg p-3 text-xs space-y-2">
+                  <div className="absolute bottom-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg p-3 text-xs space-y-2 shadow-lg">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-primary" />
+                      <div className="w-4 h-4 rounded-full bg-primary border-2 border-white shadow" />
                       <span>Active (has bookings)</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-slate-400" />
+                      <div className="w-3 h-3 rounded-full bg-slate-500 border-2 border-white shadow" />
                       <span>Registered</span>
                     </div>
                   </div>
@@ -639,59 +771,6 @@ export function GlobeActivityTracker() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Business Details Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              {selectedBusiness?.business_name}
-            </DialogTitle>
-            <DialogDescription>Business details and statistics</DialogDescription>
-          </DialogHeader>
-          
-          {selectedBusiness && (
-            <div className="space-y-4">
-              <div className="flex items-start gap-2">
-                <MapPin className="h-4 w-4 mt-1 text-muted-foreground" />
-                <span className="text-sm">{selectedBusiness.address}</span>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{selectedBusiness.main_phone}</span>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Joined {format(new Date(selectedBusiness.created_at), 'PPP')}</span>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <Badge variant={selectedBusiness.status === 'approved' ? 'default' : 'secondary'}>
-                  {selectedBusiness.status}
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-primary">{selectedBusiness.bookings_count}</div>
-                  <div className="text-xs text-muted-foreground">Bookings</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-orange-500">{selectedBusiness.calls_count}</div>
-                  <div className="text-xs text-muted-foreground">Calls</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-emerald-500">{formatCurrency(selectedBusiness.revenue)}</div>
-                  <div className="text-xs text-muted-foreground">Revenue</div>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
