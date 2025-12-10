@@ -53,10 +53,36 @@ interface BusinessDetails {
   assigned_aivia_number?: string | null;
 }
 
-// Only mlaye915@gmail.com is fully protected - cogclt4@gmail.com can be toggled
-const PROTECTED_EMAILS = ["mlaye915@gmail.com"];
+// Protected admin emails that cannot be deactivated
+const PROTECTED_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
 
-export const ManageUsersTab = () => {
+interface PendingAdmin {
+  user_id: string;
+  email: string;
+  profile: {
+    first_name: string;
+    last_name: string;
+    email: string | null;
+    admin_status: string | null;
+    admin_request_note: string | null;
+    admin_requested_at: string | null;
+    user_id: string;
+  };
+}
+
+interface ManageUsersTabProps {
+  pendingAdmins?: PendingAdmin[];
+  onAdminAction?: (userId: string, action: "approve" | "reject") => Promise<void>;
+  setSelectedAdmin?: (admin: PendingAdmin | null) => void;
+  actionLoading?: string | null;
+}
+
+export const ManageUsersTab = ({ 
+  pendingAdmins = [], 
+  onAdminAction,
+  setSelectedAdmin,
+  actionLoading 
+}: ManageUsersTabProps) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -348,6 +374,59 @@ export const ManageUsersTab = () => {
 
   return (
     <div className="space-y-6">
+      {/* Pending Admin Requests */}
+      {pendingAdmins.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-warning" />
+              Pending Admin Requests
+              <Badge variant="secondary">{pendingAdmins.length}</Badge>
+            </CardTitle>
+            <CardDescription>
+              Review and approve administrator access requests
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Requested</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingAdmins.map((admin) => (
+                  <TableRow key={admin.user_id}>
+                    <TableCell className="font-medium">
+                      {admin.profile.first_name} {admin.profile.last_name}
+                    </TableCell>
+                    <TableCell>{admin.email}</TableCell>
+                    <TableCell>
+                      {admin.profile.admin_requested_at
+                        ? new Date(admin.profile.admin_requested_at).toLocaleDateString()
+                        : "N/A"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedAdmin?.(admin)}
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        Review
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Active Users */}
       <Card>
         <CardHeader>
