@@ -12,9 +12,10 @@ function getProtectedEmails(): string[] {
   if (envEmails) {
     return envEmails.split(',').map(e => e.trim().toLowerCase());
   }
-  // Fallback to default protected email (only super admin)
+  // Fallback to default protected emails (super admins)
   return [
-    "mlaye915@gmail.com"
+    "mlaye915@gmail.com",
+    "mo@aiviaapp.co.uk"
   ];
 }
 

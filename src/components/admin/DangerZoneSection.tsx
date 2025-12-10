@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-const PROTECTED_EMAILS = ["mlaye915@gmail.com"];
+const PROTECTED_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
 const SUPER_ADMIN_EMAILS = ["mo@aiviaapp.co.uk", "mlaye915@gmail.com"];
 
 interface UserItem {
