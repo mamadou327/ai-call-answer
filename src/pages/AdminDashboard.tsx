@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import aiviaLogo from "@/assets/aivia-logo.png";
-import { LogOut, Clock, CheckCircle2, XCircle, Eye, Globe, ChevronRight, ChevronLeft, Phone, Copy, Check } from "lucide-react";
+import { LogOut, Clock, CheckCircle2, XCircle, Eye, ChevronRight, ChevronLeft, Phone, Copy, Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GlobeActivityTracker } from "@/components/admin/GlobeActivityTracker";
 import { AdminAnalyticsDashboard } from "@/components/admin/AdminAnalyticsDashboard";
 import { ManageUsersTab } from "@/components/admin/ManageUsersTab";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
@@ -94,7 +93,7 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "admins" | "tracker" | "users">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "admins" | "users">("analytics");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
     can_manage_business_numbers: false,
@@ -683,15 +682,6 @@ const AdminDashboard = () => {
               )}
             </Button>
           )}
-          {(isSuperAdmin || userPermissions.can_view_analytics) && (
-            <Button
-              variant={activeTab === "tracker" ? "default" : "outline"}
-              onClick={() => setActiveTab("tracker")}
-            >
-              <Globe className="w-4 h-4 mr-2" />
-              World Tracker
-            </Button>
-          )}
           {isSuperAdmin && (
             <Button
               variant={activeTab === "users" ? "default" : "outline"}
@@ -823,10 +813,6 @@ const AdminDashboard = () => {
               )}
             </CardContent>
           </Card>
-        )}
-
-        {activeTab === "tracker" && (
-          <GlobeActivityTracker />
         )}
 
         {activeTab === "admins" && isSuperAdmin && (
