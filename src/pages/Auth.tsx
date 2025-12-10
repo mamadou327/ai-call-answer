@@ -51,9 +51,9 @@ const Auth = () => {
 
     const userRoles = roles?.map(r => r.role) || [];
 
-    // If user is staff, send them to dashboard (not onboarding)
+    // If user is staff, send them to staff dashboard
     if (userRoles.includes("staff")) {
-      navigate("/dashboard");
+      navigate("/staff-dashboard");
       return;
     }
 
@@ -64,26 +64,34 @@ const Auth = () => {
     }
 
     // For business owners, check their business status
-    const { data: business } = await supabase
+    // Use .maybeSingle() to handle cases where no business exists without throwing error
+    const { data: business, error } = await supabase
       .from("businesses")
-      .select("*")
+      .select("id, status")
       .eq("owner_id", userId)
-      .single();
+      .maybeSingle();
 
-    if (!business) {
-      // Assign business_owner role if they don't have any role
-      if (userRoles.length === 0) {
-        await supabase
-          .from("user_roles")
-          .insert({ user_id: userId, role: "business_owner" });
+    // If user already has business_owner role, they likely have a business or had one
+    const isBusinessOwner = userRoles.includes("business_owner");
+
+    if (business) {
+      // Business exists - route based on status
+      if (business.status === "pending") {
+        navigate("/pending-approval");
+      } else if (business.status === "rejected") {
+        navigate("/onboarding");
+      } else {
+        navigate("/dashboard");
       }
+    } else if (isBusinessOwner) {
+      // Has role but no business found - could be RLS issue or they need to complete onboarding
       navigate("/onboarding");
-    } else if (business.status === "pending") {
-      navigate("/pending-approval");
-    } else if (business.status === "approved") {
-      navigate("/dashboard");
     } else {
-      navigate("/dashboard");
+      // New user without any role - assign business_owner and send to onboarding
+      await supabase
+        .from("user_roles")
+        .insert({ user_id: userId, role: "business_owner" });
+      navigate("/onboarding");
     }
   };
 
