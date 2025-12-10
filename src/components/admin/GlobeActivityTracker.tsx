@@ -1,9 +1,12 @@
-import { useRef, useMemo, useState, useEffect, Suspense, useCallback } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Sphere, Line, Html } from '@react-three/drei';
-import * as THREE from 'three';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import Globe from 'react-globe.gl';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Phone, DollarSign, CalendarDays, MapPin, Building2, Clock } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface ActivityPoint {
   id: string;
@@ -12,15 +15,30 @@ interface ActivityPoint {
   type: 'booking' | 'business';
   name: string;
   timestamp: Date;
-  isNew?: boolean; // Flag for newly added items via realtime
+  businessId: string;
+  businessName: string;
+  address: string;
+  isNew?: boolean;
 }
 
 interface ArcData {
-  id: string;
-  start: THREE.Vector3;
-  end: THREE.Vector3;
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
   color: string;
-  isNew?: boolean;
+}
+
+interface BusinessDetails {
+  id: string;
+  business_name: string;
+  address: string;
+  main_phone: string;
+  status: string;
+  created_at: string;
+  bookings_count: number;
+  calls_count: number;
+  revenue: number;
 }
 
 // Geocoding lookup - maps cities/regions to approximate coordinates
@@ -38,6 +56,9 @@ const cityCoordinates: Record<string, { lat: number; lng: number }> = {
   'glasgow': { lat: 55.8642, lng: -4.2518 },
   'edinburgh': { lat: 55.9533, lng: -3.1883 },
   'cardiff': { lat: 51.4816, lng: -3.1791 },
+  'se1': { lat: 51.4975, lng: -0.0870 },
+  'new kent': { lat: 51.4933, lng: -0.0931 },
+  'harper road': { lat: 51.4950, lng: -0.0980 },
   // US Cities
   'new york': { lat: 40.7128, lng: -74.0060 },
   'los angeles': { lat: 34.0522, lng: -118.2437 },
@@ -69,338 +90,172 @@ const cityCoordinates: Record<string, { lat: number; lng: number }> = {
   'australia': { lat: -25.2744, lng: 133.7751 },
 };
 
-function extractLocationFromAddress(address: string): { lat: number; lng: number } | null {
+function extractLocationFromAddress(address: string): { lat: number; lng: number } {
   const lowerAddress = address.toLowerCase();
   
   // Try to find a matching city or country
   for (const [key, coords] of Object.entries(cityCoordinates)) {
     if (lowerAddress.includes(key)) {
-      // Add some randomness to avoid all points stacking
+      // Add some randomness to avoid all points stacking (smaller variance)
       return {
-        lat: coords.lat + (Math.random() - 0.5) * 2,
-        lng: coords.lng + (Math.random() - 0.5) * 2,
+        lat: coords.lat + (Math.random() - 0.5) * 0.5,
+        lng: coords.lng + (Math.random() - 0.5) * 0.5,
       };
     }
   }
   
-  // Default to a random location if no match
+  // Default to London with randomness if no match
   return {
-    lat: (Math.random() - 0.5) * 120,
-    lng: (Math.random() - 0.5) * 360,
+    lat: 51.5074 + (Math.random() - 0.5) * 2,
+    lng: -0.1278 + (Math.random() - 0.5) * 2,
   };
 }
 
-function latLngToVector3(lat: number, lng: number, radius: number = 2): THREE.Vector3 {
-  const phi = (90 - lat) * (Math.PI / 180);
-  const theta = (lng + 180) * (Math.PI / 180);
-  
-  const x = -(radius * Math.sin(phi) * Math.cos(theta));
-  const z = radius * Math.sin(phi) * Math.sin(theta);
-  const y = radius * Math.cos(phi);
-  
-  return new THREE.Vector3(x, y, z);
-}
-
-// Hexagonal globe grid
-function HexGlobe() {
-  const meshRef = useRef<THREE.Points>(null);
-  
-  const points = useMemo(() => {
-    const positions: number[] = [];
-    const colors: number[] = [];
-    const hexSize = 0.05;
-    
-    // Generate hex grid on sphere
-    for (let lat = -80; lat <= 80; lat += 4) {
-      const latRad = lat * Math.PI / 180;
-      const circumference = Math.cos(latRad) * 2 * Math.PI;
-      const numPoints = Math.max(1, Math.floor(circumference / hexSize * 10));
-      
-      for (let i = 0; i < numPoints; i++) {
-        const lng = (i / numPoints) * 360 - 180;
-        
-        // Check if this point is on land (simplified check)
-        if (isLand(lat, lng)) {
-          const pos = latLngToVector3(lat, lng, 2);
-          positions.push(pos.x, pos.y, pos.z);
-          
-          // Color based on latitude for visual interest
-          const greenIntensity = 0.4 + Math.abs(lat) / 200;
-          colors.push(0.2, greenIntensity, 0.4);
-        }
-      }
-    }
-    
-    return { positions: new Float32Array(positions), colors: new Float32Array(colors) };
-  }, []);
-
-  useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y += 0.001;
-    }
-  });
-
-  return (
-    <points ref={meshRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={points.positions.length / 3}
-          array={points.positions}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="attributes-color"
-          count={points.colors.length / 3}
-          array={points.colors}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <pointsMaterial
-        size={0.03}
-        vertexColors
-        transparent
-        opacity={0.8}
-        sizeAttenuation
-      />
-    </points>
-  );
-}
-
-// Simplified land check (very basic approximation)
-function isLand(lat: number, lng: number): boolean {
-  // North America
-  if (lat > 25 && lat < 70 && lng > -170 && lng < -50) return true;
-  // South America
-  if (lat > -55 && lat < 15 && lng > -80 && lng < -35) return true;
-  // Europe
-  if (lat > 35 && lat < 70 && lng > -10 && lng < 60) return true;
-  // Africa
-  if (lat > -35 && lat < 37 && lng > -20 && lng < 55) return true;
-  // Asia
-  if (lat > 10 && lat < 75 && lng > 60 && lng < 180) return true;
-  // Australia
-  if (lat > -45 && lat < -10 && lng > 110 && lng < 160) return true;
-  // UK/Ireland specifically
-  if (lat > 50 && lat < 60 && lng > -10 && lng < 2) return true;
-  
-  return false;
-}
-
-// Activity point (pulsing dot)
-function ActivityPoint({ position, color, label }: { position: THREE.Vector3; color: string; label: string }) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const [hovered, setHovered] = useState(false);
-  
-  useFrame((state) => {
-    if (meshRef.current) {
-      const scale = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.3;
-      meshRef.current.scale.setScalar(scale);
-    }
-  });
-
-  return (
-    <group position={position}>
-      <mesh
-        ref={meshRef}
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
-      >
-        <sphereGeometry args={[0.03, 16, 16]} />
-        <meshBasicMaterial color={color} transparent opacity={0.9} />
-      </mesh>
-      {/* Glow effect */}
-      <mesh>
-        <sphereGeometry args={[0.05, 16, 16]} />
-        <meshBasicMaterial color={color} transparent opacity={0.3} />
-      </mesh>
-      {hovered && (
-        <Html distanceFactor={10}>
-          <div className="bg-background/90 backdrop-blur-sm border border-border rounded-md px-2 py-1 text-xs whitespace-nowrap">
-            {label}
-          </div>
-        </Html>
-      )}
-    </group>
-  );
-}
-
-// Animated arc between two points
-function ActivityArc({ start, end, color, progress }: { start: THREE.Vector3; end: THREE.Vector3; color: string; progress: number }) {
-  const curve = useMemo(() => {
-    const midPoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
-    const distance = start.distanceTo(end);
-    midPoint.normalize().multiplyScalar(2 + distance * 0.3);
-    
-    return new THREE.QuadraticBezierCurve3(start, midPoint, end);
-  }, [start, end]);
-
-  const points = useMemo(() => {
-    const pts = curve.getPoints(50);
-    const visiblePoints = Math.floor(pts.length * Math.min(progress, 1));
-    return pts.slice(0, visiblePoints);
-  }, [curve, progress]);
-
-  if (points.length < 2) return null;
-
-  return (
-    <Line
-      points={points}
-      color={color}
-      lineWidth={1.5}
-      transparent
-      opacity={0.6}
-    />
-  );
-}
-
-// Main scene content
-function GlobeScene({ activities }: { activities: ActivityPoint[] }) {
-  const groupRef = useRef<THREE.Group>(null);
-  const [arcs, setArcs] = useState<ArcData[]>([]);
-  const [arcProgress, setArcProgress] = useState<Record<string, number>>({});
-  
-  // Center point (London-ish for hub effect)
-  const centerPoint = latLngToVector3(51.5, -0.1, 2);
-
-  useEffect(() => {
-    // Create arcs from activities
-    const newArcs: ArcData[] = activities.slice(0, 20).map((activity, i) => ({
-      id: activity.id,
-      start: centerPoint.clone(),
-      end: latLngToVector3(activity.lat, activity.lng, 2),
-      color: activity.type === 'booking' ? '#3b82f6' : '#22c55e',
-    }));
-    setArcs(newArcs);
-    
-    // Animate arcs
-    const progressMap: Record<string, number> = {};
-    newArcs.forEach((arc, i) => {
-      progressMap[arc.id] = 0;
-      setTimeout(() => {
-        const interval = setInterval(() => {
-          setArcProgress(prev => {
-            const newProgress = (prev[arc.id] || 0) + 0.05;
-            if (newProgress >= 1) {
-              clearInterval(interval);
-              return { ...prev, [arc.id]: 1 };
-            }
-            return { ...prev, [arc.id]: newProgress };
-          });
-        }, 30);
-      }, i * 200);
-    });
-    setArcProgress(progressMap);
-  }, [activities]);
-
-  useFrame(() => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += 0.0005;
-    }
-  });
-
-  return (
-    <group ref={groupRef}>
-      {/* Base sphere for atmosphere */}
-      <Sphere args={[1.98, 64, 64]}>
-        <meshBasicMaterial color="#0c1929" transparent opacity={0.9} />
-      </Sphere>
-      
-      {/* Hexagonal land masses */}
-      <HexGlobe />
-      
-      {/* Activity arcs */}
-      {arcs.map((arc) => (
-        <ActivityArc
-          key={arc.id}
-          start={arc.start}
-          end={arc.end}
-          color={arc.color}
-          progress={arcProgress[arc.id] || 0}
-        />
-      ))}
-      
-      {/* Activity points */}
-      {activities.slice(0, 30).map((activity) => (
-        <ActivityPoint
-          key={activity.id}
-          position={latLngToVector3(activity.lat, activity.lng, 2.02)}
-          color={activity.type === 'booking' ? '#3b82f6' : '#22c55e'}
-          label={`${activity.type === 'booking' ? '📅' : '🏢'} ${activity.name}`}
-        />
-      ))}
-      
-      {/* Center hub point */}
-      <mesh position={centerPoint.clone().multiplyScalar(1.01)}>
-        <sphereGeometry args={[0.04, 16, 16]} />
-        <meshBasicMaterial color="#a855f7" />
-      </mesh>
-    </group>
-  );
-}
-
-function CameraController() {
-  const { camera } = useThree();
-  
-  useEffect(() => {
-    camera.position.set(0, 2, 5);
-    camera.lookAt(0, 0, 0);
-  }, [camera]);
-  
-  return <OrbitControls enableZoom={true} enablePan={false} minDistance={3} maxDistance={8} autoRotate={false} />;
-}
-
 export function GlobeActivityTracker() {
+  const globeRef = useRef<any>(null);
   const [activities, setActivities] = useState<ActivityPoint[]>([]);
+  const [arcs, setArcs] = useState<ArcData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ totalBookings: 0, totalBusinesses: 0, activeRegions: 0 });
+  const [stats, setStats] = useState({ 
+    totalBookings: 0, 
+    totalBusinesses: 0, 
+    activeRegions: 0,
+    totalCalls: 0,
+    totalRevenue: 0 
+  });
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const [newActivityFlash, setNewActivityFlash] = useState<string | null>(null);
+  const [selectedBusiness, setSelectedBusiness] = useState<BusinessDetails | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
   const businessAddressCache = useRef<Map<string, string>>(new Map());
+
+  // Hub location (London)
+  const hubLat = 51.5074;
+  const hubLng = -0.1278;
+
+  // Handle point click
+  const handlePointClick = useCallback(async (point: any) => {
+    console.log('[Globe] Point clicked:', point);
+    
+    try {
+      // Get business details
+      const { data: business } = await supabase
+        .from('businesses')
+        .select('*')
+        .eq('id', point.businessId)
+        .maybeSingle();
+      
+      if (!business) {
+        toast({ title: 'Error', description: 'Business not found', variant: 'destructive' });
+        return;
+      }
+
+      // Get bookings count
+      const { count: bookingsCount } = await supabase
+        .from('bookings')
+        .select('*', { count: 'exact', head: true })
+        .eq('business_id', point.businessId);
+
+      // Get calls count
+      const { count: callsCount } = await supabase
+        .from('calls_log')
+        .select('*', { count: 'exact', head: true })
+        .eq('business_id', point.businessId);
+
+      // Get revenue from bookings with services
+      const { data: bookingsWithServices } = await supabase
+        .from('bookings')
+        .select('service_id')
+        .eq('business_id', point.businessId)
+        .not('service_id', 'is', null);
+
+      let revenue = 0;
+      if (bookingsWithServices && bookingsWithServices.length > 0) {
+        const serviceIds = [...new Set(bookingsWithServices.map(b => b.service_id).filter(Boolean))];
+        if (serviceIds.length > 0) {
+          const { data: services } = await supabase
+            .from('services')
+            .select('id, price')
+            .in('id', serviceIds);
+          
+          if (services) {
+            const priceMap = new Map(services.map(s => [s.id, Number(s.price) || 0]));
+            revenue = bookingsWithServices.reduce((sum, b) => sum + (priceMap.get(b.service_id!) || 0), 0);
+          }
+        }
+      }
+
+      setSelectedBusiness({
+        id: business.id,
+        business_name: business.business_name,
+        address: business.address,
+        main_phone: business.main_phone,
+        status: business.status,
+        created_at: business.created_at,
+        bookings_count: bookingsCount || 0,
+        calls_count: callsCount || 0,
+        revenue,
+      });
+      setDialogOpen(true);
+    } catch (error) {
+      console.error('[Globe] Error fetching business details:', error);
+      toast({ title: 'Error', description: 'Failed to load business details', variant: 'destructive' });
+    }
+  }, [toast]);
 
   // Handle new booking from realtime
   const handleNewBooking = useCallback(async (payload: any) => {
     console.log('[Globe] New booking received:', payload.new);
     const booking = payload.new;
     
-    // Get the business address
     let address = businessAddressCache.current.get(booking.business_id);
+    let businessName = 'Unknown Business';
+    
     if (!address) {
       const { data } = await supabase
         .from('businesses')
-        .select('address')
+        .select('address, business_name')
         .eq('id', booking.business_id)
         .maybeSingle();
       address = data?.address || 'UK';
+      businessName = data?.business_name || 'Unknown Business';
       businessAddressCache.current.set(booking.business_id, address);
     }
     
     const coords = extractLocationFromAddress(address);
-    if (coords) {
-      const newActivity: ActivityPoint = {
-        id: `book-${booking.id}`,
-        lat: coords.lat,
-        lng: coords.lng,
-        type: 'booking',
-        name: booking.customer_name,
-        timestamp: new Date(booking.created_at),
-        isNew: true,
-      };
-      
-      // Add to front of list
-      setActivities(prev => [newActivity, ...prev.slice(0, 49)]);
-      setStats(prev => ({ ...prev, totalBookings: prev.totalBookings + 1 }));
-      setNewActivityFlash('booking');
-      
-      toast({
-        title: "📅 New Booking",
-        description: `${booking.customer_name} just made a booking`,
-      });
-      
-      // Clear flash after animation
-      setTimeout(() => setNewActivityFlash(null), 2000);
-    }
+    const newActivity: ActivityPoint = {
+      id: `book-${booking.id}`,
+      lat: coords.lat,
+      lng: coords.lng,
+      type: 'booking',
+      name: booking.customer_name,
+      timestamp: new Date(booking.created_at),
+      businessId: booking.business_id,
+      businessName,
+      address,
+      isNew: true,
+    };
+    
+    // Add arc from hub to new point
+    setArcs(prev => [...prev, {
+      startLat: hubLat,
+      startLng: hubLng,
+      endLat: coords.lat,
+      endLng: coords.lng,
+      color: '#3b82f6',
+    }]);
+    
+    setActivities(prev => [newActivity, ...prev.slice(0, 49)]);
+    setStats(prev => ({ ...prev, totalBookings: prev.totalBookings + 1 }));
+    setNewActivityFlash('booking');
+    
+    toast({
+      title: "📅 New Booking",
+      description: `${booking.customer_name} just made a booking`,
+    });
+    
+    setTimeout(() => setNewActivityFlash(null), 2000);
   }, [toast]);
 
   // Handle new business from realtime
@@ -408,50 +263,53 @@ export function GlobeActivityTracker() {
     console.log('[Globe] New business received:', payload.new);
     const business = payload.new;
     
-    // Only show approved businesses
     if (business.status !== 'approved') return;
     
     const coords = extractLocationFromAddress(business.address || 'UK');
-    if (coords) {
-      const newActivity: ActivityPoint = {
-        id: `biz-${business.id}`,
-        lat: coords.lat,
-        lng: coords.lng,
-        type: 'business',
-        name: business.business_name,
-        timestamp: new Date(business.created_at),
-        isNew: true,
-      };
-      
-      // Cache the address
-      businessAddressCache.current.set(business.id, business.address || 'UK');
-      
-      // Add to front of list
-      setActivities(prev => [newActivity, ...prev.slice(0, 49)]);
-      setStats(prev => ({ 
-        ...prev, 
-        totalBusinesses: prev.totalBusinesses + 1,
-        activeRegions: prev.activeRegions + 1 
-      }));
-      setNewActivityFlash('business');
-      
-      toast({
-        title: "🏢 New Business",
-        description: `${business.business_name} just signed up`,
-      });
-      
-      // Clear flash after animation
-      setTimeout(() => setNewActivityFlash(null), 2000);
-    }
+    const newActivity: ActivityPoint = {
+      id: `biz-${business.id}`,
+      lat: coords.lat,
+      lng: coords.lng,
+      type: 'business',
+      name: business.business_name,
+      timestamp: new Date(business.created_at),
+      businessId: business.id,
+      businessName: business.business_name,
+      address: business.address || 'UK',
+      isNew: true,
+    };
+    
+    businessAddressCache.current.set(business.id, business.address || 'UK');
+    
+    // Add arc
+    setArcs(prev => [...prev, {
+      startLat: hubLat,
+      startLng: hubLng,
+      endLat: coords.lat,
+      endLng: coords.lng,
+      color: '#22c55e',
+    }]);
+    
+    setActivities(prev => [newActivity, ...prev.slice(0, 49)]);
+    setStats(prev => ({ 
+      ...prev, 
+      totalBusinesses: prev.totalBusinesses + 1,
+      activeRegions: prev.activeRegions + 1 
+    }));
+    setNewActivityFlash('business');
+    
+    toast({
+      title: "🏢 New Business",
+      description: `${business.business_name} just signed up`,
+    });
+    
+    setTimeout(() => setNewActivityFlash(null), 2000);
   }, [toast]);
 
-  // Handle business update (for when a business gets approved)
   const handleBusinessUpdate = useCallback((payload: any) => {
-    console.log('[Globe] Business updated:', payload.new);
     const business = payload.new;
     const oldBusiness = payload.old;
     
-    // If business just got approved, add it
     if (oldBusiness?.status !== 'approved' && business.status === 'approved') {
       handleNewBusiness({ new: business });
     }
@@ -460,50 +318,30 @@ export function GlobeActivityTracker() {
   useEffect(() => {
     loadActivityData();
     
-    // Set up realtime subscriptions
     const channel = supabase
       .channel('globe-activity-tracker')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'bookings',
-        },
-        handleNewBooking
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'businesses',
-        },
-        handleNewBusiness
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'businesses',
-        },
-        handleBusinessUpdate
-      )
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, handleNewBooking)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'businesses' }, handleNewBusiness)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'businesses' }, handleBusinessUpdate)
       .subscribe((status) => {
-        console.log('[Globe] Realtime subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          setRealtimeStatus('connected');
-        } else if (status === 'CHANNEL_ERROR') {
-          setRealtimeStatus('error');
-        }
+        console.log('[Globe] Realtime status:', status);
+        if (status === 'SUBSCRIBED') setRealtimeStatus('connected');
+        else if (status === 'CHANNEL_ERROR') setRealtimeStatus('error');
       });
 
     return () => {
-      console.log('[Globe] Cleaning up realtime subscription');
       supabase.removeChannel(channel);
     };
   }, [handleNewBooking, handleNewBusiness, handleBusinessUpdate]);
+
+  // Auto-rotate globe
+  useEffect(() => {
+    if (globeRef.current) {
+      globeRef.current.controls().autoRotate = true;
+      globeRef.current.controls().autoRotateSpeed = 0.5;
+      globeRef.current.pointOfView({ lat: 30, lng: 0, altitude: 2.5 });
+    }
+  }, [loading]);
 
   const loadActivityData = async () => {
     try {
@@ -518,65 +356,110 @@ export function GlobeActivityTracker() {
       // Load recent bookings
       const { data: bookings } = await supabase
         .from('bookings')
-        .select('id, customer_name, business_id, created_at')
+        .select('id, customer_name, business_id, created_at, service_id')
         .order('created_at', { ascending: false })
         .limit(100);
+
+      // Get total calls
+      const { count: totalCalls } = await supabase
+        .from('calls_log')
+        .select('*', { count: 'exact', head: true });
+
+      // Get all services for revenue calculation
+      const { data: allServices } = await supabase
+        .from('services')
+        .select('id, price');
+      
+      const priceMap = new Map(allServices?.map(s => [s.id, Number(s.price) || 0]) || []);
+      
+      // Calculate total revenue
+      let totalRevenue = 0;
+      bookings?.forEach(booking => {
+        if (booking.service_id && priceMap.has(booking.service_id)) {
+          totalRevenue += priceMap.get(booking.service_id) || 0;
+        }
+      });
 
       // Get business addresses for bookings
       const businessIds = [...new Set(bookings?.map(b => b.business_id) || [])];
       const { data: businessAddresses } = await supabase
         .from('businesses')
-        .select('id, address')
-        .in('id', businessIds);
+        .select('id, address, business_name')
+        .in('id', businessIds.length > 0 ? businessIds : ['00000000-0000-0000-0000-000000000000']);
 
-      const addressMap = new Map(businessAddresses?.map(b => [b.id, b.address]) || []);
+      const addressMap = new Map(businessAddresses?.map(b => [b.id, { address: b.address, name: b.business_name }]) || []);
       
       // Cache addresses
-      addressMap.forEach((address, id) => {
-        businessAddressCache.current.set(id, address);
+      addressMap.forEach((data, id) => {
+        businessAddressCache.current.set(id, data.address);
       });
 
       const activityPoints: ActivityPoint[] = [];
+      const arcData: ArcData[] = [];
       const regions = new Set<string>();
 
       // Add business signups
       businesses?.forEach((biz) => {
         const coords = extractLocationFromAddress(biz.address || 'UK');
-        if (coords) {
-          activityPoints.push({
-            id: `biz-${biz.id}`,
-            lat: coords.lat,
-            lng: coords.lng,
-            type: 'business',
-            name: biz.business_name,
-            timestamp: new Date(biz.created_at),
-          });
-          regions.add(biz.address?.split(',').pop()?.trim() || 'Unknown');
-          businessAddressCache.current.set(biz.id, biz.address || 'UK');
-        }
+        activityPoints.push({
+          id: `biz-${biz.id}`,
+          lat: coords.lat,
+          lng: coords.lng,
+          type: 'business',
+          name: biz.business_name,
+          timestamp: new Date(biz.created_at),
+          businessId: biz.id,
+          businessName: biz.business_name,
+          address: biz.address || 'UK',
+        });
+        regions.add(biz.address?.split(',').pop()?.trim() || 'Unknown');
+        businessAddressCache.current.set(biz.id, biz.address || 'UK');
+        
+        // Add arc from hub
+        arcData.push({
+          startLat: hubLat,
+          startLng: hubLng,
+          endLat: coords.lat,
+          endLng: coords.lng,
+          color: '#22c55e',
+        });
       });
 
       // Add bookings
       bookings?.forEach((booking) => {
-        const address = addressMap.get(booking.business_id) || 'UK';
+        const bizData = addressMap.get(booking.business_id);
+        const address = bizData?.address || 'UK';
         const coords = extractLocationFromAddress(address);
-        if (coords) {
-          activityPoints.push({
-            id: `book-${booking.id}`,
-            lat: coords.lat,
-            lng: coords.lng,
-            type: 'booking',
-            name: booking.customer_name,
-            timestamp: new Date(booking.created_at),
-          });
-        }
+        activityPoints.push({
+          id: `book-${booking.id}`,
+          lat: coords.lat,
+          lng: coords.lng,
+          type: 'booking',
+          name: booking.customer_name,
+          timestamp: new Date(booking.created_at),
+          businessId: booking.business_id,
+          businessName: bizData?.name || 'Unknown',
+          address,
+        });
+        
+        // Add arc from hub
+        arcData.push({
+          startLat: hubLat,
+          startLng: hubLng,
+          endLat: coords.lat,
+          endLng: coords.lng,
+          color: '#3b82f6',
+        });
       });
 
       setActivities(activityPoints);
+      setArcs(arcData.slice(0, 30)); // Limit arcs for performance
       setStats({
         totalBookings: bookings?.length || 0,
         totalBusinesses: businesses?.length || 0,
         activeRegions: regions.size,
+        totalCalls: totalCalls || 0,
+        totalRevenue,
       });
     } catch (error) {
       console.error('Error loading activity data:', error);
@@ -585,79 +468,208 @@ export function GlobeActivityTracker() {
     }
   };
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
+  };
+
   return (
-    <div className="relative w-full h-[600px] bg-gradient-to-b from-background to-muted/20 rounded-lg border overflow-hidden">
-      {/* Stats overlay */}
-      <div className="absolute top-4 left-4 z-10 space-y-2">
-        <div className="bg-background/80 backdrop-blur-sm border rounded-lg px-4 py-2">
+    <div className="space-y-4">
+      {/* Stats Cards Row */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <Card className={`transition-all ${newActivityFlash === 'booking' ? 'ring-2 ring-blue-500' : ''}`}>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-primary" />
+              <span className="text-sm text-muted-foreground">Bookings</span>
+            </div>
+            <div className="text-2xl font-bold mt-1">{stats.totalBookings}</div>
+          </CardContent>
+        </Card>
+        
+        <Card className={`transition-all ${newActivityFlash === 'business' ? 'ring-2 ring-green-500' : ''}`}>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-green-500" />
+              <span className="text-sm text-muted-foreground">Businesses</span>
+            </div>
+            <div className="text-2xl font-bold mt-1">{stats.totalBusinesses}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2">
+              <Phone className="h-5 w-5 text-purple-500" />
+              <span className="text-sm text-muted-foreground">Total Calls</span>
+            </div>
+            <div className="text-2xl font-bold mt-1">{stats.totalCalls}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-yellow-500" />
+              <span className="text-sm text-muted-foreground">Revenue</span>
+            </div>
+            <div className="text-2xl font-bold mt-1">{formatCurrency(stats.totalRevenue)}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-orange-500" />
+              <span className="text-sm text-muted-foreground">Regions</span>
+            </div>
+            <div className="text-2xl font-bold mt-1">{stats.activeRegions}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Globe Container */}
+      <div className="relative w-full h-[600px] bg-gradient-to-b from-slate-900 to-slate-800 rounded-lg border overflow-hidden">
+        {/* Status indicator */}
+        <div className="absolute top-4 left-4 z-10 bg-background/80 backdrop-blur-sm border rounded-lg px-4 py-2">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold">Global Activity</h3>
-            {/* Realtime status indicator */}
             <div className="flex items-center gap-1">
               <div className={`w-2 h-2 rounded-full ${
                 realtimeStatus === 'connected' ? 'bg-green-500 animate-pulse' : 
                 realtimeStatus === 'error' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'
               }`} />
               <span className="text-xs text-muted-foreground">
-                {realtimeStatus === 'connected' ? 'Live' : 
-                 realtimeStatus === 'error' ? 'Offline' : 'Connecting'}
+                {realtimeStatus === 'connected' ? 'Live' : realtimeStatus === 'error' ? 'Offline' : 'Connecting'}
               </span>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">Real-time booking & signup locations</p>
+          <p className="text-sm text-muted-foreground">Click on a point to view business details</p>
         </div>
-        <div className="flex gap-2">
-          <div className={`bg-background/80 backdrop-blur-sm border rounded-lg px-3 py-2 transition-all ${
-            newActivityFlash === 'booking' ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-background' : ''
-          }`}>
-            <div className="text-2xl font-bold text-primary">{stats.totalBookings}</div>
-            <div className="text-xs text-muted-foreground">Bookings</div>
-          </div>
-          <div className={`bg-background/80 backdrop-blur-sm border rounded-lg px-3 py-2 transition-all ${
-            newActivityFlash === 'business' ? 'ring-2 ring-green-500 ring-offset-2 ring-offset-background' : ''
-          }`}>
-            <div className="text-2xl font-bold text-green-500">{stats.totalBusinesses}</div>
-            <div className="text-xs text-muted-foreground">Businesses</div>
-          </div>
-          <div className="bg-background/80 backdrop-blur-sm border rounded-lg px-3 py-2">
-            <div className="text-2xl font-bold text-purple-500">{stats.activeRegions}</div>
-            <div className="text-xs text-muted-foreground">Regions</div>
+
+        {/* Legend */}
+        <div className="absolute bottom-4 left-4 z-10 bg-background/80 backdrop-blur-sm border rounded-lg px-4 py-2">
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-blue-500" />
+              <span>Bookings</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-green-500" />
+              <span>Businesses</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-purple-500" />
+              <span>Hub</span>
+            </div>
           </div>
         </div>
+
+        {loading ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+          </div>
+        ) : (
+          <Globe
+            ref={globeRef}
+            globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
+            bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
+            backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
+            
+            // Points data
+            pointsData={activities}
+            pointLat="lat"
+            pointLng="lng"
+            pointColor={(d: any) => d.type === 'booking' ? '#3b82f6' : '#22c55e'}
+            pointAltitude={0.01}
+            pointRadius={0.5}
+            pointLabel={(d: any) => `
+              <div style="background: rgba(0,0,0,0.8); padding: 8px 12px; border-radius: 8px; color: white;">
+                <div style="font-weight: bold;">${d.type === 'booking' ? '📅' : '🏢'} ${d.name}</div>
+                <div style="font-size: 12px; opacity: 0.8;">${d.businessName}</div>
+                <div style="font-size: 11px; opacity: 0.6;">Click for details</div>
+              </div>
+            `}
+            onPointClick={handlePointClick}
+            
+            // Arcs data
+            arcsData={arcs}
+            arcStartLat="startLat"
+            arcStartLng="startLng"
+            arcEndLat="endLat"
+            arcEndLng="endLng"
+            arcColor="color"
+            arcDashLength={0.5}
+            arcDashGap={0.2}
+            arcDashAnimateTime={2000}
+            arcStroke={0.5}
+            
+            // Hub ring
+            ringsData={[{ lat: hubLat, lng: hubLng }]}
+            ringColor={() => '#a855f7'}
+            ringMaxRadius={3}
+            ringPropagationSpeed={2}
+            ringRepeatPeriod={1000}
+            
+            width={typeof window !== 'undefined' ? window.innerWidth * 0.9 : 800}
+            height={600}
+          />
+        )}
       </div>
 
-      {/* Legend */}
-      <div className="absolute bottom-4 left-4 z-10 bg-background/80 backdrop-blur-sm border rounded-lg px-4 py-2">
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500" />
-            <span>Bookings</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500" />
-            <span>New Business</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-purple-500" />
-            <span>Hub</span>
-          </div>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
-        </div>
-      ) : (
-        <Canvas>
-          <Suspense fallback={null}>
-            <ambientLight intensity={0.5} />
-            <pointLight position={[10, 10, 10]} />
-            <GlobeScene activities={activities} />
-            <CameraController />
-          </Suspense>
-        </Canvas>
-      )}
+      {/* Business Details Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              {selectedBusiness?.business_name}
+            </DialogTitle>
+            <DialogDescription>Business performance overview</DialogDescription>
+          </DialogHeader>
+          
+          {selectedBusiness && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge variant={selectedBusiness.status === 'approved' ? 'default' : 'secondary'}>
+                  {selectedBusiness.status}
+                </Badge>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  <span>{selectedBusiness.address}</span>
+                </div>
+                
+                <div className="flex items-center gap-2 text-sm">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <span>{selectedBusiness.main_phone}</span>
+                </div>
+                
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span>Joined {format(new Date(selectedBusiness.created_at), 'PPP')}</span>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-3 pt-4 border-t">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{selectedBusiness.bookings_count}</div>
+                  <div className="text-xs text-muted-foreground">Bookings</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-500">{selectedBusiness.calls_count}</div>
+                  <div className="text-xs text-muted-foreground">Calls</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-500">{formatCurrency(selectedBusiness.revenue)}</div>
+                  <div className="text-xs text-muted-foreground">Revenue</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
