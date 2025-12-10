@@ -290,7 +290,7 @@ RESPONSE GUIDELINES
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-pro",
         messages: [
           { role: "system", content: adminSystemPrompt },
           ...messages.map((m) => ({ role: m.role, content: m.content })),
@@ -707,7 +707,7 @@ REMEMBER: ALWAYS respond with JSON. Never plain text.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-pro",
         messages: [
           { role: "system", content: systemPrompt },
           ...messages.map((m) => ({ role: m.role, content: m.content })),
