@@ -10,6 +10,7 @@ import { StaffInviteDialog } from "./settings/StaffInviteDialog";
 import { CustomersManagement } from "./settings/CustomersManagement";
 import { AISettingsTab } from "./settings/AISettingsTab";
 import { PoliciesTab } from "./settings/PoliciesTab";
+import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle } from "lucide-react";
 
 interface SettingsTabProps {
   businessId: string;
@@ -36,14 +37,38 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
   return (
     <Tabs defaultValue={mapSection(activeSection || "business")} className="space-y-6">
       <TabsList className="h-auto p-1 bg-muted/50 rounded-lg flex flex-wrap gap-1 w-fit">
-        <TabsTrigger value="business" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Business</TabsTrigger>
-        <TabsTrigger value="ai" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">AI</TabsTrigger>
-        <TabsTrigger value="policies" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Policies</TabsTrigger>
-        <TabsTrigger value="services" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Services</TabsTrigger>
-        <TabsTrigger value="staff" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Staff</TabsTrigger>
-        <TabsTrigger value="hours" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Hours</TabsTrigger>
-        <TabsTrigger value="timeoff" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Time Off</TabsTrigger>
-        <TabsTrigger value="customers" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Customers</TabsTrigger>
+        <TabsTrigger value="business" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <Building2 className="w-4 h-4" />
+          <span className="hidden sm:inline">Business</span>
+        </TabsTrigger>
+        <TabsTrigger value="ai" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <Bot className="w-4 h-4" />
+          <span className="hidden sm:inline">AI</span>
+        </TabsTrigger>
+        <TabsTrigger value="policies" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <FileText className="w-4 h-4" />
+          <span className="hidden sm:inline">Policies</span>
+        </TabsTrigger>
+        <TabsTrigger value="services" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <Scissors className="w-4 h-4" />
+          <span className="hidden sm:inline">Services</span>
+        </TabsTrigger>
+        <TabsTrigger value="staff" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <Users className="w-4 h-4" />
+          <span className="hidden sm:inline">Staff</span>
+        </TabsTrigger>
+        <TabsTrigger value="hours" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <Clock className="w-4 h-4" />
+          <span className="hidden sm:inline">Hours</span>
+        </TabsTrigger>
+        <TabsTrigger value="timeoff" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <CalendarOff className="w-4 h-4" />
+          <span className="hidden sm:inline">Time Off</span>
+        </TabsTrigger>
+        <TabsTrigger value="customers" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <UserCircle className="w-4 h-4" />
+          <span className="hidden sm:inline">Customers</span>
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="business">
