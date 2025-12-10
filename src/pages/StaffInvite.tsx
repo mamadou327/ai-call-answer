@@ -237,6 +237,21 @@ const StaffInvite = () => {
         return;
       }
 
+      // Send admin notification for staff signup
+      try {
+        await supabase.functions.invoke("send-admin-notification", {
+          body: {
+            signupType: "staff",
+            staffName: `${formData.firstName} ${formData.lastName}`.trim(),
+            staffEmail: formData.email,
+            staffBusinessName: businessName,
+          },
+        });
+      } catch (notifyError) {
+        console.error("Failed to send admin notification:", notifyError);
+        // Don't fail the signup if notification fails
+      }
+
       await supabase.auth.signOut();
       setIsSuccess(true);
       

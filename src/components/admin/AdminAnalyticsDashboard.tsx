@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Loader2, Building2, Users, Phone, Calendar, DollarSign, TrendingUp, MessageSquare, UserPlus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, subDays, startOfDay, endOfDay, parseISO } from "date-fns";
+import { format, subDays, startOfDay, endOfDay, parseISO, startOfYear } from "date-fns";
+import { DateRange } from "react-day-picker";
+import { DateRangePicker } from "@/components/dashboard/DateRangePicker";
 
 interface AnalyticsData {
   totalBusinesses: number;
@@ -22,7 +23,8 @@ interface AnalyticsData {
 
 export const AdminAnalyticsDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
-  const [dateRange, setDateRange] = useState("30");
+  const [datePreset, setDatePreset] = useState("30");
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
   const [data, setData] = useState<AnalyticsData>({
     totalBusinesses: 0,
     totalStaff: 0,
@@ -36,12 +38,45 @@ export const AdminAnalyticsDashboard = () => {
     topActiveBusinesses: [],
   });
 
+  const getDateRange = (): { startDate: string; endDate: string } => {
+    const endDate = endOfDay(new Date()).toISOString();
+    
+    if (datePreset === "custom" && customDateRange?.from) {
+      return {
+        startDate: startOfDay(customDateRange.from).toISOString(),
+        endDate: customDateRange.to ? endOfDay(customDateRange.to).toISOString() : endDate,
+      };
+    }
+    
+    let startDate: Date;
+    
+    switch (datePreset) {
+      case "0": // Today
+        startDate = startOfDay(new Date());
+        break;
+      case "7": // Last 7 days
+        startDate = startOfDay(subDays(new Date(), 7));
+        break;
+      case "30": // Last 30 days
+        startDate = startOfDay(subDays(new Date(), 30));
+        break;
+      case "ytd": // Year to date
+        startDate = startOfYear(new Date());
+        break;
+      default:
+        startDate = startOfDay(subDays(new Date(), 30));
+    }
+    
+    return {
+      startDate: startDate.toISOString(),
+      endDate,
+    };
+  };
+
   const loadAnalytics = async () => {
     setIsLoading(true);
     try {
-      const days = parseInt(dateRange);
-      const startDate = startOfDay(subDays(new Date(), days)).toISOString();
-      const endDate = endOfDay(new Date()).toISOString();
+      const { startDate, endDate } = getDateRange();
 
       // Fetch all data in parallel
       const [
@@ -154,7 +189,7 @@ export const AdminAnalyticsDashboard = () => {
 
   useEffect(() => {
     loadAnalytics();
-  }, [dateRange]);
+  }, [datePreset, customDateRange]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
@@ -172,6 +207,13 @@ export const AdminAnalyticsDashboard = () => {
     return labels[tier] || tier;
   };
 
+  const handlePresetChange = (value: string) => {
+    setDatePreset(value);
+    if (value !== "custom") {
+      setCustomDateRange(undefined);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -183,19 +225,29 @@ export const AdminAnalyticsDashboard = () => {
   return (
     <div className="space-y-6">
       {/* Date Range Filter */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h2 className="text-xl font-semibold">Analytics Overview</h2>
-        <Select value={dateRange} onValueChange={setDateRange}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select range" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7">Last 7 days</SelectItem>
-            <SelectItem value="30">Last 30 days</SelectItem>
-            <SelectItem value="90">Last 90 days</SelectItem>
-            <SelectItem value="365">Last year</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap items-center gap-3">
+          <Select value={datePreset} onValueChange={handlePresetChange}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">Today</SelectItem>
+              <SelectItem value="7">Last 7 days</SelectItem>
+              <SelectItem value="30">Last 30 days</SelectItem>
+              <SelectItem value="ytd">Year to date</SelectItem>
+              <SelectItem value="custom">Custom range</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {datePreset === "custom" && (
+            <DateRangePicker
+              dateRange={customDateRange}
+              onDateRangeChange={setCustomDateRange}
+            />
+          )}
+        </div>
       </div>
 
       {/* Key Metrics */}

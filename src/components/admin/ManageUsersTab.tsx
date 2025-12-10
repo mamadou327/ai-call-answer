@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ChevronDown, ChevronUp, Users, UserX, ShieldCheck, ShieldX, Eye } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, Users, UserX, ShieldCheck, ShieldX, Eye, Building2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -20,6 +20,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DangerZoneSection } from "./DangerZoneSection";
 import { BusinessDetailsDialog } from "./BusinessDetailsDialog";
+import { UserDetailsDialog } from "./UserDetailsDialog";
 
 interface AppUser {
   user_id: string;
@@ -31,6 +32,8 @@ interface AppUser {
   role: string | null;
   business_name?: string | null;
   business_id?: string | null;
+  phone?: string | null;
+  position?: string | null;
 }
 
 interface BusinessDetails {
@@ -50,7 +53,8 @@ interface BusinessDetails {
   assigned_aivia_number?: string | null;
 }
 
-const PROTECTED_EMAILS = ["mlaye915@gmail.com", "cogclt4@gmail.com"];
+// Only mlaye915@gmail.com is fully protected - cogclt4@gmail.com can be toggled
+const PROTECTED_EMAILS = ["mlaye915@gmail.com"];
 
 export const ManageUsersTab = () => {
   const { toast } = useToast();
@@ -63,6 +67,8 @@ export const ManageUsersTab = () => {
   const [showInactive, setShowInactive] = useState(false);
   const [selectedBusiness, setSelectedBusiness] = useState<BusinessDetails | null>(null);
   const [showBusinessDialog, setShowBusinessDialog] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
+  const [showUserDialog, setShowUserDialog] = useState(false);
 
   const loadUsers = async () => {
     setIsLoading(true);
@@ -91,9 +97,32 @@ export const ManageUsersTab = () => {
         roleMap.set(r.user_id, r.role);
       });
 
+      // Get staff memberships for staff details
+      const { data: staffMemberships } = await supabase
+        .from("staff_memberships")
+        .select("user_id, phone, position, business_id, first_name, last_name");
+      
+      const staffMap = new Map<string, { phone: string | null; position: string | null; business_id: string }>();
+      staffMemberships?.forEach((sm) => {
+        staffMap.set(sm.user_id, { phone: sm.phone, position: sm.position, business_id: sm.business_id });
+      });
+
       // Build user list
       const userList: AppUser[] = (profiles || []).map((p) => {
         const businessInfo = businessMap.get(p.user_id);
+        const staffInfo = staffMap.get(p.user_id);
+        const role = roleMap.get(p.user_id);
+        
+        // For staff members, get their business name from their membership
+        let businessName = businessInfo?.name || null;
+        let businessId = businessInfo?.id || null;
+        
+        if (!businessName && staffInfo?.business_id) {
+          const staffBusiness = (businesses || []).find(b => b.id === staffInfo.business_id);
+          businessName = staffBusiness?.business_name || null;
+          businessId = staffInfo.business_id;
+        }
+        
         return {
           user_id: p.user_id,
           email: p.email || "",
@@ -101,9 +130,11 @@ export const ManageUsersTab = () => {
           last_name: p.last_name,
           created_at: p.created_at,
           is_active: p.admin_status !== "inactive",
-          role: roleMap.get(p.user_id) || "business_owner",
-          business_name: businessInfo?.name || null,
-          business_id: businessInfo?.id || null,
+          role: role || (staffInfo ? "staff" : "business_owner"),
+          business_name: businessName,
+          business_id: businessId,
+          phone: staffInfo?.phone || null,
+          position: staffInfo?.position || null,
         };
       });
 
@@ -241,6 +272,11 @@ export const ManageUsersTab = () => {
     }
   };
 
+  const viewUserDetails = (user: AppUser) => {
+    setSelectedUser(user);
+    setShowUserDialog(true);
+  };
+
   const UserTable = ({ userList, showToggle = true }: { userList: AppUser[]; showToggle?: boolean }) => (
     <Table>
       <TableHeader>
@@ -259,9 +295,15 @@ export const ManageUsersTab = () => {
           return (
             <TableRow key={user.user_id}>
               <TableCell className="font-medium">
-                {user.first_name || user.last_name
-                  ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
-                  : "—"}
+                <button
+                  onClick={() => viewUserDetails(user)}
+                  className="flex items-center gap-2 text-foreground hover:text-primary cursor-pointer"
+                >
+                  {user.first_name || user.last_name
+                    ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
+                    : "—"}
+                  <Eye className="w-3 h-3 opacity-50" />
+                </button>
               </TableCell>
               <TableCell>{user.email}</TableCell>
               <TableCell>
@@ -270,8 +312,8 @@ export const ManageUsersTab = () => {
                     onClick={() => user.business_id && viewBusinessDetails(user.business_id, user)}
                     className="flex items-center gap-2 text-primary hover:underline cursor-pointer"
                   >
+                    <Building2 className="w-3 h-3" />
                     {user.business_name}
-                    <Eye className="w-3 h-3" />
                   </button>
                 ) : (
                   "—"
@@ -429,6 +471,13 @@ export const ManageUsersTab = () => {
         business={selectedBusiness} 
         open={showBusinessDialog} 
         onOpenChange={setShowBusinessDialog} 
+      />
+
+      {/* User Details Dialog */}
+      <UserDetailsDialog
+        user={selectedUser}
+        open={showUserDialog}
+        onOpenChange={setShowUserDialog}
       />
     </div>
   );

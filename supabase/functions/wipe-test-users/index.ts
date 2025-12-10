@@ -12,10 +12,9 @@ function getProtectedEmails(): string[] {
   if (envEmails) {
     return envEmails.split(',').map(e => e.trim().toLowerCase());
   }
-  // Fallback to default protected emails
+  // Fallback to default protected email (only super admin)
   return [
-    "mlaye915@gmail.com",
-    "cogclt4@gmail.com"
+    "mlaye915@gmail.com"
   ];
 }
 
@@ -72,7 +71,7 @@ serve(async (req) => {
     }
 
     // Parse request body for specific business cleanup
-    let requestBody: { businessId?: string } = {};
+    let requestBody: { businessId?: string; userId?: string } = {};
     try {
       const bodyText = await req.text();
       if (bodyText) {
@@ -88,6 +87,12 @@ serve(async (req) => {
     if (requestBody.businessId) {
       console.log(`Starting specific business cleanup for: ${requestBody.businessId}`);
       return await cleanupSpecificBusiness(supabaseAdmin, requestBody.businessId, PROTECTED_EMAILS);
+    }
+
+    // If userId is provided, do specific user cleanup
+    if (requestBody.userId) {
+      console.log(`Starting specific user cleanup for: ${requestBody.userId}`);
+      return await cleanupSpecificUser(supabaseAdmin, requestBody.userId, PROTECTED_EMAILS);
     }
 
     // Otherwise, do full cleanup
@@ -438,6 +443,134 @@ async function cleanupSpecificBusiness(supabaseAdmin: any, businessId: string, p
 
   } catch (error: any) {
     console.error("Business cleanup error:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { 
+        status: 500, 
+        headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } 
+      }
+    );
+  }
+}
+
+// Cleanup a specific user (standalone, not a business owner)
+async function cleanupSpecificUser(supabaseAdmin: any, userId: string, protectedEmails: string[]) {
+  const errors: string[] = [];
+  let deletedUsers = 0;
+  let deletedProfiles = 0;
+  let deletedRoles = 0;
+  let deletedMemberships = 0;
+
+  try {
+    // Get user info
+    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId);
+    
+    if (userError || !userData?.user) {
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { status: 404, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userEmail = userData.user.email || "";
+
+    // Check if user is protected
+    if (protectedEmails.includes(userEmail.toLowerCase())) {
+      return new Response(
+        JSON.stringify({ error: "Cannot delete protected user" }),
+        { status: 403, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`Cleaning up user: ${userEmail} (${userId})`);
+
+    // Delete staff memberships
+    const { data: membershipsData } = await supabaseAdmin
+      .from("staff_memberships")
+      .delete()
+      .eq("user_id", userId)
+      .select();
+    deletedMemberships = membershipsData?.length || 0;
+
+    // Delete staff invites for this email
+    await supabaseAdmin
+      .from("staff_invites")
+      .delete()
+      .eq("email", userEmail);
+
+    // Delete staff accounts
+    await supabaseAdmin
+      .from("staff_accounts")
+      .delete()
+      .eq("user_id", userId);
+
+    // Null out booking references
+    await supabaseAdmin
+      .from("bookings")
+      .update({ created_by_user_id: null })
+      .eq("created_by_user_id", userId);
+
+    await supabaseAdmin
+      .from("bookings")
+      .update({ last_modified_by_user_id: null })
+      .eq("last_modified_by_user_id", userId);
+
+    await supabaseAdmin
+      .from("bookings")
+      .update({ cancelled_by_user_id: null })
+      .eq("cancelled_by_user_id", userId);
+
+    // Delete admin permissions
+    await supabaseAdmin
+      .from("admin_permissions")
+      .delete()
+      .eq("user_id", userId);
+
+    // Delete user roles
+    const { data: rolesData } = await supabaseAdmin
+      .from("user_roles")
+      .delete()
+      .eq("user_id", userId)
+      .select();
+    deletedRoles = rolesData?.length || 0;
+
+    // Delete profile
+    const { data: profileData } = await supabaseAdmin
+      .from("profiles")
+      .delete()
+      .eq("user_id", userId)
+      .select();
+    deletedProfiles = profileData?.length || 0;
+
+    // Delete auth user
+    const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    if (deleteUserError) {
+      errors.push(`Failed to delete user: ${deleteUserError.message}`);
+    } else {
+      deletedUsers = 1;
+    }
+
+    const summary = {
+      success: true,
+      deletedUsers,
+      deletedMemberships,
+      deletedProfiles,
+      deletedRoles,
+      errors: errors.length > 0 ? errors : undefined
+    };
+
+    console.log("User cleanup complete:", summary);
+
+    return new Response(
+      JSON.stringify(summary),
+      { 
+        status: 200, 
+        headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' } 
+      }
+    );
+
+  } catch (error: any) {
+    console.error("User cleanup error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
