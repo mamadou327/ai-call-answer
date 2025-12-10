@@ -89,7 +89,8 @@ export const AdminAnalyticsDashboard = () => {
         supabase.from("businesses").select("id, business_name, plan_tier, status, created_at"),
         supabase.from("staff").select("id, business_id"),
         supabase.from("calls_log").select("id, business_id, created_at").gte("created_at", startDate).lte("created_at", endDate),
-        supabase.from("bookings").select("id, business_id, created_at, service_id").gte("created_at", startDate).lte("created_at", endDate),
+        // Use start_time for bookings to count bookings that are scheduled for the selected time period
+        supabase.from("bookings").select("id, business_id, start_time, service_id").gte("start_time", startDate).lte("start_time", endDate),
         supabase.from("messages").select("id, business_id, created_at").gte("created_at", startDate).lte("created_at", endDate),
       ]);
 

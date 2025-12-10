@@ -21,8 +21,8 @@ import { ManageUsersTab } from "@/components/admin/ManageUsersTab";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
 import { LayoutDashboard, Settings2 } from "lucide-react";
 
-// Super admin email constant
-const SUPER_ADMIN_EMAIL = "mlaye915@gmail.com";
+// Super admin emails that cannot be deactivated
+const PROTECTED_ADMIN_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
 
 interface Business {
   id: string;
@@ -93,7 +93,7 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "admins" | "users">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users">("analytics");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
     can_manage_business_numbers: false,
@@ -255,7 +255,7 @@ const AdminDashboard = () => {
       // Build the pending admins list from profiles table
       // Filter out the super admin email
       const pendingList: PendingAdmin[] = (profilesData || [])
-        .filter(profile => profile.email !== SUPER_ADMIN_EMAIL)
+        .filter(profile => !PROTECTED_ADMIN_EMAILS.includes(profile.email || ""))
         .map(profile => ({
           user_id: profile.user_id,
           email: profile.email || "",
@@ -276,9 +276,9 @@ const AdminDashboard = () => {
     userId: string,
     action: "approve" | "reject"
   ) => {
-    // Prevent modifying the super admin
+    // Prevent modifying protected admins
     const admin = pendingAdmins.find(a => a.user_id === userId);
-    if (admin?.email === SUPER_ADMIN_EMAIL) {
+    if (PROTECTED_ADMIN_EMAILS.includes(admin?.email || "")) {
       toast({
         title: "Action Not Allowed",
         description: "The super admin account cannot be modified.",
@@ -671,24 +671,16 @@ const AdminDashboard = () => {
           </Button>
           {isSuperAdmin && (
             <Button
-              variant={activeTab === "admins" ? "default" : "outline"}
-              onClick={() => setActiveTab("admins")}
-            >
-              Admin Requests
-              {pendingAdmins.length > 0 && (
-                <Badge variant="secondary" className="ml-2">
-                  {pendingAdmins.length}
-                </Badge>
-              )}
-            </Button>
-          )}
-          {isSuperAdmin && (
-            <Button
               variant={activeTab === "users" ? "default" : "outline"}
               onClick={() => setActiveTab("users")}
             >
               <Settings2 className="w-4 h-4 mr-2" />
               Manage Users
+              {pendingAdmins.length > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  {pendingAdmins.length}
+                </Badge>
+              )}
             </Button>
           )}
         </div>
@@ -815,62 +807,13 @@ const AdminDashboard = () => {
           </Card>
         )}
 
-        {activeTab === "admins" && isSuperAdmin && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Pending Admin Requests</CardTitle>
-              <CardDescription>Review and approve administrator access requests</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : pendingAdmins.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">No pending admin requests</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Requested</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingAdmins.map((admin) => (
-                      <TableRow key={admin.user_id}>
-                        <TableCell className="font-medium">
-                          {admin.profile.first_name} {admin.profile.last_name}
-                        </TableCell>
-                        <TableCell>{admin.email}</TableCell>
-                        <TableCell>
-                          {admin.profile.admin_requested_at
-                            ? new Date(admin.profile.admin_requested_at).toLocaleDateString()
-                            : "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedAdmin(admin)}
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            Review
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
         {activeTab === "users" && isSuperAdmin && (
-          <ManageUsersTab />
+          <ManageUsersTab 
+            pendingAdmins={pendingAdmins}
+            onAdminAction={handleAdminAction}
+            setSelectedAdmin={setSelectedAdmin}
+            actionLoading={actionLoading}
+          />
         )}
       </div>
 
