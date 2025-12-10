@@ -225,38 +225,32 @@ const Dashboard = () => {
               </div>}
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className={`grid w-full ${isStaffView ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3 sm:grid-cols-6'} gap-1`}>
-                <TabsTrigger value="dashboard" className="flex items-center gap-1 px-2 text-xs sm:text-sm sm:gap-2 sm:px-3">
-                  <LayoutDashboard className="w-3 h-3 sm:w-4 sm:h-4" />
+              <TabsList className="h-auto p-1 bg-muted/50 rounded-lg flex flex-wrap gap-1 w-fit">
+                <TabsTrigger value="dashboard" className="flex items-center gap-2 px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                  <LayoutDashboard className="w-4 h-4" />
                   <span className="hidden sm:inline">{t("dashboard.title")}</span>
-                  <span className="sm:hidden">Home</span>
                 </TabsTrigger>
-                <TabsTrigger value="calendar" className="flex items-center gap-1 px-2 text-xs sm:text-sm sm:gap-2 sm:px-3">
-                  <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
+                <TabsTrigger value="calendar" className="flex items-center gap-2 px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                  <Calendar className="w-4 h-4" />
                   <span className="hidden sm:inline">{t("dashboard.calendar")}</span>
-                  <span className="sm:hidden">Cal</span>
                 </TabsTrigger>
                 {!isStaffView && <>
-                    <TabsTrigger value="calls" className="flex items-center gap-1 px-2 text-xs sm:text-sm sm:gap-2 sm:px-3">
-                      <PhoneCall className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <TabsTrigger value="calls" className="flex items-center gap-2 px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                      <PhoneCall className="w-4 h-4" />
                       <span className="hidden sm:inline">{t("dashboard.calls")}</span>
-                      <span className="sm:hidden">Calls</span>
                     </TabsTrigger>
-                    <TabsTrigger value="messages" className="flex items-center gap-1 px-2 text-xs sm:text-sm sm:gap-2 sm:px-3">
-                      <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <TabsTrigger value="messages" className="flex items-center gap-2 px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                      <MessageSquare className="w-4 h-4" />
                       <span className="hidden sm:inline">{t("dashboard.messages")}</span>
-                      <span className="sm:hidden">Msgs</span>
                     </TabsTrigger>
                   </>}
-                <TabsTrigger value="bookings" className="flex items-center gap-1 px-2 text-xs sm:text-sm sm:gap-2 sm:px-3">
-                  <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
+                <TabsTrigger value="bookings" className="flex items-center gap-2 px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                  <Calendar className="w-4 h-4" />
                   <span className="hidden sm:inline">{t("dashboard.bookings")}</span>
-                  <span className="sm:hidden">Book</span>
                 </TabsTrigger>
-                {!isStaffView && <TabsTrigger value="settings" className="flex items-center gap-1 px-2 text-xs sm:text-sm sm:gap-2 sm:px-3">
-                    <Settings className="w-3 h-3 sm:w-4 sm:h-4" />
+                {!isStaffView && <TabsTrigger value="settings" className="flex items-center gap-2 px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">
+                    <Settings className="w-4 h-4" />
                     <span className="hidden sm:inline">{t("dashboard.settings")}</span>
-                    <span className="sm:hidden">Set</span>
                   </TabsTrigger>}
               </TabsList>
 

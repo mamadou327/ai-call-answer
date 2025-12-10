@@ -35,15 +35,15 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
 
   return (
     <Tabs defaultValue={mapSection(activeSection || "business")} className="space-y-6">
-      <TabsList className="grid w-full grid-cols-8 lg:w-auto">
-        <TabsTrigger value="business">Business</TabsTrigger>
-        <TabsTrigger value="ai">AI</TabsTrigger>
-        <TabsTrigger value="policies">Policies</TabsTrigger>
-        <TabsTrigger value="services">Services</TabsTrigger>
-        <TabsTrigger value="staff">Staff</TabsTrigger>
-        <TabsTrigger value="hours">Hours</TabsTrigger>
-        <TabsTrigger value="timeoff">Time Off</TabsTrigger>
-        <TabsTrigger value="customers">Customers</TabsTrigger>
+      <TabsList className="h-auto p-1 bg-muted/50 rounded-lg flex flex-wrap gap-1 w-fit">
+        <TabsTrigger value="business" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Business</TabsTrigger>
+        <TabsTrigger value="ai" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">AI</TabsTrigger>
+        <TabsTrigger value="policies" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Policies</TabsTrigger>
+        <TabsTrigger value="services" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Services</TabsTrigger>
+        <TabsTrigger value="staff" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Staff</TabsTrigger>
+        <TabsTrigger value="hours" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Hours</TabsTrigger>
+        <TabsTrigger value="timeoff" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Time Off</TabsTrigger>
+        <TabsTrigger value="customers" className="px-4 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md">Customers</TabsTrigger>
       </TabsList>
 
       <TabsContent value="business">
