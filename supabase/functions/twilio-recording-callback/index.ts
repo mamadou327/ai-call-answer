@@ -113,14 +113,7 @@ Deno.serve(async (req) => {
       return new Response("OK", { status: 200, headers: corsHeaders });
     }
 
-    // Get the public URL for the recording
-    const { data: urlData } = supabase.storage
-      .from("call-recordings")
-      .getPublicUrl(filename);
-
-    const storedRecordingUrl = urlData?.publicUrl || filename;
-
-    console.log("[RecordingCallback] Recording stored at:", storedRecordingUrl);
+    console.log("[RecordingCallback] Recording stored at:", filename);
 
     // Update the call log with the recording URL and duration
     const { error: updateError } = await supabase
