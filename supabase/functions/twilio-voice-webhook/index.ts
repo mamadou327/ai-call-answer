@@ -293,12 +293,26 @@ Deno.serve(async (req) => {
     const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
     if (twilioAuthToken) {
       const signature = req.headers.get("x-twilio-signature");
-      const fullUrl = req.url;
       
-      const isValid = await validateTwilioSignature(twilioAuthToken, fullUrl, params, signature);
+      // Construct the webhook URL exactly as Twilio sees it
+      // Twilio uses the public Supabase functions URL format
+      const supabaseProjectRef = Deno.env.get("SUPABASE_URL")?.match(/https:\/\/([^.]+)/)?.[1] || "";
+      const webhookUrl = `https://${supabaseProjectRef}.supabase.co/functions/v1/twilio-voice-webhook/${token}`;
+      
+      console.log("[TwilioWebhook] Validating signature with URL:", webhookUrl);
+      
+      const isValid = await validateTwilioSignature(twilioAuthToken, webhookUrl, params, signature);
       if (!isValid) {
-        console.error("[TwilioWebhook] Invalid Twilio signature - rejecting request");
-        return new Response("Forbidden", { status: 403, headers: corsHeaders });
+        // Try alternate URL format (functions subdomain)
+        const altWebhookUrl = `https://${supabaseProjectRef}.functions.supabase.co/twilio-voice-webhook/${token}`;
+        console.log("[TwilioWebhook] Trying alternate URL:", altWebhookUrl);
+        const isValidAlt = await validateTwilioSignature(twilioAuthToken, altWebhookUrl, params, signature);
+        
+        if (!isValidAlt) {
+          console.error("[TwilioWebhook] Invalid Twilio signature - rejecting request");
+          console.log("[TwilioWebhook] Request URL was:", req.url);
+          return new Response("Forbidden", { status: 403, headers: corsHeaders });
+        }
       }
       console.log("[TwilioWebhook] Twilio signature validated successfully");
     } else {
