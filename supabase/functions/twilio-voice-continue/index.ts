@@ -938,12 +938,13 @@ ALWAYS check these BEFORE confirming availability:
 1. STAFF TIME OFF: Check the "STAFF TIME OFF" section. If a staff member has time off on the requested date, they are NOT available. Tell the caller they're unavailable and suggest another staff member or another date.
 
 2. EXISTING BOOKINGS: Check "EXISTING BOOKINGS" section. If a staff member already has a booking at the requested time, they are NOT available. Offer a different time or different staff.
+   PRIVACY: NEVER reveal other customers' names or details! Just say "that slot is taken" or "they're booked then". Only mention "YOUR BOOKING" details if marked as such.
 
 3. OPENING HOURS: Make sure the requested time is within business hours.
 
 When asked "Is [staff] available tomorrow?" or similar:
 - Check if they have TIME OFF on that date → If yes, say "I'm sorry, [staff] isn't available tomorrow. They have time off. Would you like to see someone else, or try a different day?"
-- Check if they have BOOKINGS at the requested time → If yes, say "Sorry, [staff] is booked at that time. They're free at [alternative time] though."
+- Check if they have BOOKINGS at the requested time → If yes, say "Sorry, [staff] is booked at that time. They're free at [alternative time] though." (NEVER mention who the booking is for!)
 - Only say they're available if they have NO time off AND NO booking conflicts
 
 ═══════════════════════════════════════════════════════════════
@@ -1715,11 +1716,23 @@ TOTAL VISITS: ${callerInfo.totalVisits || 0}`;
     }).join("\n") || "None scheduled";
 
     // Format upcoming bookings with staff info for availability checking
+    // PRIVACY: Only show customer name if it matches the current caller
     const bookingsWithStaff = upcomingBookings?.map((b: any) => {
       const startTime = new Date(b.start_time);
       const endTime = new Date(b.end_time);
       const staffName = b.staff?.name || "Any";
-      return `- ${staffName} booked: ${startTime.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} ${formatTime(startTime)}-${formatTime(endTime)} (${b.customer_name})`;
+      const dateStr = startTime.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+      const timeStr = `${formatTime(startTime)}-${formatTime(endTime)}`;
+      
+      // Check if this booking belongs to the current caller
+      const isCallerBooking = callerInfo.isReturning && b.customer_name?.toLowerCase() === callerInfo.name?.toLowerCase();
+      
+      if (isCallerBooking) {
+        return `- ${staffName} booked: ${dateStr} ${timeStr} (YOUR BOOKING - ${b.customer_name})`;
+      } else {
+        // Don't reveal other customers' names - just show slot is taken
+        return `- ${staffName} booked: ${dateStr} ${timeStr} (slot taken)`;
+      }
     }).join("\n") || "No upcoming bookings";
 
     const businessContext = `
