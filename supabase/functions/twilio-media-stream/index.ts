@@ -12,11 +12,34 @@ interface StreamSession {
   businessName: string;
   callSid: string;
   callerPhone: string;
+  callerName: string | null;
   systemPrompt: string;
   voice: string;
   streamSid: string | null;
   openAiWs: WebSocket | null;
   twilioWs: WebSocket | null;
+  pendingToolCalls: Map<string, any>;
+}
+
+interface CallerInfo {
+  isReturning: boolean;
+  name?: string;
+  totalVisits?: number;
+  preferredStaff?: string;
+  preferredStaffId?: string;
+  lastBooking?: {
+    service: string;
+    serviceId?: string;
+    date: string;
+    staff: string;
+    staffId?: string;
+  };
+  upcomingBooking?: {
+    code: string;
+    service: string;
+    date: string;
+    time: string;
+  };
 }
 
 Deno.serve(async (req) => {
@@ -73,9 +96,6 @@ Deno.serve(async (req) => {
   // Map voice gender to OpenAI voice
   const openAiVoice = voiceGender === "male" ? "ash" : "coral";
 
-  // Build system prompt
-  const systemPrompt = await buildSystemPrompt(supabase, business.id, business.business_name, assistantName, tone);
-
   // Upgrade to WebSocket
   const { socket: twilioWs, response } = Deno.upgradeWebSocket(req);
 
@@ -84,11 +104,13 @@ Deno.serve(async (req) => {
     businessName: business.business_name,
     callSid: "",
     callerPhone: "",
-    systemPrompt,
+    callerName: null,
+    systemPrompt: "", // Will be built when we get caller info
     voice: openAiVoice,
     streamSid: null,
     openAiWs: null,
     twilioWs,
+    pendingToolCalls: new Map(),
   };
 
   twilioWs.onopen = () => {
@@ -109,6 +131,16 @@ Deno.serve(async (req) => {
           session.streamSid = data.start.streamSid;
           session.callSid = data.start.callSid;
           session.callerPhone = data.start.customParameters?.callerPhone || "";
+          
+          // Build full system prompt with caller context
+          session.systemPrompt = await buildFullSystemPrompt(
+            supabase, 
+            business.id, 
+            business.business_name, 
+            assistantName, 
+            tone,
+            session.callerPhone
+          );
           
           // Connect to OpenAI Realtime API
           await connectToOpenAI(session, supabase);
@@ -157,7 +189,6 @@ Deno.serve(async (req) => {
 async function connectToOpenAI(session: StreamSession, supabase: any) {
   console.log("[MediaStream] Connecting to OpenAI Realtime API...");
 
-  // Deno WebSocket doesn't support headers option, use protocols for auth
   const openAiWs = new WebSocket(
     "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17",
     [
@@ -208,17 +239,23 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
 
         case "response.audio_transcript.delta":
           // AI is speaking - log for debugging
-          console.log("[MediaStream] AI transcript delta:", data.delta?.substring(0, 50));
+          if (data.delta) {
+            console.log("[MediaStream] AI speaking:", data.delta.substring(0, 100));
+          }
           break;
 
         case "input_audio_buffer.speech_started":
-          console.log("[MediaStream] User started speaking");
-          // Clear any pending AI audio
+          console.log("[MediaStream] User started speaking - interrupting AI");
+          // Clear any pending AI audio (barge-in)
           if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
             session.twilioWs.send(JSON.stringify({
               event: "clear",
               streamSid: session.streamSid,
             }));
+          }
+          // Cancel any in-progress response
+          if (session.openAiWs?.readyState === WebSocket.OPEN) {
+            session.openAiWs.send(JSON.stringify({ type: "response.cancel" }));
           }
           break;
 
@@ -230,6 +267,12 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           console.log("[MediaStream] User said:", data.transcript);
           // Log to conversation
           await logConversation(supabase, session.callSid, "user", data.transcript);
+          break;
+
+        case "response.function_call_arguments.done":
+          console.log("[MediaStream] Function call complete:", data.name, data.arguments);
+          // Handle tool call
+          await handleToolCall(session, supabase, data.call_id, data.name, data.arguments);
           break;
 
         case "response.done":
@@ -278,6 +321,53 @@ function sendSessionConfig(session: StreamSession) {
     return;
   }
 
+  const tools = [
+    {
+      type: "function",
+      name: "create_booking",
+      description: "Create a new booking/appointment. Call this when you have collected all required information: service, staff member, date, time, and customer name.",
+      parameters: {
+        type: "object",
+        properties: {
+          customer_name: { type: "string", description: "Customer's name" },
+          customer_phone: { type: "string", description: "Customer's phone number" },
+          service_name: { type: "string", description: "Name of the service" },
+          staff_name: { type: "string", description: "Name of the staff member" },
+          date: { type: "string", description: "Date in YYYY-MM-DD format" },
+          time: { type: "string", description: "Time in HH:MM format (24-hour)" },
+        },
+        required: ["customer_name", "customer_phone", "service_name", "staff_name", "date", "time"],
+      },
+    },
+    {
+      type: "function",
+      name: "cancel_booking",
+      description: "Cancel an existing booking. Needs either the booking code or customer name.",
+      parameters: {
+        type: "object",
+        properties: {
+          booking_code: { type: "string", description: "The booking reference code" },
+          customer_name: { type: "string", description: "Customer's name if booking code not provided" },
+        },
+      },
+    },
+    {
+      type: "function",
+      name: "leave_message",
+      description: "Leave a message for the business or a specific staff member.",
+      parameters: {
+        type: "object",
+        properties: {
+          message: { type: "string", description: "The message content" },
+          recipient_type: { type: "string", enum: ["all", "admin", "staff"], description: "Who should receive the message" },
+          recipient_staff_name: { type: "string", description: "Specific staff member name if recipient_type is staff" },
+          is_urgent: { type: "boolean", description: "Whether the message is urgent" },
+        },
+        required: ["message", "recipient_type"],
+      },
+    },
+  ];
+
   const config = {
     type: "session.update",
     session: {
@@ -293,8 +383,10 @@ function sendSessionConfig(session: StreamSession) {
         type: "server_vad",
         threshold: 0.5,
         prefix_padding_ms: 300,
-        silence_duration_ms: 700, // Slightly faster response
+        silence_duration_ms: 600, // Fast response
       },
+      tools,
+      tool_choice: "auto",
       temperature: 0.7,
       max_response_output_tokens: 500,
     },
@@ -304,25 +396,260 @@ function sendSessionConfig(session: StreamSession) {
   session.openAiWs.send(JSON.stringify(config));
 }
 
-async function buildSystemPrompt(
+async function handleToolCall(session: StreamSession, supabase: any, callId: string, name: string, argumentsJson: string) {
+  console.log("[MediaStream] Handling tool call:", name);
+  
+  let result: any = { success: false, message: "Unknown tool" };
+  
+  try {
+    const args = JSON.parse(argumentsJson);
+    
+    switch (name) {
+      case "create_booking":
+        result = await executeCreateBooking(supabase, session.businessId, args);
+        break;
+      case "cancel_booking":
+        result = await executeCancelBooking(supabase, session.businessId, args);
+        break;
+      case "leave_message":
+        result = await executeLeaveMessage(supabase, session.businessId, session.callerPhone, session.callerName, args);
+        break;
+    }
+  } catch (error) {
+    console.error("[MediaStream] Tool execution error:", error);
+    result = { success: false, message: "Sorry, there was an error processing that request." };
+  }
+
+  // Send tool result back to OpenAI
+  if (session.openAiWs?.readyState === WebSocket.OPEN) {
+    const toolResponse = {
+      type: "conversation.item.create",
+      item: {
+        type: "function_call_output",
+        call_id: callId,
+        output: JSON.stringify(result),
+      },
+    };
+    session.openAiWs.send(JSON.stringify(toolResponse));
+    
+    // Trigger response generation
+    session.openAiWs.send(JSON.stringify({ type: "response.create" }));
+  }
+}
+
+async function executeCreateBooking(supabase: any, businessId: string, params: any): Promise<any> {
+  console.log("[MediaStream] Creating booking:", params);
+  
+  try {
+    // Find staff
+    const { data: staff } = await supabase
+      .from("staff")
+      .select("id, name")
+      .eq("business_id", businessId)
+      .ilike("name", `%${params.staff_name}%`)
+      .limit(1)
+      .maybeSingle();
+
+    if (!staff) {
+      return { success: false, message: `Could not find staff member ${params.staff_name}` };
+    }
+
+    // Find service
+    const { data: service } = await supabase
+      .from("services")
+      .select("id, name, duration_minutes")
+      .eq("business_id", businessId)
+      .ilike("name", `%${params.service_name}%`)
+      .limit(1)
+      .maybeSingle();
+
+    if (!service) {
+      return { success: false, message: `Could not find service ${params.service_name}` };
+    }
+
+    // Parse date and time
+    const startTime = new Date(`${params.date}T${params.time}:00`);
+    const endTime = new Date(startTime.getTime() + (service.duration_minutes || 30) * 60000);
+
+    // Check for conflicts
+    const { data: conflicts } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("business_id", businessId)
+      .eq("staff_id", staff.id)
+      .neq("status", "cancelled")
+      .lt("start_time", endTime.toISOString())
+      .gt("end_time", startTime.toISOString());
+
+    if (conflicts && conflicts.length > 0) {
+      return { success: false, message: `Sorry, ${staff.name} is already booked at that time. Please try a different time.` };
+    }
+
+    // Generate booking code
+    const { data: codeData } = await supabase.rpc("generate_booking_code", {
+      p_business_name: params.service_name
+    });
+
+    // Create booking
+    const { data: booking, error } = await supabase
+      .from("bookings")
+      .insert({
+        business_id: businessId,
+        customer_name: params.customer_name,
+        customer_phone: params.customer_phone,
+        service_id: service.id,
+        staff_id: staff.id,
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
+        status: "confirmed",
+        booking_code: codeData,
+        created_by: "ai_phone",
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[MediaStream] Booking creation error:", error);
+      return { success: false, message: "Sorry, there was an error creating the booking." };
+    }
+
+    console.log("[MediaStream] Booking created:", booking.id);
+    return { 
+      success: true, 
+      message: `Booking confirmed! Reference code is ${codeData}`,
+      booking_code: codeData,
+    };
+  } catch (error) {
+    console.error("[MediaStream] Create booking error:", error);
+    return { success: false, message: "Sorry, there was an error creating the booking." };
+  }
+}
+
+async function executeCancelBooking(supabase: any, businessId: string, params: any): Promise<any> {
+  console.log("[MediaStream] Cancelling booking:", params);
+  
+  try {
+    let query = supabase
+      .from("bookings")
+      .select("id, booking_code, customer_name")
+      .eq("business_id", businessId)
+      .neq("status", "cancelled")
+      .gte("start_time", new Date().toISOString());
+
+    if (params.booking_code) {
+      query = query.eq("booking_code", params.booking_code.toUpperCase());
+    } else if (params.customer_name) {
+      query = query.ilike("customer_name", `%${params.customer_name}%`);
+    } else {
+      return { success: false, message: "Need either booking code or customer name to cancel." };
+    }
+
+    const { data: booking } = await query.limit(1).maybeSingle();
+
+    if (!booking) {
+      return { success: false, message: "Could not find that booking." };
+    }
+
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+      .eq("id", booking.id);
+
+    if (error) {
+      return { success: false, message: "Error cancelling booking." };
+    }
+
+    return { success: true, message: `Booking ${booking.booking_code} has been cancelled.` };
+  } catch (error) {
+    console.error("[MediaStream] Cancel booking error:", error);
+    return { success: false, message: "Error cancelling booking." };
+  }
+}
+
+async function executeLeaveMessage(supabase: any, businessId: string, callerPhone: string, callerName: string | null, params: any): Promise<any> {
+  console.log("[MediaStream] Leaving message:", params);
+  
+  try {
+    let recipientStaffId = null;
+    
+    if (params.recipient_type === "staff" && params.recipient_staff_name) {
+      const { data: staff } = await supabase
+        .from("staff")
+        .select("id")
+        .eq("business_id", businessId)
+        .ilike("name", `%${params.recipient_staff_name}%`)
+        .limit(1)
+        .maybeSingle();
+      
+      recipientStaffId = staff?.id || null;
+    }
+
+    const { error } = await supabase
+      .from("messages")
+      .insert({
+        business_id: businessId,
+        caller_phone: callerPhone,
+        caller_name: callerName,
+        content: params.message,
+        recipient_type: params.recipient_type,
+        recipient_staff_id: recipientStaffId,
+        is_urgent: params.is_urgent || false,
+      });
+
+    if (error) {
+      return { success: false, message: "Error saving message." };
+    }
+
+    return { success: true, message: "Message has been saved and will be passed on." };
+  } catch (error) {
+    console.error("[MediaStream] Leave message error:", error);
+    return { success: false, message: "Error saving message." };
+  }
+}
+
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+async function buildFullSystemPrompt(
   supabase: any,
   businessId: string,
   businessName: string,
   assistantName: string,
-  tone: string
+  tone: string,
+  callerPhone: string
 ): Promise<string> {
-  // Fetch business data
-  const [staffResult, servicesResult, hoursResult, settingsResult] = await Promise.all([
+  // Fetch all business data in parallel
+  const [staffResult, servicesResult, hoursResult, settingsResult, timeOffResult, bookingsResult] = await Promise.all([
     supabase.from("staff").select("id, name, role").eq("business_id", businessId),
     supabase.from("services").select("id, name, duration_minutes, price, category").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
-    supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy").eq("business_id", businessId).maybeSingle(),
+    supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency").eq("business_id", businessId).maybeSingle(),
+    supabase.from("staff_time_off")
+      .select("staff_id, start_time, end_time, reason, staff:staff_id(name)")
+      .eq("business_id", businessId)
+      .eq("status", "approved")
+      .gte("end_time", new Date().toISOString())
+      .lte("start_time", new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()),
+    supabase.from("bookings")
+      .select("id, start_time, end_time, customer_name, customer_phone, staff:staff_id(name)")
+      .eq("business_id", businessId)
+      .neq("status", "cancelled")
+      .gte("start_time", new Date().toISOString())
+      .lte("start_time", new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString())
+      .order("start_time"),
   ]);
 
   const staff = staffResult.data || [];
   const services = servicesResult.data || [];
   const hours = hoursResult.data || [];
   const businessSettings = settingsResult.data;
+  const staffTimeOff = timeOffResult.data || [];
+  const upcomingBookings = bookingsResult.data || [];
+  const currency = businessSettings?.currency || "£";
+
+  // Get caller info
+  const callerInfo = await getCallerInfo(supabase, businessId, callerPhone);
 
   // Format staff list
   const staffList = staff.length > 0
@@ -331,7 +658,7 @@ async function buildSystemPrompt(
 
   // Format services
   const servicesList = services.length > 0
-    ? services.map((s: any) => `- ${s.name}: ${s.duration_minutes} mins, £${s.price}`).join("\n")
+    ? services.map((s: any) => `- ${s.name}: ${s.duration_minutes} mins, ${currency}${s.price}`).join("\n")
     : "Services available upon request";
 
   // Format hours
@@ -346,74 +673,210 @@ async function buildSystemPrompt(
         .join("\n")
     : "Opening hours available upon request";
 
+  // Format staff time off
+  const timeOffList = staffTimeOff.length > 0
+    ? staffTimeOff.map((t: any) => {
+        const startDate = new Date(t.start_time);
+        const endDate = new Date(t.end_time);
+        const staffName = t.staff?.name || "Unknown";
+        return `- ${staffName}: OFF from ${startDate.toLocaleDateString("en-GB")} to ${endDate.toLocaleDateString("en-GB")} (${t.reason})`;
+      }).join("\n")
+    : "None scheduled";
+
+  // Format existing bookings (with privacy protection)
+  const normalizedCallerPhone = callerPhone.replace(/\D/g, "").slice(-10);
+  const bookingsWithStaff = upcomingBookings.map((b: any) => {
+    const startTime = new Date(b.start_time);
+    const endTime = new Date(b.end_time);
+    const staffName = b.staff?.name || "Any";
+    const dateStr = startTime.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    const timeStr = `${formatTime(startTime)}-${formatTime(endTime)}`;
+    
+    // Check if this booking belongs to the current caller
+    const customerPhoneNorm = (b.customer_phone || "").replace(/\D/g, "").slice(-10);
+    const isCallerBooking = callerInfo.isReturning && customerPhoneNorm === normalizedCallerPhone;
+    
+    if (isCallerBooking) {
+      return `- ${staffName}: ${dateStr} ${timeStr} (YOUR BOOKING - ${b.customer_name})`;
+    } else {
+      // Don't reveal other customers' names
+      return `- ${staffName}: ${dateStr} ${timeStr} (slot taken)`;
+    }
+  }).join("\n") || "No upcoming bookings";
+
   // Get current date/time context
   const now = new Date();
   const currentDay = dayNames[now.getDay()];
-  const currentTime = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const currentTime = formatTime(now);
   const currentDate = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  // Build caller context
+  let callerContext = "";
+  if (callerInfo.isReturning) {
+    callerContext = `
+═══════════════════════════════════════════════════════════════
+CALLER INFO (RETURNING CUSTOMER - GREET BY NAME!)
+═══════════════════════════════════════════════════════════════
+Name: ${callerInfo.name}
+Phone: ${callerPhone}
+Total visits: ${callerInfo.totalVisits}
+${callerInfo.preferredStaff ? `Preferred staff: ${callerInfo.preferredStaff}` : ""}
+${callerInfo.lastBooking ? `Last booking: ${callerInfo.lastBooking.service} with ${callerInfo.lastBooking.staff} on ${callerInfo.lastBooking.date}` : ""}
+${callerInfo.upcomingBooking ? `⚠️ HAS UPCOMING BOOKING: ${callerInfo.upcomingBooking.service} on ${callerInfo.upcomingBooking.date} at ${callerInfo.upcomingBooking.time} (Code: ${callerInfo.upcomingBooking.code})` : ""}
+`;
+  } else {
+    callerContext = `
+═══════════════════════════════════════════════════════════════
+CALLER INFO (NEW CUSTOMER)
+═══════════════════════════════════════════════════════════════
+Phone: ${callerPhone}
+Status: First-time caller - collect their name during booking
+`;
+  }
 
   // Build tone instructions
   let toneInstructions = "";
   switch (tone) {
     case "formal":
-      toneInstructions = "Speak professionally and formally. Use proper greetings and maintain a courteous demeanor throughout.";
+      toneInstructions = "Speak professionally and formally. Use proper greetings.";
       break;
     case "casual":
-      toneInstructions = "Be friendly and casual. Use informal language while remaining helpful and professional.";
+      toneInstructions = "Be friendly and casual while remaining helpful.";
       break;
     default:
-      toneInstructions = "Be warm and friendly but professional. Balance approachability with efficiency.";
+      toneInstructions = "Be warm and friendly but professional.";
   }
 
-  return `You are ${assistantName}, an AI receptionist for ${businessName}. You handle phone calls to help customers with bookings, inquiries, and general questions.
+  return `You are ${assistantName}, a phone receptionist for ${businessName}. You speak naturally and handle calls for bookings and inquiries.
 
 ## Your Personality
 ${toneInstructions}
-- Keep responses concise and natural for phone conversations
-- Speak clearly and at a comfortable pace
-- Be helpful and accommodating
-- If you don't know something, offer to take a message
+- Keep responses SHORT and conversational (1-2 sentences max)
+- NEVER reveal you are an AI - you are just the receptionist
+- Use natural speech patterns and contractions
 
 ## Current Context
-- Current date and time: ${currentDate}, ${currentTime}
+- Date: ${currentDate}
+- Time: ${currentTime}
 - Today is ${currentDay}
 
-## Business Information
-**${businessName}**
+${callerContext}
+
+═══════════════════════════════════════════════════════════════
+BUSINESS: ${businessName}
+═══════════════════════════════════════════════════════════════
 
 ### Staff Members
 ${staffList}
 
-### Services Offered
+### Services
 ${servicesList}
 
 ### Opening Hours
 ${hoursList}
 
 ### Booking Policies
-- Minimum notice required: ${businessSettings?.min_booking_notice_hours || 2} hours
-- Maximum advance booking: ${businessSettings?.max_days_advance || 30} days
-${businessSettings?.cancellation_policy ? `- Cancellation policy: ${businessSettings.cancellation_policy}` : ""}
+- Minimum notice: ${businessSettings?.min_booking_notice_hours || 2} hours
+- Max advance booking: ${businessSettings?.max_days_advance || 30} days
+${businessSettings?.cancellation_policy ? `- Cancellation: ${businessSettings.cancellation_policy}` : ""}
 
-## Your Capabilities
-1. **Making Bookings**: Help customers book appointments. Collect their name, preferred service, date/time, and optionally staff preference.
-2. **Checking Availability**: Inform about opening hours and general availability.
-3. **Answering Questions**: Answer questions about services, prices, and the business.
-4. **Taking Messages**: If you can't help with something, offer to take a message.
+═══════════════════════════════════════════════════════════════
+STAFF TIME OFF (CRITICAL - CHECK BEFORE CONFIRMING!)
+═══════════════════════════════════════════════════════════════
+${timeOffList}
 
-## Important Guidelines
-- Always confirm details before finalizing anything
-- If asked about real-time availability for specific slots, let them know you'll check and get back to them, or suggest they try booking online
-- For complex requests, offer to have someone call them back
-- Start with a brief greeting mentioning the business name
-- End calls politely
+═══════════════════════════════════════════════════════════════
+EXISTING BOOKINGS (NEXT 2 WEEKS)
+═══════════════════════════════════════════════════════════════
+${bookingsWithStaff}
 
-Remember: You're speaking on the phone, so keep responses natural and conversational. Avoid long lists or complex information dumps.`;
+═══════════════════════════════════════════════════════════════
+CRITICAL RULES
+═══════════════════════════════════════════════════════════════
+
+1. AVAILABILITY: ALWAYS check STAFF TIME OFF and EXISTING BOOKINGS before confirming availability
+2. PRIVACY: NEVER reveal other customers' names or booking details
+3. BOOKING FLOW: Collect in order: Service → Staff → Date/Time → Name (if new customer)
+4. USE TOOLS: When confirming a booking, ALWAYS call the create_booking function
+5. RETURNING CUSTOMERS: Greet by name, mention upcoming bookings, offer usual service/staff
+
+When asked "Is [staff] available tomorrow?":
+- First check TIME OFF - if they have time off, say they're unavailable
+- Then check EXISTING BOOKINGS for conflicts
+- Only confirm available if NO time off AND NO booking conflicts
+
+Start with a brief greeting mentioning the business name.`;
+}
+
+async function getCallerInfo(supabase: any, businessId: string, callerPhone: string): Promise<CallerInfo> {
+  if (!callerPhone) {
+    return { isReturning: false };
+  }
+
+  const normalizedPhone = callerPhone.replace(/\D/g, "").slice(-10);
+  
+  // Try to find customer by phone
+  const { data: customer } = await supabase
+    .from("customers")
+    .select("id, name, total_visits, preferred_staff_id, preferred_staff:preferred_staff_id(id, name)")
+    .eq("business_id", businessId)
+    .or(`phone.ilike.%${normalizedPhone}%,phone.eq.${callerPhone}`)
+    .limit(1)
+    .maybeSingle();
+
+  if (!customer) {
+    return { isReturning: false };
+  }
+
+  // Get last booking
+  const { data: lastBooking } = await supabase
+    .from("bookings")
+    .select("start_time, service:service_id(id, name), staff:staff_id(id, name)")
+    .eq("business_id", businessId)
+    .ilike("customer_phone", `%${normalizedPhone}%`)
+    .neq("status", "cancelled")
+    .order("start_time", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // Get upcoming booking
+  const { data: upcomingBooking } = await supabase
+    .from("bookings")
+    .select("booking_code, start_time, service:service_id(name)")
+    .eq("business_id", businessId)
+    .ilike("customer_phone", `%${normalizedPhone}%`)
+    .neq("status", "cancelled")
+    .gte("start_time", new Date().toISOString())
+    .order("start_time")
+    .limit(1)
+    .maybeSingle();
+
+  return {
+    isReturning: true,
+    name: customer.name,
+    totalVisits: customer.total_visits,
+    preferredStaff: customer.preferred_staff?.name,
+    preferredStaffId: customer.preferred_staff?.id,
+    lastBooking: lastBooking ? {
+      service: lastBooking.service?.name || "appointment",
+      serviceId: lastBooking.service?.id,
+      date: new Date(lastBooking.start_time).toLocaleDateString("en-GB"),
+      staff: lastBooking.staff?.name || "",
+      staffId: lastBooking.staff?.id
+    } : undefined,
+    upcomingBooking: upcomingBooking ? {
+      code: upcomingBooking.booking_code,
+      service: upcomingBooking.service?.name || "appointment",
+      date: new Date(upcomingBooking.start_time).toLocaleDateString("en-GB"),
+      time: formatTime(new Date(upcomingBooking.start_time))
+    } : undefined
+  };
 }
 
 async function logConversation(supabase: any, callSid: string, role: string, content: string) {
+  if (!callSid || !content) return;
+  
   try {
-    // Get existing conversation
     const { data: conv } = await supabase
       .from("call_conversations")
       .select("messages")
