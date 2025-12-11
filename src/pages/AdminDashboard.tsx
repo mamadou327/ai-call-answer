@@ -567,19 +567,21 @@ const AdminDashboard = () => {
 
   const copyWebhookUrl = () => {
     if (!twilioWebhookToken) return;
-    const webhookUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook/${twilioWebhookToken}`;
+    // Use the realtime webhook for lower latency and better accent handling
+    const webhookUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook-realtime/${twilioWebhookToken}`;
     navigator.clipboard.writeText(webhookUrl);
     setCopiedWebhook(true);
     setTimeout(() => setCopiedWebhook(false), 2000);
     toast({
       title: "Copied",
-      description: "Webhook URL copied to clipboard",
+      description: "Realtime webhook URL copied to clipboard",
     });
   };
 
   const getWebhookUrl = () => {
     if (!twilioWebhookToken) return "";
-    return `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook/${twilioWebhookToken}`;
+    // Use the realtime webhook for lower latency and better accent handling
+    return `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook-realtime/${twilioWebhookToken}`;
   };
 
   const handleMessagebirdToggle = async (enabled: boolean) => {
