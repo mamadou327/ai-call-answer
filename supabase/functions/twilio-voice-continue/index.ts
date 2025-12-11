@@ -68,8 +68,51 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
-// Speech hints for better STT recognition with accents
-const SPEECH_HINTS = "booking, appointment, cancel, reschedule, haircut, beard, trim, shave, tomorrow, today, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday, morning, afternoon, evening, o'clock, half past, quarter past, available, availability, name, phone, confirm, yes, no, please, thank you";
+// Base speech hints for better STT recognition with accents
+const BASE_SPEECH_HINTS = "booking, appointment, cancel, reschedule, haircut, beard, trim, shave, fade, lineup, braids, cornrows, locs, twists, weave, relaxer, perm, colour, color, highlights, balayage, blowout, wash, style, tomorrow, today, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday, morning, afternoon, evening, o'clock, half past, quarter past, available, availability, name, phone, confirm, yes, no, please, thank you, next week, this week";
+
+// Fetch dynamic speech hints from business data (staff names, services)
+async function getBusinessSpeechHints(supabase: any, businessId: string): Promise<string> {
+  const hints: string[] = [BASE_SPEECH_HINTS];
+  
+  try {
+    // Fetch staff names
+    const { data: staff } = await supabase
+      .from("staff")
+      .select("name")
+      .eq("business_id", businessId);
+    
+    if (staff && staff.length > 0) {
+      const staffNames = staff.map((s: any) => s.name).filter(Boolean);
+      if (staffNames.length > 0) {
+        hints.push(staffNames.join(", "));
+      }
+    }
+    
+    // Fetch service names
+    const { data: services } = await supabase
+      .from("services")
+      .select("name, category")
+      .eq("business_id", businessId);
+    
+    if (services && services.length > 0) {
+      const serviceNames = services.map((s: any) => s.name).filter(Boolean);
+      const categories = [...new Set(services.map((s: any) => s.category).filter(Boolean))];
+      if (serviceNames.length > 0) {
+        hints.push(serviceNames.join(", "));
+      }
+      if (categories.length > 0) {
+        hints.push(categories.join(", "));
+      }
+    }
+    
+    console.log(`[VoiceContinue] Built speech hints with ${staff?.length || 0} staff and ${services?.length || 0} services`);
+  } catch (error) {
+    console.error("[VoiceContinue] Error fetching speech hints:", error);
+  }
+  
+  return hints.join(", ");
+}
 
 // Default ElevenLabs voice IDs
 const DEFAULT_VOICES = {
@@ -158,10 +201,10 @@ async function generateAndUploadAudio(
 }
 
 // TwiML with ElevenLabs audio - using Deepgram nova-2 for better accent recognition
-function twimlContinueWithAudio(audioUrl: string, actionUrl: string, timeout: number = 6): Response {
+function twimlContinueWithAudio(audioUrl: string, actionUrl: string, speechHints: string = BASE_SPEECH_HINTS, timeout: number = 6): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="3" language="en-GB" speechModel="deepgram_nova-2" hints="${SPEECH_HINTS}">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="3" language="en-GB" speechModel="deepgram_nova-2" hints="${escapeXml(speechHints)}">
     <Play>${audioUrl}</Play>
   </Gather>
   <Say voice="Polly.Amy-Neural" language="en-GB"><prosody rate="108%">I didn't hear anything. If you need help, just give us another call. Goodbye!</prosody></Say>
@@ -186,10 +229,10 @@ function twimlEndWithAudio(audioUrl: string): Response {
 }
 
 // Fallback Polly TwiML functions - using Deepgram nova-2 for better accent recognition
-function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: string = "108%", timeout: number = 6): Response {
+function twimlContinue(sayText: string, actionUrl: string, voice: string, speechHints: string = BASE_SPEECH_HINTS, rate: string = "108%", timeout: number = 6): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="3" language="en-GB" speechModel="deepgram_nova-2" hints="${SPEECH_HINTS}">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="3" language="en-GB" speechModel="deepgram_nova-2" hints="${escapeXml(speechHints)}">
     <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. If you need help, just give us another call. Goodbye!</prosody></Say>
@@ -213,10 +256,10 @@ function twimlEnd(sayText: string, voice: string, rate: string = "108%"): Respon
   });
 }
 
-function twimlClarify(sayText: string, actionUrl: string, voice: string, rate: string = "108%"): Response {
+function twimlClarify(sayText: string, actionUrl: string, voice: string, speechHints: string = BASE_SPEECH_HINTS, rate: string = "108%"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="3" language="en-GB" speechModel="deepgram_nova-2" hints="${SPEECH_HINTS}">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="3" language="en-GB" speechModel="deepgram_nova-2" hints="${escapeXml(speechHints)}">
     <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I still didn't catch that. Please call back if you need help. Goodbye!</prosody></Say>
@@ -228,10 +271,10 @@ function twimlClarify(sayText: string, actionUrl: string, voice: string, rate: s
   });
 }
 
-function twimlClarifyWithAudio(audioUrl: string, actionUrl: string): Response {
+function twimlClarifyWithAudio(audioUrl: string, actionUrl: string, speechHints: string = BASE_SPEECH_HINTS): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="3" language="en-GB" speechModel="deepgram_nova-2" hints="${SPEECH_HINTS}">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="3" language="en-GB" speechModel="deepgram_nova-2" hints="${escapeXml(speechHints)}">
     <Play>${audioUrl}</Play>
   </Gather>
   <Say voice="Polly.Amy-Neural" language="en-GB"><prosody rate="108%">I still didn't catch that. Please call back if you need help. Goodbye!</prosody></Say>
@@ -1421,6 +1464,9 @@ Deno.serve(async (req) => {
     const assistantName = settings?.assistant_name || "Aivia";
     const continueUrl = `${supabaseUrl}/functions/v1/twilio-voice-continue/${token}`;
 
+    // Get dynamic speech hints for this business (staff names, services)
+    const speechHints = await getBusinessSpeechHints(supabase, business.id);
+
     // Handle empty speech result
     if (!speechResult || speechResult.trim() === "") {
       console.log("[VoiceContinue] No speech detected, asking for clarification");
@@ -1429,11 +1475,11 @@ Deno.serve(async (req) => {
       // Try ElevenLabs first
       const audioUrl = await generateAndUploadAudio(supabase, clarifyText, voiceId, callSid, `clarify-${Date.now()}`);
       if (audioUrl) {
-        return twimlClarifyWithAudio(audioUrl, continueUrl);
+        return twimlClarifyWithAudio(audioUrl, continueUrl, speechHints);
       }
       
       // Fallback to Polly
-      return twimlClarify(clarifyText, continueUrl, pollyVoice, rate);
+      return twimlClarify(clarifyText, continueUrl, pollyVoice, speechHints, rate);
     }
 
     // Get or create conversation
@@ -1638,11 +1684,11 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
     // Continue the conversation with ElevenLabs
     const continueAudioUrl = await generateAndUploadAudio(supabase, aiResult.reply, voiceId, callSid, `reply-${Date.now()}`);
     if (continueAudioUrl) {
-      return twimlContinueWithAudio(continueAudioUrl, continueUrl, 6);
+      return twimlContinueWithAudio(continueAudioUrl, continueUrl, speechHints, 6);
     }
     
     // Fallback to Polly
-    return twimlContinue(aiResult.reply, continueUrl, pollyVoice, rate, 6);
+    return twimlContinue(aiResult.reply, continueUrl, pollyVoice, speechHints, rate, 6);
 
   } catch (error) {
     console.error("[VoiceContinue] Error:", error);
