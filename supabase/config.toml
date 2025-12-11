@@ -3,6 +3,12 @@ project_id = "zyqzypyncugihrawhppg"
 [functions.twilio-voice-webhook]
 verify_jwt = false
 
+[functions.twilio-voice-webhook-realtime]
+verify_jwt = false
+
+[functions.twilio-media-stream]
+verify_jwt = false
+
 [functions.twilio-voice-continue]
 verify_jwt = false
 

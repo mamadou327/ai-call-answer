@@ -1,0 +1,141 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-twilio-signature",
+};
+
+function escapeXml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function twimlError(message: string): Response {
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Amy-Neural" language="en-GB">${escapeXml(message)}</Say>
+  <Hangup/>
+</Response>`;
+  
+  return new Response(twiml, {
+    headers: { ...corsHeaders, "Content-Type": "text/xml" },
+  });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(req.url);
+    const pathParts = url.pathname.split("/");
+    const token = pathParts[pathParts.length - 1];
+
+    console.log("[VoiceWebhookRT] Called with token:", token?.substring(0, 8) + "...");
+
+    if (!token || token === "twilio-voice-webhook-realtime") {
+      return twimlError("This number is not configured correctly. Goodbye.");
+    }
+
+    // Parse Twilio parameters
+    const formData = await req.formData();
+    const params: Record<string, string> = {};
+    for (const [key, value] of formData.entries()) {
+      params[key] = value.toString();
+    }
+
+    // Initialize Supabase
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const fromNumber = params.From || params.Caller || "";
+    const toNumber = params.To || params.Called || "";
+    const callSid = params.CallSid || "";
+    const callerName = params.CallerName || null;
+
+    console.log("[VoiceWebhookRT] Call details:", { from: fromNumber, to: toNumber, callSid });
+
+    // Find business by webhook token
+    const { data: business, error: businessError } = await supabase
+      .from("businesses")
+      .select("id, business_name, twilio_enabled, aivia_active")
+      .eq("twilio_webhook_token", token)
+      .maybeSingle();
+
+    if (businessError || !business) {
+      console.error("[VoiceWebhookRT] Business not found");
+      return twimlError("This number is not configured. Goodbye.");
+    }
+
+    if (!business.twilio_enabled || !business.aivia_active) {
+      return twimlError(`Thank you for calling ${business.business_name}. We're currently unavailable. Please try again later.`);
+    }
+
+    // Check if caller is blocked
+    const normalizedCaller = fromNumber.replace(/\D/g, "").slice(-10);
+    const { data: blockedCustomer } = await supabase
+      .from("customers")
+      .select("id, is_blocked")
+      .eq("business_id", business.id)
+      .eq("is_blocked", true)
+      .or(`phone.ilike.%${normalizedCaller}%,phone.eq.${fromNumber}`)
+      .maybeSingle();
+
+    if (blockedCustomer) {
+      console.log("[VoiceWebhookRT] Blocked caller:", fromNumber);
+      return twimlError("I'm sorry, we're unable to take bookings from this number. Goodbye.");
+    }
+
+    // Log the call
+    await supabase.from("calls_log").insert({
+      business_id: business.id,
+      caller_phone: fromNumber,
+      caller_name: callerName,
+      call_type: "other",
+      call_outcome: "in_progress",
+      twilio_call_sid: callSid,
+      to_number: toNumber,
+      provider: "twilio",
+    });
+
+    // Create conversation record
+    await supabase.from("call_conversations").insert({
+      call_sid: callSid,
+      business_id: business.id,
+      caller_phone: fromNumber,
+      caller_name: callerName,
+      messages: [],
+      status: "active",
+    });
+
+    // Build Media Stream URL
+    const mediaStreamUrl = `wss://${new URL(supabaseUrl).hostname}/functions/v1/twilio-media-stream/${token}`;
+
+    console.log("[VoiceWebhookRT] Starting media stream to:", mediaStreamUrl);
+
+    // Return TwiML with Media Stream
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Connect>
+    <Stream url="${escapeXml(mediaStreamUrl)}">
+      <Parameter name="callerPhone" value="${escapeXml(fromNumber)}"/>
+      <Parameter name="callSid" value="${escapeXml(callSid)}"/>
+    </Stream>
+  </Connect>
+</Response>`;
+
+    return new Response(twiml, {
+      headers: { ...corsHeaders, "Content-Type": "text/xml" },
+    });
+
+  } catch (error) {
+    console.error("[VoiceWebhookRT] Error:", error);
+    return twimlError("We're experiencing technical difficulties. Please try again later.");
+  }
+});
