@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameDay, addDays, startOfDay, endOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight, User, X, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, User, X, Check, Palmtree, Clock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { BookingDetailsDialog } from "./BookingDetailsDialog";
 import { useOpeningHours } from "@/hooks/use-opening-hours";
@@ -28,11 +28,23 @@ interface Booking {
   staff?: { name: string; color: string } | null;
 }
 
+interface TimeOff {
+  id: string;
+  staff_id: string;
+  start_time: string;
+  end_time: string;
+  reason: string;
+  notes: string | null;
+  status: string;
+  staff?: { name: string; color: string } | null;
+}
+
 export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) => {
   const { t } = useTranslation();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [view, setView] = useState<"day" | "week" | "month">("week");
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [timeOffs, setTimeOffs] = useState<TimeOff[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
@@ -40,9 +52,9 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
   const { openingHours, isDayClosed, getHoursForDate } = useOpeningHours(businessId);
 
   useEffect(() => {
-    loadBookings();
+    loadData();
     
-    const channel = supabase
+    const bookingsChannel = supabase
       .channel('calendar-bookings')
       .on(
         'postgres_changes',
@@ -52,16 +64,31 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
           table: 'bookings',
           filter: `business_id=eq.${businessId}`
         },
-        () => loadBookings()
+        () => loadData()
+      )
+      .subscribe();
+
+    const timeOffChannel = supabase
+      .channel('calendar-timeoff')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'staff_time_off',
+          filter: `business_id=eq.${businessId}`
+        },
+        () => loadData()
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(bookingsChannel);
+      supabase.removeChannel(timeOffChannel);
     };
   }, [businessId, selectedDate, view]);
 
-  const loadBookings = async () => {
+  const loadData = async () => {
     setLoading(true);
     let startDate: Date;
     let endDate: Date;
@@ -77,25 +104,76 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
       endDate = endOfMonth(selectedDate);
     }
 
-    const { data } = await supabase
-      .from("bookings")
-      .select(`
-        *,
-        service:service_id(name),
-        staff:staff_id(name, color)
-      `)
-      .eq("business_id", businessId)
-      .gte("start_time", startDate.toISOString())
-      .lte("start_time", endDate.toISOString())
-      .order("start_time", { ascending: true });
+    // Load bookings and time off in parallel
+    const [bookingsResult, timeOffResult] = await Promise.all([
+      supabase
+        .from("bookings")
+        .select(`
+          *,
+          service:service_id(name),
+          staff:staff_id(name, color)
+        `)
+        .eq("business_id", businessId)
+        .gte("start_time", startDate.toISOString())
+        .lte("start_time", endDate.toISOString())
+        .order("start_time", { ascending: true }),
+      supabase
+        .from("staff_time_off")
+        .select(`
+          *,
+          staff:staff_id(name, color)
+        `)
+        .eq("business_id", businessId)
+        .eq("status", "approved")
+        .or(`start_time.gte.${startDate.toISOString()},end_time.gte.${startDate.toISOString()}`)
+        .lte("start_time", endDate.toISOString())
+    ]);
 
-    // Filter out cancelled bookings from display
-    if (data) setBookings(data.filter(b => b.status !== "cancelled"));
+    if (bookingsResult.data) setBookings(bookingsResult.data.filter(b => b.status !== "cancelled"));
+    if (timeOffResult.data) setTimeOffs(timeOffResult.data);
     setLoading(false);
   };
 
   const getBookingsForDate = (date: Date) => {
     return bookings.filter(b => isSameDay(new Date(b.start_time), date));
+  };
+
+  const getTimeOffsForDate = (date: Date) => {
+    return timeOffs.filter(to => {
+      const startDate = new Date(to.start_time);
+      const endDate = new Date(to.end_time);
+      return date >= startOfDay(startDate) && date <= endOfDay(endDate);
+    });
+  };
+
+  const getTimeOffsForHour = (date: Date, hour: number) => {
+    const hourStart = new Date(date);
+    hourStart.setHours(hour, 0, 0, 0);
+    const hourEnd = new Date(date);
+    hourEnd.setHours(hour, 59, 59, 999);
+
+    return timeOffs.filter(to => {
+      const toStart = new Date(to.start_time);
+      const toEnd = new Date(to.end_time);
+      return toStart <= hourEnd && toEnd >= hourStart;
+    });
+  };
+
+  const getReasonLabel = (reason: string) => {
+    switch (reason) {
+      case 'vacation': return 'Vacation';
+      case 'personal': return 'Personal';
+      case 'sick': return 'Sick Leave';
+      case 'other': return 'Time Off';
+      default: return reason;
+    }
+  };
+
+  const getReasonIcon = (reason: string) => {
+    switch (reason) {
+      case 'vacation': return <Palmtree className="w-3 h-3" />;
+      default: return <Clock className="w-3 h-3" />;
+    }
   };
 
   const getWeekDays = () => {
@@ -159,6 +237,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
 
   const renderDayView = () => {
     const dayBookings = getBookingsForDate(selectedDate);
+    const dayTimeOffs = getTimeOffsForDate(selectedDate);
     const dayClosed = isDayClosed(selectedDate);
     const { openTime, closeTime } = getHoursForDate(selectedDate);
     
@@ -175,18 +254,47 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
             <Badge variant="outline">{openTime} - {closeTime}</Badge>
           )}
         </div>
+
+        {/* Time Off Section */}
+        {dayTimeOffs.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium text-muted-foreground">Staff Time Off</h4>
+            {dayTimeOffs.map((timeOff) => (
+              <div
+                key={timeOff.id}
+                className="p-3 rounded-lg border-2 border-dashed bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700"
+              >
+                <div className="flex items-center gap-2">
+                  {getReasonIcon(timeOff.reason)}
+                  <span className="font-medium">{timeOff.staff?.name}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {getReasonLabel(timeOff.reason)}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {format(new Date(timeOff.start_time), "h:mm a")} - {format(new Date(timeOff.end_time), "h:mm a")}
+                </p>
+                {timeOff.notes && (
+                  <p className="text-xs text-muted-foreground mt-1 italic">{timeOff.notes}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {dayClosed ? (
           <div className="text-center py-12 text-muted-foreground bg-muted/30 rounded-lg">
             <X className="w-12 h-12 mx-auto mb-2 text-muted-foreground/50" />
             <p className="font-medium">Business Closed</p>
             <p className="text-sm">No appointments can be scheduled on this day</p>
           </div>
-        ) : dayBookings.length === 0 ? (
+        ) : dayBookings.length === 0 && dayTimeOffs.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <p>No appointments scheduled for this day</p>
           </div>
-        ) : (
+        ) : dayBookings.length > 0 ? (
           <div className="space-y-2">
+            <h4 className="text-sm font-medium text-muted-foreground">Appointments</h4>
             {dayBookings.map((booking) => (
               <div
                 key={booking.id}
@@ -228,7 +336,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
               </div>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
     );
   };
@@ -243,6 +351,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
             <div className="p-2 text-center text-sm font-medium text-muted-foreground">Time</div>
             {weekDays.map((day) => {
               const dayClosed = isDayClosed(day);
+              const dayHasTimeOff = getTimeOffsForDate(day).length > 0;
               return (
                 <div 
                   key={day.toISOString()} 
@@ -252,11 +361,18 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                   <p className={`text-lg ${isSameDay(day, new Date()) ? "text-primary font-bold" : ""}`}>
                     {format(day, "d")}
                   </p>
-                  {dayClosed && (
-                    <Badge variant="secondary" className="text-xs mt-1">
-                      <X className="w-3 h-3" />
-                    </Badge>
-                  )}
+                  <div className="flex items-center justify-center gap-1">
+                    {dayClosed && (
+                      <Badge variant="secondary" className="text-xs">
+                        <X className="w-3 h-3" />
+                      </Badge>
+                    )}
+                    {dayHasTimeOff && !dayClosed && (
+                      <Badge variant="outline" className="text-xs bg-amber-100 dark:bg-amber-900/30 border-amber-300">
+                        <Palmtree className="w-3 h-3" />
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -275,6 +391,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                     const bookingHour = new Date(b.start_time).getHours();
                     return bookingHour === hour;
                   });
+                  const hourTimeOffs = getTimeOffsForHour(day, hour);
                   
                   return (
                     <div 
@@ -292,23 +409,40 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                           <X className="w-4 h-4 text-muted-foreground" />
                         </div>
                       ) : (
-                        dayBookings.map((booking) => (
-                          <div
-                            key={booking.id}
-                            className="text-xs p-1 rounded mb-1 text-white truncate cursor-pointer hover:opacity-80 transition-opacity relative"
-                            style={{ backgroundColor: booking.staff?.color || "#3B82F6" }}
-                            title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})${booking.status === "completed" ? " ✓" : ""}`}
-                            onClick={() => handleBookingClick(booking)}
-                          >
-                            <div className="flex items-center gap-1">
-                              <p className="font-medium truncate flex-1">{booking.customer_name}</p>
-                              {booking.status === "completed" && (
-                                <Check className="w-3 h-3 flex-shrink-0" />
-                              )}
+                        <>
+                          {/* Time Off blocks */}
+                          {hourTimeOffs.map((timeOff) => (
+                            <div
+                              key={timeOff.id}
+                              className="text-xs p-1 rounded mb-1 truncate bg-amber-100 dark:bg-amber-900/40 border border-dashed border-amber-400 text-amber-800 dark:text-amber-200"
+                              title={`${timeOff.staff?.name} - ${getReasonLabel(timeOff.reason)}${timeOff.notes ? `: ${timeOff.notes}` : ''}`}
+                            >
+                              <div className="flex items-center gap-1">
+                                {getReasonIcon(timeOff.reason)}
+                                <p className="font-medium truncate">{timeOff.staff?.name}</p>
+                              </div>
+                              <p className="truncate opacity-80">{getReasonLabel(timeOff.reason)}</p>
                             </div>
-                            <p className="truncate opacity-90">{booking.service?.name}</p>
-                          </div>
-                        ))
+                          ))}
+                          {/* Booking blocks */}
+                          {dayBookings.map((booking) => (
+                            <div
+                              key={booking.id}
+                              className="text-xs p-1 rounded mb-1 text-white truncate cursor-pointer hover:opacity-80 transition-opacity relative"
+                              style={{ backgroundColor: booking.staff?.color || "#3B82F6" }}
+                              title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})${booking.status === "completed" ? " ✓" : ""}`}
+                              onClick={() => handleBookingClick(booking)}
+                            >
+                              <div className="flex items-center gap-1">
+                                <p className="font-medium truncate flex-1">{booking.customer_name}</p>
+                                {booking.status === "completed" && (
+                                  <Check className="w-3 h-3 flex-shrink-0" />
+                                )}
+                              </div>
+                              <p className="truncate opacity-90">{booking.service?.name}</p>
+                            </div>
+                          ))}
+                        </>
                       )}
                     </div>
                   );
@@ -322,6 +456,9 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
   };
 
   const renderMonthView = () => {
+    const dayTimeOffs = getTimeOffsForDate(selectedDate);
+    const dayBookings = getBookingsForDate(selectedDate);
+    
     return (
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         <Calendar
@@ -331,10 +468,12 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
           className="rounded-md border mx-auto lg:mx-0"
           modifiers={{
             hasBookings: bookings.map(b => new Date(b.start_time)),
+            hasTimeOff: timeOffs.map(to => new Date(to.start_time)),
             closed: (date) => isDayClosed(date),
           }}
           modifiersStyles={{
             hasBookings: { fontWeight: "bold", textDecoration: "underline" },
+            hasTimeOff: { backgroundColor: "rgb(254 243 199)" },
           }}
           modifiersClassNames={{
             closed: "text-muted-foreground/50 line-through",
@@ -352,16 +491,42 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
               </Badge>
             )}
           </div>
+
+          {/* Time Off Section */}
+          {dayTimeOffs.length > 0 && (
+            <div className="space-y-2 mb-4">
+              <h4 className="text-xs font-medium text-muted-foreground">Staff Time Off</h4>
+              {dayTimeOffs.map((timeOff) => (
+                <div
+                  key={timeOff.id}
+                  className="p-2 rounded-lg border-2 border-dashed bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700"
+                >
+                  <div className="flex items-center gap-2">
+                    {getReasonIcon(timeOff.reason)}
+                    <span className="font-medium text-sm">{timeOff.staff?.name}</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {getReasonLabel(timeOff.reason)}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {format(new Date(timeOff.start_time), "h:mm a")} - {format(new Date(timeOff.end_time), "h:mm a")}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
           {isDayClosed(selectedDate) ? (
             <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-lg">
               <X className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
               <p>Business Closed</p>
             </div>
-          ) : getBookingsForDate(selectedDate).length === 0 ? (
-            <p className="text-muted-foreground text-sm">No appointments</p>
-          ) : (
+          ) : dayBookings.length === 0 && dayTimeOffs.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No appointments or time off</p>
+          ) : dayBookings.length > 0 ? (
             <div className="space-y-2">
-              {getBookingsForDate(selectedDate).map((booking) => (
+              <h4 className="text-xs font-medium text-muted-foreground">Appointments</h4>
+              {dayBookings.map((booking) => (
                 <div
                   key={booking.id}
                   className="p-3 rounded-lg border flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors"
@@ -390,7 +555,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     );
@@ -468,7 +633,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
         booking={selectedBooking}
         open={detailsDialogOpen}
         onOpenChange={setDetailsDialogOpen}
-        onDelete={loadBookings}
+        onDelete={loadData}
       />
     </div>
   );
