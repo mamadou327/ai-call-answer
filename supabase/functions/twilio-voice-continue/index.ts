@@ -801,27 +801,51 @@ When a caller wants to leave a message:
 - Mark as urgent if they mention it's urgent or time-sensitive
 
 ═══════════════════════════════════════════════════════════════
-RESPONSE FORMAT (JSON)
+RESPONSE FORMAT (JSON) - EXTREMELY IMPORTANT
 ═══════════════════════════════════════════════════════════════
 
-Always respond with valid JSON:
+ALWAYS respond with valid JSON:
 {
   "reply": "What you say to the caller",
-  "action": null or { "type": "create_booking|cancel_booking|reschedule_booking|leave_message", "params": {...} },
+  "action": null or { "type": "...", "params": {...} },
   "shouldEnd": false or true
+}
+
+═══════════════════════════════════════════════════════════════
+CRITICAL: WHEN TO INCLUDE ACTION (MUST FOLLOW)
+═══════════════════════════════════════════════════════════════
+
+YOU MUST include the "action" field when:
+1. CONFIRMING a booking - When you say "See you then", "Booked", "All set", "Confirmed" etc, you MUST include the create_booking action
+2. CANCELLING a booking - When confirming a cancellation, include cancel_booking action
+3. RESCHEDULING - When confirming a reschedule, include reschedule_booking action
+4. SAVING a message - When confirming you'll pass on a message, include leave_message action
+
+DO NOT just confirm verbally without the action! The booking is NOT created until you include the action.
+
+Example - CORRECT (creates the booking):
+{
+  "reply": "Perfect! I've booked you in for a Haircut with Aloma today at 3pm. See you then!",
+  "action": { "type": "create_booking", "params": { "customer_name": "Moe", "customer_phone": "+447491004439", "service_name": "Haircut", "staff_name": "Aloma", "date": "2025-12-11", "time": "15:00" } },
+  "shouldEnd": false
+}
+
+Example - WRONG (does NOT create booking):
+{
+  "reply": "Perfect! See you then!",
+  "shouldEnd": false
 }
 
 ACTION PARAMETERS:
 - create_booking: { customer_name, customer_phone, service_name, staff_name, date (YYYY-MM-DD), time (HH:MM) }
-  NOTE: service_name AND staff_name are REQUIRED - do not create booking without both
+  ALL FIELDS REQUIRED - must have service_name AND staff_name AND date AND time AND customer_name
 - cancel_booking: { booking_code or customer_name }
 - reschedule_booking: { booking_code or customer_name, new_date, new_time }
 - leave_message: { message, recipient_type ("all"|"admin"|"staff"), recipient_staff_name (if for specific staff), is_urgent (boolean) }
-  NOTE: recipient_type must be EXACTLY one of: "all", "admin", or "staff"
 
-CRITICAL: Your response must be ONLY the JSON object. Do NOT include any text before or after the JSON. Do NOT repeat the reply text outside the JSON.
+CRITICAL: Your response must be ONLY the JSON object. No text before or after.
 
-Set shouldEnd = true ONLY when caller says goodbye or is done.`;
+Set shouldEnd = true ONLY when caller explicitly says goodbye or is done.`;
 
   const messages: Message[] = [
     { role: "system", content: systemPrompt },
@@ -859,11 +883,15 @@ Set shouldEnd = true ONLY when caller says goodbye or is done.`;
     const data = await response.json();
     let content = data.choices?.[0]?.message?.content || "";
     
+    console.log("[VoiceAI] Raw AI content:", content.substring(0, 500));
+    
     content = content.trim();
     if (content.startsWith("```json")) content = content.slice(7);
     else if (content.startsWith("```")) content = content.slice(3);
     if (content.endsWith("```")) content = content.slice(0, -3);
     content = content.trim();
+    
+    console.log("[VoiceAI] Cleaned content:", content.substring(0, 500));
 
     // Try to extract the first valid JSON object from the content
     // Sometimes the AI outputs text followed by JSON, or multiple JSON objects
