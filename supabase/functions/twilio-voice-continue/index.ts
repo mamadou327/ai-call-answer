@@ -604,6 +604,7 @@ async function findNextAvailableSlots(
       
       const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
       
+      // Check for booking conflicts
       let query = supabase
         .from("bookings")
         .select("id")
@@ -616,10 +617,23 @@ async function findNextAvailableSlots(
       
       const { data: conflicts } = await query;
       
-      if (!conflicts || conflicts.length === 0) {
-        const dayName = dayOffset === 0 ? "today" : dayOffset === 1 ? "tomorrow" : DB_DAY_NAMES[dbDay];
-        slots.push(`${dayName} at ${hour > 12 ? hour - 12 : hour}${hour >= 12 ? "pm" : "am"}`);
+      if (conflicts && conflicts.length > 0) continue;
+      
+      // Check for staff time off (CRITICAL: must check this too!)
+      if (staffId) {
+        const { data: timeOff } = await supabase
+          .from("staff_time_off")
+          .select("id")
+          .eq("staff_id", staffId)
+          .eq("status", "approved")
+          .lte("start_time", slotEnd.toISOString())
+          .gte("end_time", slotStart.toISOString());
+        
+        if (timeOff && timeOff.length > 0) continue; // Skip this slot - staff has time off
       }
+      
+      const dayName = dayOffset === 0 ? "today" : dayOffset === 1 ? "tomorrow" : DB_DAY_NAMES[dbDay];
+      slots.push(`${dayName} at ${hour > 12 ? hour - 12 : hour}${hour >= 12 ? "pm" : "am"}`);
     }
   }
   
