@@ -83,13 +83,6 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
     setDialogOpen(true);
   };
 
-  const formatDuration = (ms: number | null) => {
-    if (!ms) return null;
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
-  };
 
   return (
     <div className="space-y-6">
@@ -115,7 +108,6 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
             <div className="space-y-2">
               {calls.map((call) => {
                 const displayName = call.caller_name || call.caller_phone;
-                const duration = formatDuration(call.duration_ms);
                 const hasRecording = !!call.recording_url;
 
                 return (
@@ -140,9 +132,6 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
                           <Calendar className="w-3 h-3" />
                           {format(new Date(call.created_at), "MMM d, h:mm a")}
                         </span>
-                        {duration && (
-                          <span>{duration}</span>
-                        )}
                       </div>
                     </div>
 

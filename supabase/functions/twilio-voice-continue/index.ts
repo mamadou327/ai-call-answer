@@ -1558,7 +1558,7 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
     // Execute any actions
     let actionResult: { success: boolean; code?: string; error?: string } = { success: false };
     if (aiResult.action) {
-    actionResult = await executeAction(supabase, business.id, aiResult.action, { 
+      actionResult = await executeAction(supabase, business.id, aiResult.action, { 
         services, 
         staff, 
         openingHours,
@@ -1566,6 +1566,26 @@ ${upcomingBookings?.slice(0, 10).map((b: any) =>
         callerName: callerInfo.name || null
       });
       console.log("[VoiceContinue] Action result:", actionResult);
+      
+      // Update call_type immediately when action is executed
+      const callTypeMapping: Record<string, string> = {
+        "create_booking": "new_booking",
+        "cancel_booking": "cancel",
+        "reschedule_booking": "reschedule",
+        "leave_message": "other"
+      };
+      
+      const newCallType = callTypeMapping[aiResult.action.type];
+      if (newCallType) {
+        await supabase
+          .from("calls_log")
+          .update({ 
+            call_type: newCallType,
+            call_outcome: actionResult.success ? aiResult.action.type : "failed"
+          })
+          .eq("twilio_call_sid", callSid);
+        console.log(`[VoiceContinue] Updated call_type to ${newCallType}`);
+      }
       
       // If action failed, modify reply to include error
       if (!actionResult.success && actionResult.error) {
