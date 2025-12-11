@@ -539,8 +539,56 @@ async function checkRealAvailability(
 
   const { data: conflicts } = await query;
 
+  // Also check time off for ALL staff when no specific staff is requested
+  if (!staffId) {
+    const { data: allStaff } = await supabase
+      .from("staff")
+      .select("id")
+      .eq("business_id", businessId);
+    
+    if (allStaff) {
+      let anyStaffAvailable = false;
+      for (const staff of allStaff) {
+        // Check if this staff has time off
+        const { data: timeOff } = await supabase
+          .from("staff_time_off")
+          .select("id")
+          .eq("staff_id", staff.id)
+          .eq("status", "approved")
+          .lte("start_time", requestedEnd.toISOString())
+          .gte("end_time", requestedStart.toISOString());
+        
+        if (!timeOff || timeOff.length === 0) {
+          // Check if this staff has booking conflict
+          const { data: staffConflict } = await supabase
+            .from("bookings")
+            .select("id")
+            .eq("staff_id", staff.id)
+            .eq("business_id", businessId)
+            .neq("status", "cancelled")
+            .lt("start_time", requestedEnd.toISOString())
+            .gt("end_time", requestedStart.toISOString());
+          
+          if (!staffConflict || staffConflict.length === 0) {
+            anyStaffAvailable = true;
+            break;
+          }
+        }
+      }
+      
+      if (!anyStaffAvailable) {
+        return {
+          isAvailable: false,
+          reason: "No staff are available at that time",
+          suggestedSlots: await findNextAvailableSlots(supabase, businessId, requestedStart, durationMinutes, null, openingHours)
+        };
+      }
+      return { isAvailable: true };
+    }
+  }
+
   if (conflicts && conflicts.length > 0) {
-    // If staff was specified, suggest another time
+    // Staff was specified, suggest another time
     if (staffId) {
       return { 
         isAvailable: false, 
@@ -549,7 +597,7 @@ async function checkRealAvailability(
       };
     }
     
-    // If no staff specified, check if any staff is free
+    // If no staff specified, check if any staff is free (not booked AND not on time off)
     const { data: allStaff } = await supabase
       .from("staff")
       .select("id, name")
@@ -557,10 +605,21 @@ async function checkRealAvailability(
 
     if (allStaff) {
       const bookedStaffIds = conflicts.map((c: any) => c.staff_id);
-      const availableStaff = allStaff.filter((s: any) => !bookedStaffIds.includes(s.id));
+      const potentiallyAvailable = allStaff.filter((s: any) => !bookedStaffIds.includes(s.id));
       
-      if (availableStaff.length > 0) {
-        return { isAvailable: true }; // At least one staff member is available
+      // Check time off for potentially available staff
+      for (const staff of potentiallyAvailable) {
+        const { data: timeOff } = await supabase
+          .from("staff_time_off")
+          .select("id")
+          .eq("staff_id", staff.id)
+          .eq("status", "approved")
+          .lte("start_time", requestedEnd.toISOString())
+          .gte("end_time", requestedStart.toISOString());
+        
+        if (!timeOff || timeOff.length === 0) {
+          return { isAvailable: true }; // This staff member is truly available
+        }
       }
     }
 
@@ -617,10 +676,11 @@ async function findNextAvailableSlots(
       
       const { data: conflicts } = await query;
       
-      if (conflicts && conflicts.length > 0) continue;
-      
-      // Check for staff time off (CRITICAL: must check this too!)
+      // Check for staff time off
       if (staffId) {
+        // Specific staff - check their time off
+        if (conflicts && conflicts.length > 0) continue;
+        
         const { data: timeOff } = await supabase
           .from("staff_time_off")
           .select("id")
@@ -630,6 +690,45 @@ async function findNextAvailableSlots(
           .gte("end_time", slotStart.toISOString());
         
         if (timeOff && timeOff.length > 0) continue; // Skip this slot - staff has time off
+      } else {
+        // No specific staff - check if ANY staff is available (not booked AND not on time off)
+        const { data: allStaff } = await supabase
+          .from("staff")
+          .select("id")
+          .eq("business_id", businessId);
+        
+        if (!allStaff || allStaff.length === 0) continue;
+        
+        let anyStaffAvailable = false;
+        for (const staff of allStaff) {
+          // Check time off for this staff
+          const { data: timeOff } = await supabase
+            .from("staff_time_off")
+            .select("id")
+            .eq("staff_id", staff.id)
+            .eq("status", "approved")
+            .lte("start_time", slotEnd.toISOString())
+            .gte("end_time", slotStart.toISOString());
+          
+          if (timeOff && timeOff.length > 0) continue; // This staff has time off
+          
+          // Check booking conflict for this staff
+          const { data: staffConflict } = await supabase
+            .from("bookings")
+            .select("id")
+            .eq("staff_id", staff.id)
+            .eq("business_id", businessId)
+            .neq("status", "cancelled")
+            .lt("start_time", slotEnd.toISOString())
+            .gt("end_time", slotStart.toISOString());
+          
+          if (!staffConflict || staffConflict.length === 0) {
+            anyStaffAvailable = true;
+            break;
+          }
+        }
+        
+        if (!anyStaffAvailable) continue; // No staff available for this slot
       }
       
       const dayName = dayOffset === 0 ? "today" : dayOffset === 1 ? "tomorrow" : DB_DAY_NAMES[dbDay];
