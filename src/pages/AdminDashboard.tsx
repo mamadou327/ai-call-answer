@@ -579,7 +579,7 @@ const AdminDashboard = () => {
 
   const getWebhookUrl = () => {
     if (!twilioWebhookToken) return "";
-    return `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook/${twilioWebhookToken}`;
+    return `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook-realtime/${twilioWebhookToken}`;
   };
 
   const handleMessagebirdToggle = async (enabled: boolean) => {
