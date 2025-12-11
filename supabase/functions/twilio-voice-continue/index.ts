@@ -157,11 +157,11 @@ async function generateAndUploadAudio(
   }
 }
 
-// TwiML with ElevenLabs audio - using enhanced phone_call speech model
+// TwiML with ElevenLabs audio - using Deepgram nova-2 for better accent recognition
 function twimlContinueWithAudio(audioUrl: string, actionUrl: string, timeout: number = 6): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB" speechModel="phone_call" enhanced="true" hints="${SPEECH_HINTS}">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="3" language="en-GB" speechModel="deepgram_nova-2" hints="${SPEECH_HINTS}">
     <Play>${audioUrl}</Play>
   </Gather>
   <Say voice="Polly.Amy-Neural" language="en-GB"><prosody rate="108%">I didn't hear anything. If you need help, just give us another call. Goodbye!</prosody></Say>
@@ -185,11 +185,11 @@ function twimlEndWithAudio(audioUrl: string): Response {
   });
 }
 
-// Fallback Polly TwiML functions - using enhanced phone_call speech model
+// Fallback Polly TwiML functions - using Deepgram nova-2 for better accent recognition
 function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: string = "108%", timeout: number = 6): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB" speechModel="phone_call" enhanced="true" hints="${SPEECH_HINTS}">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="3" language="en-GB" speechModel="deepgram_nova-2" hints="${SPEECH_HINTS}">
     <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. If you need help, just give us another call. Goodbye!</prosody></Say>
@@ -216,7 +216,7 @@ function twimlEnd(sayText: string, voice: string, rate: string = "108%"): Respon
 function twimlClarify(sayText: string, actionUrl: string, voice: string, rate: string = "108%"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="auto" language="en-GB" speechModel="phone_call" enhanced="true" hints="${SPEECH_HINTS}">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="3" language="en-GB" speechModel="deepgram_nova-2" hints="${SPEECH_HINTS}">
     <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I still didn't catch that. Please call back if you need help. Goodbye!</prosody></Say>
@@ -231,7 +231,7 @@ function twimlClarify(sayText: string, actionUrl: string, voice: string, rate: s
 function twimlClarifyWithAudio(audioUrl: string, actionUrl: string): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="auto" language="en-GB" speechModel="phone_call" enhanced="true" hints="${SPEECH_HINTS}">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="3" language="en-GB" speechModel="deepgram_nova-2" hints="${SPEECH_HINTS}">
     <Play>${audioUrl}</Play>
   </Gather>
   <Say voice="Polly.Amy-Neural" language="en-GB"><prosody rate="108%">I still didn't catch that. Please call back if you need help. Goodbye!</prosody></Say>
