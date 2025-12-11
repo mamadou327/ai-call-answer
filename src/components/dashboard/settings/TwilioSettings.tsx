@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, Copy, Check, AlertCircle, PhoneCall, Bot } from "lucide-react";
+import { Phone, Copy, Check, AlertCircle, PhoneCall, Bot, Zap } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,22 +20,32 @@ const SUPABASE_PROJECT_ID = "zyqzypyncugihrawhppg";
 
 export const TwilioSettings = ({ business }: TwilioSettingsProps) => {
   const { toast } = useToast();
-  const [copied, setCopied] = useState(false);
+  const [copiedStandard, setCopiedStandard] = useState(false);
+  const [copiedRealtime, setCopiedRealtime] = useState(false);
 
-  const getWebhookUrl = () => {
+  const getStandardWebhookUrl = () => {
     if (!business?.twilio_webhook_token) return "";
     return `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook/${business.twilio_webhook_token}`;
   };
 
-  const copyWebhookUrl = () => {
-    const url = getWebhookUrl();
+  const getRealtimeWebhookUrl = () => {
+    if (!business?.twilio_webhook_token) return "";
+    return `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook-realtime/${business.twilio_webhook_token}`;
+  };
+
+  const copyUrl = (url: string, type: 'standard' | 'realtime') => {
     if (!url) return;
     navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (type === 'standard') {
+      setCopiedStandard(true);
+      setTimeout(() => setCopiedStandard(false), 2000);
+    } else {
+      setCopiedRealtime(true);
+      setTimeout(() => setCopiedRealtime(false), 2000);
+    }
     toast({
       title: "Copied",
-      description: "Webhook URL copied to clipboard",
+      description: `${type === 'realtime' ? 'Realtime' : 'Standard'} webhook URL copied to clipboard`,
     });
   };
 
@@ -115,29 +125,66 @@ export const TwilioSettings = ({ business }: TwilioSettingsProps) => {
             </div>
 
             {business?.twilio_webhook_token && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Webhook URL</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={getWebhookUrl()}
-                    readOnly
-                    className="bg-muted font-mono text-xs"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={copyWebhookUrl}
-                  >
-                    {copied ? (
-                      <Check className="w-4 h-4 text-success" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </Button>
+              <div className="space-y-4">
+                {/* Realtime Webhook (Recommended) */}
+                <div className="space-y-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-primary" />
+                    <Label className="text-sm font-medium text-primary">Realtime Webhook (Recommended)</Label>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      value={getRealtimeWebhookUrl()}
+                      readOnly
+                      className="bg-muted font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => copyUrl(getRealtimeWebhookUrl(), 'realtime')}
+                    >
+                      {copiedRealtime ? (
+                        <Check className="w-4 h-4 text-primary" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Faster responses (~1-2s)</strong> using OpenAI Realtime API with built-in voices (alloy, coral, ash, etc.)
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Configure this URL in Twilio's "A call comes in" webhook setting
+
+                {/* Standard Webhook */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Standard Webhook (ElevenLabs voices)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={getStandardWebhookUrl()}
+                      readOnly
+                      className="bg-muted font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => copyUrl(getStandardWebhookUrl(), 'standard')}
+                    >
+                      {copiedStandard ? (
+                        <Check className="w-4 h-4 text-primary" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Uses ElevenLabs voices with higher quality but slower response times (~3-5s)
+                  </p>
+                </div>
+
+                <p className="text-xs text-muted-foreground border-t pt-3">
+                  Configure your chosen URL in Twilio's "A call comes in" webhook setting
                 </p>
               </div>
             )}
