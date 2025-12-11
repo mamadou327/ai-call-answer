@@ -910,7 +910,7 @@ Set shouldEnd = true ONLY when caller explicitly says goodbye or is done.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5-mini", // Smarter model for better understanding accents and context
+        model: "google/gemini-2.5-flash", // Fast model to respond within Twilio's timeout
         messages,
       }),
     });
