@@ -157,14 +157,14 @@ Deno.serve(async (req) => {
 async function connectToOpenAI(session: StreamSession, supabase: any) {
   console.log("[MediaStream] Connecting to OpenAI Realtime API...");
 
+  // Deno WebSocket doesn't support headers option, use protocols for auth
   const openAiWs = new WebSocket(
     "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17",
-    {
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "OpenAI-Beta": "realtime=v1",
-      },
-    }
+    [
+      "realtime",
+      `openai-insecure-api-key.${OPENAI_API_KEY}`,
+      "openai-beta.realtime-v1"
+    ]
   );
 
   session.openAiWs = openAiWs;
