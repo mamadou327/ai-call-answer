@@ -190,14 +190,21 @@ function renderMessages(
                   <User className="w-4 h-4" />
                   {msg.caller_name || "Unknown Caller"}
                 </p>
-                {msg.is_urgent && (
+                {/* Status badges - always show one */}
+                {msg.is_urgent ? (
                   <Badge variant="destructive" className="flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />
                     Urgent
                   </Badge>
-                )}
-                {!msg.is_read && (
-                  <Badge variant="secondary">New</Badge>
+                ) : !msg.is_read ? (
+                  <Badge variant="default" className="bg-blue-500 hover:bg-blue-600">
+                    Unread
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-muted-foreground">
+                    <Check className="w-3 h-3 mr-1" />
+                    Read
+                  </Badge>
                 )}
               </div>
               

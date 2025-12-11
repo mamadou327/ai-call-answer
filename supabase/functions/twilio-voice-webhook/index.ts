@@ -167,7 +167,10 @@ function twimlError(message: string): Response {
   });
 }
 
-// Generate TwiML with ElevenLabs audio
+// Speech hints for better STT recognition with accents
+const SPEECH_HINTS = "booking, appointment, cancel, reschedule, haircut, beard, trim, shave, tomorrow, today, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday, morning, afternoon, evening, o'clock, half past, quarter past, available, availability, name, phone, confirm, yes, no, please, thank you";
+
+// Generate TwiML with ElevenLabs audio - using enhanced phone_call speech model
 function twimlGatherWithAudio(
   audioUrl: string,
   gatherAudioUrl: string | null,
@@ -187,7 +190,7 @@ function twimlGatherWithAudio(
     <Record recordingStatusCallback="${recordingCallbackUrl}" recordingStatusCallbackEvent="completed" recordingStatusCallbackMethod="POST"/>
   </Start>
   <Play>${audioUrl}</Play>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB" speechModel="phone_call" enhanced="true" hints="${SPEECH_HINTS}">
     ${gatherContent}
   </Gather>
   <Say voice="Polly.Amy-Neural" language="en-GB"><prosody rate="108%">I didn't hear anything. Please call back if you need assistance. Goodbye.</prosody></Say>
@@ -199,7 +202,7 @@ function twimlGatherWithAudio(
   });
 }
 
-// Fallback TwiML with Polly voice
+// Fallback TwiML with Polly voice - using enhanced phone_call speech model
 function twimlGatherWithPolly(
   sayText: string,
   gatherPrompt: string,
@@ -215,7 +218,7 @@ function twimlGatherWithPolly(
     <Record recordingStatusCallback="${recordingCallbackUrl}" recordingStatusCallbackEvent="completed" recordingStatusCallbackMethod="POST"/>
   </Start>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB" speechModel="phone_call" enhanced="true" hints="${SPEECH_HINTS}">
     <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(gatherPrompt)}</prosody></Say>
   </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. Please call back if you need assistance. Goodbye.</prosody></Say>

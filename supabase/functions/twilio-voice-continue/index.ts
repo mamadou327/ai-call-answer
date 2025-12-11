@@ -68,6 +68,9 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
+// Speech hints for better STT recognition with accents
+const SPEECH_HINTS = "booking, appointment, cancel, reschedule, haircut, beard, trim, shave, tomorrow, today, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday, morning, afternoon, evening, o'clock, half past, quarter past, available, availability, name, phone, confirm, yes, no, please, thank you";
+
 // Default ElevenLabs voice IDs
 const DEFAULT_VOICES = {
   female: "EXAVITQu4vr4xnSDxMaL", // Sarah
@@ -154,11 +157,11 @@ async function generateAndUploadAudio(
   }
 }
 
-// TwiML with ElevenLabs audio
+// TwiML with ElevenLabs audio - using enhanced phone_call speech model
 function twimlContinueWithAudio(audioUrl: string, actionUrl: string, timeout: number = 6): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB" speechModel="phone_call" enhanced="true" hints="${SPEECH_HINTS}">
     <Play>${audioUrl}</Play>
   </Gather>
   <Say voice="Polly.Amy-Neural" language="en-GB"><prosody rate="108%">I didn't hear anything. If you need help, just give us another call. Goodbye!</prosody></Say>
@@ -182,11 +185,11 @@ function twimlEndWithAudio(audioUrl: string): Response {
   });
 }
 
-// Fallback Polly TwiML functions
+// Fallback Polly TwiML functions - using enhanced phone_call speech model
 function twimlContinue(sayText: string, actionUrl: string, voice: string, rate: string = "108%", timeout: number = 6): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="${timeout}" speechTimeout="auto" language="en-GB" speechModel="phone_call" enhanced="true" hints="${SPEECH_HINTS}">
     <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I didn't hear anything. If you need help, just give us another call. Goodbye!</prosody></Say>
@@ -213,7 +216,7 @@ function twimlEnd(sayText: string, voice: string, rate: string = "108%"): Respon
 function twimlClarify(sayText: string, actionUrl: string, voice: string, rate: string = "108%"): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="auto" language="en-GB">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="auto" language="en-GB" speechModel="phone_call" enhanced="true" hints="${SPEECH_HINTS}">
     <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">${escapeXml(sayText)}</prosody></Say>
   </Gather>
   <Say voice="${voice}" language="en-GB"><prosody rate="${rate}">I still didn't catch that. Please call back if you need help. Goodbye!</prosody></Say>
@@ -228,7 +231,7 @@ function twimlClarify(sayText: string, actionUrl: string, voice: string, rate: s
 function twimlClarifyWithAudio(audioUrl: string, actionUrl: string): Response {
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="auto" language="en-GB">
+  <Gather input="speech" action="${actionUrl}" method="POST" timeout="6" speechTimeout="auto" language="en-GB" speechModel="phone_call" enhanced="true" hints="${SPEECH_HINTS}">
     <Play>${audioUrl}</Play>
   </Gather>
   <Say voice="Polly.Amy-Neural" language="en-GB"><prosody rate="108%">I still didn't catch that. Please call back if you need help. Goodbye!</prosody></Say>
@@ -864,7 +867,7 @@ Set shouldEnd = true ONLY when caller explicitly says goodbye or is done.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite", // Faster model for voice responses
+        model: "openai/gpt-5-mini", // Smarter model for better understanding accents and context
         messages,
       }),
     });
