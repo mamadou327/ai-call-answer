@@ -930,13 +930,21 @@ And natural time expressions:
 Always confirm back clearly: "So that's Friday the 15th at 2pm with [staff name] for a [service]?"
 
 ═══════════════════════════════════════════════════════════════
-REAL-TIME AVAILABILITY
+REAL-TIME AVAILABILITY - CRITICAL
 ═══════════════════════════════════════════════════════════════
 
-AVAILABILITY INFO is provided in the context. Use it to:
-- Only offer times when the SELECTED STAFF is available
-- If requested time is unavailable, apologize and offer alternatives
-- Check if that specific staff member is free at that time
+ALWAYS check these BEFORE confirming availability:
+
+1. STAFF TIME OFF: Check the "STAFF TIME OFF" section. If a staff member has time off on the requested date, they are NOT available. Tell the caller they're unavailable and suggest another staff member or another date.
+
+2. EXISTING BOOKINGS: Check "EXISTING BOOKINGS" section. If a staff member already has a booking at the requested time, they are NOT available. Offer a different time or different staff.
+
+3. OPENING HOURS: Make sure the requested time is within business hours.
+
+When asked "Is [staff] available tomorrow?" or similar:
+- Check if they have TIME OFF on that date → If yes, say "I'm sorry, [staff] isn't available tomorrow. They have time off. Would you like to see someone else, or try a different day?"
+- Check if they have BOOKINGS at the requested time → If yes, say "Sorry, [staff] is booked at that time. They're free at [alternative time] though."
+- Only say they're available if they have NO time off AND NO booking conflicts
 
 ═══════════════════════════════════════════════════════════════
 CONVERSATION FLOW - NATURAL DIALOGUE
@@ -1636,26 +1644,32 @@ Deno.serve(async (req) => {
     }
 
     // Fetch business context for AI
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const [
       { data: services },
       { data: staff },
       { data: openingHours },
-      { data: upcomingBookings }
+      { data: upcomingBookings },
+      { data: staffTimeOff }
     ] = await Promise.all([
       supabase.from("services").select("id, name, duration_minutes, price").eq("business_id", business.id),
       supabase.from("staff").select("id, name, role").eq("business_id", business.id),
       supabase.from("opening_hours").select("*").eq("business_id", business.id).order("day_of_week"),
       supabase.from("bookings")
-        .select("booking_code, customer_name, start_time, service:service_id(name), staff:staff_id(name)")
+        .select("booking_code, customer_name, start_time, end_time, service:service_id(name), staff:staff_id(name)")
         .eq("business_id", business.id)
         .neq("status", "cancelled")
         .gte("start_time", new Date().toISOString())
         .order("start_time")
-        .limit(20)
+        .limit(30),
+      supabase.from("staff_time_off")
+        .select("staff_id, start_time, end_time, reason, staff:staff_id(name)")
+        .eq("business_id", business.id)
+        .eq("status", "approved")
+        .gte("end_time", new Date().toISOString())
+        .lte("start_time", thirtyDaysFromNow.toISOString())
     ]);
-
-    // Build business context with caller info
-    const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     const tomorrowStr = tomorrow.toISOString().split("T")[0];
@@ -1687,6 +1701,27 @@ TOTAL VISITS: ${callerInfo.totalVisits || 0}`;
       callerSection += "RETURNING CUSTOMER: No (new caller)";
     }
 
+    // Format staff time off for context
+    const timeOffInfo = staffTimeOff?.map((t: any) => {
+      const startDate = new Date(t.start_time);
+      const endDate = new Date(t.end_time);
+      const staffName = t.staff?.name || "Unknown";
+      const startStr = startDate.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+      const endStr = endDate.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+      if (startStr === endStr) {
+        return `- ${staffName}: OFF on ${startStr} (${t.reason || "Time off"})`;
+      }
+      return `- ${staffName}: OFF from ${startStr} to ${endStr} (${t.reason || "Time off"})`;
+    }).join("\n") || "None scheduled";
+
+    // Format upcoming bookings with staff info for availability checking
+    const bookingsWithStaff = upcomingBookings?.map((b: any) => {
+      const startTime = new Date(b.start_time);
+      const endTime = new Date(b.end_time);
+      const staffName = b.staff?.name || "Any";
+      return `- ${staffName} booked: ${startTime.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} ${formatTime(startTime)}-${formatTime(endTime)} (${b.customer_name})`;
+    }).join("\n") || "No upcoming bookings";
+
     const businessContext = `
 BUSINESS: ${business.business_name}
 ASSISTANT NAME: ${assistantName}
@@ -1704,13 +1739,14 @@ ${services?.map((s: any) => `- ${s.name}: ${s.duration_minutes}min, £${s.price}
 STAFF:
 ${staff?.map((s: any) => `- ${s.name} (${s.role})`).join("\n") || "No staff configured"}
 
+STAFF TIME OFF (IMPORTANT - these staff are NOT available on these dates):
+${timeOffInfo}
+
 OPENING HOURS:
 ${formattedHours.map((h: any) => `- ${h.day}: ${h.isClosed ? "CLOSED" : `${h.open} - ${h.close}`}`).join("\n") || "Not configured"}
 
-UPCOMING BOOKINGS (for reference):
-${upcomingBookings?.slice(0, 10).map((b: any) => 
-  `- ${b.booking_code}: ${b.customer_name} on ${new Date(b.start_time).toLocaleDateString()} at ${formatTime(new Date(b.start_time))}`
-).join("\n") || "No upcoming bookings"}
+EXISTING BOOKINGS (staff are busy during these times):
+${bookingsWithStaff}
 `;
 
     // Process with AI
