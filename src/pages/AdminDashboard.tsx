@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import aiviaLogo from "@/assets/aivia-logo.png";
-import { LogOut, Clock, CheckCircle2, XCircle, Eye, ChevronRight, ChevronLeft, Phone, Copy, Check } from "lucide-react";
+import { LogOut, Clock, CheckCircle2, XCircle, Eye, ChevronRight, ChevronLeft } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
@@ -38,15 +38,7 @@ interface Business {
   number_notes: string | null;
   porting_status: string | null;
   porting_instructions: string | null;
-  // Twilio fields
-  twilio_webhook_token: string | null;
-  twilio_phone_number: string | null;
-  twilio_enabled: boolean | null;
   aivia_active: boolean;
-  // MessageBird fields
-  messagebird_phone_number: string | null;
-  messagebird_token: string | null;
-  messagebird_enabled: boolean;
 }
 
 interface Profile {
@@ -79,7 +71,7 @@ const AdminDashboard = () => {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
-  const [dialogStep, setDialogStep] = useState<1 | 2 | 3>(1);
+  const [dialogStep, setDialogStep] = useState<1 | 2>(1);
   const [pendingAdmins, setPendingAdmins] = useState<PendingAdmin[]>([]);
   const [selectedAdmin, setSelectedAdmin] = useState<PendingAdmin | null>(null);
   const [adminPermissions, setAdminPermissions] = useState<AdminPermissions>({
@@ -107,16 +99,6 @@ const AdminDashboard = () => {
   const [numberNotes, setNumberNotes] = useState("");
   const [portingStatus, setPortingStatus] = useState<string>("pending");
   const [portingInstructions, setPortingInstructions] = useState("");
-  
-  // Twilio settings state
-  const [twilioPhoneNumber, setTwilioPhoneNumber] = useState("");
-  const [twilioEnabled, setTwilioEnabled] = useState(false);
-  const [twilioWebhookToken, setTwilioWebhookToken] = useState<string | null>(null);
-  const [copiedWebhook, setCopiedWebhook] = useState(false);
-  
-  
-  // Supabase project ID for webhook URL
-  const SUPABASE_PROJECT_ID = "zyqzypyncugihrawhppg";
 
   useEffect(() => {
     checkAdminAccess();
@@ -434,16 +416,6 @@ const AdminDashboard = () => {
       if (numberNotes !== undefined) updateData.number_notes = numberNotes || null;
       if (portingStatus) updateData.porting_status = portingStatus;
       if (portingInstructions !== undefined) updateData.porting_instructions = portingInstructions || null;
-      
-      // Twilio fields
-      updateData.twilio_phone_number = twilioPhoneNumber || null;
-      updateData.twilio_enabled = twilioEnabled;
-      
-      // If enabling Twilio and we have a new token, save it
-      if (twilioEnabled && twilioWebhookToken) {
-        updateData.twilio_webhook_token = twilioWebhookToken;
-      }
-
 
       const { error } = await supabase
         .from("businesses")
@@ -464,9 +436,6 @@ const AdminDashboard = () => {
       setNumberNotes("");
       setPortingStatus("pending");
       setPortingInstructions("");
-      setTwilioPhoneNumber("");
-      setTwilioEnabled(false);
-      setTwilioWebhookToken(null);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -506,11 +475,6 @@ const AdminDashboard = () => {
     setNumberNotes(business.number_notes || "");
     setPortingStatus(business.porting_status || "pending");
     setPortingInstructions(business.porting_instructions || "");
-    // Pre-fill Twilio values
-    setTwilioPhoneNumber(business.twilio_phone_number || "");
-    setTwilioEnabled(business.twilio_enabled || false);
-    setTwilioWebhookToken(business.twilio_webhook_token || null);
-    setCopiedWebhook(false);
   };
 
   const closeBusinessDialog = () => {
@@ -520,42 +484,6 @@ const AdminDashboard = () => {
     setNumberNotes("");
     setPortingStatus("pending");
     setPortingInstructions("");
-    // Reset Twilio state
-    setTwilioPhoneNumber("");
-    setTwilioEnabled(false);
-    setTwilioWebhookToken(null);
-    setCopiedWebhook(false);
-  };
-
-  const handleTwilioToggle = async (enabled: boolean) => {
-    if (!selectedBusiness) return;
-    
-    setTwilioEnabled(enabled);
-    
-    // If enabling and no token exists, generate one
-    if (enabled && !twilioWebhookToken) {
-      const newToken = crypto.randomUUID();
-      setTwilioWebhookToken(newToken);
-    }
-  };
-
-  const copyWebhookUrl = () => {
-    if (!twilioWebhookToken) return;
-    // Use the realtime webhook for lower latency and better accent handling
-    const webhookUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook-realtime/${twilioWebhookToken}`;
-    navigator.clipboard.writeText(webhookUrl);
-    setCopiedWebhook(true);
-    setTimeout(() => setCopiedWebhook(false), 2000);
-    toast({
-      title: "Copied",
-      description: "Realtime webhook URL copied to clipboard",
-    });
-  };
-
-  const getWebhookUrl = () => {
-    if (!twilioWebhookToken) return "";
-    // Use the realtime webhook for lower latency and better accent handling
-    return `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-voice-webhook-realtime/${twilioWebhookToken}`;
   };
 
   // Filter businesses by status
@@ -770,7 +698,7 @@ const AdminDashboard = () => {
           <DialogHeader>
             <DialogTitle>{selectedBusiness?.business_name}</DialogTitle>
           <DialogDescription>
-              {dialogStep === 1 ? "Business details" : dialogStep === 2 ? "Number assignment & porting" : "Twilio Settings"}
+              {dialogStep === 1 ? "Business details" : "Number assignment & porting"}
             </DialogDescription>
           </DialogHeader>
           {selectedBusiness && (
@@ -779,7 +707,6 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-center gap-2 pb-2">
                 <div className={`w-2 h-2 rounded-full ${dialogStep === 1 ? "bg-primary" : "bg-muted"}`} />
                 <div className={`w-2 h-2 rounded-full ${dialogStep === 2 ? "bg-primary" : "bg-muted"}`} />
-                <div className={`w-2 h-2 rounded-full ${dialogStep === 3 ? "bg-primary" : "bg-muted"}`} />
               </div>
 
               {/* Step 1: Business Details */}
@@ -1036,114 +963,6 @@ const AdminDashboard = () => {
                           Back
                         </Button>
                         <Button
-                          onClick={() => setDialogStep(3)}
-                          className="flex-1"
-                        >
-                          Next
-                          <ChevronRight className="w-4 h-4 ml-2" />
-                        </Button>
-                      </div>
-                    </>
-                  )}
-
-                  {(selectedBusiness.status === "rejected" || selectedBusiness.status === "revoked") && (
-                    <div className="flex gap-2 pt-4">
-                      <Button
-                        variant="outline"
-                        onClick={() => setDialogStep(1)}
-                      >
-                        <ChevronLeft className="w-4 h-4 mr-2" />
-                        Back
-                      </Button>
-                      <p className="text-sm text-muted-foreground flex-1 flex items-center justify-center">
-                        This business has been {selectedBusiness.status}.
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Step 3: Twilio Settings */}
-              {dialogStep === 3 && (
-                <>
-                  {selectedBusiness.status === "approved" && userPermissions.can_approve_businesses && (
-                    <>
-                      <div className="space-y-4">
-                        <h3 className="font-semibold text-sm flex items-center gap-2">
-                          <Phone className="w-4 h-4" />
-                          Twilio & Calls
-                        </h3>
-                        
-                        <div>
-                          <Label htmlFor="twilio-phone" className="text-sm font-medium">
-                            Twilio Phone Number
-                          </Label>
-                          <Input
-                            id="twilio-phone"
-                            placeholder="+442896021192"
-                            value={twilioPhoneNumber}
-                            onChange={(e) => setTwilioPhoneNumber(e.target.value)}
-                            className="mt-1.5"
-                          />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            The Twilio number assigned to this business
-                          </p>
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-0.5">
-                            <Label className="text-sm font-medium">Twilio Enabled</Label>
-                            <p className="text-xs text-muted-foreground">
-                              Enable inbound voice calls via Twilio
-                            </p>
-                          </div>
-                          <Switch
-                            checked={twilioEnabled}
-                            onCheckedChange={handleTwilioToggle}
-                          />
-                        </div>
-                        
-                        {(twilioEnabled || twilioWebhookToken) && (
-                          <div>
-                            <Label className="text-sm font-medium">Webhook URL</Label>
-                            <div className="flex gap-2 mt-1.5">
-                              <Input
-                                value={getWebhookUrl()}
-                                readOnly
-                                className="bg-muted font-mono text-xs"
-                                placeholder="Enable Twilio to generate webhook URL"
-                              />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                onClick={copyWebhookUrl}
-                                disabled={!twilioWebhookToken}
-                              >
-                                {copiedWebhook ? (
-                                  <Check className="w-4 h-4 text-success" />
-                                ) : (
-                                  <Copy className="w-4 h-4" />
-                                )}
-                              </Button>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Paste this URL in Twilio's Voice webhook settings
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      
-                      <div className="flex gap-2 pt-4">
-                        <Button
-                          variant="outline"
-                          onClick={() => setDialogStep(2)}
-                        >
-                          <ChevronLeft className="w-4 h-4 mr-2" />
-                          Back
-                        </Button>
-                        <Button
                           onClick={() => handleUpdateApprovedBusiness(selectedBusiness.id)}
                           disabled={!!actionLoading}
                           className="flex-1"
@@ -1166,8 +985,24 @@ const AdminDashboard = () => {
                       </div>
                     </>
                   )}
+
+                  {(selectedBusiness.status === "rejected" || selectedBusiness.status === "revoked") && (
+                    <div className="flex gap-2 pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => setDialogStep(1)}
+                      >
+                        <ChevronLeft className="w-4 h-4 mr-2" />
+                        Back
+                      </Button>
+                      <p className="text-sm text-muted-foreground flex-1 flex items-center justify-center">
+                        This business has been {selectedBusiness.status}.
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
+
             </div>
           )}
         </DialogContent>
