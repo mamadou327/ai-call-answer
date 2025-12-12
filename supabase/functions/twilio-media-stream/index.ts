@@ -658,14 +658,6 @@ async function executeLeaveMessage(supabase: any, businessId: string, callerPhon
 async function executeTransferCall(supabase: any, session: StreamSession, params: any): Promise<any> {
   console.log("[MediaStream] Transferring call to:", params.staff_name);
   
-  const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
-  const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
-  
-  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
-    console.error("[MediaStream] Twilio credentials not configured");
-    return { success: false, message: "Transfer is not available at the moment. Would you like to leave a message instead?" };
-  }
-  
   try {
     // Find staff member with phone
     const { data: staffMember } = await supabase
@@ -690,42 +682,44 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
     const staffDisplayName = `${staffMember.title ? staffMember.title + " " : ""}${staffMember.name}`;
     console.log("[MediaStream] Transfer requested to:", staffMember.phone);
 
-    // Use Twilio REST API to update the call with a Dial TwiML
-    // This will redirect the active call to dial the staff member
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="Polly.Amy-Neural" language="en-GB">Please hold while I transfer you to ${staffDisplayName}.</Say>
-  <Dial callerId="${session.callerPhone}" timeout="30" action="https://${new URL(Deno.env.get("SUPABASE_URL")!).hostname}/functions/v1/twilio-transfer-callback">
-    <Number>${staffMember.phone}</Number>
-  </Dial>
-  <Say voice="Polly.Amy-Neural" language="en-GB">I'm sorry, ${staffDisplayName} is not available right now. Please try again later. Goodbye.</Say>
-  <Hangup/>
-</Response>`;
+    // Store transfer request in the conversation record
+    // The twilio-stream-action function will read this when the stream ends
+    const { data: conversation } = await supabase
+      .from("call_conversations")
+      .select("id, messages")
+      .eq("call_sid", session.callSid)
+      .maybeSingle();
 
-    // Call Twilio API to update the call
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls/${session.callSid}.json`;
-    const authHeader = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
-    
-    const updateResponse = await fetch(twilioUrl, {
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${authHeader}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        Twiml: twiml,
-      }),
-    });
+    if (conversation) {
+      const messages = (conversation.messages as any[]) || [];
+      messages.push({
+        type: "transfer_request",
+        transfer_to: staffMember.phone,
+        staff_name: staffDisplayName,
+        staff_id: staffMember.id,
+        reason: params.reason || "Customer requested transfer",
+        timestamp: new Date().toISOString(),
+      });
 
-    if (!updateResponse.ok) {
-      const errorText = await updateResponse.text();
-      console.error("[MediaStream] Twilio API error:", updateResponse.status, errorText);
-      return { success: false, message: "Sorry, I couldn't complete the transfer. Would you like to leave a message instead?" };
+      await supabase
+        .from("call_conversations")
+        .update({ 
+          status: "transfer_pending",
+          messages: messages,
+        })
+        .eq("id", conversation.id);
+      
+      console.log("[MediaStream] Transfer request saved to conversation");
     }
 
-    console.log("[MediaStream] Call updated successfully, transferring to:", staffMember.phone);
+    // Close connections to end the stream - this triggers the action URL
+    if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
+      session.twilioWs.send(JSON.stringify({
+        event: "stop",
+        streamSid: session.streamSid,
+      }));
+    }
 
-    // Close the OpenAI connection since the call is being transferred
     if (session.openAiWs?.readyState === WebSocket.OPEN) {
       session.openAiWs.close();
     }
