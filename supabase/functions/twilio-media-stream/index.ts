@@ -1135,6 +1135,15 @@ async function buildFullSystemPrompt(
   const currentTime = formatTime(now);
   const currentDate = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
+  // Determine if business is open TODAY
+  const todayHours = hours.find((h: any) => h.day_of_week === dbDay);
+  const isOpenToday = todayHours && !todayHours.is_closed;
+  const todayStatus = isOpenToday 
+    ? `OPEN today (${todayHours.open_time?.slice(0, 5)} - ${todayHours.close_time?.slice(0, 5)})`
+    : "CLOSED today";
+  
+  console.log(`[MediaStream] Day mapping - JS day: ${jsDay} (${currentDay}), DB day: ${dbDay}, Today's hours:`, todayHours, `Status: ${todayStatus}`);
+
   // Build caller context
   let callerContext = "";
   if (callerInfo.isReturning) {
@@ -1207,13 +1216,19 @@ CRITICAL RULES:
 
 ${greetingInstruction}
 
-TODAY: ${currentDay}, ${currentDate}, ${currentTime}
+⚠️ TODAY IS ${currentDay.toUpperCase()}, ${currentDate}, ${currentTime} - BUSINESS IS ${todayStatus.toUpperCase()}
 ${callerContext}
 STAFF:
 ${staffList}${transferOnlyNote}
 SERVICES BY CATEGORY:
 ${servicesList}
-HOURS: ${hours.filter((h: any) => !h.is_closed).map((h: any) => `${dbDayNames[h.day_of_week].slice(0,3)} ${h.open_time?.slice(0,5)}-${h.close_time?.slice(0,5)}`).join(", ") || "Ask"}
+OPENING HOURS (Mon=0 to Sun=6):
+${hours.sort((a: any, b: any) => a.day_of_week - b.day_of_week).map((h: any) => {
+  const dayName = dbDayNames[h.day_of_week] || `Day ${h.day_of_week}`;
+  const isToday = h.day_of_week === dbDay;
+  if (h.is_closed) return `${dayName}: CLOSED${isToday ? " ← TODAY" : ""}`;
+  return `${dayName}: ${h.open_time?.slice(0, 5)} - ${h.close_time?.slice(0, 5)}${isToday ? " ← TODAY" : ""}`;
+}).join("\n")}
 TIME OFF: ${timeOffList}
 BOOKED SLOTS: ${bookingsWithStaff}
 ${policyContext}
