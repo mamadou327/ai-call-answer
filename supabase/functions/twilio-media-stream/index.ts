@@ -1081,13 +1081,15 @@ async function buildFullSystemPrompt(
     : "Services available upon request";
 
   // Format hours
-  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  // Database uses: Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6
+  const dbDayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   const hoursList = hours.length > 0
     ? hours
         .sort((a: any, b: any) => a.day_of_week - b.day_of_week)
         .map((h: any) => {
-          if (h.is_closed) return `${dayNames[h.day_of_week]}: Closed`;
-          return `${dayNames[h.day_of_week]}: ${h.open_time?.slice(0, 5)} - ${h.close_time?.slice(0, 5)}`;
+          const dayName = dbDayNames[h.day_of_week] || `Day ${h.day_of_week}`;
+          if (h.is_closed) return `${dayName}: CLOSED`;
+          return `${dayName}: ${h.open_time?.slice(0, 5)} - ${h.close_time?.slice(0, 5)}`;
         })
         .join("\n")
     : "Opening hours available upon request";
@@ -1125,7 +1127,11 @@ async function buildFullSystemPrompt(
 
   // Get current date/time context
   const now = new Date();
-  const currentDay = dayNames[now.getDay()];
+  // Convert JS day (Sunday=0) to DB day (Monday=0) for comparison
+  const jsDay = now.getDay();
+  const dbDay = jsDay === 0 ? 6 : jsDay - 1; // Sunday becomes 6, others shift down by 1
+  const jsDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const currentDay = jsDayNames[jsDay]; // Use JS day names for display of current day
   const currentTime = formatTime(now);
   const currentDate = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
@@ -1207,7 +1213,7 @@ STAFF:
 ${staffList}${transferOnlyNote}
 SERVICES BY CATEGORY:
 ${servicesList}
-HOURS: ${hours.filter((h: any) => !h.is_closed).map((h: any) => `${dayNames[h.day_of_week].slice(0,3)} ${h.open_time?.slice(0,5)}-${h.close_time?.slice(0,5)}`).join(", ") || "Ask"}
+HOURS: ${hours.filter((h: any) => !h.is_closed).map((h: any) => `${dbDayNames[h.day_of_week].slice(0,3)} ${h.open_time?.slice(0,5)}-${h.close_time?.slice(0,5)}`).join(", ") || "Ask"}
 TIME OFF: ${timeOffList}
 BOOKED SLOTS: ${bookingsWithStaff}
 ${policyContext}
