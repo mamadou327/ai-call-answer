@@ -421,6 +421,7 @@ serve(async (req) => {
 
     const [
       { data: business },
+      { data: businessSettings },
       { data: services },
       { data: staff },
       { data: openingHours },
@@ -430,6 +431,7 @@ serve(async (req) => {
       { data: customers },
     ] = await Promise.all([
       supabase.from("businesses").select("*").eq("id", validBusinessId).single(),
+      supabase.from("business_settings").select("*").eq("business_id", validBusinessId).single(),
       supabase.from("services").select("*").eq("business_id", validBusinessId).order("name"),
       supabase.from("staff").select("*").eq("business_id", validBusinessId).order("name"),
       supabase.from("opening_hours").select("*").eq("business_id", validBusinessId).order("day_of_week"),
@@ -465,6 +467,14 @@ serve(async (req) => {
         .order("total_visits", { ascending: false })
         .limit(100),
     ]);
+
+    // Extract policy settings with defaults
+    const policies = {
+      minBookingNoticeHours: businessSettings?.min_booking_notice_hours || 2,
+      maxDaysAdvance: businessSettings?.max_days_advance || 30,
+      minCancellationNoticeHours: businessSettings?.min_cancellation_notice_hours || 24,
+      cancellationPolicy: businessSettings?.cancellation_policy || "No specific policy set",
+    };
 
     // =========== BUILD CONTEXT ===========
     const jsDayToday = now.getDay();
@@ -571,6 +581,20 @@ ${formattedCustomers.slice(0, 15).map((c: any) =>
 ).join("\n") || "No customers yet"}
 
 ═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════
+BOOKING POLICIES (YOU MUST ENFORCE THESE!)
+═══════════════════════════════════════════════════════════════
+• Minimum Booking Notice: ${policies.minBookingNoticeHours} hours in advance
+  (Customers CANNOT book less than ${policies.minBookingNoticeHours} hours before the appointment)
+• Maximum Advance Booking: ${policies.maxDaysAdvance} days ahead
+  (Customers CANNOT book more than ${policies.maxDaysAdvance} days in the future)
+• Minimum Cancellation Notice: ${policies.minCancellationNoticeHours} hours before appointment
+  (Customers CANNOT cancel within ${policies.minCancellationNoticeHours} hours of their appointment)
+• Cancellation Policy: ${policies.cancellationPolicy}
+
+CRITICAL: These policies are STRICT and MUST be enforced. Do NOT allow exceptions!
+
+═══════════════════════════════════════════════════════════════
 YOUR CAPABILITIES
 ═══════════════════════════════════════════════════════════════
 
@@ -578,14 +602,19 @@ YOUR CAPABILITIES
    - Book appointments with validation
    - Prevent double-booking
    - Check opening hours
+   - ENFORCE minimum ${policies.minBookingNoticeHours} hours notice
+   - ENFORCE maximum ${policies.maxDaysAdvance} days in advance
 
 2. CANCEL BOOKING
    - Find by code, name, phone, date
    - Always confirm before cancelling
+   - ENFORCE minimum ${policies.minCancellationNoticeHours} hours cancellation notice
+   - If within notice period, explain the policy and refuse
 
 3. RESCHEDULE BOOKING
    - Move to new date/time
    - Validate new slot
+   - Check both original cancellation policy AND new booking policy
 
 4. CHECK AVAILABILITY
    - "What times are free tomorrow?"
@@ -771,13 +800,14 @@ REMEMBER: ALWAYS respond with JSON. Never plain text.`;
         staff: staff || [],
         openingHours: openingHours || [],
         bookings: formattedBookings,
+        policies,
       });
       return jsonResponse(result);
     }
 
     // CANCEL BOOKING - use allBookings to find cancelled ones too
     if (action === "cancel_booking") {
-      const result = await handleCancelBooking(supabase, validBusinessId, verifiedUserId, params, formattedAllBookings, allBookings || []);
+      const result = await handleCancelBooking(supabase, validBusinessId, verifiedUserId, params, formattedAllBookings, allBookings || [], policies);
       return jsonResponse(result);
     }
 
@@ -1008,9 +1038,10 @@ async function handleCreateBooking(
   businessId: string,
   userId: string,
   params: any,
-  context: { services: any[]; staff: any[]; openingHours: any[]; bookings: any[] }
+  context: { services: any[]; staff: any[]; openingHours: any[]; bookings: any[]; policies: any }
 ): Promise<{ assistantMessage: string; action: string | null; metadata?: any }> {
   const { customer_name, customer_phone, service_name, staff_name, date, time, notes } = params;
+  const { policies } = context;
 
   // Validation
   if (!customer_name) {
@@ -1040,8 +1071,28 @@ async function handleCreateBooking(
     return { assistantMessage: "I couldn't understand that date/time. Please use format like '2024-01-15' and '14:30'.", action: null };
   }
 
-  if (startDate < new Date()) {
+  const now = new Date();
+  
+  if (startDate < now) {
     return { assistantMessage: "That time has already passed. Please choose a future time.", action: null };
+  }
+
+  // POLICY: Check minimum booking notice
+  const hoursUntilBooking = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+  if (hoursUntilBooking < policies.minBookingNoticeHours) {
+    return { 
+      assistantMessage: `Sorry, I can't book that time. Our policy requires at least ${policies.minBookingNoticeHours} hours advance notice for bookings. The earliest I can book is ${formatTime(new Date(now.getTime() + policies.minBookingNoticeHours * 60 * 60 * 1000))} or later. Would you like a different time?`, 
+      action: null 
+    };
+  }
+
+  // POLICY: Check maximum days in advance
+  const daysInAdvance = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+  if (daysInAdvance > policies.maxDaysAdvance) {
+    return { 
+      assistantMessage: `Sorry, I can't book that far in advance. Our policy allows bookings up to ${policies.maxDaysAdvance} days ahead. The latest available date is ${formatDate(new Date(now.getTime() + policies.maxDaysAdvance * 24 * 60 * 60 * 1000))}. Would you like to pick an earlier date?`, 
+      action: null 
+    };
   }
 
   const duration = service?.duration_minutes || 60;
@@ -1120,6 +1171,16 @@ async function handleCreateBooking(
     }
   }
 
+  // Send confirmation email
+  try {
+    console.log(`[Aivia] Sending confirmation email for booking ${booking.id}`);
+    await supabase.functions.invoke("send-booking-email", {
+      body: { businessId, bookingId: booking.id, type: "confirmation" }
+    });
+  } catch (emailError) {
+    console.warn("[Aivia] Failed to send confirmation email:", emailError);
+  }
+
   return {
     assistantMessage: `✅ Booked! ${customer_name} with ${staffMember?.name || "any available"} for ${service?.name || "appointment"} on ${formatDate(startDate)} at ${formatTime(startDate)}. Code: ${booking.booking_code}`,
     action: "create_booking",
@@ -1133,7 +1194,8 @@ async function handleCancelBooking(
   userId: string,
   params: any,
   formattedBookings: any[],
-  rawBookings: any[]
+  rawBookings: any[],
+  policies: any
 ): Promise<{ assistantMessage: string; action: string | null }> {
   const result = smartBookingLookup(formattedBookings, rawBookings, params);
 
@@ -1148,6 +1210,18 @@ async function handleCancelBooking(
     return { assistantMessage: `This booking (${booking.code}) is already cancelled.`, action: null };
   }
 
+  // POLICY: Check minimum cancellation notice
+  const bookingStartTime = new Date(rawBooking.start_time);
+  const now = new Date();
+  const hoursUntilBooking = (bookingStartTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+  if (hoursUntilBooking < policies.minCancellationNoticeHours) {
+    return { 
+      assistantMessage: `Sorry, I can't cancel this booking. Our cancellation policy requires at least ${policies.minCancellationNoticeHours} hours notice, but this appointment is in ${Math.round(hoursUntilBooking * 10) / 10} hours.\n\nCancellation Policy: ${policies.cancellationPolicy}\n\nPlease call the business directly if this is an emergency.`, 
+      action: null 
+    };
+  }
+
   // Cancel it
   const { error } = await supabase
     .from("bookings")
@@ -1156,6 +1230,16 @@ async function handleCancelBooking(
 
   if (error) {
     return { assistantMessage: `Sorry, couldn't cancel: ${error.message}`, action: null };
+  }
+
+  // Send cancellation email
+  try {
+    console.log(`[Aivia] Sending cancellation email for booking ${rawBooking.id}`);
+    await supabase.functions.invoke("send-booking-email", {
+      body: { businessId, bookingId: rawBooking.id, type: "cancellation" }
+    });
+  } catch (emailError) {
+    console.warn("[Aivia] Failed to send cancellation email:", emailError);
   }
 
   return {
