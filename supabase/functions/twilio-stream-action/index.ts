@@ -54,14 +54,13 @@ Deno.serve(async (req) => {
           .update({ status: "transferred" })
           .eq("id", conversation.id);
 
-        // Return TwiML to dial the staff member
+        // Return TwiML to dial the staff member immediately (no hold message for speed)
         const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Amy-Neural" language="en-GB">Please hold while I transfer you to ${escapeXml(transferInfo.staff_name || "our team member")}.</Say>
   <Dial callerId="${escapeXml(fromNumber)}" timeout="30">
     <Number>${escapeXml(transferInfo.transfer_to)}</Number>
   </Dial>
-  <Say voice="Polly.Amy-Neural" language="en-GB">I'm sorry, they are not available right now. Please try again later. Goodbye.</Say>
+  <Say voice="Polly.Amy-Neural" language="en-GB">Sorry, they're unavailable. Goodbye.</Say>
   <Hangup/>
 </Response>`;
 
