@@ -85,16 +85,19 @@ Deno.serve(async (req) => {
   // Get business AI settings
   const { data: settings } = await supabase
     .from("business_settings")
-    .select("assistant_name, tone, primary_language, voice_gender")
+    .select("assistant_name, tone, primary_language, voice_gender, elevenlabs_voice_id")
     .eq("business_id", business.id)
     .maybeSingle();
 
   const assistantName = settings?.assistant_name || "Aivia";
   const tone = settings?.tone || "neutral";
   const voiceGender = settings?.voice_gender || "female";
+  const selectedVoice = settings?.elevenlabs_voice_id;
 
-  // Map voice gender to OpenAI voice
-  const openAiVoice = voiceGender === "male" ? "ash" : "coral";
+  // Use selected OpenAI voice, or fallback to gender-based default
+  const openAiVoice = selectedVoice && OPENAI_VOICES.includes(selectedVoice) 
+    ? selectedVoice 
+    : (voiceGender === "male" ? "ash" : "coral");
 
   // Upgrade to WebSocket
   const { socket: twilioWs, response } = Deno.upgradeWebSocket(req);
