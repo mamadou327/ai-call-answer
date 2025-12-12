@@ -683,8 +683,7 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
     const staffDisplayName = `${staffMember.title ? staffMember.title + " " : ""}${staffMember.name}`;
     console.log("[MediaStream] Transfer requested to:", staffMember.phone);
 
-    // Store transfer request in the conversation record
-    // The twilio-stream-action function will read this when the stream ends
+    // Update conversation status
     const { data: conversation } = await supabase
       .from("call_conversations")
       .select("id, messages")
@@ -705,29 +704,73 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
       await supabase
         .from("call_conversations")
         .update({ 
-          status: "transfer_pending",
+          status: "transferred",
           messages: messages,
         })
         .eq("id", conversation.id);
       
-      console.log("[MediaStream] Transfer request saved to conversation");
+      console.log("[MediaStream] Transfer saved to conversation");
     }
 
-    // Close connections to end the stream - this triggers the action URL
-    if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
-      session.twilioWs.send(JSON.stringify({
-        event: "stop",
-        streamSid: session.streamSid,
-      }));
+    // Use Twilio REST API to update the call with new TwiML
+    const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
+    
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
+      console.error("[MediaStream] Twilio credentials not configured");
+      return { success: false, message: "Transfer service is not configured. Would you like to leave a message instead?" };
     }
 
+    // Build TwiML for the transfer
+    const transferTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Amy-Neural" language="en-GB">Please hold while I transfer you to ${escapeXml(staffDisplayName)}.</Say>
+  <Dial callerId="${escapeXml(session.callerPhone)}" timeout="30">
+    <Number>${escapeXml(staffMember.phone)}</Number>
+  </Dial>
+  <Say voice="Polly.Amy-Neural" language="en-GB">I'm sorry, they are not available right now. Goodbye.</Say>
+  <Hangup/>
+</Response>`;
+
+    console.log("[MediaStream] Updating call with transfer TwiML for callSid:", session.callSid);
+
+    // Update the call to use new TwiML (this interrupts the stream and processes new TwiML)
+    const updateUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls/${session.callSid}.json`;
+    const authHeader = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
+
+    const updateResponse = await fetch(updateUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${authHeader}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        Twiml: transferTwiml,
+      }),
+    });
+
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error("[MediaStream] Twilio update call error:", updateResponse.status, errorText);
+      
+      // If call update fails, try closing the stream anyway
+      if (session.openAiWs?.readyState === WebSocket.OPEN) {
+        session.openAiWs.close();
+      }
+      
+      return { success: false, message: "I couldn't complete the transfer right now. Would you like to leave a message instead?" };
+    }
+
+    console.log("[MediaStream] Call update successful - transfer initiated");
+
+    // Close OpenAI connection since we're transferring
     if (session.openAiWs?.readyState === WebSocket.OPEN) {
       session.openAiWs.close();
     }
 
     return { 
       success: true, 
-      message: `Transferring you to ${staffDisplayName} now. Please hold.`,
+      message: `Transferring you to ${staffDisplayName} now.`,
       transfer_to: staffMember.phone,
       staff_name: staffDisplayName
     };
@@ -735,6 +778,15 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
     console.error("[MediaStream] Transfer call error:", error);
     return { success: false, message: "Sorry, I couldn't complete the transfer. Would you like to leave a message instead?" };
   }
+}
+
+function escapeXml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 function formatTime(date: Date): string {
