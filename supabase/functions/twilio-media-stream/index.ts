@@ -130,10 +130,13 @@ Deno.serve(async (req) => {
           break;
 
         case "start":
-          console.log("[MediaStream] Stream started:", data.start);
+          console.log("[MediaStream] Stream started:", JSON.stringify(data.start));
           session.streamSid = data.start.streamSid;
-          session.callSid = data.start.callSid;
+          // Get callSid from customParameters (passed from webhook) or fallback to stream's callSid
+          session.callSid = data.start.customParameters?.callSid || data.start.callSid;
           session.callerPhone = data.start.customParameters?.callerPhone || "";
+          
+          console.log("[MediaStream] Session initialized - callSid:", session.callSid, "callerPhone:", session.callerPhone);
           
           // Build full system prompt with caller context
           session.systemPrompt = await buildFullSystemPrompt(
