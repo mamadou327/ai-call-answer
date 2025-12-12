@@ -360,6 +360,32 @@ function sendSessionConfig(session: StreamSession) {
     },
     {
       type: "function",
+      name: "save_customer_email",
+      description: "Save a customer's email address after they spell it out. Use this AFTER successfully creating a booking when the customer provides their email for confirmation.",
+      parameters: {
+        type: "object",
+        properties: {
+          customer_phone: { type: "string", description: "Customer's phone number (to identify them)" },
+          email: { type: "string", description: "Customer's email address" },
+          booking_id: { type: "string", description: "The booking ID if available" },
+        },
+        required: ["customer_phone", "email"],
+      },
+    },
+    {
+      type: "function",
+      name: "end_call",
+      description: "End the phone call gracefully. Use this AFTER: 1) The customer says goodbye/bye/thank you and seems done, 2) You've confirmed all their requests are complete, 3) There's extended silence (over 10 seconds). Say a brief goodbye BEFORE calling this.",
+      parameters: {
+        type: "object",
+        properties: {
+          reason: { type: "string", description: "Reason for ending call: 'completed', 'customer_goodbye', 'silence_timeout'" },
+        },
+        required: ["reason"],
+      },
+    },
+    {
+      type: "function",
       name: "leave_message",
       description: "Leave a message for the business or a specific staff member.",
       parameters: {
@@ -439,6 +465,12 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
           break;
         case "cancel_booking":
           result = await executeCancelBooking(supabase, session.businessId, args);
+          break;
+        case "save_customer_email":
+          result = await executeSaveCustomerEmail(supabase, session.businessId, args);
+          break;
+        case "end_call":
+          result = await executeEndCall(session, args);
           break;
         case "leave_message":
           result = await executeLeaveMessage(supabase, session.businessId, session.callerPhone, session.callerName, args);
@@ -563,10 +595,23 @@ async function executeCreateBooking(supabase: any, businessId: string, params: a
     }
 
     console.log("[MediaStream] Booking created:", booking.id);
+    
+    // Check if email notifications are enabled for this business
+    const { data: businessData } = await supabase
+      .from("businesses")
+      .select("email_on_confirmation")
+      .eq("id", businessId)
+      .single();
+    
+    const shouldAskForEmail = businessData?.email_on_confirmation === true;
+    
     return { 
       success: true, 
       message: `Booking confirmed! Reference code is ${codeData}`,
       booking_code: codeData,
+      booking_id: booking.id,
+      ask_for_email: shouldAskForEmail,
+      email_prompt: shouldAskForEmail ? "Would you like to receive an email confirmation? If so, please spell out your email address." : null,
     };
   } catch (error) {
     console.error("[MediaStream] Create booking error:", error);
@@ -612,6 +657,126 @@ async function executeCancelBooking(supabase: any, businessId: string, params: a
   } catch (error) {
     console.error("[MediaStream] Cancel booking error:", error);
     return { success: false, message: "Error cancelling booking." };
+  }
+}
+
+async function executeSaveCustomerEmail(supabase: any, businessId: string, params: any): Promise<any> {
+  console.log("[MediaStream] Saving customer email:", params);
+  
+  try {
+    const { customer_phone, email, booking_id } = params;
+    
+    if (!email || !email.includes("@")) {
+      return { success: false, message: "That doesn't seem like a valid email address. Could you spell it out again?" };
+    }
+    
+    // Find or update customer by phone
+    const normalizedPhone = customer_phone.replace(/\D/g, "").slice(-10);
+    
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("business_id", businessId)
+      .or(`phone.ilike.%${normalizedPhone}%,phone.eq.${customer_phone}`)
+      .limit(1)
+      .maybeSingle();
+    
+    if (customer) {
+      // Update existing customer
+      await supabase
+        .from("customers")
+        .update({ email: email.toLowerCase().trim() })
+        .eq("id", customer.id);
+    }
+    
+    // If we have a booking ID, trigger the email confirmation
+    if (booking_id) {
+      // Get booking details to find business
+      const { data: booking } = await supabase
+        .from("bookings")
+        .select("business_id")
+        .eq("id", booking_id)
+        .single();
+      
+      if (booking) {
+        // Invoke the send-booking-email function
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/send-booking-email`, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({
+              businessId: booking.business_id,
+              bookingId: booking_id,
+              type: "confirmation",
+            }),
+          });
+          console.log("[MediaStream] Email confirmation triggered");
+        } catch (emailError) {
+          console.error("[MediaStream] Error sending email:", emailError);
+        }
+      }
+    }
+    
+    return { 
+      success: true, 
+      message: "Got it! I'll send the confirmation to that email address."
+    };
+  } catch (error) {
+    console.error("[MediaStream] Save email error:", error);
+    return { success: false, message: "Sorry, I couldn't save that email. No worries though, your booking is still confirmed." };
+  }
+}
+
+async function executeEndCall(session: StreamSession, params: any): Promise<any> {
+  console.log("[MediaStream] Ending call:", params.reason);
+  
+  try {
+    const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
+    
+    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !session.callSid) {
+      // Just close the WebSocket connections
+      if (session.openAiWs?.readyState === WebSocket.OPEN) {
+        session.openAiWs.close();
+      }
+      return { success: true, message: "Call ended." };
+    }
+    
+    // Build TwiML to hang up gracefully
+    const hangupTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Pause length="1"/>
+  <Hangup/>
+</Response>`;
+    
+    // Update the call to hang up
+    const updateUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls/${session.callSid}.json`;
+    const authHeader = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
+    
+    await fetch(updateUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${authHeader}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        Twiml: hangupTwiml,
+      }),
+    });
+    
+    // Close OpenAI connection
+    if (session.openAiWs?.readyState === WebSocket.OPEN) {
+      session.openAiWs.close();
+    }
+    
+    return { success: true, message: "Call ended." };
+  } catch (error) {
+    console.error("[MediaStream] End call error:", error);
+    return { success: true, message: "Call ended." };
   }
 }
 
@@ -1054,12 +1219,27 @@ BOOKING PROCESS:
 4. Get preferred staff from those who CAN do the service - if they ask for someone not assigned, politely explain
 5. Get date/time - check against BOOKED SLOTS and TIME OFF first
 6. Confirm all details with customer before creating booking
+7. AFTER booking is confirmed, the create_booking tool will tell you if email notifications are enabled
+8. If ask_for_email is true, ask: "Would you like to receive an email confirmation? If so, please spell out your email address."
+9. If they provide email, use save_customer_email to save it. If they decline, that's fine - confirm booking is done.
+
+EMAIL COLLECTION:
+- When customer spells out email, listen carefully and repeat it back: "So that's john at gmail dot com?"
+- Common patterns: "at" = @, "dot" = .
+- Use save_customer_email tool with the email address
+- If they don't want email confirmation, just say "No problem, you're all set!"
 
 CALL TRANSFER:
 - Use transfer_call when: caller urgently wants to speak to someone, you can't answer their question, or staff is TRANSFER ONLY
 - IMPORTANT: Keep transfer message VERY brief - just say "Transferring now" then immediately call transfer_call
 - Do NOT explain who you're transferring to or why - just transfer quickly
 - If transfer fails (no phone number), offer to leave a message instead
+
+ENDING THE CALL:
+- When caller says "bye", "goodbye", "thanks bye", "that's all" - say a brief goodbye like "Bye, see you soon!" then use end_call tool
+- If there's extended silence (over 10 seconds) after you've completed their request, use end_call
+- Keep farewells SHORT - one sentence max before ending
+- Always use end_call tool to properly hang up - don't just stop talking
 
 CRITICAL:
 - Check TIME OFF + BOOKED SLOTS before confirming ANY availability
