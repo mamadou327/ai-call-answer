@@ -142,8 +142,19 @@ const Dashboard = () => {
       await loadSetupChecklist(bizData);
     }
   };
-  const loadSetupChecklist = async (biz: Business) => {
+  const loadSetupChecklist = async (biz: any) => {
     const [servicesRes, staffRes, hoursRes, settingsRes] = await Promise.all([supabase.from("services").select("id").eq("business_id", biz.id), supabase.from("staff").select("id").eq("business_id", biz.id), supabase.from("opening_hours").select("id").eq("business_id", biz.id), supabase.from("business_settings").select("*").eq("business_id", biz.id).single()]);
+    
+    // Check if any notification is enabled (email or SMS)
+    const hasNotificationsEnabled = !!(
+      biz.email_on_confirmation || 
+      biz.email_on_cancellation || 
+      biz.email_on_reminder ||
+      biz.sms_on_confirmation ||
+      biz.sms_on_cancellation ||
+      biz.sms_on_reminder
+    );
+    
     const items: ChecklistItem[] = [{
       label: "Business info complete (name, address, phone)",
       isComplete: !!(biz.business_name && biz.address && biz.main_phone),
@@ -169,9 +180,9 @@ const Dashboard = () => {
       isComplete: !!(settingsRes.data?.min_booking_notice_hours && settingsRes.data?.max_days_advance),
       action: "business"
     }, {
-      label: "Notification email configured",
-      isComplete: !!settingsRes.data?.notification_email,
-      action: "business"
+      label: "Notifications enabled (email or SMS)",
+      isComplete: hasNotificationsEnabled,
+      action: "notifications"
     }, {
       label: "Assistant settings configured",
       isComplete: !!(settingsRes.data?.assistant_name && settingsRes.data?.primary_language && settingsRes.data?.tone),
