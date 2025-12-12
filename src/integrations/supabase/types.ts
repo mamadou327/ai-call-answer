@@ -786,6 +786,7 @@ export type Database = {
           name: string
           phone: string | null
           role: string
+          title: string | null
           updated_at: string | null
           working_hours: Json | null
         }
@@ -798,6 +799,7 @@ export type Database = {
           name: string
           phone?: string | null
           role: string
+          title?: string | null
           updated_at?: string | null
           working_hours?: Json | null
         }
@@ -810,6 +812,7 @@ export type Database = {
           name?: string
           phone?: string | null
           role?: string
+          title?: string | null
           updated_at?: string | null
           working_hours?: Json | null
         }
