@@ -23,6 +23,7 @@ interface Staff {
   phone?: string;
   color?: string;
   title?: string;
+  ai_enabled?: boolean;
 }
 
 interface Service {
@@ -45,6 +46,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
     email: "",
     phone: "",
     color: "#3B82F6",
+    ai_enabled: true,
   });
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
@@ -136,6 +138,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
       email: member.email || "",
       phone: member.phone || "",
       color: member.color || "#3B82F6",
+      ai_enabled: member.ai_enabled !== false,
     });
     await loadStaffServices(member.id);
     setDialogOpen(true);
@@ -217,7 +220,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
 
       setDialogOpen(false);
       setSelectedStaff(null);
-      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6" });
+      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true });
       setSelectedServices([]);
       loadStaff();
       onUpdate();
@@ -273,7 +276,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
           setDialogOpen(open);
           if (!open) {
             setSelectedStaff(null);
-            setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6" });
+            setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true });
             setSelectedServices([]);
           }
         }}>
@@ -389,9 +392,34 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                 </div>
               )}
 
-              <Button type="submit" disabled={loading}>
-                {loading ? "Saving..." : selectedStaff ? "Update Staff" : "Add Staff"}
-              </Button>
+              <div className="flex items-center justify-between pt-4 border-t">
+                <div className="space-y-1">
+                  <Label htmlFor="ai_enabled" className="text-sm font-medium">AI Booking</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {formData.ai_enabled 
+                      ? "AI can make bookings for this staff" 
+                      : "Calls will be transferred to this staff"
+                    }
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      id="ai_enabled"
+                      checked={formData.ai_enabled}
+                      onChange={(e) => setFormData({ ...formData, ai_enabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-ring transition-colors">
+                      <div className={`absolute top-0.5 left-0.5 bg-background border border-border rounded-full h-5 w-5 transition-transform ${formData.ai_enabled ? 'translate-x-5' : ''}`}></div>
+                    </div>
+                  </label>
+                  <Button type="submit" disabled={loading}>
+                    {loading ? "Saving..." : selectedStaff ? "Update Staff" : "Add Staff"}
+                  </Button>
+                </div>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
@@ -413,7 +441,14 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                     title="Calendar color"
                   />
                   <div>
-                    <h4 className="font-semibold">{member.title ? `${member.title} ` : ""}{member.name}</h4>
+                    <h4 className="font-semibold">
+                      {member.title ? `${member.title} ` : ""}{member.name}
+                      {member.ai_enabled === false && (
+                        <span className="ml-2 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">
+                          Transfer only
+                        </span>
+                      )}
+                    </h4>
                     <p className="text-sm text-muted-foreground">{member.role}</p>
                     {member.email && <p className="text-xs text-muted-foreground mt-1">{member.email}</p>}
                     {member.phone && <p className="text-xs text-muted-foreground">{member.phone}</p>}
