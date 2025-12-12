@@ -178,7 +178,11 @@ Deno.serve(async (req) => {
         );
         
         if (!isValid) {
-          console.warn("Invalid MessageBird signature - request may be forged. Proceeding with caution.");
+          console.error("Invalid MessageBird signature - request rejected as potentially forged");
+          return new Response(JSON.stringify({ error: "Invalid signature" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
         } else {
           console.log("MessageBird signature validated successfully");
         }

@@ -655,6 +655,14 @@ async function executeLeaveMessage(supabase: any, businessId: string, callerPhon
 async function executeTransferCall(supabase: any, session: StreamSession, params: any): Promise<any> {
   console.log("[MediaStream] Transferring call to:", params.staff_name);
   
+  const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
+  const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
+  
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN) {
+    console.error("[MediaStream] Twilio credentials not configured");
+    return { success: false, message: "Transfer is not available at the moment. Would you like to leave a message instead?" };
+  }
+  
   try {
     // Find staff member with phone
     const { data: staffMember } = await supabase
@@ -676,27 +684,54 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
       };
     }
 
-    // Send Twilio refer event to transfer the call
-    if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
-      // First, say the transfer message
-      const transferMessage = `One moment, I'm transferring you to ${staffMember.title ? staffMember.title + " " : ""}${staffMember.name} now.`;
-      
-      // The actual transfer will be handled by returning success and then using Twilio's dial
-      // For WebSocket media streams, we need to end the stream and let the original webhook handle the transfer
-      session.twilioWs.send(JSON.stringify({
-        event: "stop",
-        streamSid: session.streamSid,
-      }));
+    const staffDisplayName = `${staffMember.title ? staffMember.title + " " : ""}${staffMember.name}`;
+    console.log("[MediaStream] Transfer requested to:", staffMember.phone);
+
+    // Use Twilio REST API to update the call with a Dial TwiML
+    // This will redirect the active call to dial the staff member
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Amy-Neural" language="en-GB">Please hold while I transfer you to ${staffDisplayName}.</Say>
+  <Dial callerId="${session.callerPhone}" timeout="30" action="https://${new URL(Deno.env.get("SUPABASE_URL")!).hostname}/functions/v1/twilio-transfer-callback">
+    <Number>${staffMember.phone}</Number>
+  </Dial>
+  <Say voice="Polly.Amy-Neural" language="en-GB">I'm sorry, ${staffDisplayName} is not available right now. Please try again later. Goodbye.</Say>
+  <Hangup/>
+</Response>`;
+
+    // Call Twilio API to update the call
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls/${session.callSid}.json`;
+    const authHeader = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
+    
+    const updateResponse = await fetch(twilioUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${authHeader}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        Twiml: twiml,
+      }),
+    });
+
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error("[MediaStream] Twilio API error:", updateResponse.status, errorText);
+      return { success: false, message: "Sorry, I couldn't complete the transfer. Would you like to leave a message instead?" };
     }
 
-    // Log the transfer attempt
-    console.log("[MediaStream] Transfer requested to:", staffMember.phone);
+    console.log("[MediaStream] Call updated successfully, transferring to:", staffMember.phone);
+
+    // Close the OpenAI connection since the call is being transferred
+    if (session.openAiWs?.readyState === WebSocket.OPEN) {
+      session.openAiWs.close();
+    }
 
     return { 
       success: true, 
-      message: `Transferring you to ${staffMember.title ? staffMember.title + " " : ""}${staffMember.name} now. Please hold.`,
+      message: `Transferring you to ${staffDisplayName} now. Please hold.`,
       transfer_to: staffMember.phone,
-      staff_name: `${staffMember.title ? staffMember.title + " " : ""}${staffMember.name}`
+      staff_name: staffDisplayName
     };
   } catch (error) {
     console.error("[MediaStream] Transfer call error:", error);
