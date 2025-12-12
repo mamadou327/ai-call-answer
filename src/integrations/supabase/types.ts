@@ -251,6 +251,9 @@ export type Database = {
           assigned_aivia_number: string | null
           business_name: string
           created_at: string | null
+          email_on_cancellation: boolean
+          email_on_confirmation: boolean
+          email_on_reminder: boolean
           id: string
           main_phone: string
           messagebird_enabled: boolean
@@ -282,6 +285,9 @@ export type Database = {
           assigned_aivia_number?: string | null
           business_name: string
           created_at?: string | null
+          email_on_cancellation?: boolean
+          email_on_confirmation?: boolean
+          email_on_reminder?: boolean
           id?: string
           main_phone: string
           messagebird_enabled?: boolean
@@ -313,6 +319,9 @@ export type Database = {
           assigned_aivia_number?: string | null
           business_name?: string
           created_at?: string | null
+          email_on_cancellation?: boolean
+          email_on_confirmation?: boolean
+          email_on_reminder?: boolean
           id?: string
           main_phone?: string
           messagebird_enabled?: boolean
