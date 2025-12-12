@@ -422,6 +422,7 @@ serve(async (req) => {
     const [
       { data: business },
       { data: businessSettings },
+      { data: customerSettings },
       { data: services },
       { data: staff },
       { data: openingHours },
@@ -432,6 +433,7 @@ serve(async (req) => {
     ] = await Promise.all([
       supabase.from("businesses").select("*").eq("id", validBusinessId).single(),
       supabase.from("business_settings").select("*").eq("business_id", validBusinessId).single(),
+      supabase.from("customer_settings").select("*").eq("business_id", validBusinessId).single(),
       supabase.from("services").select("*").eq("business_id", validBusinessId).order("name"),
       supabase.from("staff").select("*").eq("business_id", validBusinessId).order("name"),
       supabase.from("opening_hours").select("*").eq("business_id", validBusinessId).order("day_of_week"),
@@ -475,6 +477,29 @@ serve(async (req) => {
       minCancellationNoticeHours: businessSettings?.min_cancellation_notice_hours || 24,
       cancellationPolicy: businessSettings?.cancellation_policy || "No specific policy set",
     };
+
+    // Extract assistant settings
+    const assistantConfig = {
+      name: businessSettings?.assistant_name || "Aivia",
+      tone: businessSettings?.tone || "neutral",
+      language: businessSettings?.primary_language || "English",
+      currency: businessSettings?.currency || "GBP",
+      country: businessSettings?.country || "United Kingdom",
+    };
+
+    // Extract customer data collection settings
+    const customerDataSettings = {
+      collectName: customerSettings?.collect_name ?? true,
+      collectPhone: customerSettings?.collect_phone ?? true,
+      collectEmail: customerSettings?.collect_email ?? false,
+      askHowHeard: customerSettings?.ask_how_heard ?? false,
+      askMarketingConsent: customerSettings?.ask_marketing_consent ?? false,
+      askNotesPreferences: customerSettings?.ask_notes_preferences ?? false,
+      askPreferredStaff: customerSettings?.ask_preferred_staff ?? false,
+    };
+
+    // Extract business knowledge
+    const businessKnowledge = business?.website_knowledge || null;
 
     // =========== BUILD CONTEXT ===========
     const jsDayToday = now.getDay();
@@ -536,8 +561,19 @@ serve(async (req) => {
     const dayAfterTomorrow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
 
     // =========== SYSTEM PROMPT ===========
-    const systemPrompt = `You are Aivia, an intelligent AI booking assistant for "${business?.business_name || "this business"}".
+    const systemPrompt = `You are ${assistantConfig.name}, an intelligent AI booking assistant for "${business?.business_name || "this business"}".
 You help ${role === "owner" ? "the business owner" : "staff"} manage bookings efficiently and naturally.
+
+═══════════════════════════════════════════════════════════════
+YOUR PERSONALITY & COMMUNICATION STYLE
+═══════════════════════════════════════════════════════════════
+• Your Name: ${assistantConfig.name}
+• Tone: ${assistantConfig.tone === "casual" ? "Casual and friendly - use relaxed, approachable language" : assistantConfig.tone === "formal" ? "Formal and professional - use polite, business-appropriate language" : "Neutral and balanced - clear, professional but approachable"}
+• Language: ${assistantConfig.language}
+• Currency: ${assistantConfig.currency}
+• Country/Region: ${assistantConfig.country}
+
+IMPORTANT: Always communicate in the style matching your tone setting!
 
 ═══════════════════════════════════════════════════════════════
 CURRENT CONTEXT
@@ -547,24 +583,50 @@ TODAY: ${DB_DAY_NAMES[dbDayToday]}, ${todayStr}
 TOMORROW: ${tomorrow.toISOString().split("T")[0]}
 DAY AFTER: ${dayAfterTomorrow.toISOString().split("T")[0]}
 
-BUSINESS: ${business?.business_name}
-ADDRESS: ${business?.address}
-PHONE: ${business?.main_phone}
+═══════════════════════════════════════════════════════════════
+BUSINESS DETAILS (YOU KNOW THIS BUSINESS!)
+═══════════════════════════════════════════════════════════════
+• Business Name: ${business?.business_name}
+• Address: ${business?.address}
+• Main Phone: ${business?.main_phone}
+${business?.secondary_phone ? `• Secondary Phone: ${business.secondary_phone}` : ""}
+${business?.website ? `• Website: ${business.website}` : ""}
+
+${businessKnowledge ? `
+═══════════════════════════════════════════════════════════════
+WEBSITE KNOWLEDGE (Learned from business website)
+═══════════════════════════════════════════════════════════════
+${businessKnowledge}
+` : ""}
 
 ═══════════════════════════════════════════════════════════════
-SERVICES
+SERVICES & PRICING
 ═══════════════════════════════════════════════════════════════
-${services?.map((s: any) => `• ${s.name} | ${s.duration_minutes}min | £${s.price}`).join("\n") || "No services configured"}
+${services?.map((s: any) => `• ${s.name} | ${s.duration_minutes}min | ${assistantConfig.currency === "GBP" ? "£" : assistantConfig.currency === "EUR" ? "€" : "$"}${s.price}${s.description ? ` - ${s.description}` : ""}`).join("\n") || "No services configured"}
 
 ═══════════════════════════════════════════════════════════════
-STAFF
+STAFF MEMBERS
 ═══════════════════════════════════════════════════════════════
-${staff?.map((s: any) => `• ${s.name} (${s.role})`).join("\n") || "No staff configured"}
+${staff?.map((s: any) => `• ${s.name} (${s.role})${s.title ? ` - ${s.title}` : ""}${s.ai_enabled ? "" : " [AI booking disabled]"}`).join("\n") || "No staff configured"}
 
 ═══════════════════════════════════════════════════════════════
-OPENING HOURS
+OPENING HOURS (STRICTLY ENFORCE THESE!)
 ═══════════════════════════════════════════════════════════════
-${formattedHours.map((h: any) => `• ${h.day}: ${h.isClosed ? "CLOSED" : `${h.open} - ${h.close}`}`).join("\n") || "Not configured"}
+${formattedHours.map((h: any) => `• ${h.day}: ${h.isClosed ? "CLOSED" : `${h.open} - ${h.close}`}`).join("\n") || "Not configured - ask business owner to set opening hours"}
+
+CRITICAL: Do NOT allow bookings outside these hours! If a day shows CLOSED, the business is NOT open!
+
+═══════════════════════════════════════════════════════════════
+CUSTOMER DATA COLLECTION RULES
+═══════════════════════════════════════════════════════════════
+When taking bookings, you MUST collect this information:
+${customerDataSettings.collectName ? "• Customer Name (REQUIRED)" : ""}
+${customerDataSettings.collectPhone ? "• Phone Number (REQUIRED)" : ""}
+${customerDataSettings.collectEmail ? "• Email Address (REQUIRED)" : ""}
+${customerDataSettings.askHowHeard ? "• Ask how they heard about us" : ""}
+${customerDataSettings.askMarketingConsent ? "• Ask for marketing consent" : ""}
+${customerDataSettings.askNotesPreferences ? "• Ask for any special notes or preferences" : ""}
+${customerDataSettings.askPreferredStaff ? "• Ask if they have a preferred staff member" : ""}
 
 ═══════════════════════════════════════════════════════════════
 UPCOMING BOOKINGS (${formattedBookings.length} total)
@@ -581,18 +643,17 @@ ${formattedCustomers.slice(0, 15).map((c: any) =>
 ).join("\n") || "No customers yet"}
 
 ═══════════════════════════════════════════════════════════════
-═══════════════════════════════════════════════════════════════
-BOOKING POLICIES (YOU MUST ENFORCE THESE!)
+BOOKING POLICIES (YOU MUST ENFORCE THESE - NO EXCEPTIONS!)
 ═══════════════════════════════════════════════════════════════
 • Minimum Booking Notice: ${policies.minBookingNoticeHours} hours in advance
-  (Customers CANNOT book less than ${policies.minBookingNoticeHours} hours before the appointment)
+  → Customers CANNOT book less than ${policies.minBookingNoticeHours} hours before the appointment
 • Maximum Advance Booking: ${policies.maxDaysAdvance} days ahead
-  (Customers CANNOT book more than ${policies.maxDaysAdvance} days in the future)
+  → Customers CANNOT book more than ${policies.maxDaysAdvance} days in the future
 • Minimum Cancellation Notice: ${policies.minCancellationNoticeHours} hours before appointment
-  (Customers CANNOT cancel within ${policies.minCancellationNoticeHours} hours of their appointment)
+  → Customers CANNOT cancel within ${policies.minCancellationNoticeHours} hours of their appointment
 • Cancellation Policy: ${policies.cancellationPolicy}
 
-CRITICAL: These policies are STRICT and MUST be enforced. Do NOT allow exceptions!
+CRITICAL: These policies are STRICT and MUST be enforced. Do NOT allow ANY exceptions!
 
 ═══════════════════════════════════════════════════════════════
 YOUR CAPABILITIES
