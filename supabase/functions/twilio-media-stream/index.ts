@@ -401,9 +401,10 @@ function sendSessionConfig(session: StreamSession) {
       },
       turn_detection: {
         type: "server_vad",
-        threshold: 0.45,           // More sensitive detection
-        prefix_padding_ms: 200,    // Less pre-speech buffer
-        silence_duration_ms: 400,  // Faster response trigger
+        threshold: 0.7,            // Higher threshold = less sensitive to background noise
+        prefix_padding_ms: 300,    // Standard pre-speech buffer
+        silence_duration_ms: 700,  // Longer silence needed before AI responds (reduces false triggers)
+        create_response: true,     // Auto-create response when speech ends
       },
       tools,
       tool_choice: "auto",
