@@ -1,9 +1,59 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
+import { encode as encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-twilio-signature",
 };
+
+// ============================================================================
+// TWILIO SIGNATURE VALIDATION
+// ============================================================================
+
+async function validateTwilioSignature(
+  authToken: string,
+  url: string,
+  params: Record<string, string>,
+  signature: string | null
+): Promise<boolean> {
+  if (!signature) {
+    console.error("[StreamAction] No X-Twilio-Signature header provided");
+    return false;
+  }
+
+  try {
+    // Sort params alphabetically and concatenate
+    const sortedKeys = Object.keys(params).sort();
+    let dataString = url;
+    for (const key of sortedKeys) {
+      dataString += key + params[key];
+    }
+
+    // Create HMAC-SHA1 signature
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(authToken);
+    const key = await crypto.subtle.importKey(
+      "raw",
+      keyData,
+      { name: "HMAC", hash: "SHA-1" },
+      false,
+      ["sign"]
+    );
+    
+    const data = encoder.encode(dataString);
+    const signatureBuffer = await crypto.subtle.sign("HMAC", key, data);
+    const expectedSignature = encodeBase64(new Uint8Array(signatureBuffer));
+
+    const isValid = expectedSignature === signature;
+    if (!isValid) {
+      console.error("[StreamAction] Signature mismatch. Expected:", expectedSignature, "Got:", signature);
+    }
+    return isValid;
+  } catch (error) {
+    console.error("[StreamAction] Error validating signature:", error);
+    return false;
+  }
+}
 
 function escapeXml(text: string): string {
   return text
@@ -28,10 +78,49 @@ Deno.serve(async (req) => {
 
     console.log("[StreamAction] Called for token:", token?.substring(0, 8) + "...", "callSid:", callSid);
 
+    // Parse form data if present (Twilio sends POST with form data)
+    const params: Record<string, string> = {};
+    try {
+      const formData = await req.formData();
+      for (const [key, value] of formData.entries()) {
+        params[key] = value.toString();
+      }
+    } catch {
+      // Form data may not be present, that's okay
+    }
+
     // Initialize Supabase
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Validate Twilio signature for security
+    const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+    if (twilioAuthToken) {
+      const signature = req.headers.get("x-twilio-signature");
+      // Build full URL with query params for signature validation
+      const publicUrl = `${supabaseUrl}/functions/v1/twilio-stream-action/${token}?callSid=${encodeURIComponent(callSid)}&from=${encodeURIComponent(fromNumber)}`;
+      
+      console.log("[StreamAction] Validating signature with URL:", publicUrl);
+      
+      const isValid = await validateTwilioSignature(twilioAuthToken, publicUrl, params, signature);
+      
+      if (!isValid) {
+        console.error("[StreamAction] Invalid Twilio signature - request rejected");
+        const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Amy-Neural" language="en-GB">Security validation failed. Goodbye.</Say>
+  <Hangup/>
+</Response>`;
+        return new Response(twiml, {
+          headers: { ...corsHeaders, "Content-Type": "text/xml" },
+        });
+      }
+      
+      console.log("[StreamAction] Signature validated successfully");
+    } else {
+      console.warn("[StreamAction] TWILIO_AUTH_TOKEN not configured - skipping signature validation");
+    }
 
     // Check if there's a pending transfer for this call
     const { data: conversation } = await supabase
