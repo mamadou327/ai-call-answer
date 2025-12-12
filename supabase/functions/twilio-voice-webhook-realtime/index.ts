@@ -1,9 +1,59 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
+import { encode as encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-twilio-signature",
 };
+
+// ============================================================================
+// TWILIO SIGNATURE VALIDATION
+// ============================================================================
+
+async function validateTwilioSignature(
+  authToken: string,
+  url: string,
+  params: Record<string, string>,
+  signature: string | null
+): Promise<boolean> {
+  if (!signature) {
+    console.error("[VoiceWebhookRT] No X-Twilio-Signature header provided");
+    return false;
+  }
+
+  try {
+    // Sort params alphabetically and concatenate
+    const sortedKeys = Object.keys(params).sort();
+    let dataString = url;
+    for (const key of sortedKeys) {
+      dataString += key + params[key];
+    }
+
+    // Create HMAC-SHA1 signature
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(authToken);
+    const key = await crypto.subtle.importKey(
+      "raw",
+      keyData,
+      { name: "HMAC", hash: "SHA-1" },
+      false,
+      ["sign"]
+    );
+    
+    const data = encoder.encode(dataString);
+    const signatureBuffer = await crypto.subtle.sign("HMAC", key, data);
+    const expectedSignature = encodeBase64(new Uint8Array(signatureBuffer));
+
+    const isValid = expectedSignature === signature;
+    if (!isValid) {
+      console.error("[VoiceWebhookRT] Signature mismatch. Expected:", expectedSignature, "Got:", signature);
+    }
+    return isValid;
+  } catch (error) {
+    console.error("[VoiceWebhookRT] Error validating signature:", error);
+    return false;
+  }
+}
 
 function escapeXml(text: string): string {
   return text
@@ -53,6 +103,26 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Validate Twilio signature for security
+    const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+    if (twilioAuthToken) {
+      const signature = req.headers.get("x-twilio-signature");
+      const publicUrl = `${supabaseUrl}/functions/v1/twilio-voice-webhook-realtime/${token}`;
+      
+      console.log("[VoiceWebhookRT] Validating signature with URL:", publicUrl);
+      
+      const isValid = await validateTwilioSignature(twilioAuthToken, publicUrl, params, signature);
+      
+      if (!isValid) {
+        console.error("[VoiceWebhookRT] Invalid Twilio signature - request rejected");
+        return twimlError("Security validation failed. Goodbye.");
+      }
+      
+      console.log("[VoiceWebhookRT] Signature validated successfully");
+    } else {
+      console.warn("[VoiceWebhookRT] TWILIO_AUTH_TOKEN not configured - skipping signature validation");
+    }
 
     const fromNumber = params.From || params.Caller || "";
     const toNumber = params.To || params.Called || "";
