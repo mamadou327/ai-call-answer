@@ -329,14 +329,14 @@ function sendSessionConfig(session: StreamSession) {
     {
       type: "function",
       name: "create_booking",
-      description: "Create a new booking/appointment. Only call this AFTER confirming all details with the customer. If service name is ambiguous (like 'haircut'), you MUST first ask the customer which type (adult/kids/women) before calling this. ONLY use this for staff with AI booking enabled.",
+      description: "Create a new booking/appointment. CRITICAL: Only call this AFTER: 1) Confirming the service type (adult/kids/women), 2) Verifying the staff member is ASSIGNED to this service (check [CAN DO: ...]), 3) Verifying staff has AI booking enabled (NOT transfer-only), 4) Confirming all details with customer.",
       parameters: {
         type: "object",
         properties: {
           customer_name: { type: "string", description: "Customer's name" },
           customer_phone: { type: "string", description: "Customer's phone number" },
           service_name: { type: "string", description: "EXACT name of the service including category (e.g., 'Kids Haircut', 'Women Haircut', 'Adult Haircut')" },
-          staff_name: { type: "string", description: "Name of the staff member (without title)" },
+          staff_name: { type: "string", description: "Name of the staff member who is ASSIGNED to this service (without title)" },
           date: { type: "string", description: "Date in YYYY-MM-DD format" },
           time: { type: "string", description: "Time in HH:MM format (24-hour)" },
         },
@@ -472,7 +472,7 @@ async function executeCreateBooking(supabase: any, businessId: string, params: a
     // Find staff
     const { data: staff } = await supabase
       .from("staff")
-      .select("id, name")
+      .select("id, name, ai_enabled")
       .eq("business_id", businessId)
       .ilike("name", `%${params.staff_name}%`)
       .limit(1)
@@ -480,6 +480,11 @@ async function executeCreateBooking(supabase: any, businessId: string, params: a
 
     if (!staff) {
       return { success: false, message: `Could not find staff member ${params.staff_name}` };
+    }
+
+    // Check if staff has AI booking enabled
+    if (staff.ai_enabled === false) {
+      return { success: false, message: `${staff.name} does not take AI bookings. Would you like me to transfer you to them instead?` };
     }
 
     // Find service
@@ -493,6 +498,18 @@ async function executeCreateBooking(supabase: any, businessId: string, params: a
 
     if (!service) {
       return { success: false, message: `Could not find service ${params.service_name}` };
+    }
+
+    // Check if staff is assigned to this service
+    const { data: staffService } = await supabase
+      .from("staff_services")
+      .select("id")
+      .eq("staff_id", staff.id)
+      .eq("service_id", service.id)
+      .maybeSingle();
+
+    if (!staffService) {
+      return { success: false, message: `${staff.name} is not assigned to ${service.name}. Please choose a different staff member or service.` };
     }
 
     // Parse date and time
@@ -728,20 +745,63 @@ async function buildFullSystemPrompt(
   const staffTimeOff = timeOffResult.data || [];
   const upcomingBookings = bookingsResult.data || [];
   const currency = businessSettings?.currency || "£";
+  
+  // Fetch staff_services separately (need staff IDs first)
+  const staffIds = staff.map((s: any) => s.id);
+  const { data: staffServicesData } = staffIds.length > 0 
+    ? await supabase.from("staff_services").select("staff_id, service_id").in("staff_id", staffIds)
+    : { data: [] };
+  const staffServices = staffServicesData || [];
+
+  // Build staff-to-services mapping
+  const staffServiceMap: Record<string, string[]> = {};
+  staffServices.forEach((ss: any) => {
+    if (!staffServiceMap[ss.staff_id]) {
+      staffServiceMap[ss.staff_id] = [];
+    }
+    staffServiceMap[ss.staff_id].push(ss.service_id);
+  });
+
+  // Build service-to-staff mapping (who can do what)
+  const serviceToStaffMap: Record<string, { name: string; aiEnabled: boolean; hasPhone: boolean }[]> = {};
+  services.forEach((svc: any) => {
+    serviceToStaffMap[svc.id] = [];
+    staff.forEach((s: any) => {
+      const canDoService = staffServiceMap[s.id]?.includes(svc.id);
+      if (canDoService) {
+        serviceToStaffMap[svc.id].push({ 
+          name: s.name, 
+          aiEnabled: s.ai_enabled !== false,
+          hasPhone: !!s.phone
+        });
+      }
+    });
+  });
 
   // Get caller info
   const callerInfo = await getCallerInfo(supabase, businessId, callerPhone);
 
-  // Format staff list with title and AI status
+  // Create a map of service ID to name for display
+  const serviceNameMap: Record<string, string> = {};
+  services.forEach((s: any) => {
+    serviceNameMap[s.id] = s.name;
+  });
+
+  // Format staff list with title, AI status, and services they can perform
   const staffList = staff.length > 0
     ? staff.map((s: any) => {
         const aiStatus = s.ai_enabled === false ? " [TRANSFER ONLY - no AI booking]" : "";
         const hasPhone = s.phone ? " (can transfer)" : "";
-        return `- ${s.title ? s.title + " " : ""}${s.name} (${s.role})${hasPhone}${aiStatus}`;
+        const staffServiceIds = staffServiceMap[s.id] || [];
+        const canDoServices = staffServiceIds.map((sid: string) => serviceNameMap[sid]).filter(Boolean);
+        const servicesNote = canDoServices.length > 0 
+          ? ` [CAN DO: ${canDoServices.join(", ")}]` 
+          : " [NO SERVICES ASSIGNED - cannot book]";
+        return `- ${s.title ? s.title + " " : ""}${s.name} (${s.role})${hasPhone}${aiStatus}${servicesNote}`;
       }).join("\n")
     : "No specific staff members configured";
 
-  // Format services with category for disambiguation
+  // Format services with category for disambiguation and show who can perform each
   const servicesByCategory: Record<string, any[]> = {};
   services.forEach((s: any) => {
     const cat = s.category || "General";
@@ -751,7 +811,22 @@ async function buildFullSystemPrompt(
   
   const servicesList = services.length > 0
     ? Object.entries(servicesByCategory).map(([cat, svcs]) => 
-        `${cat}:\n${(svcs as any[]).map((s: any) => `  - ${s.name}: ${s.duration_minutes}min, ${currency}${s.price}${s.description ? ` (${s.description})` : ""}`).join("\n")}`
+        `${cat}:\n${(svcs as any[]).map((s: any) => {
+          const staffWhoCanDo = serviceToStaffMap[s.id] || [];
+          const aiEnabledStaff = staffWhoCanDo.filter(st => st.aiEnabled).map(st => st.name);
+          const transferOnlyStaff = staffWhoCanDo.filter(st => !st.aiEnabled).map(st => st.name);
+          
+          let availabilityNote = "";
+          if (aiEnabledStaff.length > 0) {
+            availabilityNote = ` [Staff: ${aiEnabledStaff.join(", ")}]`;
+          } else if (transferOnlyStaff.length > 0) {
+            availabilityNote = ` [TRANSFER ONLY - only ${transferOnlyStaff.join(", ")} can do this, must transfer call]`;
+          } else {
+            availabilityNote = " [NO STAFF ASSIGNED]";
+          }
+          
+          return `  - ${s.name}: ${s.duration_minutes}min, ${currency}${s.price}${s.description ? ` (${s.description})` : ""}${availabilityNote}`;
+        }).join("\n")}`
       ).join("\n")
     : "Services available upon request";
 
@@ -871,6 +946,8 @@ CRITICAL RULES:
 4. Always use staff titles (Mr, Mrs, Miss, etc.) when addressing or referring to them.
 5. Check availability BEFORE confirming any booking.
 6. For staff marked as TRANSFER ONLY - use transfer_call tool instead of booking.
+7. ONLY book services with staff who are ASSIGNED to that service (check [CAN DO: ...] in staff list).
+8. If a service is ONLY available from TRANSFER ONLY staff, you MUST transfer the call - do NOT try to book.
 
 ${greetingInstruction}
 
@@ -887,9 +964,11 @@ ${policyContext}
 
 BOOKING PROCESS:
 1. Get service name - if ambiguous (e.g., "haircut"), ask: "Is that for adult, kids, or women?"
-2. Get preferred staff - if TRANSFER ONLY, say "Let me transfer you to them" and use transfer_call
-3. Get date/time - check against BOOKED SLOTS and TIME OFF first
-4. Confirm all details with customer before creating booking
+2. Check which staff can do this service (see [Staff: ...] after each service)
+3. If ONLY transfer-only staff can do the service, say "Let me transfer you to them" and use transfer_call
+4. Get preferred staff from those who CAN do the service - if they ask for someone not assigned, politely explain
+5. Get date/time - check against BOOKED SLOTS and TIME OFF first
+6. Confirm all details with customer before creating booking
 
 CALL TRANSFER:
 - Use transfer_call when: caller urgently wants to speak to someone, you can't answer their question, or staff is TRANSFER ONLY
