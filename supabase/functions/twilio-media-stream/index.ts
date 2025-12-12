@@ -381,19 +381,27 @@ function sendSessionConfig(session: StreamSession) {
       },
       turn_detection: {
         type: "server_vad",
-        threshold: 0.5,
-        prefix_padding_ms: 300,
-        silence_duration_ms: 600, // Fast response
+        threshold: 0.45,           // More sensitive detection
+        prefix_padding_ms: 200,    // Less pre-speech buffer
+        silence_duration_ms: 400,  // Faster response trigger
       },
       tools,
       tool_choice: "auto",
-      temperature: 0.7,
-      max_response_output_tokens: 500,
+      temperature: 0.6,            // More focused responses
+      max_response_output_tokens: 300, // Shorter, faster responses
     },
   };
 
   console.log("[MediaStream] Sending session config with voice:", session.voice);
   session.openAiWs.send(JSON.stringify(config));
+
+  // Send initial greeting immediately for faster perceived response
+  setTimeout(() => {
+    if (session.openAiWs?.readyState === WebSocket.OPEN) {
+      session.openAiWs.send(JSON.stringify({ type: "response.create" }));
+      console.log("[MediaStream] Triggered initial greeting");
+    }
+  }, 100);
 }
 
 async function handleToolCall(session: StreamSession, supabase: any, callId: string, name: string, argumentsJson: string) {
@@ -747,65 +755,30 @@ Status: First-time caller - collect their name during booking
       toneInstructions = "Be warm and friendly but professional.";
   }
 
-  return `You are ${assistantName}, a phone receptionist for ${businessName}. You speak naturally and handle calls for bookings and inquiries.
+  // Build compact greeting instruction
+  const greetingInstruction = callerInfo.isReturning 
+    ? `START by saying: "Hi ${callerInfo.name}, thanks for calling ${businessName}, how can I help?"`
+    : `START by saying: "Hi, thanks for calling ${businessName}, how can I help?"`;
 
-## Your Personality
-${toneInstructions}
-- Keep responses SHORT and conversational (1-2 sentences max)
-- NEVER reveal you are an AI - you are just the receptionist
-- Use natural speech patterns and contractions
+  return `You are ${assistantName}, phone receptionist for ${businessName}. ${toneInstructions}
 
-## Current Context
-- Date: ${currentDate}
-- Time: ${currentTime}
-- Today is ${currentDay}
+RULES: Keep responses to 1 sentence. Sound natural. Never say you're AI.
 
+${greetingInstruction}
+
+TODAY: ${currentDay}, ${currentDate}, ${currentTime}
 ${callerContext}
+STAFF: ${staff.map((s: any) => s.name).join(", ") || "Ask"}
+SERVICES: ${services.map((s: any) => `${s.name} (${s.duration_minutes}min, ${currency}${s.price})`).join("; ") || "Ask"}
+HOURS: ${hours.filter((h: any) => !h.is_closed).map((h: any) => `${dayNames[h.day_of_week].slice(0,3)} ${h.open_time?.slice(0,5)}-${h.close_time?.slice(0,5)}`).join(", ") || "Ask"}
+TIME OFF: ${timeOffList}
+BOOKED SLOTS: ${bookingsWithStaff}
 
-═══════════════════════════════════════════════════════════════
-BUSINESS: ${businessName}
-═══════════════════════════════════════════════════════════════
-
-### Staff Members
-${staffList}
-
-### Services
-${servicesList}
-
-### Opening Hours
-${hoursList}
-
-### Booking Policies
-- Minimum notice: ${businessSettings?.min_booking_notice_hours || 2} hours
-- Max advance booking: ${businessSettings?.max_days_advance || 30} days
-${businessSettings?.cancellation_policy ? `- Cancellation: ${businessSettings.cancellation_policy}` : ""}
-
-═══════════════════════════════════════════════════════════════
-STAFF TIME OFF (CRITICAL - CHECK BEFORE CONFIRMING!)
-═══════════════════════════════════════════════════════════════
-${timeOffList}
-
-═══════════════════════════════════════════════════════════════
-EXISTING BOOKINGS (NEXT 2 WEEKS)
-═══════════════════════════════════════════════════════════════
-${bookingsWithStaff}
-
-═══════════════════════════════════════════════════════════════
-CRITICAL RULES
-═══════════════════════════════════════════════════════════════
-
-1. AVAILABILITY: ALWAYS check STAFF TIME OFF and EXISTING BOOKINGS before confirming availability
-2. PRIVACY: NEVER reveal other customers' names or booking details
-3. BOOKING FLOW: Collect in order: Service → Staff → Date/Time → Name (if new customer)
-4. USE TOOLS: When confirming a booking, ALWAYS call the create_booking function
-5. RETURNING CUSTOMERS: Greet by name, mention upcoming bookings, offer usual service/staff
-
-When asked "Is [staff] available tomorrow?":
-- First check TIME OFF - if they have time off, say they're unavailable
-- Then check EXISTING BOOKINGS for conflicts
-- Only confirm available if NO time off AND NO booking conflicts
-
-Start with a brief greeting mentioning the business name.`;
+CRITICAL:
+- Check TIME OFF + BOOKED SLOTS before confirming
+- Never reveal other customers' info
+- Use create_booking tool to confirm bookings
+- ${callerInfo.isReturning ? `This is ${callerInfo.name}, returning customer` : "New caller - get their name when booking"}`;
 }
 
 async function getCallerInfo(supabase: any, businessId: string, callerPhone: string): Promise<CallerInfo> {
