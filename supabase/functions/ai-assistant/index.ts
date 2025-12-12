@@ -643,16 +643,21 @@ CRITICAL RULES
 
 1. ALWAYS respond with valid JSON - never plain text!
 
-2. For cancel/reschedule with a NAME:
+2. NEVER allow bookings for times that have ALREADY PASSED!
+   - If someone tries to book for a time earlier than NOW (${now.toISOString()}), REFUSE!
+   - Check: is the requested time AFTER the current time? If not, reject it!
+   - Example: If it's 17:00 and they want to book for 16:00 today, say NO!
+
+3. For cancel/reschedule with a NAME:
    → IMMEDIATELY try the action with that name
    → The backend will search and return results
    → DO NOT ask for phone first!
 
-3. ALWAYS confirm before destructive actions
+4. ALWAYS confirm before destructive actions
 
-4. Be helpful and natural - suggest alternatives if something won't work
+5. Be helpful and natural - suggest alternatives if something won't work
 
-5. Reference bookings by CODE (like PRE-2647), not internal IDs
+6. Reference bookings by CODE (like PRE-2647), not internal IDs
 
 ═══════════════════════════════════════════════════════════════
 SMART BOOKING LOOKUP
@@ -1065,16 +1070,22 @@ async function handleCreateBooking(
     return { assistantMessage: `I couldn't find staff member "${staff_name}". Our team: ${available}`, action: null };
   }
 
-  // Parse date/time
-  const startDate = new Date(`${date}T${time}:00`);
+  // Parse date/time - use Z suffix to ensure UTC interpretation
+  const startDate = new Date(`${date}T${time}:00Z`);
   if (isNaN(startDate.getTime())) {
     return { assistantMessage: "I couldn't understand that date/time. Please use format like '2024-01-15' and '14:30'.", action: null };
   }
 
   const now = new Date();
+  console.log(`[Aivia] Booking time check - Requested: ${startDate.toISOString()}, Now: ${now.toISOString()}`);
   
-  if (startDate < now) {
-    return { assistantMessage: "That time has already passed. Please choose a future time.", action: null };
+  // CRITICAL: Check if the booking time has already passed
+  if (startDate.getTime() <= now.getTime()) {
+    const currentTime = now.toISOString().slice(11, 16);
+    return { 
+      assistantMessage: `That time has already passed. It's currently ${currentTime} UTC. Please choose a future time.`, 
+      action: null 
+    };
   }
 
   // POLICY: Check minimum booking notice
