@@ -10,7 +10,9 @@ import { StaffInviteDialog } from "./settings/StaffInviteDialog";
 import { CustomersManagement } from "./settings/CustomersManagement";
 import { AISettingsTab } from "./settings/AISettingsTab";
 import { PoliciesTab } from "./settings/PoliciesTab";
-import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle } from "lucide-react";
+import { EmailNotificationSettings } from "./settings/EmailNotificationSettings";
+import { MessageBirdSettings } from "./settings/MessageBirdSettings";
+import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell } from "lucide-react";
 
 interface SettingsTabProps {
   businessId: string;
@@ -30,6 +32,9 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
     }
     if (["policies"].includes(section)) {
       return "policies";
+    }
+    if (["sms", "email"].includes(section)) {
+      return "notifications";
     }
     return section;
   };
@@ -69,6 +74,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
           <UserCircle className="w-4 h-4" />
           <span className="hidden sm:inline">Customers</span>
         </TabsTrigger>
+        <TabsTrigger value="notifications" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <Bell className="w-4 h-4" />
+          <span className="hidden sm:inline">Notifications</span>
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="business">
@@ -107,6 +116,11 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
 
       <TabsContent value="customers">
         <CustomersManagement businessId={businessId} onUpdate={onUpdate} />
+      </TabsContent>
+
+      <TabsContent value="notifications" className="space-y-6">
+        <EmailNotificationSettings business={business} onUpdate={onUpdate} />
+        <MessageBirdSettings business={business} onUpdate={onUpdate} />
       </TabsContent>
     </Tabs>
   );
