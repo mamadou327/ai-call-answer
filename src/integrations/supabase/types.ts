@@ -778,6 +778,7 @@ export type Database = {
       }
       staff: {
         Row: {
+          ai_enabled: boolean
           business_id: string
           color: string | null
           created_at: string | null
@@ -791,6 +792,7 @@ export type Database = {
           working_hours: Json | null
         }
         Insert: {
+          ai_enabled?: boolean
           business_id: string
           color?: string | null
           created_at?: string | null
@@ -804,6 +806,7 @@ export type Database = {
           working_hours?: Json | null
         }
         Update: {
+          ai_enabled?: boolean
           business_id?: string
           color?: string | null
           created_at?: string | null

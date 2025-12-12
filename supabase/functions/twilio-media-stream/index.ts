@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
   // Find business by token
   const { data: business, error: businessError } = await supabase
     .from("businesses")
-    .select("id, business_name, twilio_enabled, aivia_active")
+    .select("id, business_name, twilio_enabled, aivia_active, twilio_phone_number")
     .eq("twilio_webhook_token", token)
     .maybeSingle();
 
@@ -142,7 +142,8 @@ Deno.serve(async (req) => {
             business.business_name, 
             assistantName, 
             tone,
-            session.callerPhone
+            session.callerPhone,
+            business.twilio_phone_number
           );
           
           // Connect to OpenAI Realtime API
@@ -328,7 +329,7 @@ function sendSessionConfig(session: StreamSession) {
     {
       type: "function",
       name: "create_booking",
-      description: "Create a new booking/appointment. Only call this AFTER confirming all details with the customer. If service name is ambiguous (like 'haircut'), you MUST first ask the customer which type (adult/kids/women) before calling this.",
+      description: "Create a new booking/appointment. Only call this AFTER confirming all details with the customer. If service name is ambiguous (like 'haircut'), you MUST first ask the customer which type (adult/kids/women) before calling this. ONLY use this for staff with AI booking enabled.",
       parameters: {
         type: "object",
         properties: {
@@ -345,7 +346,7 @@ function sendSessionConfig(session: StreamSession) {
     {
       type: "function",
       name: "cancel_booking",
-      description: "Cancel an existing booking. Needs either the booking code or customer name.",
+      description: "Cancel an existing booking. Needs either the booking code or customer name. ONLY use for staff with AI booking enabled.",
       parameters: {
         type: "object",
         properties: {
@@ -367,6 +368,19 @@ function sendSessionConfig(session: StreamSession) {
           is_urgent: { type: "boolean", description: "Whether the message is urgent" },
         },
         required: ["message", "recipient_type"],
+      },
+    },
+    {
+      type: "function",
+      name: "transfer_call",
+      description: "Transfer the call to a staff member's phone. Use this when: 1) The caller urgently needs to speak to someone directly, 2) You cannot answer their question after trying, 3) The staff member has AI booking disabled (transfer_only=true in staff list).",
+      parameters: {
+        type: "object",
+        properties: {
+          staff_name: { type: "string", description: "Name of the staff member to transfer to" },
+          reason: { type: "string", description: "Brief reason for the transfer" },
+        },
+        required: ["staff_name"],
       },
     },
   ];
@@ -415,17 +429,20 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
   try {
     const args = JSON.parse(argumentsJson);
     
-    switch (name) {
-      case "create_booking":
-        result = await executeCreateBooking(supabase, session.businessId, args);
-        break;
-      case "cancel_booking":
-        result = await executeCancelBooking(supabase, session.businessId, args);
-        break;
-      case "leave_message":
-        result = await executeLeaveMessage(supabase, session.businessId, session.callerPhone, session.callerName, args);
-        break;
-    }
+      switch (name) {
+        case "create_booking":
+          result = await executeCreateBooking(supabase, session.businessId, args);
+          break;
+        case "cancel_booking":
+          result = await executeCancelBooking(supabase, session.businessId, args);
+          break;
+        case "leave_message":
+          result = await executeLeaveMessage(supabase, session.businessId, session.callerPhone, session.callerName, args);
+          break;
+        case "transfer_call":
+          result = await executeTransferCall(supabase, session, args);
+          break;
+      }
   } catch (error) {
     console.error("[MediaStream] Tool execution error:", error);
     result = { success: false, message: "Sorry, there was an error processing that request." };
@@ -618,6 +635,58 @@ async function executeLeaveMessage(supabase: any, businessId: string, callerPhon
   }
 }
 
+async function executeTransferCall(supabase: any, session: StreamSession, params: any): Promise<any> {
+  console.log("[MediaStream] Transferring call to:", params.staff_name);
+  
+  try {
+    // Find staff member with phone
+    const { data: staffMember } = await supabase
+      .from("staff")
+      .select("id, name, phone, title")
+      .eq("business_id", session.businessId)
+      .ilike("name", `%${params.staff_name}%`)
+      .limit(1)
+      .maybeSingle();
+
+    if (!staffMember) {
+      return { success: false, message: `Could not find staff member ${params.staff_name}` };
+    }
+
+    if (!staffMember.phone) {
+      return { 
+        success: false, 
+        message: `${staffMember.title ? staffMember.title + " " : ""}${staffMember.name} doesn't have a phone number on file. Would you like to leave them a message instead?` 
+      };
+    }
+
+    // Send Twilio refer event to transfer the call
+    if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
+      // First, say the transfer message
+      const transferMessage = `One moment, I'm transferring you to ${staffMember.title ? staffMember.title + " " : ""}${staffMember.name} now.`;
+      
+      // The actual transfer will be handled by returning success and then using Twilio's dial
+      // For WebSocket media streams, we need to end the stream and let the original webhook handle the transfer
+      session.twilioWs.send(JSON.stringify({
+        event: "stop",
+        streamSid: session.streamSid,
+      }));
+    }
+
+    // Log the transfer attempt
+    console.log("[MediaStream] Transfer requested to:", staffMember.phone);
+
+    return { 
+      success: true, 
+      message: `Transferring you to ${staffMember.title ? staffMember.title + " " : ""}${staffMember.name} now. Please hold.`,
+      transfer_to: staffMember.phone,
+      staff_name: `${staffMember.title ? staffMember.title + " " : ""}${staffMember.name}`
+    };
+  } catch (error) {
+    console.error("[MediaStream] Transfer call error:", error);
+    return { success: false, message: "Sorry, I couldn't complete the transfer. Would you like to leave a message instead?" };
+  }
+}
+
 function formatTime(date: Date): string {
   return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
@@ -628,11 +697,12 @@ async function buildFullSystemPrompt(
   businessName: string,
   assistantName: string,
   tone: string,
-  callerPhone: string
+  callerPhone: string,
+  twilioPhoneNumber: string | null
 ): Promise<string> {
   // Fetch all business data in parallel
   const [staffResult, servicesResult, hoursResult, settingsResult, timeOffResult, bookingsResult] = await Promise.all([
-    supabase.from("staff").select("id, name, role, title").eq("business_id", businessId),
+    supabase.from("staff").select("id, name, role, title, phone, ai_enabled").eq("business_id", businessId),
     supabase.from("services").select("id, name, duration_minutes, price, category, description").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
     supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours").eq("business_id", businessId).maybeSingle(),
@@ -662,9 +732,13 @@ async function buildFullSystemPrompt(
   // Get caller info
   const callerInfo = await getCallerInfo(supabase, businessId, callerPhone);
 
-  // Format staff list with title
+  // Format staff list with title and AI status
   const staffList = staff.length > 0
-    ? staff.map((s: any) => `- ${s.title ? s.title + " " : ""}${s.name} (${s.role})`).join("\n")
+    ? staff.map((s: any) => {
+        const aiStatus = s.ai_enabled === false ? " [TRANSFER ONLY - no AI booking]" : "";
+        const hasPhone = s.phone ? " (can transfer)" : "";
+        return `- ${s.title ? s.title + " " : ""}${s.name} (${s.role})${hasPhone}${aiStatus}`;
+      }).join("\n")
     : "No specific staff members configured";
 
   // Format services with category for disambiguation
@@ -782,6 +856,12 @@ Status: First-time caller - collect their name during booking
     ? `\nPOLICIES:\n- Cancellation: ${cancellationPolicy}\n- Min cancellation notice: ${minCancellationNotice}hrs\n- Min booking notice: ${minBookingNotice}hrs\n- Max advance booking: ${maxDaysAdvance} days`
     : "";
 
+  // Get staff with transfer only status
+  const transferOnlyStaff = staff.filter((s: any) => s.ai_enabled === false).map((s: any) => s.name);
+  const transferOnlyNote = transferOnlyStaff.length > 0 
+    ? `\n⚠️ TRANSFER ONLY STAFF (do NOT book for them, transfer call instead): ${transferOnlyStaff.join(", ")}`
+    : "";
+
   return `You are ${assistantName}, phone receptionist for ${businessName}. ${toneInstructions}
 
 CRITICAL RULES:
@@ -790,12 +870,14 @@ CRITICAL RULES:
 3. When a service name is ambiguous (e.g., "haircut"), ASK which type: adult, kids, women, etc.
 4. Always use staff titles (Mr, Mrs, Miss, etc.) when addressing or referring to them.
 5. Check availability BEFORE confirming any booking.
+6. For staff marked as TRANSFER ONLY - use transfer_call tool instead of booking.
 
 ${greetingInstruction}
 
 TODAY: ${currentDay}, ${currentDate}, ${currentTime}
 ${callerContext}
-STAFF: ${staff.map((s: any) => `${s.title ? s.title + " " : ""}${s.name}`).join(", ") || "Ask"}
+STAFF:
+${staffList}${transferOnlyNote}
 SERVICES BY CATEGORY:
 ${servicesList}
 HOURS: ${hours.filter((h: any) => !h.is_closed).map((h: any) => `${dayNames[h.day_of_week].slice(0,3)} ${h.open_time?.slice(0,5)}-${h.close_time?.slice(0,5)}`).join(", ") || "Ask"}
@@ -805,9 +887,14 @@ ${policyContext}
 
 BOOKING PROCESS:
 1. Get service name - if ambiguous (e.g., "haircut"), ask: "Is that for adult, kids, or women?"
-2. Get preferred staff - if specific staff requested, use their title
+2. Get preferred staff - if TRANSFER ONLY, say "Let me transfer you to them" and use transfer_call
 3. Get date/time - check against BOOKED SLOTS and TIME OFF first
 4. Confirm all details with customer before creating booking
+
+CALL TRANSFER:
+- Use transfer_call when: caller urgently wants to speak to someone, you can't answer their question, or staff is TRANSFER ONLY
+- Before transferring, say "One moment, I'll transfer you now"
+- If transfer fails (no phone number), offer to leave a message instead
 
 CRITICAL:
 - Check TIME OFF + BOOKED SLOTS before confirming ANY availability
