@@ -328,14 +328,14 @@ function sendSessionConfig(session: StreamSession) {
     {
       type: "function",
       name: "create_booking",
-      description: "Create a new booking/appointment. Call this when you have collected all required information: service, staff member, date, time, and customer name.",
+      description: "Create a new booking/appointment. Only call this AFTER confirming all details with the customer. If service name is ambiguous (like 'haircut'), you MUST first ask the customer which type (adult/kids/women) before calling this.",
       parameters: {
         type: "object",
         properties: {
           customer_name: { type: "string", description: "Customer's name" },
           customer_phone: { type: "string", description: "Customer's phone number" },
-          service_name: { type: "string", description: "Name of the service" },
-          staff_name: { type: "string", description: "Name of the staff member" },
+          service_name: { type: "string", description: "EXACT name of the service including category (e.g., 'Kids Haircut', 'Women Haircut', 'Adult Haircut')" },
+          staff_name: { type: "string", description: "Name of the staff member (without title)" },
           date: { type: "string", description: "Date in YYYY-MM-DD format" },
           time: { type: "string", description: "Time in HH:MM format (24-hour)" },
         },
@@ -632,10 +632,10 @@ async function buildFullSystemPrompt(
 ): Promise<string> {
   // Fetch all business data in parallel
   const [staffResult, servicesResult, hoursResult, settingsResult, timeOffResult, bookingsResult] = await Promise.all([
-    supabase.from("staff").select("id, name, role").eq("business_id", businessId),
-    supabase.from("services").select("id, name, duration_minutes, price, category").eq("business_id", businessId),
+    supabase.from("staff").select("id, name, role, title").eq("business_id", businessId),
+    supabase.from("services").select("id, name, duration_minutes, price, category, description").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
-    supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency").eq("business_id", businessId).maybeSingle(),
+    supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours").eq("business_id", businessId).maybeSingle(),
     supabase.from("staff_time_off")
       .select("staff_id, start_time, end_time, reason, staff:staff_id(name)")
       .eq("business_id", businessId)
@@ -662,14 +662,23 @@ async function buildFullSystemPrompt(
   // Get caller info
   const callerInfo = await getCallerInfo(supabase, businessId, callerPhone);
 
-  // Format staff list
+  // Format staff list with title
   const staffList = staff.length > 0
-    ? staff.map((s: any) => `- ${s.name} (${s.role})`).join("\n")
+    ? staff.map((s: any) => `- ${s.title ? s.title + " " : ""}${s.name} (${s.role})`).join("\n")
     : "No specific staff members configured";
 
-  // Format services
+  // Format services with category for disambiguation
+  const servicesByCategory: Record<string, any[]> = {};
+  services.forEach((s: any) => {
+    const cat = s.category || "General";
+    if (!servicesByCategory[cat]) servicesByCategory[cat] = [];
+    servicesByCategory[cat].push(s);
+  });
+  
   const servicesList = services.length > 0
-    ? services.map((s: any) => `- ${s.name}: ${s.duration_minutes} mins, ${currency}${s.price}`).join("\n")
+    ? Object.entries(servicesByCategory).map(([cat, svcs]) => 
+        `${cat}:\n${(svcs as any[]).map((s: any) => `  - ${s.name}: ${s.duration_minutes}min, ${currency}${s.price}${s.description ? ` (${s.description})` : ""}`).join("\n")}`
+      ).join("\n")
     : "Services available upon request";
 
   // Format hours
@@ -763,24 +772,47 @@ Status: First-time caller - collect their name during booking
     ? `START by saying: "Hi ${callerInfo.name}, thanks for calling ${businessName}, how can I help?"`
     : `START by saying: "Hi, thanks for calling ${businessName}, how can I help?"`;
 
+  // Build policy context
+  const cancellationPolicy = businessSettings?.cancellation_policy || "";
+  const minCancellationNotice = businessSettings?.min_cancellation_notice_hours || 24;
+  const minBookingNotice = businessSettings?.min_booking_notice_hours || 2;
+  const maxDaysAdvance = businessSettings?.max_days_advance || 30;
+  
+  const policyContext = cancellationPolicy 
+    ? `\nPOLICIES:\n- Cancellation: ${cancellationPolicy}\n- Min cancellation notice: ${minCancellationNotice}hrs\n- Min booking notice: ${minBookingNotice}hrs\n- Max advance booking: ${maxDaysAdvance} days`
+    : "";
+
   return `You are ${assistantName}, phone receptionist for ${businessName}. ${toneInstructions}
 
-RULES: Keep responses to 1 sentence. Sound natural. Never say you're AI.
+CRITICAL RULES:
+1. Keep responses to 1-2 sentences max. Sound natural. Never say you're AI.
+2. NEVER assume or guess - ALWAYS confirm details before booking.
+3. When a service name is ambiguous (e.g., "haircut"), ASK which type: adult, kids, women, etc.
+4. Always use staff titles (Mr, Mrs, Miss, etc.) when addressing or referring to them.
+5. Check availability BEFORE confirming any booking.
 
 ${greetingInstruction}
 
 TODAY: ${currentDay}, ${currentDate}, ${currentTime}
 ${callerContext}
-STAFF: ${staff.map((s: any) => s.name).join(", ") || "Ask"}
-SERVICES: ${services.map((s: any) => `${s.name} (${s.duration_minutes}min, ${currency}${s.price})`).join("; ") || "Ask"}
+STAFF: ${staff.map((s: any) => `${s.title ? s.title + " " : ""}${s.name}`).join(", ") || "Ask"}
+SERVICES BY CATEGORY:
+${servicesList}
 HOURS: ${hours.filter((h: any) => !h.is_closed).map((h: any) => `${dayNames[h.day_of_week].slice(0,3)} ${h.open_time?.slice(0,5)}-${h.close_time?.slice(0,5)}`).join(", ") || "Ask"}
 TIME OFF: ${timeOffList}
 BOOKED SLOTS: ${bookingsWithStaff}
+${policyContext}
+
+BOOKING PROCESS:
+1. Get service name - if ambiguous (e.g., "haircut"), ask: "Is that for adult, kids, or women?"
+2. Get preferred staff - if specific staff requested, use their title
+3. Get date/time - check against BOOKED SLOTS and TIME OFF first
+4. Confirm all details with customer before creating booking
 
 CRITICAL:
-- Check TIME OFF + BOOKED SLOTS before confirming
+- Check TIME OFF + BOOKED SLOTS before confirming ANY availability
 - Never reveal other customers' info
-- Use create_booking tool to confirm bookings
+- Use create_booking tool ONLY after confirming all details
 - ${callerInfo.isReturning ? `This is ${callerInfo.name}, returning customer` : "New caller - get their name when booking"}`;
 }
 

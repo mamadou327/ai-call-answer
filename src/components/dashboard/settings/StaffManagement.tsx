@@ -22,6 +22,7 @@ interface Staff {
   email?: string;
   phone?: string;
   color?: string;
+  title?: string;
 }
 
 interface Service {
@@ -38,6 +39,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [sendingWelcome, setSendingWelcome] = useState<string | null>(null);
   const [formData, setFormData] = useState({
+    title: "",
     name: "",
     role: "",
     email: "",
@@ -128,6 +130,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
   const handleEdit = async (member: Staff) => {
     setSelectedStaff(member);
     setFormData({
+      title: member.title || "",
       name: member.name,
       role: member.role,
       email: member.email || "",
@@ -214,7 +217,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
 
       setDialogOpen(false);
       setSelectedStaff(null);
-      setFormData({ name: "", role: "", email: "", phone: "", color: "#3B82F6" });
+      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6" });
       setSelectedServices([]);
       loadStaff();
       onUpdate();
@@ -270,7 +273,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
           setDialogOpen(open);
           if (!open) {
             setSelectedStaff(null);
-            setFormData({ name: "", role: "", email: "", phone: "", color: "#3B82F6" });
+            setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6" });
             setSelectedServices([]);
           }
         }}>
@@ -288,14 +291,33 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="staff_name">Name *</Label>
-                <Input
-                  id="staff_name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
+              <div className="grid gap-4 grid-cols-3">
+                <div className="space-y-2 col-span-1">
+                  <Label htmlFor="title">Title</Label>
+                  <select
+                    id="title"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value="">None</option>
+                    <option value="Mr">Mr</option>
+                    <option value="Mrs">Mrs</option>
+                    <option value="Miss">Miss</option>
+                    <option value="Ms">Ms</option>
+                    <option value="Dr">Dr</option>
+                    <option value="Prof">Prof</option>
+                  </select>
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="staff_name">Name *</Label>
+                  <Input
+                    id="staff_name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="role">Role *</Label>
@@ -391,7 +413,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                     title="Calendar color"
                   />
                   <div>
-                    <h4 className="font-semibold">{member.name}</h4>
+                    <h4 className="font-semibold">{member.title ? `${member.title} ` : ""}{member.name}</h4>
                     <p className="text-sm text-muted-foreground">{member.role}</p>
                     {member.email && <p className="text-xs text-muted-foreground mt-1">{member.email}</p>}
                     {member.phone && <p className="text-xs text-muted-foreground">{member.phone}</p>}
