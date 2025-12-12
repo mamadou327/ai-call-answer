@@ -169,7 +169,12 @@ Deno.serve(async (req) => {
       const signature = req.headers.get("messagebird-signature");
       const timestamp = req.headers.get("messagebird-request-timestamp");
       
-      if (messageBirdApiKey && signature && timestamp) {
+      if (!messageBirdApiKey) {
+        console.error("MESSAGEBIRD_API_KEY not configured - rejecting request for security");
+        return jsonResponse("Security configuration error. Please contact support. Goodbye.", "", false);
+      }
+      
+      if (signature && timestamp) {
         const isValid = await validateMessageBirdSignature(
           messageBirdApiKey,
           signature,
@@ -186,6 +191,12 @@ Deno.serve(async (req) => {
         } else {
           console.log("MessageBird signature validated successfully");
         }
+      } else {
+        console.error("Missing MessageBird signature headers - rejecting request");
+        return new Response(JSON.stringify({ error: "Missing signature" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 

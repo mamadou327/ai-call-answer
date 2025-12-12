@@ -358,7 +358,8 @@ Deno.serve(async (req) => {
       
       console.log("[TwilioWebhook] Signature validated successfully");
     } else {
-      console.warn("[TwilioWebhook] TWILIO_AUTH_TOKEN not configured - skipping signature validation");
+      console.error("[TwilioWebhook] TWILIO_AUTH_TOKEN not configured - rejecting request for security");
+      return twimlError("Security configuration error. Please contact support. Goodbye.");
     }
 
     // Initialize Supabase client
