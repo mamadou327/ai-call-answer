@@ -1005,30 +1005,60 @@ function smartBookingLookup(bookings: any[], rawBookings: any[], params: any): L
 // OPENING HOURS VALIDATION
 // ============================================================================
 
-function getOpeningHoursForDate(openingHours: any[], date: Date): { open: string; close: string } | null {
-  const jsDay = date.getDay();
+function getOpeningHoursForDate(openingHours: any[], dateStr: string): { open: string; close: string; dayName: string } | null {
+  // Parse the date string to get the day of week
+  const dateParts = dateStr.split('-');
+  const year = parseInt(dateParts[0]);
+  const month = parseInt(dateParts[1]) - 1; // JS months are 0-indexed
+  const day = parseInt(dateParts[2]);
+  
+  // Create date in a way that doesn't involve timezone conversion
+  const tempDate = new Date(year, month, day);
+  const jsDay = tempDate.getDay();
   const dbDay = jsToDbDay(jsDay);
+  const dayName = DB_DAY_NAMES[dbDay];
+  
+  console.log(`[Aivia] Opening hours check - Date: ${dateStr}, JS Day: ${jsDay}, DB Day: ${dbDay}, Day Name: ${dayName}`);
+  
   const hours = openingHours.find(h => h.day_of_week === dbDay);
-  if (!hours || hours.is_closed) return null;
-  return { open: hours.open_time, close: hours.close_time };
+  
+  if (!hours) {
+    console.log(`[Aivia] No opening hours found for day ${dbDay}`);
+    return null;
+  }
+  
+  if (hours.is_closed) {
+    console.log(`[Aivia] Business is CLOSED on ${dayName}`);
+    return null;
+  }
+  
+  // Extract just the time portion (HH:MM) from the stored time
+  const openTime = hours.open_time?.slice(0, 5) || null;
+  const closeTime = hours.close_time?.slice(0, 5) || null;
+  
+  console.log(`[Aivia] Opening hours for ${dayName}: ${openTime} - ${closeTime}`);
+  
+  return { open: openTime, close: closeTime, dayName };
 }
 
-function isWithinOpeningHours(openingHours: any[], startDate: Date, endDate: Date): { valid: boolean; reason?: string } {
-  const hours = getOpeningHoursForDate(openingHours, startDate);
-  const dayName = DB_DAY_NAMES[jsToDbDay(startDate.getDay())];
+function isWithinOpeningHours(openingHours: any[], dateStr: string, startTime: string, endTime: string): { valid: boolean; reason?: string } {
+  const hours = getOpeningHoursForDate(openingHours, dateStr);
 
   if (!hours) {
+    // Determine the day name for the error message
+    const dateParts = dateStr.split('-');
+    const tempDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+    const dayName = DB_DAY_NAMES[jsToDbDay(tempDate.getDay())];
     return { valid: false, reason: `We're closed on ${dayName}` };
   }
 
-  const startTime = startDate.toTimeString().slice(0, 5);
-  const endTime = endDate.toTimeString().slice(0, 5);
+  console.log(`[Aivia] Validating time - Start: ${startTime}, End: ${endTime}, Open: ${hours.open}, Close: ${hours.close}`);
 
   if (startTime < hours.open) {
-    return { valid: false, reason: `We open at ${hours.open} on ${dayName}` };
+    return { valid: false, reason: `We open at ${hours.open} on ${hours.dayName}. Your requested time ${startTime} is before we open` };
   }
   if (endTime > hours.close) {
-    return { valid: false, reason: `We close at ${hours.close} on ${dayName}, but this booking would end at ${endTime}` };
+    return { valid: false, reason: `We close at ${hours.close} on ${hours.dayName}, but this booking would end at ${endTime}` };
   }
 
   return { valid: true };
@@ -1070,20 +1100,38 @@ async function handleCreateBooking(
     return { assistantMessage: `I couldn't find staff member "${staff_name}". Our team: ${available}`, action: null };
   }
 
-  // Parse date/time - use Z suffix to ensure UTC interpretation
-  const startDate = new Date(`${date}T${time}:00Z`);
+  // Parse date/time - treat as local business time (no Z suffix!)
+  // We parse this way to keep time comparisons consistent with opening hours
+  const dateParts = date.split('-');
+  const timeParts = time.split(':');
+  
+  if (dateParts.length !== 3 || timeParts.length < 2) {
+    return { assistantMessage: "I couldn't understand that date/time. Please use format like '2024-01-15' and '14:30'.", action: null };
+  }
+  
+  const year = parseInt(dateParts[0]);
+  const month = parseInt(dateParts[1]) - 1;
+  const day = parseInt(dateParts[2]);
+  const hour = parseInt(timeParts[0]);
+  const minute = parseInt(timeParts[1]);
+  
+  // Create date as local time
+  const startDate = new Date(year, month, day, hour, minute, 0);
   if (isNaN(startDate.getTime())) {
     return { assistantMessage: "I couldn't understand that date/time. Please use format like '2024-01-15' and '14:30'.", action: null };
   }
 
   const now = new Date();
-  console.log(`[Aivia] Booking time check - Requested: ${startDate.toISOString()}, Now: ${now.toISOString()}`);
+  const currentTimeStr = now.toTimeString().slice(0, 5);
+  const currentDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  
+  console.log(`[Aivia] Booking time check - Requested Date: ${date}, Time: ${time}, Current Date: ${currentDateStr}, Current Time: ${currentTimeStr}`);
   
   // CRITICAL: Check if the booking time has already passed
-  if (startDate.getTime() <= now.getTime()) {
-    const currentTime = now.toISOString().slice(11, 16);
+  // Compare dates first, then times if same date
+  if (date < currentDateStr || (date === currentDateStr && time <= currentTimeStr)) {
     return { 
-      assistantMessage: `That time has already passed. It's currently ${currentTime} UTC. Please choose a future time.`, 
+      assistantMessage: `That time has already passed. It's currently ${currentTimeStr} on ${currentDateStr}. Please choose a future time.`, 
       action: null 
     };
   }
@@ -1108,9 +1156,10 @@ async function handleCreateBooking(
 
   const duration = service?.duration_minutes || 60;
   const endDate = new Date(startDate.getTime() + duration * 60000);
+  const endTimeStr = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
 
-  // Check opening hours
-  const hoursCheck = isWithinOpeningHours(context.openingHours, startDate, endDate);
+  // Check opening hours - use string comparison for times
+  const hoursCheck = isWithinOpeningHours(context.openingHours, date, time, endTimeStr);
   if (!hoursCheck.valid) {
     return { assistantMessage: `${hoursCheck.reason}. Would you like to pick a different time?`, action: null };
   }
@@ -1288,19 +1337,36 @@ async function handleRescheduleBooking(
     return { assistantMessage: "This booking is cancelled and can't be rescheduled.", action: null };
   }
 
-  const startDate = new Date(`${new_date}T${new_time}:00`);
+  // Parse date/time as local business time
+  const dateParts = new_date.split('-');
+  const timeParts = new_time.split(':');
+  
+  if (dateParts.length !== 3 || timeParts.length < 2) {
+    return { assistantMessage: "I couldn't understand that date/time.", action: null };
+  }
+  
+  const startDate = new Date(
+    parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]),
+    parseInt(timeParts[0]), parseInt(timeParts[1]), 0
+  );
+  
   if (isNaN(startDate.getTime())) {
     return { assistantMessage: "I couldn't understand that date/time.", action: null };
   }
 
-  if (startDate < new Date()) {
+  const now = new Date();
+  const currentDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const currentTimeStr = now.toTimeString().slice(0, 5);
+  
+  if (new_date < currentDateStr || (new_date === currentDateStr && new_time <= currentTimeStr)) {
     return { assistantMessage: "That time has already passed.", action: null };
   }
 
   const duration = booking.duration || 60;
   const endDate = new Date(startDate.getTime() + duration * 60000);
+  const endTimeStr = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
 
-  const hoursCheck = isWithinOpeningHours(context.openingHours, startDate, endDate);
+  const hoursCheck = isWithinOpeningHours(context.openingHours, new_date, new_time, endTimeStr);
   if (!hoursCheck.valid) {
     return { assistantMessage: `${hoursCheck.reason}. Pick a different time?`, action: null };
   }
@@ -1347,12 +1413,18 @@ function handleCheckAvailability(
     return "Which date would you like me to check?";
   }
 
-  const targetDate = new Date(date);
+  // Validate date format
+  const dateParts = date.split('-');
+  if (dateParts.length !== 3) {
+    return "I couldn't understand that date. Please use format YYYY-MM-DD.";
+  }
+  
+  const targetDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
   if (isNaN(targetDate.getTime())) {
     return "I couldn't understand that date. Please use format YYYY-MM-DD.";
   }
 
-  const hours = getOpeningHoursForDate(context.openingHours, targetDate);
+  const hours = getOpeningHoursForDate(context.openingHours, date);
   const dayName = DB_DAY_NAMES[jsToDbDay(targetDate.getDay())];
 
   if (!hours) {
