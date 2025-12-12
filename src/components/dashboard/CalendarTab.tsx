@@ -1,14 +1,22 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameDay, addDays, startOfDay, endOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight, User, X, Check, Palmtree, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, User, X, Check, Palmtree, Clock, Users, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { BookingDetailsDialog } from "./BookingDetailsDialog";
 import { useOpeningHours } from "@/hooks/use-opening-hours";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface CalendarTabProps {
   businessId: string;
@@ -24,8 +32,9 @@ interface Booking {
   status: string;
   notes: string | null;
   created_by: string | null;
+  staff_id?: string | null;
   service?: { name: string } | null;
-  staff?: { name: string; color: string } | null;
+  staff?: { id: string; name: string; color: string } | null;
 }
 
 interface TimeOff {
@@ -36,7 +45,13 @@ interface TimeOff {
   reason: string;
   notes: string | null;
   status: string;
-  staff?: { name: string; color: string } | null;
+  staff?: { id: string; name: string; color: string } | null;
+}
+
+interface StaffMember {
+  id: string;
+  name: string;
+  color: string;
 }
 
 export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) => {
@@ -48,8 +63,28 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<Set<string>>(new Set());
 
   const { openingHours, isDayClosed, getHoursForDate } = useOpeningHours(businessId);
+
+  // Load staff list once
+  useEffect(() => {
+    const loadStaff = async () => {
+      const { data } = await supabase
+        .from("staff")
+        .select("id, name, color")
+        .eq("business_id", businessId)
+        .order("name");
+      
+      if (data) {
+        setStaffList(data);
+        // Initially select all staff
+        setSelectedStaffIds(new Set(data.map(s => s.id)));
+      }
+    };
+    loadStaff();
+  }, [businessId]);
 
   useEffect(() => {
     loadData();
@@ -111,7 +146,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
         .select(`
           *,
           service:service_id(name),
-          staff:staff_id(name, color)
+          staff:staff_id(id, name, color)
         `)
         .eq("business_id", businessId)
         .gte("start_time", startDate.toISOString())
@@ -121,7 +156,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
         .from("staff_time_off")
         .select(`
           *,
-          staff:staff_id(name, color)
+          staff:staff_id(id, name, color)
         `)
         .eq("business_id", businessId)
         .eq("status", "approved")
@@ -129,17 +164,32 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
         .lte("start_time", endDate.toISOString())
     ]);
 
-    if (bookingsResult.data) setBookings(bookingsResult.data.filter(b => b.status !== "cancelled"));
-    if (timeOffResult.data) setTimeOffs(timeOffResult.data);
+    if (bookingsResult.data) setBookings(bookingsResult.data.filter(b => b.status !== "cancelled") as Booking[]);
+    if (timeOffResult.data) setTimeOffs(timeOffResult.data as TimeOff[]);
     setLoading(false);
   };
 
+  // Filter bookings and time offs based on selected staff
+  const filteredBookings = useMemo(() => {
+    if (selectedStaffIds.size === 0 || selectedStaffIds.size === staffList.length) {
+      return bookings; // Show all if none or all selected
+    }
+    return bookings.filter(b => b.staff?.id && selectedStaffIds.has(b.staff.id));
+  }, [bookings, selectedStaffIds, staffList.length]);
+
+  const filteredTimeOffs = useMemo(() => {
+    if (selectedStaffIds.size === 0 || selectedStaffIds.size === staffList.length) {
+      return timeOffs;
+    }
+    return timeOffs.filter(to => to.staff?.id && selectedStaffIds.has(to.staff.id));
+  }, [timeOffs, selectedStaffIds, staffList.length]);
+
   const getBookingsForDate = (date: Date) => {
-    return bookings.filter(b => isSameDay(new Date(b.start_time), date));
+    return filteredBookings.filter(b => isSameDay(new Date(b.start_time), date));
   };
 
   const getTimeOffsForDate = (date: Date) => {
-    return timeOffs.filter(to => {
+    return filteredTimeOffs.filter(to => {
       const startDate = new Date(to.start_time);
       const endDate = new Date(to.end_time);
       return date >= startOfDay(startDate) && date <= endOfDay(endDate);
@@ -152,11 +202,41 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
     const hourEnd = new Date(date);
     hourEnd.setHours(hour, 59, 59, 999);
 
-    return timeOffs.filter(to => {
+    return filteredTimeOffs.filter(to => {
       const toStart = new Date(to.start_time);
       const toEnd = new Date(to.end_time);
       return toStart <= hourEnd && toEnd >= hourStart;
     });
+  };
+
+  const toggleStaffSelection = (staffId: string) => {
+    setSelectedStaffIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(staffId)) {
+        newSet.delete(staffId);
+      } else {
+        newSet.add(staffId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllStaff = () => {
+    setSelectedStaffIds(new Set(staffList.map(s => s.id)));
+  };
+
+  const clearStaffSelection = () => {
+    setSelectedStaffIds(new Set());
+  };
+
+  const getStaffFilterLabel = () => {
+    if (selectedStaffIds.size === 0) return "No staff selected";
+    if (selectedStaffIds.size === staffList.length) return "All staff";
+    if (selectedStaffIds.size === 1) {
+      const staffId = Array.from(selectedStaffIds)[0];
+      return staffList.find(s => s.id === staffId)?.name || "1 staff";
+    }
+    return `${selectedStaffIds.size} staff`;
   };
 
   const getReasonLabel = (reason: string) => {
@@ -565,7 +645,47 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
     <div className="space-y-6">
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-lg sm:text-xl">{t("dashboard.calendar")}</CardTitle>
+          <div className="flex items-center gap-3">
+            <CardTitle className="text-lg sm:text-xl">{t("dashboard.calendar")}</CardTitle>
+            {staffList.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 gap-2">
+                    <Users className="w-4 h-4" />
+                    <span className="text-xs sm:text-sm">{getStaffFilterLabel()}</span>
+                    <ChevronDown className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56 bg-popover z-50">
+                  <DropdownMenuLabel>Filter by Staff</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <div className="flex gap-2 px-2 py-1.5">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs flex-1" onClick={selectAllStaff}>
+                      Select All
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs flex-1" onClick={clearStaffSelection}>
+                      Clear
+                    </Button>
+                  </div>
+                  <DropdownMenuSeparator />
+                  {staffList.map((staff) => (
+                    <DropdownMenuCheckboxItem
+                      key={staff.id}
+                      checked={selectedStaffIds.has(staff.id)}
+                      onCheckedChange={() => toggleStaffSelection(staff.id)}
+                      className="gap-2"
+                    >
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: staff.color }}
+                      />
+                      {staff.name}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
             <div className="flex items-center justify-between sm:justify-start gap-2">
               <Button variant="outline" size="icon" className="h-8 w-8" onClick={navigatePrevious}>
