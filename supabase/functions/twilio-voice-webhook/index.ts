@@ -337,15 +337,28 @@ Deno.serve(async (req) => {
       params[key] = value.toString();
     }
 
-    // Temporarily skip signature validation due to URL format mismatch
-    // TODO: Re-enable once URL format is confirmed
+    // Validate Twilio signature for security
     const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
     if (twilioAuthToken) {
       const signature = req.headers.get("x-twilio-signature");
-      console.log("[TwilioWebhook] Signature received:", signature ? "present" : "missing");
-      console.log("[TwilioWebhook] Request URL:", req.url);
-      // Skip validation for now - URL format mismatch causing failures
-      console.warn("[TwilioWebhook] Signature validation temporarily disabled");
+      
+      // Build the webhook URL as Twilio sees it (the public URL, not internal)
+      // Twilio sends requests to the configured webhook URL which uses the public Supabase functions URL
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const publicUrl = `${supabaseUrl}/functions/v1/twilio-voice-webhook/${token}`;
+      
+      console.log("[TwilioWebhook] Validating signature with URL:", publicUrl);
+      
+      const isValid = await validateTwilioSignature(twilioAuthToken, publicUrl, params, signature);
+      
+      if (!isValid) {
+        console.error("[TwilioWebhook] Invalid Twilio signature - request rejected");
+        return twimlError("Security validation failed. Goodbye.");
+      }
+      
+      console.log("[TwilioWebhook] Signature validated successfully");
+    } else {
+      console.warn("[TwilioWebhook] TWILIO_AUTH_TOKEN not configured - skipping signature validation");
     }
 
     // Initialize Supabase client
