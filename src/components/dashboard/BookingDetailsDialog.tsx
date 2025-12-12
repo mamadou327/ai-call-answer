@@ -58,6 +58,15 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
         variant: "destructive",
       });
     } else {
+      // Send cancellation email
+      try {
+        await supabase.functions.invoke("send-booking-email", {
+          body: { businessId: booking.business_id, bookingId: booking.id, type: "cancellation" }
+        });
+      } catch (emailError) {
+        console.warn("Failed to send cancellation email:", emailError);
+      }
+      
       toast({
         title: t("common.success"),
         description: t("bookingDetails.cancelSuccess"),
