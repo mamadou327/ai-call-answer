@@ -290,7 +290,7 @@ RESPONSE GUIDELINES
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5",
+        model: "openai/o3",
         messages: [
           { role: "system", content: adminSystemPrompt },
           ...messages.map((m) => ({ role: m.role, content: m.content })),
@@ -699,7 +699,7 @@ YOUR CAPABILITIES
    - Basic stats
 
 ═══════════════════════════════════════════════════════════════
-CRITICAL RULES
+CRITICAL RULES - READ CAREFULLY!
 ═══════════════════════════════════════════════════════════════
 
 1. ALWAYS respond with valid JSON - never plain text!
@@ -719,6 +719,33 @@ CRITICAL RULES
 5. Be helpful and natural - suggest alternatives if something won't work
 
 6. Reference bookings by CODE (like PRE-2647), not internal IDs
+
+7. ⚠️ RESCHEDULE vs CREATE - THIS IS CRITICAL! ⚠️
+   
+   RESCHEDULE means MOVE AN EXISTING BOOKING to a new time/date.
+   - Keywords: "reschedule", "move", "change time", "change date", "move to", "switch to"
+   - Action: "reschedule_booking" - NEVER "create_booking"!
+   - You MUST find the existing booking FIRST, then update its time
+   - NEVER create a new booking when user wants to reschedule!
+   
+   CREATE means make a BRAND NEW booking for someone.
+   - Keywords: "book", "make appointment", "schedule", "new booking"
+   - Action: "create_booking"
+   - Only use when user explicitly wants a NEW appointment
+   
+   EXAMPLES:
+   ✅ "Reschedule Sarah to 3pm" → {"action":"reschedule_booking","params":{"customer_name":"Sarah","new_time":"15:00"}}
+   ✅ "Move James to tomorrow" → {"action":"reschedule_booking","params":{"customer_name":"James","new_date":"..."}}
+   ❌ WRONG: "Reschedule Sarah" → {"action":"create_booking"} ← NEVER DO THIS!
+   
+   ASK YOURSELF: Does the user want to MOVE an existing booking or CREATE a new one?
+   If they mention reschedule/move/change → Use reschedule_booking
+   If they want something new → Use create_booking
+
+8. DOUBLE-BOOKING PREVENTION:
+   - Before confirming ANY booking, check if the staff member already has a booking at that time
+   - Check the UPCOMING BOOKINGS list below - if staff has a booking overlapping, REFUSE!
+   - A staff member CANNOT have two bookings at the same time
 
 ═══════════════════════════════════════════════════════════════
 SMART BOOKING LOOKUP
@@ -802,7 +829,7 @@ REMEMBER: ALWAYS respond with JSON. Never plain text.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-5",
+        model: "openai/o3",
         messages: [
           { role: "system", content: systemPrompt },
           ...messages.map((m) => ({ role: m.role, content: m.content })),
