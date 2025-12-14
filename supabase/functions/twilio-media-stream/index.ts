@@ -19,6 +19,69 @@ interface StreamSession {
   openAiWs: WebSocket | null;
   twilioWs: WebSocket | null;
   pendingToolCalls: Map<string, any>;
+  // Cached business data for tool validation
+  businessSettings: BusinessSettings | null;
+  openingHours: OpeningHour[];
+  staffTimeOff: StaffTimeOff[];
+  staffServices: StaffService[];
+  staff: StaffMember[];
+  services: Service[];
+}
+
+interface BusinessSettings {
+  min_booking_notice_hours: number;
+  max_days_advance: number;
+  min_cancellation_notice_hours: number;
+  cancellation_policy: string | null;
+  currency: string;
+}
+
+interface OpeningHour {
+  day_of_week: number;
+  open_time: string | null;
+  close_time: string | null;
+  is_closed: boolean;
+}
+
+interface StaffTimeOff {
+  staff_id: string;
+  start_time: string;
+  end_time: string;
+  reason: string;
+  staff_name?: string;
+}
+
+interface StaffService {
+  staff_id: string;
+  service_id: string;
+}
+
+interface StaffMember {
+  id: string;
+  name: string;
+  role: string;
+  title: string | null;
+  phone: string | null;
+  ai_enabled: boolean;
+}
+
+interface Service {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  price: number;
+  category: string;
+  description: string | null;
+}
+
+interface CustomerSettings {
+  collect_name: boolean;
+  collect_phone: boolean;
+  collect_email: boolean;
+  ask_marketing_consent: boolean;
+  ask_notes_preferences: boolean;
+  ask_how_heard: boolean;
+  ask_preferred_staff: boolean;
 }
 
 interface CallerInfo {
@@ -73,7 +136,7 @@ Deno.serve(async (req) => {
   // Find business by token
   const { data: business, error: businessError } = await supabase
     .from("businesses")
-    .select("id, business_name, twilio_enabled, aivia_active, twilio_phone_number")
+    .select("id, business_name, twilio_enabled, aivia_active, twilio_phone_number, website_knowledge")
     .eq("twilio_webhook_token", token)
     .maybeSingle();
 
@@ -114,6 +177,13 @@ Deno.serve(async (req) => {
     openAiWs: null,
     twilioWs,
     pendingToolCalls: new Map(),
+    // Initialize cached data as empty
+    businessSettings: null,
+    openingHours: [],
+    staffTimeOff: [],
+    staffServices: [],
+    staff: [],
+    services: [],
   };
 
   twilioWs.onopen = () => {
@@ -138,16 +208,25 @@ Deno.serve(async (req) => {
           
           console.log("[MediaStream] Session initialized - callSid:", session.callSid, "callerPhone:", session.callerPhone);
           
-          // Build full system prompt with caller context
-          session.systemPrompt = await buildFullSystemPrompt(
+          // Build full system prompt with caller context AND cache business data for tool validation
+          const promptData = await buildFullSystemPrompt(
             supabase, 
             business.id, 
             business.business_name, 
             assistantName, 
             tone,
             session.callerPhone,
-            business.twilio_phone_number
+            business.twilio_phone_number,
+            business.website_knowledge
           );
+          
+          session.systemPrompt = promptData.prompt;
+          session.businessSettings = promptData.businessSettings;
+          session.openingHours = promptData.openingHours;
+          session.staffTimeOff = promptData.staffTimeOff;
+          session.staffServices = promptData.staffServices;
+          session.staff = promptData.staff;
+          session.services = promptData.services;
           
           // Connect to OpenAI Realtime API
           await connectToOpenAI(session, supabase);
@@ -338,6 +417,7 @@ function sendSessionConfig(session: StreamSession) {
         properties: {
           customer_name: { type: "string", description: "Customer's name" },
           customer_phone: { type: "string", description: "Customer's phone number" },
+          customer_email: { type: "string", description: "Customer's email address (optional)" },
           service_name: { type: "string", description: "EXACT name of the service including category (e.g., 'Kids Haircut', 'Women Haircut', 'Adult Haircut')" },
           staff_name: { type: "string", description: "Name of the staff member who is ASSIGNED to this service (without title)" },
           date: { type: "string", description: "Date in YYYY-MM-DD format" },
@@ -349,13 +429,44 @@ function sendSessionConfig(session: StreamSession) {
     {
       type: "function",
       name: "cancel_booking",
-      description: "Cancel an existing booking. Needs either the booking code or customer name. ONLY use for staff with AI booking enabled.",
+      description: "Cancel an existing booking. Can search by: full booking code (e.g., 'PRM-2647'), last 4 digits (e.g., '2647'), or customer name. Returns multiple matches if found.",
       parameters: {
         type: "object",
         properties: {
-          booking_code: { type: "string", description: "The booking reference code" },
-          customer_name: { type: "string", description: "Customer's name if booking code not provided" },
+          booking_code: { type: "string", description: "Full booking code like 'PRM-2647'" },
+          booking_code_suffix: { type: "string", description: "Last 4 digits of booking code if customer only remembers those" },
+          customer_name: { type: "string", description: "Customer's name if booking code not known" },
         },
+      },
+    },
+    {
+      type: "function",
+      name: "reschedule_booking",
+      description: "Move an existing booking to a new date/time. Can look up booking by: full code, last 4 digits, or customer name. DOES NOT create a new booking - only moves existing one.",
+      parameters: {
+        type: "object",
+        properties: {
+          booking_code: { type: "string", description: "Full booking code like 'PRM-2647'" },
+          booking_code_suffix: { type: "string", description: "Last 4 digits of booking code" },
+          customer_name: { type: "string", description: "Customer's name if booking code not known" },
+          new_date: { type: "string", description: "New date in YYYY-MM-DD format" },
+          new_time: { type: "string", description: "New time in HH:MM format (24-hour)" },
+        },
+        required: ["new_date", "new_time"],
+      },
+    },
+    {
+      type: "function",
+      name: "check_availability",
+      description: "Check available time slots for a given date. Use this BEFORE suggesting times to the customer.",
+      parameters: {
+        type: "object",
+        properties: {
+          date: { type: "string", description: "Date in YYYY-MM-DD format" },
+          staff_name: { type: "string", description: "Specific staff member (optional)" },
+          duration_minutes: { type: "number", description: "Service duration in minutes (default 30)" },
+        },
+        required: ["date"],
       },
     },
     {
@@ -461,10 +572,16 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
     
       switch (name) {
         case "create_booking":
-          result = await executeCreateBooking(supabase, session.businessId, args);
+          result = await executeCreateBooking(supabase, session, args);
           break;
         case "cancel_booking":
-          result = await executeCancelBooking(supabase, session.businessId, args);
+          result = await executeCancelBooking(supabase, session, args);
+          break;
+        case "reschedule_booking":
+          result = await executeRescheduleBooking(supabase, session, args);
+          break;
+        case "check_availability":
+          result = await executeCheckAvailability(supabase, session, args);
           break;
         case "save_customer_email":
           result = await executeSaveCustomerEmail(supabase, session.businessId, args);
@@ -501,19 +618,132 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
   }
 }
 
-async function executeCreateBooking(supabase: any, businessId: string, params: any): Promise<any> {
+// ============================================================================
+// VALIDATION HELPERS
+// ============================================================================
+
+function isBusinessOpen(openingHours: OpeningHour[], date: Date): { open: boolean; openTime?: string; closeTime?: string; message?: string } {
+  // Convert JS day (Sunday=0) to DB day (Monday=0)
+  const jsDay = date.getDay();
+  const dbDay = jsDay === 0 ? 6 : jsDay - 1;
+  
+  const dayHours = openingHours.find(h => h.day_of_week === dbDay);
+  const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const dayName = dayNames[dbDay];
+  
+  if (!dayHours || dayHours.is_closed) {
+    return { open: false, message: `We're closed on ${dayName}s.` };
+  }
+  
+  return { 
+    open: true, 
+    openTime: dayHours.open_time?.slice(0, 5) || "09:00", 
+    closeTime: dayHours.close_time?.slice(0, 5) || "17:00" 
+  };
+}
+
+function isTimeWithinOpeningHours(openingHours: OpeningHour[], date: Date, time: string): { valid: boolean; message?: string } {
+  const businessHours = isBusinessOpen(openingHours, date);
+  if (!businessHours.open) {
+    return { valid: false, message: businessHours.message };
+  }
+  
+  const requestedTime = time;
+  const openTime = businessHours.openTime!;
+  const closeTime = businessHours.closeTime!;
+  
+  if (requestedTime < openTime) {
+    return { valid: false, message: `That's before we open. We're open from ${openTime}.` };
+  }
+  
+  if (requestedTime >= closeTime) {
+    return { valid: false, message: `That's after we close. We close at ${closeTime}.` };
+  }
+  
+  return { valid: true };
+}
+
+function checkMinBookingNotice(settings: BusinessSettings | null, requestedDateTime: Date): { valid: boolean; message?: string; earliestTime?: Date } {
+  const minNoticeHours = settings?.min_booking_notice_hours || 2;
+  const now = new Date();
+  const minAllowedTime = new Date(now.getTime() + minNoticeHours * 60 * 60 * 1000);
+  
+  if (requestedDateTime < minAllowedTime) {
+    return { 
+      valid: false, 
+      message: `We need at least ${minNoticeHours} hours notice. The earliest I can book is ${formatTime(minAllowedTime)}.`,
+      earliestTime: minAllowedTime
+    };
+  }
+  
+  return { valid: true };
+}
+
+function checkMaxAdvanceBooking(settings: BusinessSettings | null, requestedDate: Date): { valid: boolean; message?: string } {
+  const maxDays = settings?.max_days_advance || 30;
+  const now = new Date();
+  const maxDate = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
+  
+  if (requestedDate > maxDate) {
+    return { 
+      valid: false, 
+      message: `We can only book up to ${maxDays} days in advance. The furthest I can book is ${maxDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}.`
+    };
+  }
+  
+  return { valid: true };
+}
+
+function checkMinCancellationNotice(settings: BusinessSettings | null, bookingStartTime: Date): { valid: boolean; message?: string } {
+  const minNoticeHours = settings?.min_cancellation_notice_hours || 24;
+  const now = new Date();
+  const minAllowedTime = new Date(now.getTime() + minNoticeHours * 60 * 60 * 1000);
+  
+  if (bookingStartTime < minAllowedTime) {
+    const policy = settings?.cancellation_policy || `We require at least ${minNoticeHours} hours notice for cancellations.`;
+    return { 
+      valid: false, 
+      message: `I'm sorry, this booking is too soon to cancel. ${policy}`
+    };
+  }
+  
+  return { valid: true };
+}
+
+function isStaffOnTimeOff(staffTimeOff: StaffTimeOff[], staffId: string, startTime: Date, endTime: Date): { onLeave: boolean; message?: string } {
+  const timeOff = staffTimeOff.find(t => {
+    if (t.staff_id !== staffId) return false;
+    const offStart = new Date(t.start_time);
+    const offEnd = new Date(t.end_time);
+    // Check if booking overlaps with time off
+    return startTime < offEnd && endTime > offStart;
+  });
+  
+  if (timeOff) {
+    return { 
+      onLeave: true, 
+      message: `Sorry, that staff member is on leave at that time. Please choose a different time or staff member.`
+    };
+  }
+  
+  return { onLeave: false };
+}
+
+function isStaffAssignedToService(staffServices: StaffService[], staffId: string, serviceId: string): boolean {
+  return staffServices.some(ss => ss.staff_id === staffId && ss.service_id === serviceId);
+}
+
+// ============================================================================
+// TOOL IMPLEMENTATIONS
+// ============================================================================
+
+async function executeCreateBooking(supabase: any, session: StreamSession, params: any): Promise<any> {
   console.log("[MediaStream] Creating booking:", params);
   
   try {
     // Find staff
-    const { data: staff } = await supabase
-      .from("staff")
-      .select("id, name, ai_enabled")
-      .eq("business_id", businessId)
-      .ilike("name", `%${params.staff_name}%`)
-      .limit(1)
-      .maybeSingle();
-
+    const staff = session.staff.find(s => s.name.toLowerCase().includes(params.staff_name.toLowerCase()));
+    
     if (!staff) {
       return { success: false, message: `Could not find staff member ${params.staff_name}` };
     }
@@ -524,58 +754,78 @@ async function executeCreateBooking(supabase: any, businessId: string, params: a
     }
 
     // Find service
-    const { data: service } = await supabase
-      .from("services")
-      .select("id, name, duration_minutes")
-      .eq("business_id", businessId)
-      .ilike("name", `%${params.service_name}%`)
-      .limit(1)
-      .maybeSingle();
+    const service = session.services.find(s => s.name.toLowerCase().includes(params.service_name.toLowerCase()));
 
     if (!service) {
       return { success: false, message: `Could not find service ${params.service_name}` };
     }
 
     // Check if staff is assigned to this service
-    const { data: staffService } = await supabase
-      .from("staff_services")
-      .select("id")
-      .eq("staff_id", staff.id)
-      .eq("service_id", service.id)
-      .maybeSingle();
-
-    if (!staffService) {
-      return { success: false, message: `${staff.name} is not assigned to ${service.name}. Please choose a different staff member or service.` };
+    if (!isStaffAssignedToService(session.staffServices, staff.id, service.id)) {
+      // Find who CAN do this service
+      const assignedStaff = session.staffServices
+        .filter(ss => ss.service_id === service.id)
+        .map(ss => session.staff.find(s => s.id === ss.staff_id)?.name)
+        .filter(Boolean);
+      
+      if (assignedStaff.length > 0) {
+        return { success: false, message: `${staff.name} doesn't do ${service.name}. That service is available with ${assignedStaff.join(" or ")}.` };
+      }
+      return { success: false, message: `${staff.name} is not assigned to ${service.name}. Please choose a different service or staff member.` };
     }
 
     // Parse date and time
     const startTime = new Date(`${params.date}T${params.time}:00`);
     const endTime = new Date(startTime.getTime() + (service.duration_minutes || 30) * 60000);
 
-    // Check for conflicts
+    // Validate opening hours
+    const hoursCheck = isTimeWithinOpeningHours(session.openingHours, startTime, params.time);
+    if (!hoursCheck.valid) {
+      return { success: false, message: hoursCheck.message };
+    }
+
+    // Validate min booking notice
+    const noticeCheck = checkMinBookingNotice(session.businessSettings, startTime);
+    if (!noticeCheck.valid) {
+      return { success: false, message: noticeCheck.message };
+    }
+
+    // Validate max advance booking
+    const advanceCheck = checkMaxAdvanceBooking(session.businessSettings, startTime);
+    if (!advanceCheck.valid) {
+      return { success: false, message: advanceCheck.message };
+    }
+
+    // Check staff time off
+    const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, startTime, endTime);
+    if (timeOffCheck.onLeave) {
+      return { success: false, message: timeOffCheck.message };
+    }
+
+    // Check for conflicts (double booking)
     const { data: conflicts } = await supabase
       .from("bookings")
       .select("id")
-      .eq("business_id", businessId)
+      .eq("business_id", session.businessId)
       .eq("staff_id", staff.id)
       .neq("status", "cancelled")
       .lt("start_time", endTime.toISOString())
       .gt("end_time", startTime.toISOString());
 
     if (conflicts && conflicts.length > 0) {
-      return { success: false, message: `Sorry, ${staff.name} is already booked at that time. Please try a different time.` };
+      return { success: false, message: `Sorry, ${staff.name} is already booked at that time. Would you like a different time?` };
     }
 
-    // Generate booking code
+    // Generate booking code using business name
     const { data: codeData } = await supabase.rpc("generate_booking_code", {
-      p_business_name: params.service_name
+      p_business_name: session.businessName
     });
 
     // Create booking
     const { data: booking, error } = await supabase
       .from("bookings")
       .insert({
-        business_id: businessId,
+        business_id: session.businessId,
         customer_name: params.customer_name,
         customer_phone: params.customer_phone,
         service_id: service.id,
@@ -596,22 +846,35 @@ async function executeCreateBooking(supabase: any, businessId: string, params: a
 
     console.log("[MediaStream] Booking created:", booking.id);
     
+    // Save email if provided
+    if (params.customer_email) {
+      await executeSaveCustomerEmail(supabase, session.businessId, {
+        customer_phone: params.customer_phone,
+        email: params.customer_email,
+        booking_id: booking.id
+      });
+    }
+    
     // Check if email notifications are enabled for this business
     const { data: businessData } = await supabase
       .from("businesses")
       .select("email_on_confirmation")
-      .eq("id", businessId)
+      .eq("id", session.businessId)
       .single();
     
-    const shouldAskForEmail = businessData?.email_on_confirmation === true;
+    const shouldAskForEmail = businessData?.email_on_confirmation === true && !params.customer_email;
+    
+    // Format confirmation
+    const dateStr = startTime.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+    const timeStr = formatTime(startTime);
     
     return { 
       success: true, 
-      message: `Booking confirmed! Reference code is ${codeData}`,
+      message: `Done! You're booked with ${staff.name} on ${dateStr} at ${timeStr}. Your reference code is ${codeData}.`,
       booking_code: codeData,
       booking_id: booking.id,
       ask_for_email: shouldAskForEmail,
-      email_prompt: shouldAskForEmail ? "Would you like to receive an email confirmation? If so, please spell out your email address." : null,
+      email_prompt: shouldAskForEmail ? "Would you like an email confirmation?" : null,
     };
   } catch (error) {
     console.error("[MediaStream] Create booking error:", error);
@@ -619,31 +882,62 @@ async function executeCreateBooking(supabase: any, businessId: string, params: a
   }
 }
 
-async function executeCancelBooking(supabase: any, businessId: string, params: any): Promise<any> {
+async function executeCancelBooking(supabase: any, session: StreamSession, params: any): Promise<any> {
   console.log("[MediaStream] Cancelling booking:", params);
   
   try {
     let query = supabase
       .from("bookings")
-      .select("id, booking_code, customer_name")
-      .eq("business_id", businessId)
+      .select("id, booking_code, customer_name, start_time, staff:staff_id(name), service:service_id(name)")
+      .eq("business_id", session.businessId)
       .neq("status", "cancelled")
       .gte("start_time", new Date().toISOString());
 
+    // Smart lookup: exact code > suffix > customer name
     if (params.booking_code) {
+      // Exact code match
       query = query.eq("booking_code", params.booking_code.toUpperCase());
+    } else if (params.booking_code_suffix) {
+      // Suffix match (last 4 digits)
+      const suffix = params.booking_code_suffix.replace(/\D/g, "");
+      query = query.ilike("booking_code", `%-${suffix}`);
     } else if (params.customer_name) {
+      // Customer name search
       query = query.ilike("customer_name", `%${params.customer_name}%`);
     } else {
-      return { success: false, message: "Need either booking code or customer name to cancel." };
+      return { success: false, message: "I need either the booking code, the last 4 digits, or the customer name to find the booking." };
     }
 
-    const { data: booking } = await query.limit(1).maybeSingle();
+    const { data: bookings } = await query.order("start_time").limit(5);
 
-    if (!booking) {
-      return { success: false, message: "Could not find that booking." };
+    if (!bookings || bookings.length === 0) {
+      return { success: false, message: "I couldn't find that booking. Could you double-check the details?" };
     }
 
+    // Multiple matches - ask for clarification
+    if (bookings.length > 1) {
+      const options = bookings.map((b: any) => {
+        const date = new Date(b.start_time);
+        return `${b.booking_code} - ${b.customer_name} on ${date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} at ${formatTime(date)}`;
+      }).join("; ");
+      
+      return { 
+        success: false, 
+        multiple_matches: true,
+        message: `I found ${bookings.length} bookings: ${options}. Which one would you like to cancel?`
+      };
+    }
+
+    const booking = bookings[0];
+    const bookingStartTime = new Date(booking.start_time);
+
+    // Check cancellation notice period
+    const cancellationCheck = checkMinCancellationNotice(session.businessSettings, bookingStartTime);
+    if (!cancellationCheck.valid) {
+      return { success: false, message: cancellationCheck.message };
+    }
+
+    // Cancel the booking
     const { error } = await supabase
       .from("bookings")
       .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
@@ -653,10 +947,241 @@ async function executeCancelBooking(supabase: any, businessId: string, params: a
       return { success: false, message: "Error cancelling booking." };
     }
 
-    return { success: true, message: `Booking ${booking.booking_code} has been cancelled.` };
+    return { success: true, message: `Your booking ${booking.booking_code} has been cancelled.` };
   } catch (error) {
     console.error("[MediaStream] Cancel booking error:", error);
     return { success: false, message: "Error cancelling booking." };
+  }
+}
+
+async function executeRescheduleBooking(supabase: any, session: StreamSession, params: any): Promise<any> {
+  console.log("[MediaStream] Rescheduling booking:", params);
+  
+  try {
+    // Find the booking using smart lookup
+    let query = supabase
+      .from("bookings")
+      .select("id, booking_code, customer_name, start_time, end_time, staff_id, service_id, staff:staff_id(name), service:service_id(name, duration_minutes)")
+      .eq("business_id", session.businessId)
+      .neq("status", "cancelled")
+      .gte("start_time", new Date().toISOString());
+
+    if (params.booking_code) {
+      query = query.eq("booking_code", params.booking_code.toUpperCase());
+    } else if (params.booking_code_suffix) {
+      const suffix = params.booking_code_suffix.replace(/\D/g, "");
+      query = query.ilike("booking_code", `%-${suffix}`);
+    } else if (params.customer_name) {
+      query = query.ilike("customer_name", `%${params.customer_name}%`);
+    } else {
+      return { success: false, message: "I need either the booking code, the last 4 digits, or the customer name to find the booking." };
+    }
+
+    const { data: bookings } = await query.order("start_time").limit(5);
+
+    if (!bookings || bookings.length === 0) {
+      return { success: false, message: "I couldn't find that booking. Could you double-check the details?" };
+    }
+
+    // Multiple matches
+    if (bookings.length > 1) {
+      const options = bookings.map((b: any) => {
+        const date = new Date(b.start_time);
+        return `${b.booking_code} - ${b.customer_name} on ${date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}`;
+      }).join("; ");
+      
+      return { 
+        success: false, 
+        multiple_matches: true,
+        message: `I found ${bookings.length} bookings: ${options}. Which one would you like to reschedule?`
+      };
+    }
+
+    const booking = bookings[0];
+    const duration = booking.service?.duration_minutes || 30;
+
+    // Parse new date and time
+    const newStartTime = new Date(`${params.new_date}T${params.new_time}:00`);
+    const newEndTime = new Date(newStartTime.getTime() + duration * 60000);
+
+    // Validate opening hours
+    const hoursCheck = isTimeWithinOpeningHours(session.openingHours, newStartTime, params.new_time);
+    if (!hoursCheck.valid) {
+      return { success: false, message: hoursCheck.message };
+    }
+
+    // Validate min booking notice for new time
+    const noticeCheck = checkMinBookingNotice(session.businessSettings, newStartTime);
+    if (!noticeCheck.valid) {
+      return { success: false, message: noticeCheck.message };
+    }
+
+    // Validate max advance booking
+    const advanceCheck = checkMaxAdvanceBooking(session.businessSettings, newStartTime);
+    if (!advanceCheck.valid) {
+      return { success: false, message: advanceCheck.message };
+    }
+
+    // Check staff time off
+    const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, booking.staff_id, newStartTime, newEndTime);
+    if (timeOffCheck.onLeave) {
+      return { success: false, message: timeOffCheck.message };
+    }
+
+    // Check for conflicts at new time (excluding current booking)
+    const { data: conflicts } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("business_id", session.businessId)
+      .eq("staff_id", booking.staff_id)
+      .neq("status", "cancelled")
+      .neq("id", booking.id)
+      .lt("start_time", newEndTime.toISOString())
+      .gt("end_time", newStartTime.toISOString());
+
+    if (conflicts && conflicts.length > 0) {
+      return { success: false, message: `Sorry, ${booking.staff?.name || "they"} already has a booking at that time. Would you like a different time?` };
+    }
+
+    // Update the booking
+    const { error } = await supabase
+      .from("bookings")
+      .update({ 
+        start_time: newStartTime.toISOString(),
+        end_time: newEndTime.toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", booking.id);
+
+    if (error) {
+      console.error("[MediaStream] Reschedule error:", error);
+      return { success: false, message: "Sorry, there was an error updating the booking." };
+    }
+
+    const dateStr = newStartTime.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+    const timeStr = formatTime(newStartTime);
+
+    return { 
+      success: true, 
+      message: `Done! Booking ${booking.booking_code} has been moved to ${dateStr} at ${timeStr}.`
+    };
+  } catch (error) {
+    console.error("[MediaStream] Reschedule booking error:", error);
+    return { success: false, message: "Sorry, there was an error rescheduling the booking." };
+  }
+}
+
+async function executeCheckAvailability(supabase: any, session: StreamSession, params: any): Promise<any> {
+  console.log("[MediaStream] Checking availability:", params);
+  
+  try {
+    const requestedDate = new Date(params.date);
+    const duration = params.duration_minutes || 30;
+
+    // Check if business is open that day
+    const businessHours = isBusinessOpen(session.openingHours, requestedDate);
+    if (!businessHours.open) {
+      return { success: false, message: businessHours.message };
+    }
+
+    // Validate max advance booking
+    const advanceCheck = checkMaxAdvanceBooking(session.businessSettings, requestedDate);
+    if (!advanceCheck.valid) {
+      return { success: false, message: advanceCheck.message };
+    }
+
+    // Get all bookings for that day
+    const dayStart = `${params.date}T00:00:00`;
+    const dayEnd = `${params.date}T23:59:59`;
+
+    let bookingsQuery = supabase
+      .from("bookings")
+      .select("staff_id, start_time, end_time")
+      .eq("business_id", session.businessId)
+      .neq("status", "cancelled")
+      .gte("start_time", dayStart)
+      .lte("start_time", dayEnd);
+
+    // Filter by staff if specified
+    let staffId: string | null = null;
+    if (params.staff_name) {
+      const staff = session.staff.find(s => s.name.toLowerCase().includes(params.staff_name.toLowerCase()));
+      if (staff) {
+        staffId = staff.id;
+        bookingsQuery = bookingsQuery.eq("staff_id", staff.id);
+      }
+    }
+
+    const { data: existingBookings } = await bookingsQuery;
+    const bookedSlots = existingBookings || [];
+
+    // Generate available slots
+    const openTime = businessHours.openTime!;
+    const closeTime = businessHours.closeTime!;
+    const [openHour, openMin] = openTime.split(":").map(Number);
+    const [closeHour, closeMin] = closeTime.split(":").map(Number);
+
+    const availableSlots: string[] = [];
+    const now = new Date();
+    const minNoticeHours = session.businessSettings?.min_booking_notice_hours || 2;
+    const minAllowedTime = new Date(now.getTime() + minNoticeHours * 60 * 60 * 1000);
+
+    // Generate 30-minute slots
+    for (let h = openHour; h < closeHour || (h === closeHour && 0 < closeMin); h++) {
+      for (let m = 0; m < 60; m += 30) {
+        if (h === openHour && m < openMin) continue;
+        if (h === closeHour && m >= closeMin) continue;
+        if (h * 60 + m + duration > closeHour * 60 + closeMin) continue; // Slot would end after close
+
+        const slotTime = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+        const slotStart = new Date(`${params.date}T${slotTime}:00`);
+        const slotEnd = new Date(slotStart.getTime() + duration * 60000);
+
+        // Skip if slot is in the past or within min notice period
+        if (slotStart < minAllowedTime) continue;
+
+        // Check if slot conflicts with existing bookings
+        const hasConflict = bookedSlots.some((b: any) => {
+          const bStart = new Date(b.start_time);
+          const bEnd = new Date(b.end_time);
+          return slotStart < bEnd && slotEnd > bStart;
+        });
+
+        // Check staff time off
+        let isOnLeave = false;
+        if (staffId) {
+          const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staffId, slotStart, slotEnd);
+          isOnLeave = timeOffCheck.onLeave;
+        }
+
+        if (!hasConflict && !isOnLeave) {
+          availableSlots.push(slotTime);
+        }
+      }
+    }
+
+    if (availableSlots.length === 0) {
+      return { success: false, message: "Sorry, there are no available slots that day. Would you like to try a different date?" };
+    }
+
+    // Format nicely - show up to 6 slots
+    const displaySlots = availableSlots.slice(0, 6).map(t => {
+      const [h, m] = t.split(":").map(Number);
+      const period = h >= 12 ? "PM" : "AM";
+      const hour12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+      return `${hour12}:${m.toString().padStart(2, "0")} ${period}`;
+    });
+
+    const moreSlots = availableSlots.length > 6 ? `, and ${availableSlots.length - 6} more` : "";
+    
+    return { 
+      success: true, 
+      message: `Available times: ${displaySlots.join(", ")}${moreSlots}. Which would you prefer?`,
+      available_slots: availableSlots
+    };
+  } catch (error) {
+    console.error("[MediaStream] Check availability error:", error);
+    return { success: false, message: "Sorry, I couldn't check availability right now." };
   }
 }
 
@@ -814,7 +1339,7 @@ async function executeLeaveMessage(supabase: any, businessId: string, callerPhon
       return { success: false, message: "Error saving message." };
     }
 
-    return { success: true, message: "Message has been saved and will be passed on." };
+    return { success: true, message: "Message saved. They'll get back to you." };
   } catch (error) {
     console.error("[MediaStream] Leave message error:", error);
     return { success: false, message: "Error saving message." };
@@ -826,13 +1351,7 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
   
   try {
     // Find staff member with phone
-    const { data: staffMember } = await supabase
-      .from("staff")
-      .select("id, name, phone, title")
-      .eq("business_id", session.businessId)
-      .ilike("name", `%${params.staff_name}%`)
-      .limit(1)
-      .maybeSingle();
+    const staffMember = session.staff.find(s => s.name.toLowerCase().includes(params.staff_name.toLowerCase()));
 
     if (!staffMember) {
       return { success: false, message: `Could not find staff member ${params.staff_name}` };
@@ -889,7 +1408,7 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
     // Build TwiML for the transfer
     const transferTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Amy-Neural" language="en-GB">Please hold while I transfer you to ${escapeXml(staffDisplayName)}.</Say>
+  <Say voice="Polly.Amy-Neural" language="en-GB">Please hold while I transfer you.</Say>
   <Dial callerId="${escapeXml(session.callerPhone)}" timeout="30">
     <Number>${escapeXml(staffMember.phone)}</Number>
   </Dial>
@@ -935,7 +1454,7 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
 
     return { 
       success: true, 
-      message: `Transferring you to ${staffDisplayName} now.`,
+      message: `Transferring you now.`,
       transfer_to: staffMember.phone,
       staff_name: staffDisplayName
     };
@@ -958,6 +1477,20 @@ function formatTime(date: Date): string {
   return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
+// ============================================================================
+// SYSTEM PROMPT BUILDER
+// ============================================================================
+
+interface PromptData {
+  prompt: string;
+  businessSettings: BusinessSettings | null;
+  openingHours: OpeningHour[];
+  staffTimeOff: StaffTimeOff[];
+  staffServices: StaffService[];
+  staff: StaffMember[];
+  services: Service[];
+}
+
 async function buildFullSystemPrompt(
   supabase: any,
   businessId: string,
@@ -965,10 +1498,11 @@ async function buildFullSystemPrompt(
   assistantName: string,
   tone: string,
   callerPhone: string,
-  twilioPhoneNumber: string | null
-): Promise<string> {
+  twilioPhoneNumber: string | null,
+  websiteKnowledge: string | null
+): Promise<PromptData> {
   // Fetch all business data in parallel
-  const [staffResult, servicesResult, hoursResult, settingsResult, timeOffResult, bookingsResult] = await Promise.all([
+  const [staffResult, servicesResult, hoursResult, settingsResult, timeOffResult, bookingsResult, customerSettingsResult] = await Promise.all([
     supabase.from("staff").select("id, name, role, title, phone, ai_enabled").eq("business_id", businessId),
     supabase.from("services").select("id, name, duration_minutes, price, category, description").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
@@ -978,34 +1512,84 @@ async function buildFullSystemPrompt(
       .eq("business_id", businessId)
       .eq("status", "approved")
       .gte("end_time", new Date().toISOString())
-      .lte("start_time", new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()),
+      .order("start_time"),
     supabase.from("bookings")
-      .select("id, start_time, end_time, customer_name, customer_phone, staff:staff_id(name)")
+      .select("id, start_time, end_time, customer_name, customer_phone, staff:staff_id(name), service:service_id(name), booking_code")
       .eq("business_id", businessId)
       .neq("status", "cancelled")
       .gte("start_time", new Date().toISOString())
-      .lte("start_time", new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString())
-      .order("start_time"),
+      .order("start_time")
+      .limit(30),
+    supabase.from("customer_settings").select("*").eq("business_id", businessId).maybeSingle(),
   ]);
 
-  const staff = staffResult.data || [];
-  const services = servicesResult.data || [];
-  const hours = hoursResult.data || [];
-  const businessSettings = settingsResult.data;
-  const staffTimeOff = timeOffResult.data || [];
-  const upcomingBookings = bookingsResult.data || [];
-  const currency = businessSettings?.currency || "£";
+  const staff: StaffMember[] = (staffResult.data || []).map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    role: s.role,
+    title: s.title,
+    phone: s.phone,
+    ai_enabled: s.ai_enabled !== false,
+  }));
   
-  // Fetch staff_services separately (need staff IDs first)
-  const staffIds = staff.map((s: any) => s.id);
+  const services: Service[] = (servicesResult.data || []).map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    duration_minutes: s.duration_minutes,
+    price: s.price,
+    category: s.category,
+    description: s.description,
+  }));
+  
+  const hours: OpeningHour[] = (hoursResult.data || []).map((h: any) => ({
+    day_of_week: h.day_of_week,
+    open_time: h.open_time,
+    close_time: h.close_time,
+    is_closed: h.is_closed,
+  }));
+  
+  const businessSettings: BusinessSettings | null = settingsResult.data ? {
+    min_booking_notice_hours: settingsResult.data.min_booking_notice_hours || 2,
+    max_days_advance: settingsResult.data.max_days_advance || 30,
+    min_cancellation_notice_hours: settingsResult.data.min_cancellation_notice_hours || 24,
+    cancellation_policy: settingsResult.data.cancellation_policy,
+    currency: settingsResult.data.currency || "GBP",
+  } : null;
+  
+  const staffTimeOff: StaffTimeOff[] = (timeOffResult.data || []).map((t: any) => ({
+    staff_id: t.staff_id,
+    start_time: t.start_time,
+    end_time: t.end_time,
+    reason: t.reason,
+    staff_name: t.staff?.name,
+  }));
+  
+  const upcomingBookings = bookingsResult.data || [];
+  const currency = businessSettings?.currency || "GBP";
+  
+  const customerSettings: CustomerSettings | null = customerSettingsResult.data ? {
+    collect_name: customerSettingsResult.data.collect_name !== false,
+    collect_phone: customerSettingsResult.data.collect_phone !== false,
+    collect_email: customerSettingsResult.data.collect_email === true,
+    ask_marketing_consent: customerSettingsResult.data.ask_marketing_consent === true,
+    ask_notes_preferences: customerSettingsResult.data.ask_notes_preferences === true,
+    ask_how_heard: customerSettingsResult.data.ask_how_heard === true,
+    ask_preferred_staff: customerSettingsResult.data.ask_preferred_staff === true,
+  } : null;
+
+  // Get staff services mapping
+  const staffIds = staff.map(s => s.id);
   const { data: staffServicesData } = staffIds.length > 0 
     ? await supabase.from("staff_services").select("staff_id, service_id").in("staff_id", staffIds)
     : { data: [] };
-  const staffServices = staffServicesData || [];
+  const staffServices: StaffService[] = (staffServicesData || []).map((ss: any) => ({
+    staff_id: ss.staff_id,
+    service_id: ss.service_id,
+  }));
 
   // Build staff-to-services mapping
   const staffServiceMap: Record<string, string[]> = {};
-  staffServices.forEach((ss: any) => {
+  staffServices.forEach(ss => {
     if (!staffServiceMap[ss.staff_id]) {
       staffServiceMap[ss.staff_id] = [];
     }
@@ -1014,14 +1598,14 @@ async function buildFullSystemPrompt(
 
   // Build service-to-staff mapping (who can do what)
   const serviceToStaffMap: Record<string, { name: string; aiEnabled: boolean; hasPhone: boolean }[]> = {};
-  services.forEach((svc: any) => {
+  services.forEach(svc => {
     serviceToStaffMap[svc.id] = [];
-    staff.forEach((s: any) => {
+    staff.forEach(s => {
       const canDoService = staffServiceMap[s.id]?.includes(svc.id);
       if (canDoService) {
         serviceToStaffMap[svc.id].push({ 
           name: s.name, 
-          aiEnabled: s.ai_enabled !== false,
+          aiEnabled: s.ai_enabled,
           hasPhone: !!s.phone
         });
       }
@@ -1033,27 +1617,26 @@ async function buildFullSystemPrompt(
 
   // Create a map of service ID to name for display
   const serviceNameMap: Record<string, string> = {};
-  services.forEach((s: any) => {
+  services.forEach(s => {
     serviceNameMap[s.id] = s.name;
   });
 
   // Format staff list with title, AI status, and services they can perform
   const staffList = staff.length > 0
-    ? staff.map((s: any) => {
-        const aiStatus = s.ai_enabled === false ? " [TRANSFER ONLY - no AI booking]" : "";
-        const hasPhone = s.phone ? " (can transfer)" : "";
+    ? staff.map(s => {
+        const aiStatus = !s.ai_enabled ? " [TRANSFER ONLY]" : "";
         const staffServiceIds = staffServiceMap[s.id] || [];
-        const canDoServices = staffServiceIds.map((sid: string) => serviceNameMap[sid]).filter(Boolean);
+        const canDoServices = staffServiceIds.map(sid => serviceNameMap[sid]).filter(Boolean);
         const servicesNote = canDoServices.length > 0 
           ? ` [CAN DO: ${canDoServices.join(", ")}]` 
-          : " [NO SERVICES ASSIGNED - cannot book]";
-        return `- ${s.title ? s.title + " " : ""}${s.name} (${s.role})${hasPhone}${aiStatus}${servicesNote}`;
+          : " [NO SERVICES]";
+        return `- ${s.title ? s.title + " " : ""}${s.name}${aiStatus}${servicesNote}`;
       }).join("\n")
-    : "No specific staff members configured";
+    : "No staff configured";
 
-  // Format services with category for disambiguation and show who can perform each
-  const servicesByCategory: Record<string, any[]> = {};
-  services.forEach((s: any) => {
+  // Format services with who can perform each
+  const servicesByCategory: Record<string, Service[]> = {};
+  services.forEach(s => {
     const cat = s.category || "General";
     if (!servicesByCategory[cat]) servicesByCategory[cat] = [];
     servicesByCategory[cat].push(s);
@@ -1061,212 +1644,162 @@ async function buildFullSystemPrompt(
   
   const servicesList = services.length > 0
     ? Object.entries(servicesByCategory).map(([cat, svcs]) => 
-        `${cat}:\n${(svcs as any[]).map((s: any) => {
+        `${cat}:\n${svcs.map(s => {
           const staffWhoCanDo = serviceToStaffMap[s.id] || [];
           const aiEnabledStaff = staffWhoCanDo.filter(st => st.aiEnabled).map(st => st.name);
-          const transferOnlyStaff = staffWhoCanDo.filter(st => !st.aiEnabled).map(st => st.name);
           
           let availabilityNote = "";
           if (aiEnabledStaff.length > 0) {
-            availabilityNote = ` [Staff: ${aiEnabledStaff.join(", ")}]`;
-          } else if (transferOnlyStaff.length > 0) {
-            availabilityNote = ` [TRANSFER ONLY - only ${transferOnlyStaff.join(", ")} can do this, must transfer call]`;
+            availabilityNote = ` [With: ${aiEnabledStaff.join(", ")}]`;
           } else {
-            availabilityNote = " [NO STAFF ASSIGNED]";
+            availabilityNote = " [TRANSFER ONLY]";
           }
           
-          return `  - ${s.name}: ${s.duration_minutes}min, ${currency}${s.price}${s.description ? ` (${s.description})` : ""}${availabilityNote}`;
+          return `  - ${s.name}: ${s.duration_minutes}min, ${currency}${s.price}${availabilityNote}`;
         }).join("\n")}`
       ).join("\n")
     : "Services available upon request";
 
-  // Format hours
-  // Database uses: Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6
-  const dbDayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  // Format hours compactly
+  const dbDayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const hoursList = hours.length > 0
     ? hours
-        .sort((a: any, b: any) => a.day_of_week - b.day_of_week)
-        .map((h: any) => {
+        .sort((a, b) => a.day_of_week - b.day_of_week)
+        .map(h => {
           const dayName = dbDayNames[h.day_of_week] || `Day ${h.day_of_week}`;
           if (h.is_closed) return `${dayName}: CLOSED`;
-          return `${dayName}: ${h.open_time?.slice(0, 5)} - ${h.close_time?.slice(0, 5)}`;
+          return `${dayName}: ${h.open_time?.slice(0, 5)}-${h.close_time?.slice(0, 5)}`;
         })
-        .join("\n")
+        .join(" | ")
     : "Opening hours available upon request";
 
-  // Format staff time off
+  // Format staff time off compactly
   const timeOffList = staffTimeOff.length > 0
-    ? staffTimeOff.map((t: any) => {
+    ? staffTimeOff.slice(0, 3).map(t => {
         const startDate = new Date(t.start_time);
         const endDate = new Date(t.end_time);
-        const staffName = t.staff?.name || "Unknown";
-        return `- ${staffName}: OFF from ${startDate.toLocaleDateString("en-GB")} to ${endDate.toLocaleDateString("en-GB")} (${t.reason})`;
-      }).join("\n")
-    : "None scheduled";
+        return `${t.staff_name}: ${startDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}-${endDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+      }).join(", ")
+    : "None";
 
-  // Format existing bookings (with privacy protection)
+  // Format existing bookings (with privacy protection) - keep compact
   const normalizedCallerPhone = callerPhone.replace(/\D/g, "").slice(-10);
-  const bookingsWithStaff = upcomingBookings.map((b: any) => {
+  const bookingsWithStaff = upcomingBookings.slice(0, 10).map((b: any) => {
     const startTime = new Date(b.start_time);
-    const endTime = new Date(b.end_time);
     const staffName = b.staff?.name || "Any";
     const dateStr = startTime.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-    const timeStr = `${formatTime(startTime)}-${formatTime(endTime)}`;
+    const timeStr = formatTime(startTime);
     
-    // Check if this booking belongs to the current caller
     const customerPhoneNorm = (b.customer_phone || "").replace(/\D/g, "").slice(-10);
     const isCallerBooking = callerInfo.isReturning && customerPhoneNorm === normalizedCallerPhone;
     
     if (isCallerBooking) {
-      return `- ${staffName}: ${dateStr} ${timeStr} (YOUR BOOKING - ${b.customer_name})`;
+      return `${staffName}: ${dateStr} ${timeStr} (YOURS - ${b.booking_code})`;
     } else {
-      // Don't reveal other customers' names
-      return `- ${staffName}: ${dateStr} ${timeStr} (slot taken)`;
+      return `${staffName}: ${dateStr} ${timeStr} (booked)`;
     }
-  }).join("\n") || "No upcoming bookings";
+  }).join(" | ") || "None";
 
   // Get current date/time context
   const now = new Date();
-  // Convert JS day (Sunday=0) to DB day (Monday=0) for comparison
   const jsDay = now.getDay();
-  const dbDay = jsDay === 0 ? 6 : jsDay - 1; // Sunday becomes 6, others shift down by 1
+  const dbDay = jsDay === 0 ? 6 : jsDay - 1;
   const jsDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const currentDay = jsDayNames[jsDay]; // Use JS day names for display of current day
+  const currentDay = jsDayNames[jsDay];
   const currentTime = formatTime(now);
-  const currentDate = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   // Determine if business is open TODAY
-  const todayHours = hours.find((h: any) => h.day_of_week === dbDay);
+  const todayHours = hours.find(h => h.day_of_week === dbDay);
   const isOpenToday = todayHours && !todayHours.is_closed;
   const todayStatus = isOpenToday 
-    ? `OPEN today (${todayHours.open_time?.slice(0, 5)} - ${todayHours.close_time?.slice(0, 5)})`
-    : "CLOSED today";
-  
-  console.log(`[MediaStream] Day mapping - JS day: ${jsDay} (${currentDay}), DB day: ${dbDay}, Today's hours:`, todayHours, `Status: ${todayStatus}`);
+    ? `OPEN (${todayHours.open_time?.slice(0, 5)}-${todayHours.close_time?.slice(0, 5)})`
+    : "CLOSED";
 
   // Build caller context
   let callerContext = "";
   if (callerInfo.isReturning) {
-    callerContext = `
-═══════════════════════════════════════════════════════════════
-CALLER INFO (RETURNING CUSTOMER - GREET BY NAME!)
-═══════════════════════════════════════════════════════════════
-Name: ${callerInfo.name}
-Phone: ${callerPhone}
-Total visits: ${callerInfo.totalVisits}
-${callerInfo.preferredStaff ? `Preferred staff: ${callerInfo.preferredStaff}` : ""}
-${callerInfo.lastBooking ? `Last booking: ${callerInfo.lastBooking.service} with ${callerInfo.lastBooking.staff} on ${callerInfo.lastBooking.date}` : ""}
-${callerInfo.upcomingBooking ? `⚠️ HAS UPCOMING BOOKING: ${callerInfo.upcomingBooking.service} on ${callerInfo.upcomingBooking.date} at ${callerInfo.upcomingBooking.time} (Code: ${callerInfo.upcomingBooking.code})` : ""}
-`;
+    callerContext = `CALLER: ${callerInfo.name} (returning, ${callerInfo.totalVisits} visits)`;
+    if (callerInfo.upcomingBooking) {
+      callerContext += ` - HAS BOOKING: ${callerInfo.upcomingBooking.service} on ${callerInfo.upcomingBooking.date} at ${callerInfo.upcomingBooking.time} (${callerInfo.upcomingBooking.code})`;
+    }
   } else {
-    callerContext = `
-═══════════════════════════════════════════════════════════════
-CALLER INFO (NEW CUSTOMER)
-═══════════════════════════════════════════════════════════════
-Phone: ${callerPhone}
-Status: First-time caller - collect their name during booking
-`;
+    callerContext = `CALLER: New customer`;
   }
 
-  // Build tone instructions
-  let toneInstructions = "";
-  switch (tone) {
-    case "formal":
-      toneInstructions = "Speak professionally and formally. Use proper greetings.";
-      break;
-    case "casual":
-      toneInstructions = "Be friendly and casual while remaining helpful.";
-      break;
-    default:
-      toneInstructions = "Be warm and friendly but professional.";
-  }
+  // Build tone instructions compactly
+  const toneInstruction = tone === "formal" ? "Be professional." : (tone === "casual" ? "Be friendly and casual." : "Be warm and professional.");
 
-  // Build compact greeting instruction
+  // Greeting
   const greetingInstruction = callerInfo.isReturning 
-    ? `START by saying: "Hi ${callerInfo.name}, thanks for calling ${businessName}, how can I help?"`
-    : `START by saying: "Hi, thanks for calling ${businessName}, how can I help?"`;
+    ? `Greet: "Hi ${callerInfo.name}, thanks for calling ${businessName}, how can I help?"`
+    : `Greet: "Hi, thanks for calling ${businessName}, how can I help?"`;
 
-  // Build policy context
-  const cancellationPolicy = businessSettings?.cancellation_policy || "";
-  const minCancellationNotice = businessSettings?.min_cancellation_notice_hours || 24;
-  const minBookingNotice = businessSettings?.min_booking_notice_hours || 2;
-  const maxDaysAdvance = businessSettings?.max_days_advance || 30;
-  
-  const policyContext = cancellationPolicy 
-    ? `\nPOLICIES:\n- Cancellation: ${cancellationPolicy}\n- Min cancellation notice: ${minCancellationNotice}hrs\n- Min booking notice: ${minBookingNotice}hrs\n- Max advance booking: ${maxDaysAdvance} days`
+  // Build customer data collection rules
+  let dataCollectionRules = "BOOKING DATA: Collect name and phone.";
+  if (customerSettings) {
+    const fields: string[] = [];
+    if (customerSettings.collect_name) fields.push("name");
+    if (customerSettings.collect_phone) fields.push("phone");
+    if (customerSettings.collect_email) fields.push("email (if enabled)");
+    if (customerSettings.ask_preferred_staff) fields.push("preferred staff");
+    if (customerSettings.ask_notes_preferences) fields.push("any special notes");
+    if (customerSettings.ask_how_heard) fields.push("how they heard about us");
+    if (fields.length > 0) {
+      dataCollectionRules = `BOOKING DATA: Collect ${fields.join(", ")}.`;
+    }
+  }
+
+  // Website knowledge for FAQs
+  const faqContext = websiteKnowledge 
+    ? `\nFAQ INFO: ${websiteKnowledge.slice(0, 500)}`
     : "";
 
-  // Get staff with transfer only status
-  const transferOnlyStaff = staff.filter((s: any) => s.ai_enabled === false).map((s: any) => s.name);
-  const transferOnlyNote = transferOnlyStaff.length > 0 
-    ? `\n⚠️ TRANSFER ONLY STAFF (do NOT book for them, transfer call instead): ${transferOnlyStaff.join(", ")}`
-    : "";
+  // Policy info
+  const minNotice = businessSettings?.min_booking_notice_hours || 2;
+  const maxAdvance = businessSettings?.max_days_advance || 30;
+  const minCancelNotice = businessSettings?.min_cancellation_notice_hours || 24;
+  const cancellationPolicy = businessSettings?.cancellation_policy || `${minCancelNotice}hr cancellation notice required.`;
 
-  return `You are ${assistantName}, phone receptionist for ${businessName}. ${toneInstructions}
+  const prompt = `You are ${assistantName}, phone receptionist for ${businessName}. ${toneInstruction}
 
-CRITICAL RULES:
-1. Keep responses to 1-2 sentences max. Sound natural. Never say you're AI.
-2. NEVER assume or guess - ALWAYS confirm details before booking.
-3. When a service name is ambiguous (e.g., "haircut"), ASK which type: adult, kids, women, etc.
-4. Always use staff titles (Mr, Mrs, Miss, etc.) when addressing or referring to them.
-5. Check availability BEFORE confirming any booking.
-6. For staff marked as TRANSFER ONLY - use transfer_call tool instead of booking.
-7. ONLY book services with staff who are ASSIGNED to that service (check [CAN DO: ...] in staff list).
-8. If a service is ONLY available from TRANSFER ONLY staff, you MUST transfer the call - do NOT try to book.
+RULES:
+1. Keep responses SHORT - 1-2 sentences max. Sound like a real person, not a chatbot.
+2. Don't repeat "Is there anything else?" after every response. Only near call end.
+3. NEVER assume details - always confirm service type, staff, date/time before booking.
+4. Use check_availability tool BEFORE suggesting specific times.
+5. For TRANSFER ONLY staff, use transfer_call - don't try to book.
+6. Only book staff with services they're assigned to (see [CAN DO:] list).
+7. For cancellations/reschedules, you can search by code, last 4 digits, or customer name.
 
 ${greetingInstruction}
 
-⚠️ TODAY IS ${currentDay.toUpperCase()}, ${currentDate}, ${currentTime} - BUSINESS IS ${todayStatus.toUpperCase()}
+TODAY: ${currentDay}, ${currentTime} - ${todayStatus}
 ${callerContext}
+
 STAFF:
-${staffList}${transferOnlyNote}
-SERVICES BY CATEGORY:
+${staffList}
+
+SERVICES:
 ${servicesList}
-OPENING HOURS (Mon=0 to Sun=6):
-${hours.sort((a: any, b: any) => a.day_of_week - b.day_of_week).map((h: any) => {
-  const dayName = dbDayNames[h.day_of_week] || `Day ${h.day_of_week}`;
-  const isToday = h.day_of_week === dbDay;
-  if (h.is_closed) return `${dayName}: CLOSED${isToday ? " ← TODAY" : ""}`;
-  return `${dayName}: ${h.open_time?.slice(0, 5)} - ${h.close_time?.slice(0, 5)}${isToday ? " ← TODAY" : ""}`;
-}).join("\n")}
+
+HOURS: ${hoursList}
 TIME OFF: ${timeOffList}
-BOOKED SLOTS: ${bookingsWithStaff}
-${policyContext}
+BOOKED: ${bookingsWithStaff}
 
-BOOKING PROCESS:
-1. Get service name - if ambiguous (e.g., "haircut"), ask: "Is that for adult, kids, or women?"
-2. Check which staff can do this service (see [Staff: ...] after each service)
-3. If ONLY transfer-only staff can do the service, say "Let me transfer you to them" and use transfer_call
-4. Get preferred staff from those who CAN do the service - if they ask for someone not assigned, politely explain
-5. Get date/time - check against BOOKED SLOTS and TIME OFF first
-6. Confirm all details with customer before creating booking
-7. AFTER booking is confirmed, the create_booking tool will tell you if email notifications are enabled
-8. If ask_for_email is true, ask: "Would you like to receive an email confirmation? If so, please spell out your email address."
-9. If they provide email, use save_customer_email to save it. If they decline, that's fine - confirm booking is done.
+POLICIES: Min ${minNotice}hr booking notice | Max ${maxAdvance} days ahead | ${cancellationPolicy}
+${dataCollectionRules}${faqContext}
 
-EMAIL COLLECTION:
-- When customer spells out email, listen carefully and repeat it back: "So that's john at gmail dot com?"
-- Common patterns: "at" = @, "dot" = .
-- Use save_customer_email tool with the email address
-- If they don't want email confirmation, just say "No problem, you're all set!"
+ENDING CALLS: When caller says bye/thanks/done, say brief goodbye then use end_call tool.`;
 
-CALL TRANSFER:
-- Use transfer_call when: caller urgently wants to speak to someone, you can't answer their question, or staff is TRANSFER ONLY
-- IMPORTANT: Keep transfer message VERY brief - just say "Transferring now" then immediately call transfer_call
-- Do NOT explain who you're transferring to or why - just transfer quickly
-- If transfer fails (no phone number), offer to leave a message instead
-
-ENDING THE CALL:
-- When caller says "bye", "goodbye", "thanks bye", "that's all" - say a brief goodbye like "Bye, see you soon!" then use end_call tool
-- If there's extended silence (over 10 seconds) after you've completed their request, use end_call
-- Keep farewells SHORT - one sentence max before ending
-- Always use end_call tool to properly hang up - don't just stop talking
-
-CRITICAL:
-- Check TIME OFF + BOOKED SLOTS before confirming ANY availability
-- Never reveal other customers' info
-- Use create_booking tool ONLY after confirming all details
-- ${callerInfo.isReturning ? `This is ${callerInfo.name}, returning customer` : "New caller - get their name when booking"}`;
+  return {
+    prompt,
+    businessSettings,
+    openingHours: hours,
+    staffTimeOff,
+    staffServices,
+    staff,
+    services,
+  };
 }
 
 async function getCallerInfo(supabase: any, businessId: string, callerPhone: string): Promise<CallerInfo> {
