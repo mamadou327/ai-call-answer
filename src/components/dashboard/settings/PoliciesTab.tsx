@@ -39,11 +39,11 @@ export const PoliciesTab = ({ businessId, onUpdate }: PoliciesTabProps) => {
 
     if (data) {
       setSettingsData({
-        cancellation_policy: data.cancellation_policy || "",
-        min_booking_notice_hours: data.min_booking_notice_hours || 2,
-        max_days_advance: data.max_days_advance || 30,
-        min_cancellation_notice_hours: data.min_cancellation_notice_hours || 24,
-        notification_email: data.notification_email || "",
+        cancellation_policy: data.cancellation_policy ?? "",
+        min_booking_notice_hours: data.min_booking_notice_hours ?? 2,
+        max_days_advance: data.max_days_advance ?? 30,
+        min_cancellation_notice_hours: data.min_cancellation_notice_hours ?? 24,
+        notification_email: data.notification_email ?? "",
       });
     }
   };
