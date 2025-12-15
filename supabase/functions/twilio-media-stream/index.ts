@@ -458,7 +458,7 @@ function sendSessionConfig(session: StreamSession) {
     {
       type: "function",
       name: "check_availability",
-      description: "Check available time slots for a given date. Use this BEFORE suggesting times to the customer.",
+      description: "MANDATORY: You MUST call this tool BEFORE suggesting any times or saying a time is available/unavailable. Never guess or assume availability - always check first. Returns the actual free time slots from the booking system.",
       parameters: {
         type: "object",
         properties: {
@@ -1161,23 +1161,34 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
     }
 
     if (availableSlots.length === 0) {
-      return { success: false, message: "Sorry, there are no available slots that day. Would you like to try a different date?" };
+      console.log("[MediaStream] No available slots found for", params.date, "with staff:", params.staff_name || "any");
+      return { 
+        success: false, 
+        message: `There are no available slots on ${requestedDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}. Would you like to try a different date?`,
+        no_slots: true
+      };
     }
 
-    // Format nicely - show up to 6 slots
-    const displaySlots = availableSlots.slice(0, 6).map(t => {
+    // Format nicely - show up to 8 slots for better options
+    const displaySlots = availableSlots.slice(0, 8).map(t => {
       const [h, m] = t.split(":").map(Number);
       const period = h >= 12 ? "PM" : "AM";
       const hour12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
       return `${hour12}:${m.toString().padStart(2, "0")} ${period}`;
     });
 
-    const moreSlots = availableSlots.length > 6 ? `, and ${availableSlots.length - 6} more` : "";
+    const moreSlots = availableSlots.length > 8 ? ` (plus ${availableSlots.length - 8} more)` : "";
+    const staffNote = params.staff_name ? ` with ${params.staff_name}` : "";
+    const dateStr = requestedDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+    
+    console.log("[MediaStream] Found", availableSlots.length, "available slots for", params.date);
     
     return { 
       success: true, 
-      message: `Available times: ${displaySlots.join(", ")}${moreSlots}. Which would you prefer?`,
-      available_slots: availableSlots
+      message: `On ${dateStr}${staffNote}, I have: ${displaySlots.join(", ")}${moreSlots}. Which time works for you?`,
+      available_slots: availableSlots,
+      date: params.date,
+      staff: params.staff_name || null
     };
   } catch (error) {
     console.error("[MediaStream] Check availability error:", error);
@@ -1762,36 +1773,47 @@ async function buildFullSystemPrompt(
 
   const prompt = `You are ${assistantName}, phone receptionist for ${businessName}. ${toneInstruction}
 
-CRITICAL RULES:
-1. NEVER END THE CALL unless the customer explicitly says goodbye (bye, goodbye, thanks bye, take care, etc.)
-2. After confirming a booking, ALWAYS ask "Is there anything else I can help with?" and WAIT for their response before even thinking about ending the call
-3. Silence or pauses are NOT a reason to end the call - wait patiently for the customer to speak
-4. Keep responses SHORT - 1-2 sentences. Sound like a real person, not a robot.
-5. NEVER assume - always confirm service, staff, date/time before booking.
-6. Use check_availability BEFORE suggesting times.
-7. For [TRANSFER ONLY] staff, use transfer_call instead of booking.
-8. Only book staff for services they're assigned to (check [CAN DO:] list).
-9. For cancel/reschedule: can search by full code, last 4 digits, or name.
+## CRITICAL TOOL USAGE RULES (MUST FOLLOW):
+1. **AVAILABILITY**: NEVER say a time is available or unavailable without calling check_availability first. NEVER guess.
+2. **BOOKING**: Only call create_booking AFTER check_availability confirms the slot is free AND customer confirmed all details.
+3. **STAFF SERVICES**: ONLY book a staff member for services listed in their [CAN DO:] section. If a customer asks for a service with a staff who can't do it, tell them which staff CAN do it.
+4. **TRANSFER ONLY**: Staff marked [TRANSFER ONLY] cannot be booked - offer to transfer instead.
+
+## CONVERSATION RULES:
+- Keep responses SHORT: 1-2 sentences max. Sound human, not robotic.
+- NEVER end the call unless customer explicitly says goodbye (bye, thanks bye, etc.)
+- After booking is confirmed, ask "Is there anything else?" and WAIT for response.
+- Silence/pauses are NOT a reason to end - wait patiently.
+- If unsure about availability, ALWAYS use check_availability tool - don't make assumptions.
+
+## WHEN CUSTOMER ASKS FOR A TIME:
+1. First, call check_availability for that date (and staff if specified)
+2. Look at the returned available_slots list
+3. Only confirm times that appear in that list
+4. If their requested time is NOT in the list, suggest alternatives from the list
 
 ${greetingInstruction}
 
-TODAY: ${currentDay}, ${currentTime} - ${todayStatus}
-${callerContext}
+## CURRENT CONTEXT:
+- Today: ${currentDay}, ${currentTime}
+- Business Status: ${todayStatus}
+- ${callerContext}
 
-STAFF:
+## STAFF (check [CAN DO:] before booking):
 ${staffList}
 
-SERVICES:
+## SERVICES:
 ${servicesList}
 
-HOURS: ${hoursList}
-TIME OFF: ${timeOffList}
-BOOKED: ${bookingsWithStaff}
+## HOURS: ${hoursList}
+## TIME OFF: ${timeOffList}
 
-POLICIES: Min ${minNotice}hr notice | Max ${maxAdvance} days ahead | ${cancellationPolicy}
-${dataCollectionRules}${faqContext}
+## POLICIES: 
+- Min ${minNotice}hr booking notice
+- Max ${maxAdvance} days in advance
+- ${cancellationPolicy}
 
-ENDING CALLS: ONLY when customer says bye/goodbye/thanks bye. Say brief goodbye, THEN use end_call. If they just say "thanks" after booking, that's NOT goodbye - ask if they need anything else first.`;
+${dataCollectionRules}${faqContext}`;
 
   return {
     prompt,
