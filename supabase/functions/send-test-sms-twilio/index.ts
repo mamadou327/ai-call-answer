@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,6 +9,7 @@ const corsHeaders = {
 interface TestSmsRequest {
   to: string;
   message?: string;
+  business_id: string;
 }
 
 serve(async (req) => {
@@ -28,7 +30,7 @@ serve(async (req) => {
       );
     }
 
-    const { to, message }: TestSmsRequest = await req.json();
+    const { to, message, business_id }: TestSmsRequest = await req.json();
     
     if (!to) {
       return new Response(
@@ -37,20 +39,44 @@ serve(async (req) => {
       );
     }
 
-    const smsMessage = message || '✅ Aivia SMS Test - Your Twilio integration is working correctly!';
-    
-    console.log(`Sending test SMS via Twilio to ${to}`);
-
-    // Get Twilio phone number from environment or use a default messaging service
-    const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
-    
-    if (!twilioPhoneNumber) {
-      console.error('TWILIO_PHONE_NUMBER not configured');
+    if (!business_id) {
       return new Response(
-        JSON.stringify({ error: 'Twilio phone number not configured. Please add TWILIO_PHONE_NUMBER secret.' }),
+        JSON.stringify({ error: 'Business ID is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get business's Twilio phone number from database
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { data: business, error: businessError } = await supabase
+      .from('businesses')
+      .select('twilio_phone_number, business_name')
+      .eq('id', business_id)
+      .maybeSingle();
+
+    if (businessError) {
+      console.error('Error fetching business:', businessError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch business details' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    if (!business?.twilio_phone_number) {
+      console.error('Business does not have a Twilio phone number configured');
+      return new Response(
+        JSON.stringify({ error: 'No Twilio phone number configured for this business. Please add your Twilio number in settings.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const twilioPhoneNumber = business.twilio_phone_number;
+    const smsMessage = message || `✅ ${business.business_name || 'Aivia'} SMS Test - Your Twilio integration is working correctly!`;
+    
+    console.log(`Sending test SMS via Twilio from ${twilioPhoneNumber} to ${to}`);
 
     // Send SMS via Twilio API
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;

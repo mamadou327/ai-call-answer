@@ -11,6 +11,7 @@ import { CustomersManagement } from "./settings/CustomersManagement";
 import { AISettingsTab } from "./settings/AISettingsTab";
 import { PoliciesTab } from "./settings/PoliciesTab";
 import { EmailNotificationSettings } from "./settings/EmailNotificationSettings";
+import { TwilioSettings } from "./settings/TwilioSettings";
 import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell } from "lucide-react";
 
 interface SettingsTabProps {
@@ -118,6 +119,7 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
       </TabsContent>
 
       <TabsContent value="notifications" className="space-y-6">
+        <TwilioSettings business={business} onUpdate={onUpdate} />
         <EmailNotificationSettings business={business} onUpdate={onUpdate} />
       </TabsContent>
     </Tabs>
