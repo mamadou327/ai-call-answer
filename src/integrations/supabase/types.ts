@@ -104,6 +104,7 @@ export type Database = {
           last_modified_by_user_id: string | null
           notes: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
+          reminder_sent_at: string | null
           service_id: string | null
           staff_id: string | null
           start_time: string
@@ -125,6 +126,7 @@ export type Database = {
           last_modified_by_user_id?: string | null
           notes?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          reminder_sent_at?: string | null
           service_id?: string | null
           staff_id?: string | null
           start_time: string
@@ -146,6 +148,7 @@ export type Database = {
           last_modified_by_user_id?: string | null
           notes?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          reminder_sent_at?: string | null
           service_id?: string | null
           staff_id?: string | null
           start_time?: string

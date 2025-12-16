@@ -364,14 +364,24 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
 
       if (error) throw error;
 
-      // Send confirmation email
+      // Send confirmation email and SMS
       if (newBooking?.id) {
+        // Send email
         try {
           await supabase.functions.invoke("send-booking-email", {
             body: { businessId, bookingId: newBooking.id, type: "confirmation" }
           });
         } catch (emailError) {
           console.warn("Failed to send confirmation email:", emailError);
+        }
+        
+        // Send SMS
+        try {
+          await supabase.functions.invoke("send-booking-sms", {
+            body: { businessId, bookingId: newBooking.id, type: "confirmation" }
+          });
+        } catch (smsError) {
+          console.warn("Failed to send confirmation SMS:", smsError);
         }
       }
 
