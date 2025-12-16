@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.send-test-sms-twilio]
 verify_jwt = false
+
+[functions.send-support-notification]
+verify_jwt = true

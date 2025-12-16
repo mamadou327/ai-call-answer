@@ -119,16 +119,32 @@ export function AdminConversationDialog({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      const messageText = reply.trim();
+
       const { error } = await supabase
         .from("admin_conversations")
         .insert({
           service_request_id: supportMessage.id,
           sender_type: "admin",
           sender_id: user.id,
-          message: reply.trim(),
+          message: messageText,
         });
 
       if (error) throw error;
+
+      // Send email notification to business
+      try {
+        await supabase.functions.invoke("send-support-notification", {
+          body: {
+            service_request_id: supportMessage.id,
+            sender_type: "admin",
+            message: messageText,
+          },
+        });
+      } catch (emailError) {
+        console.error("Failed to send email notification:", emailError);
+        // Don't fail the whole operation if email fails
+      }
 
       setReply("");
       loadConversation();
