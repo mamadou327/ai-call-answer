@@ -58,13 +58,22 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
         variant: "destructive",
       });
     } else {
-      // Send cancellation email
+      // Send cancellation email and SMS
       try {
         await supabase.functions.invoke("send-booking-email", {
           body: { businessId: booking.business_id, bookingId: booking.id, type: "cancellation" }
         });
       } catch (emailError) {
         console.warn("Failed to send cancellation email:", emailError);
+      }
+      
+      // Send SMS
+      try {
+        await supabase.functions.invoke("send-booking-sms", {
+          body: { businessId: booking.business_id, bookingId: booking.id, type: "cancellation" }
+        });
+      } catch (smsError) {
+        console.warn("Failed to send cancellation SMS:", smsError);
       }
       
       toast({
