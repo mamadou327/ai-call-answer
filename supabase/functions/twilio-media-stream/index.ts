@@ -623,25 +623,28 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
 // VALIDATION HELPERS
 // ============================================================================
 
-function isBusinessOpen(openingHours: OpeningHour[], date: Date): { open: boolean; openTime?: string; closeTime?: string; message?: string } {
-  // Convert JS day (Sunday=0) to DB day (Monday=0)
+function isBusinessOpen(
+  openingHours: OpeningHour[],
+  date: Date
+): { open: boolean; openTime?: string; closeTime?: string; message?: string } {
+  // day_of_week is stored using JS Date.getDay convention (Sunday=0...Saturday=6)
   const jsDay = date.getDay();
-  const dbDay = jsDay === 0 ? 6 : jsDay - 1;
-  
-  const dayHours = openingHours.find(h => h.day_of_week === dbDay);
-  const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-  const dayName = dayNames[dbDay];
-  
+
+  const dayHours = openingHours.find((h) => h.day_of_week === jsDay);
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const dayName = dayNames[jsDay];
+
   if (!dayHours || dayHours.is_closed) {
-    return { open: false, message: `We're closed on ${dayName}s.` };
+    return { open: false, message: `We're closed on ${dayName}.` };
   }
-  
-  return { 
-    open: true, 
-    openTime: dayHours.open_time?.slice(0, 5) || "09:00", 
-    closeTime: dayHours.close_time?.slice(0, 5) || "17:00" 
+
+  return {
+    open: true,
+    openTime: dayHours.open_time?.slice(0, 5) || "09:00",
+    closeTime: dayHours.close_time?.slice(0, 5) || "17:00",
   };
 }
+
 
 function isTimeWithinOpeningHours(openingHours: OpeningHour[], date: Date, time: string): { valid: boolean; message?: string } {
   const businessHours = isBusinessOpen(openingHours, date);
@@ -1722,12 +1725,13 @@ async function buildFullSystemPrompt(
     : "Services available upon request";
 
   // Format hours compactly
-  const dbDayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const dayAbbr = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const hoursList = hours.length > 0
     ? hours
-        .sort((a, b) => a.day_of_week - b.day_of_week)
+        .slice()
+        .sort((a, b) => (a.day_of_week === 0 ? 7 : a.day_of_week) - (b.day_of_week === 0 ? 7 : b.day_of_week))
         .map(h => {
-          const dayName = dbDayNames[h.day_of_week] || `Day ${h.day_of_week}`;
+          const dayName = dayAbbr[h.day_of_week] || `Day ${h.day_of_week}`;
           if (h.is_closed) return `${dayName}: CLOSED`;
           return `${dayName}: ${h.open_time?.slice(0, 5)}-${h.close_time?.slice(0, 5)}`;
         })
@@ -1764,14 +1768,14 @@ async function buildFullSystemPrompt(
   // Get current date/time context
   const now = new Date();
   const jsDay = now.getDay();
-  const dbDay = jsDay === 0 ? 6 : jsDay - 1;
   const jsDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const currentDay = jsDayNames[jsDay];
   const currentTime = formatTime(now);
 
   // Determine if business is open TODAY
-  const todayHours = hours.find(h => h.day_of_week === dbDay);
+  const todayHours = hours.find(h => h.day_of_week === jsDay);
   const isOpenToday = todayHours && !todayHours.is_closed;
+
   const todayStatus = isOpenToday 
     ? `OPEN (${todayHours.open_time?.slice(0, 5)}-${todayHours.close_time?.slice(0, 5)})`
     : "CLOSED";

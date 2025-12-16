@@ -30,16 +30,22 @@ interface RequestBody {
   messages: Message[];
 }
 
-// Day name mappings (DB: Monday=0...Sunday=6, JS: Sunday=0...Saturday=6)
-const DB_DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+// Day name mappings (DB stores same convention as JS Date.getDay(): Sunday=0...Saturday=6)
+const DAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 
-function jsToDbDay(jsDay: number): number {
-  return jsDay === 0 ? 6 : jsDay - 1;
+function daySortKey(dayOfWeek: number): number {
+  // Keep prompts Monday-first for readability
+  return dayOfWeek === 0 ? 7 : dayOfWeek;
 }
 
-function dbToJsDay(dbDay: number): number {
-  return dbDay === 6 ? 0 : dbDay + 1;
-}
 
 // ============================================================================
 // ADMIN REQUEST HANDLER
@@ -503,15 +509,18 @@ serve(async (req) => {
 
     // =========== BUILD CONTEXT ===========
     const jsDayToday = now.getDay();
-    const dbDayToday = jsToDbDay(jsDayToday);
 
-    const formattedHours = openingHours?.map((h: any) => ({
-      day: DB_DAY_NAMES[h.day_of_week],
-      dbDay: h.day_of_week,
-      isClosed: h.is_closed,
-      open: h.open_time,
-      close: h.close_time,
-    })) || [];
+    const formattedHours = (openingHours ?? [])
+      .slice()
+      .sort((a: any, b: any) => daySortKey(a.day_of_week) - daySortKey(b.day_of_week))
+      .map((h: any) => ({
+        day: DAY_NAMES[h.day_of_week],
+        dayOfWeek: h.day_of_week,
+        isClosed: h.is_closed,
+        open: h.open_time,
+        close: h.close_time,
+      }));
+
 
     const formattedBookings = upcomingBookings?.map((b: any) => ({
       code: b.booking_code,
@@ -579,7 +588,7 @@ IMPORTANT: Always communicate in the style matching your tone setting!
 CURRENT CONTEXT
 ═══════════════════════════════════════════════════════════════
 NOW: ${now.toISOString()}
-TODAY: ${DB_DAY_NAMES[dbDayToday]}, ${todayStr}
+TODAY: ${DAY_NAMES[jsDayToday]}, ${todayStr}
 TOMORROW: ${tomorrow.toISOString().split("T")[0]}
 DAY AFTER: ${dayAfterTomorrow.toISOString().split("T")[0]}
 
@@ -591,6 +600,8 @@ BUSINESS DETAILS (YOU KNOW THIS BUSINESS!)
 • Main Phone: ${business?.main_phone}
 ${business?.secondary_phone ? `• Secondary Phone: ${business.secondary_phone}` : ""}
 ${business?.website ? `• Website: ${business.website}` : ""}
+
+CRITICAL: If any other text (including Website Knowledge) conflicts with the address or opening days above, treat BUSINESS DETAILS + OPENING HOURS as the source of truth.
 
 ${businessKnowledge ? `
 ═══════════════════════════════════════════════════════════════
@@ -1153,41 +1164,44 @@ function smartBookingLookup(bookings: any[], rawBookings: any[], params: any): L
 // OPENING HOURS VALIDATION
 // ============================================================================
 
-function getOpeningHoursForDate(openingHours: any[], dateStr: string): { open: string; close: string; dayName: string } | null {
+function getOpeningHoursForDate(
+  openingHours: any[],
+  dateStr: string
+): { open: string; close: string; dayName: string } | null {
   // Parse the date string to get the day of week
-  const dateParts = dateStr.split('-');
+  const dateParts = dateStr.split("-");
   const year = parseInt(dateParts[0]);
   const month = parseInt(dateParts[1]) - 1; // JS months are 0-indexed
   const day = parseInt(dateParts[2]);
-  
+
   // Create date in a way that doesn't involve timezone conversion
   const tempDate = new Date(year, month, day);
-  const jsDay = tempDate.getDay();
-  const dbDay = jsToDbDay(jsDay);
-  const dayName = DB_DAY_NAMES[dbDay];
-  
-  console.log(`[Aivia] Opening hours check - Date: ${dateStr}, JS Day: ${jsDay}, DB Day: ${dbDay}, Day Name: ${dayName}`);
-  
-  const hours = openingHours.find(h => h.day_of_week === dbDay);
-  
+  const jsDay = tempDate.getDay(); // 0=Sunday..6=Saturday (matches stored day_of_week)
+  const dayName = DAY_NAMES[jsDay];
+
+  console.log(`[Aivia] Opening hours check - Date: ${dateStr}, JS Day: ${jsDay}, Day Name: ${dayName}`);
+
+  const hours = openingHours.find((h) => h.day_of_week === jsDay);
+
   if (!hours) {
-    console.log(`[Aivia] No opening hours found for day ${dbDay}`);
+    console.log(`[Aivia] No opening hours found for day ${jsDay}`);
     return null;
   }
-  
+
   if (hours.is_closed) {
     console.log(`[Aivia] Business is CLOSED on ${dayName}`);
     return null;
   }
-  
+
   // Extract just the time portion (HH:MM) from the stored time
   const openTime = hours.open_time?.slice(0, 5) || null;
   const closeTime = hours.close_time?.slice(0, 5) || null;
-  
+
   console.log(`[Aivia] Opening hours for ${dayName}: ${openTime} - ${closeTime}`);
-  
+
   return { open: openTime, close: closeTime, dayName };
 }
+
 
 function isWithinOpeningHours(openingHours: any[], dateStr: string, startTime: string, endTime: string): { valid: boolean; reason?: string } {
   const hours = getOpeningHoursForDate(openingHours, dateStr);
@@ -1196,7 +1210,7 @@ function isWithinOpeningHours(openingHours: any[], dateStr: string, startTime: s
     // Determine the day name for the error message
     const dateParts = dateStr.split('-');
     const tempDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
-    const dayName = DB_DAY_NAMES[jsToDbDay(tempDate.getDay())];
+    const dayName = DAY_NAMES[tempDate.getDay()];
     return { valid: false, reason: `We're closed on ${dayName}` };
   }
 
@@ -1573,7 +1587,7 @@ function handleCheckAvailability(
   }
 
   const hours = getOpeningHoursForDate(context.openingHours, date);
-  const dayName = DB_DAY_NAMES[jsToDbDay(targetDate.getDay())];
+  const dayName = DAY_NAMES[targetDate.getDay()];
 
   if (!hours) {
     return `We're closed on ${dayName}.`;
