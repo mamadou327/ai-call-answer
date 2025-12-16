@@ -39,14 +39,19 @@ async function validateTwilioSignature(
       false,
       ["sign"]
     );
-    
+
     const data = encoder.encode(dataString);
     const signatureBuffer = await crypto.subtle.sign("HMAC", key, data);
     const expectedSignature = encodeBase64(new Uint8Array(signatureBuffer));
 
     const isValid = expectedSignature === signature;
     if (!isValid) {
-      console.error("[StreamAction] Signature mismatch. Expected:", expectedSignature, "Got:", signature);
+      console.error(
+        "[StreamAction] Signature mismatch. Expected:",
+        expectedSignature,
+        "Got:",
+        signature
+      );
     }
     return isValid;
   } catch (error) {
@@ -57,11 +62,25 @@ async function validateTwilioSignature(
 
 function escapeXml(text: string): string {
   return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function normalizeDialNumber(raw: string): string {
+  const trimmed = (raw || "").trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.startsWith("+")) return trimmed;
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return trimmed;
+
+  if (trimmed.startsWith("0") && digits.length === 11) return `+44${digits.slice(1)}`;
+  if (digits.startsWith("44") && digits.length === 12) return `+${digits}`;
+
+  return `+${digits}`;
 }
 
 Deno.serve(async (req) => {
@@ -130,24 +149,36 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (conversation && conversation.status === "transfer_pending") {
-      // Get transfer details from messages (last message should have transfer info)
       const messages = conversation.messages as any[];
       const transferInfo = messages?.find((m: any) => m.type === "transfer_request");
-      
+
       if (transferInfo) {
-        console.log("[StreamAction] Processing transfer to:", transferInfo.transfer_to);
-        
+        // Use business Twilio number as callerId (not the customer's number)
+        const { data: business } = await supabase
+          .from("businesses")
+          .select("twilio_phone_number")
+          .eq("twilio_webhook_token", token)
+          .maybeSingle();
+
+        const callerId = business?.twilio_phone_number
+          ? normalizeDialNumber(business.twilio_phone_number)
+          : "";
+
+        const callerIdAttr = callerId ? ` callerId="${escapeXml(callerId)}"` : "";
+        const dialTo = normalizeDialNumber(transferInfo.transfer_to);
+
+        console.log("[StreamAction] Processing transfer to:", dialTo);
+
         // Update conversation status
         await supabase
           .from("call_conversations")
           .update({ status: "transferred" })
           .eq("id", conversation.id);
 
-        // Return TwiML to dial the staff member immediately (no hold message for speed)
         const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Dial callerId="${escapeXml(fromNumber)}" timeout="30">
-    <Number>${escapeXml(transferInfo.transfer_to)}</Number>
+  <Dial${callerIdAttr} timeout="30">
+    <Number>${escapeXml(dialTo)}</Number>
   </Dial>
   <Say voice="Polly.Amy-Neural" language="en-GB">Sorry, they're unavailable. Goodbye.</Say>
   <Hangup/>
