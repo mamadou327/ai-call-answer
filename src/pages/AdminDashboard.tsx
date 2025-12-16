@@ -20,7 +20,8 @@ import { AdminAnalyticsDashboard } from "@/components/admin/AdminAnalyticsDashbo
 import { ManageUsersTab } from "@/components/admin/ManageUsersTab";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
 import { BusinessNotificationServicesDialog } from "@/components/admin/BusinessNotificationServicesDialog";
-import { LayoutDashboard, Settings2, Bell } from "lucide-react";
+import { ServiceRequestsTab } from "@/components/admin/ServiceRequestsTab";
+import { LayoutDashboard, Settings2, Bell, Inbox } from "lucide-react";
 
 // Super admin emails that cannot be deactivated
 const PROTECTED_ADMIN_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
@@ -97,7 +98,7 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests">("analytics");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
     can_manage_business_numbers: false,
@@ -633,6 +634,13 @@ const AdminDashboard = () => {
               )}
             </Button>
           )}
+          <Button
+            variant={activeTab === "requests" ? "default" : "outline"}
+            onClick={() => setActiveTab("requests")}
+          >
+            <Inbox className="w-4 h-4 mr-2" />
+            Requests
+          </Button>
         </div>
 
         {activeTab === "analytics" && (
@@ -788,6 +796,10 @@ const AdminDashboard = () => {
             setSelectedAdmin={setSelectedAdmin}
             actionLoading={actionLoading}
           />
+        )}
+
+        {activeTab === "requests" && (
+          <ServiceRequestsTab />
         )}
       </div>
 
