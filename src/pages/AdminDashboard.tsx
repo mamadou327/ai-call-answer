@@ -19,7 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AdminAnalyticsDashboard } from "@/components/admin/AdminAnalyticsDashboard";
 import { ManageUsersTab } from "@/components/admin/ManageUsersTab";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
-import { LayoutDashboard, Settings2 } from "lucide-react";
+import { BusinessNotificationServicesDialog } from "@/components/admin/BusinessNotificationServicesDialog";
+import { LayoutDashboard, Settings2, Bell } from "lucide-react";
 
 // Super admin emails that cannot be deactivated
 const PROTECTED_ADMIN_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
@@ -43,6 +44,13 @@ interface Business {
   twilio_webhook_token: string | null;
   twilio_phone_number: string | null;
   twilio_enabled: boolean | null;
+  // Notification fields
+  email_on_confirmation: boolean;
+  email_on_cancellation: boolean;
+  email_on_reminder: boolean;
+  sms_on_confirmation: boolean;
+  sms_on_cancellation: boolean;
+  sms_on_reminder: boolean;
 }
 
 interface Profile {
@@ -109,6 +117,9 @@ const AdminDashboard = () => {
   const [twilioEnabled, setTwilioEnabled] = useState(false);
   const [twilioWebhookToken, setTwilioWebhookToken] = useState<string | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
+  
+  // Notification services dialog state
+  const [notificationServicesBusiness, setNotificationServicesBusiness] = useState<Business | null>(null);
   
   // Supabase project ID for webhook URL
   const SUPABASE_PROJECT_ID = "zyqzypyncugihrawhppg";
@@ -708,7 +719,7 @@ const AdminDashboard = () => {
                       <TableHead>Owner</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Aivia Number</TableHead>
-                      <TableHead>Staff Count</TableHead>
+                      <TableHead>Notifications</TableHead>
                       <TableHead>Approved</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
@@ -716,6 +727,8 @@ const AdminDashboard = () => {
                   <TableBody>
                     {approvedBusinesses.map((business) => {
                       const profile = profiles[business.owner_id];
+                      const hasSmsEnabled = business.twilio_enabled && (business.sms_on_confirmation || business.sms_on_cancellation || business.sms_on_reminder);
+                      const hasEmailEnabled = business.email_on_confirmation || business.email_on_cancellation || business.email_on_reminder;
                       return (
                         <TableRow key={business.id}>
                           <TableCell className="font-medium">{business.business_name}</TableCell>
@@ -724,17 +737,39 @@ const AdminDashboard = () => {
                           </TableCell>
                           <TableCell>{business.main_phone}</TableCell>
                           <TableCell>{business.assigned_aivia_number || "—"}</TableCell>
-                          <TableCell>{business.staff_count}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              {hasSmsEnabled && (
+                                <Badge variant="secondary" className="text-xs">SMS</Badge>
+                              )}
+                              {hasEmailEnabled && (
+                                <Badge variant="secondary" className="text-xs">Email</Badge>
+                              )}
+                              {!hasSmsEnabled && !hasEmailEnabled && (
+                                <span className="text-muted-foreground text-xs">Off</span>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>{new Date(business.created_at).toLocaleDateString()}</TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openBusinessDialog(business)}
-                            >
-                              <Eye className="w-4 h-4 mr-1" />
-                              View
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setNotificationServicesBusiness(business)}
+                                title="Notification Services"
+                              >
+                                <Bell className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openBusinessDialog(business)}
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -1306,6 +1341,14 @@ const AdminDashboard = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Notification Services Dialog */}
+      <BusinessNotificationServicesDialog
+        business={notificationServicesBusiness}
+        open={!!notificationServicesBusiness}
+        onOpenChange={(open) => !open && setNotificationServicesBusiness(null)}
+        onUpdate={loadBusinesses}
+      />
 
       {/* Admin AI Assistant Chat */}
       {currentUserId && (

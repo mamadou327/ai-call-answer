@@ -1,11 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Mail, CheckCircle } from "lucide-react";
-import { useState, useEffect } from "react";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { Mail, CheckCircle, XCircle, Lock } from "lucide-react";
 
 interface EmailNotificationSettingsProps {
   business: {
@@ -17,62 +13,10 @@ interface EmailNotificationSettingsProps {
   onUpdate?: () => void;
 }
 
-export const EmailNotificationSettings = ({ business, onUpdate }: EmailNotificationSettingsProps) => {
-  const { toast } = useToast();
-  const [emailOnConfirmation, setEmailOnConfirmation] = useState(false);
-  const [emailOnCancellation, setEmailOnCancellation] = useState(false);
-  const [emailOnReminder, setEmailOnReminder] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (business) {
-      setEmailOnConfirmation(business.email_on_confirmation ?? false);
-      setEmailOnCancellation(business.email_on_cancellation ?? false);
-      setEmailOnReminder(business.email_on_reminder ?? false);
-    }
-  }, [business]);
-
-  const handleToggleChange = async (
-    field: 'email_on_confirmation' | 'email_on_cancellation' | 'email_on_reminder',
-    value: boolean
-  ) => {
-    if (!business?.id) return;
-
-    // Update local state immediately
-    if (field === 'email_on_confirmation') setEmailOnConfirmation(value);
-    if (field === 'email_on_cancellation') setEmailOnCancellation(value);
-    if (field === 'email_on_reminder') setEmailOnReminder(value);
-
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from('businesses')
-        .update({ [field]: value })
-        .eq('id', business.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Saved",
-        description: "Email notification settings updated",
-      });
-      onUpdate?.();
-    } catch (error: any) {
-      console.error('Error updating email settings:', error);
-      // Revert on error
-      if (field === 'email_on_confirmation') setEmailOnConfirmation(!value);
-      if (field === 'email_on_cancellation') setEmailOnCancellation(!value);
-      if (field === 'email_on_reminder') setEmailOnReminder(!value);
-      toast({
-        title: "Error",
-        description: "Failed to update email settings",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
+export const EmailNotificationSettings = ({ business }: EmailNotificationSettingsProps) => {
+  const emailOnConfirmation = business?.email_on_confirmation ?? false;
+  const emailOnCancellation = business?.email_on_cancellation ?? false;
+  const emailOnReminder = business?.email_on_reminder ?? false;
   const isAnyEnabled = emailOnConfirmation || emailOnCancellation || emailOnReminder;
 
   return (
@@ -82,8 +26,9 @@ export const EmailNotificationSettings = ({ business, onUpdate }: EmailNotificat
           <Mail className="w-5 h-5" />
           Email Notifications
         </CardTitle>
-        <CardDescription>
-          Send automated emails to customers for booking updates
+        <CardDescription className="flex items-center gap-2">
+          <Lock className="w-3 h-3" />
+          Managed by Aivia admin
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -94,75 +39,53 @@ export const EmailNotificationSettings = ({ business, onUpdate }: EmailNotificat
           </Badge>
         </div>
 
-        <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
-          <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
-          <div className="text-sm">
-            <p className="font-medium">Email service configured</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Emails will be sent from your business name. Customers need an email address on file to receive notifications.
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-4 pt-2">
-          <h4 className="text-sm font-medium">Email Notification Types</h4>
-          <p className="text-xs text-muted-foreground">
-            Choose when to automatically send emails to customers
-          </p>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="email-confirmation" className="text-sm">
-                  Booking Confirmation
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Send email when a booking is confirmed
-                </p>
-              </div>
-              <Switch
-                id="email-confirmation"
-                checked={emailOnConfirmation}
-                onCheckedChange={(checked) => handleToggleChange('email_on_confirmation', checked)}
-                disabled={saving}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="email-cancellation" className="text-sm">
-                  Booking Cancellation
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Send email when a booking is cancelled
-                </p>
-              </div>
-              <Switch
-                id="email-cancellation"
-                checked={emailOnCancellation}
-                onCheckedChange={(checked) => handleToggleChange('email_on_cancellation', checked)}
-                disabled={saving}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="email-reminder" className="text-sm">
-                  Booking Reminder
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Send email reminder before appointments
-                </p>
-              </div>
-              <Switch
-                id="email-reminder"
-                checked={emailOnReminder}
-                onCheckedChange={(checked) => handleToggleChange('email_on_reminder', checked)}
-                disabled={saving}
-              />
+        {isAnyEnabled ? (
+          <div className="flex items-start gap-3 p-4 bg-green-500/10 rounded-lg">
+            <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium text-green-700 dark:text-green-400">Email notifications enabled</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Your customers will receive email notifications for booking updates.
+              </p>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
+            <XCircle className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium">Email notifications not enabled</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Contact Aivia support to enable email notifications for your business.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isAnyEnabled && (
+          <div className="space-y-4 pt-2">
+            <h4 className="text-sm font-medium">Active Notifications</h4>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Booking Confirmation</span>
+                <Badge variant={emailOnConfirmation ? "default" : "outline"} className="text-xs">
+                  {emailOnConfirmation ? "Enabled" : "Disabled"}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Booking Cancellation</span>
+                <Badge variant={emailOnCancellation ? "default" : "outline"} className="text-xs">
+                  {emailOnCancellation ? "Enabled" : "Disabled"}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Booking Reminder</span>
+                <Badge variant={emailOnReminder ? "default" : "outline"} className="text-xs">
+                  {emailOnReminder ? "Enabled" : "Disabled"}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
