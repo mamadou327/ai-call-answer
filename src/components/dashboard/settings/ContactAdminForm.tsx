@@ -73,16 +73,33 @@ export function ContactAdminForm({ businessId }: ContactAdminFormProps) {
     try {
       const fullMessage = `**Subject:** ${subject.trim()}\n\n${message.trim()}`;
       
-      const { error } = await supabase
+      const { data: newRequest, error } = await supabase
         .from("service_requests")
         .insert({
           business_id: businessId,
           request_type: "support",
           message: fullMessage,
           status: "pending"
-        });
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
+
+      // Send email notification to admins
+      if (newRequest?.id) {
+        try {
+          await supabase.functions.invoke("send-support-notification", {
+            body: {
+              service_request_id: newRequest.id,
+              sender_type: "business",
+              message: message.trim(),
+            },
+          });
+        } catch (emailError) {
+          console.error("Failed to send email notification:", emailError);
+        }
+      }
 
       toast.success("Message sent to admin successfully!");
       setSubject("");
