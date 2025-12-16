@@ -16,7 +16,8 @@ import {
   CheckCircle, 
   XCircle, 
   Building2,
-  Eye
+  Eye,
+  HelpCircle
 } from "lucide-react";
 
 interface ServiceRequest {
@@ -122,6 +123,8 @@ export const ServiceRequestsTab = () => {
         return <MessageSquare className="w-4 h-4 text-blue-500" />;
       case "email":
         return <Mail className="w-4 h-4 text-purple-500" />;
+      case "support":
+        return <HelpCircle className="w-4 h-4 text-orange-500" />;
       default:
         return null;
     }
@@ -133,6 +136,8 @@ export const ServiceRequestsTab = () => {
         return "SMS Notifications";
       case "email":
         return "Email Notifications";
+      case "support":
+        return "Support Message";
       default:
         return type;
     }

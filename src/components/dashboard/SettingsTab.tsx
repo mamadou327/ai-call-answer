@@ -12,7 +12,8 @@ import { AISettingsTab } from "./settings/AISettingsTab";
 import { PoliciesTab } from "./settings/PoliciesTab";
 import { EmailNotificationSettings } from "./settings/EmailNotificationSettings";
 import { TwilioSettings } from "./settings/TwilioSettings";
-import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell } from "lucide-react";
+import { ContactAdminForm } from "./settings/ContactAdminForm";
+import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, HelpCircle } from "lucide-react";
 
 interface SettingsTabProps {
   businessId: string;
@@ -78,6 +79,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
           <Bell className="w-4 h-4" />
           <span className="hidden sm:inline">Notifications</span>
         </TabsTrigger>
+        <TabsTrigger value="support" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <HelpCircle className="w-4 h-4" />
+          <span className="hidden sm:inline">Support</span>
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="business">
@@ -121,6 +126,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
       <TabsContent value="notifications" className="space-y-6">
         <TwilioSettings business={business} onUpdate={onUpdate} />
         <EmailNotificationSettings business={business} onUpdate={onUpdate} />
+      </TabsContent>
+
+      <TabsContent value="support">
+        <ContactAdminForm businessId={businessId} />
       </TabsContent>
     </Tabs>
   );
