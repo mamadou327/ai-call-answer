@@ -21,7 +21,8 @@ import { ManageUsersTab } from "@/components/admin/ManageUsersTab";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
 import { BusinessNotificationServicesDialog } from "@/components/admin/BusinessNotificationServicesDialog";
 import { ServiceRequestsTab } from "@/components/admin/ServiceRequestsTab";
-import { LayoutDashboard, Settings2, Bell, Inbox } from "lucide-react";
+import { AdminMessagesTab } from "@/components/admin/AdminMessagesTab";
+import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare } from "lucide-react";
 
 // Super admin emails that cannot be deactivated
 const PROTECTED_ADMIN_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
@@ -98,7 +99,7 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "messages">("analytics");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
     can_manage_business_numbers: false,
@@ -641,6 +642,13 @@ const AdminDashboard = () => {
             <Inbox className="w-4 h-4 mr-2" />
             Requests
           </Button>
+          <Button
+            variant={activeTab === "messages" ? "default" : "outline"}
+            onClick={() => setActiveTab("messages")}
+          >
+            <MessageSquare className="w-4 h-4 mr-2" />
+            Messages
+          </Button>
         </div>
 
         {activeTab === "analytics" && (
@@ -800,6 +808,10 @@ const AdminDashboard = () => {
 
         {activeTab === "requests" && (
           <ServiceRequestsTab />
+        )}
+
+        {activeTab === "messages" && (
+          <AdminMessagesTab />
         )}
       </div>
 
