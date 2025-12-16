@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
+import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -861,15 +862,64 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
       .select("email_on_confirmation")
       .eq("id", session.businessId)
       .single();
-    
+
     const shouldAskForEmail = businessData?.email_on_confirmation === true && !params.customer_email;
-    
+
     // Format confirmation
     const dateStr = startTime.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
     const timeStr = formatTime(startTime);
-    
-    return { 
-      success: true, 
+
+    // Send internal booking notification (business notification email + staff email)
+    if (businessData?.email_on_confirmation === true) {
+      try {
+        const resendApiKey = Deno.env.get("RESEND_API_KEY");
+        if (resendApiKey) {
+          const resend = new Resend(resendApiKey);
+          const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
+
+          const [{ data: settingsRow }, { data: staffRow }] = await Promise.all([
+            supabase
+              .from("business_settings")
+              .select("notification_email")
+              .eq("business_id", session.businessId)
+              .maybeSingle(),
+            supabase.from("staff").select("email").eq("id", staff.id).maybeSingle(),
+          ]);
+
+          const recipients = Array.from(
+            new Set(
+              [settingsRow?.notification_email, staffRow?.email]
+                .map((e) => (e || "").trim())
+                .filter(Boolean)
+            )
+          );
+
+          if (recipients.length > 0) {
+            await resend.emails.send({
+              from: `${session.businessName} <${fromEmail}>`,
+              to: recipients,
+              subject: `📅 New booking confirmed - ${session.businessName}`,
+              html: `
+                <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; line-height:1.6; color:#111827;">
+                  <h2 style="margin:0 0 12px;">New booking confirmed</h2>
+                  <p style="margin:0 0 8px;"><strong>Customer:</strong> ${escapeXml(params.customer_name)} (${escapeXml(params.customer_phone)})</p>
+                  <p style="margin:0 0 8px;"><strong>Service:</strong> ${escapeXml(service.name)} (${service.duration_minutes} mins)</p>
+                  <p style="margin:0 0 8px;"><strong>Staff:</strong> ${escapeXml(staff.name)}</p>
+                  <p style="margin:0 0 8px;"><strong>When:</strong> ${escapeXml(dateStr)} at ${escapeXml(timeStr)}</p>
+                  <p style="margin:0;"><strong>Booking code:</strong> ${escapeXml(codeData || "")}</p>
+                </div>
+              `,
+            });
+            console.log("[MediaStream] Internal booking email sent to:", recipients.join(", "));
+          }
+        }
+      } catch (emailErr) {
+        console.warn("[MediaStream] Internal booking email failed:", emailErr);
+      }
+    }
+
+    return {
+      success: true,
       message: `Done! You're booked with ${staff.name} on ${dateStr} at ${timeStr}. Your reference code is ${codeData}.`,
       booking_code: codeData,
       booking_id: booking.id,
@@ -1781,8 +1831,10 @@ async function buildFullSystemPrompt(
 
 ## POLICY ACCURACY (MUST FOLLOW):
 - NEVER guess policy numbers.
-- Use the exact numeric policy values in the POLICIES section below.
-- If the caller asks about cancellation rules, you MUST mention the minimum cancellation notice (${minCancelNotice} hours) explicitly.
+- These are the ONLY correct numeric values:
+  - Booking notice: ${minNotice} hours
+  - Cancellation notice: ${minCancelNotice} hours (DO NOT CONFUSE WITH BOOKING NOTICE)
+- If asked about cancellations, ALWAYS say: "Minimum cancellation notice is ${minCancelNotice} hours."
 
 ## CONVERSATION RULES:
 - Keep responses SHORT: 1-2 sentences max. Sound human, not robotic.

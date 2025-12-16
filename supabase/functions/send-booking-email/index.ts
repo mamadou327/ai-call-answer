@@ -73,7 +73,7 @@ serve(async (req: Request): Promise<Response> => {
       .select(`
         *,
         services:service_id (name, duration_minutes, price),
-        staff:staff_id (name)
+        staff:staff_id (name, email)
       `)
       .eq("id", bookingId)
       .single();
@@ -86,30 +86,38 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get customer email from customers table
+    // Get customer email from customers table (optional)
     const { data: customer } = await supabase
       .from("customers")
       .select("email")
       .eq("business_id", businessId)
       .eq("phone", booking.customer_phone)
+      .maybeSingle();
+
+    const customerEmail = (customer?.email || "").trim() || null;
+
+    // Fetch business settings for currency + notification email
+    const { data: settings } = await supabase
+      .from("business_settings")
+      .select("currency, notification_email")
+      .eq("business_id", businessId)
       .single();
 
-    const customerEmail = customer?.email;
+    const notificationEmail = (settings?.notification_email || "").trim() || null;
+    const staffEmail = (booking.staff?.email || "").trim() || null;
 
-    if (!customerEmail) {
-      console.log(`[send-booking-email] No customer email for booking ${bookingId}`);
+    const customerRecipients = customerEmail ? [customerEmail] : [];
+    const internalRecipients = Array.from(
+      new Set([notificationEmail, staffEmail].filter(Boolean))
+    ) as string[];
+
+    if (customerRecipients.length === 0 && internalRecipients.length === 0) {
+      console.log(`[send-booking-email] No recipients for booking ${bookingId}`);
       return new Response(
-        JSON.stringify({ success: false, reason: "No customer email" }),
+        JSON.stringify({ success: false, reason: "No recipients" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    // Fetch business settings for currency
-    const { data: settings } = await supabase
-      .from("business_settings")
-      .select("currency")
-      .eq("business_id", businessId)
-      .single();
 
     const currency = settings?.currency || "GBP";
     const currencySymbol = currency === "GBP" ? "£" : currency === "EUR" ? "€" : "$";
@@ -305,35 +313,74 @@ serve(async (req: Request): Promise<Response> => {
       `;
     }
 
-    // Send email via Resend
-    console.log(`[send-booking-email] Sending ${type} email to ${customerEmail}`);
+    const results: any = { success: true, type, recipients: { customer: customerRecipients, internal: internalRecipients } };
 
-    const { data: emailData, error: emailError } = await resend.emails.send({
-      from: `${business.business_name} <${resendFromEmail}>`,
-      to: [customerEmail],
-      subject,
-      html,
-    });
+    // 1) Customer email (if we have it)
+    if (customerRecipients.length > 0) {
+      console.log(`[send-booking-email] Sending ${type} CUSTOMER email to ${customerRecipients.join(", ")}`);
 
-    if (emailError) {
-      console.error("[send-booking-email] Resend API error:", emailError);
-      return new Response(
-        JSON.stringify({ error: "Failed to send email", details: emailError }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      const { data: emailData, error: emailError } = await resend.emails.send({
+        from: `${business.business_name} <${resendFromEmail}>`,
+        to: customerRecipients,
+        subject,
+        html,
+      });
+
+      if (emailError) {
+        console.error("[send-booking-email] Resend API error (customer):", emailError);
+        results.customer_error = emailError;
+      } else {
+        results.customer_email_id = emailData?.id;
+      }
     }
 
-    console.log(`[send-booking-email] Email sent successfully:`, emailData?.id);
+    // 2) Internal notification email (business + staff)
+    if (internalRecipients.length > 0) {
+      const internalSubject = `📩 Booking ${type} - ${business.business_name}`;
+      const internalHtml = `
+        ${baseStyles}
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0; font-size: 22px;">Booking ${type}</h1>
+            <p style="margin: 10px 0 0; opacity: 0.9;">Internal notification</p>
+          </div>
+          <div class="content">
+            <div class="details">
+              <div class="detail-row"><span class="detail-label">Customer</span><span class="detail-value">${booking.customer_name} (${booking.customer_phone || ""})</span></div>
+              <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${dateStr}</span></div>
+              <div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">${timeStr}</span></div>
+              <div class="detail-row"><span class="detail-label">Service</span><span class="detail-value">${serviceName} (${duration} mins)</span></div>
+              <div class="detail-row"><span class="detail-label">Staff</span><span class="detail-value">${staffName}</span></div>
+              <div class="detail-row"><span class="detail-label">Ref</span><span class="detail-value">${bookingCode}</span></div>
+            </div>
+          </div>
+          <div class="footer">
+            <p><strong>${business.business_name}</strong></p>
+          </div>
+        </div>
+      `;
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        emailId: emailData?.id,
-        type,
-        recipient: customerEmail 
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+      console.log(`[send-booking-email] Sending ${type} INTERNAL email to ${internalRecipients.join(", ")}`);
+
+      const { data: internalData, error: internalError } = await resend.emails.send({
+        from: `${business.business_name} <${resendFromEmail}>`,
+        to: internalRecipients,
+        subject: internalSubject,
+        html: internalHtml,
+      });
+
+      if (internalError) {
+        console.error("[send-booking-email] Resend API error (internal):", internalError);
+        results.internal_error = internalError;
+      } else {
+        results.internal_email_id = internalData?.id;
+      }
+    }
+
+    return new Response(JSON.stringify(results), {
+      status: 200,
+      headers: { status: 200 as any, "Content-Type": "application/json", ...corsHeaders } as any,
+    });
 
   } catch (error: any) {
     console.error("[send-booking-email] Error:", error);
