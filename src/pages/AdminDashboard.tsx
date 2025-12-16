@@ -22,7 +22,7 @@ import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
 import { BusinessNotificationServicesDialog } from "@/components/admin/BusinessNotificationServicesDialog";
 import { ServiceRequestsTab } from "@/components/admin/ServiceRequestsTab";
 import { AdminMessagesTab } from "@/components/admin/AdminMessagesTab";
-import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare, Mail } from "lucide-react";
 
 // Super admin emails that cannot be deactivated
 const PROTECTED_ADMIN_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
@@ -85,7 +85,7 @@ const AdminDashboard = () => {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
-  const [dialogStep, setDialogStep] = useState<1 | 2 | 3>(1);
+  const [dialogStep, setDialogStep] = useState<1 | 2 | 3 | 4>(1);
   const [pendingAdmins, setPendingAdmins] = useState<PendingAdmin[]>([]);
   const [selectedAdmin, setSelectedAdmin] = useState<PendingAdmin | null>(null);
   const [adminPermissions, setAdminPermissions] = useState<AdminPermissions>({
@@ -119,6 +119,15 @@ const AdminDashboard = () => {
   const [twilioEnabled, setTwilioEnabled] = useState(false);
   const [twilioWebhookToken, setTwilioWebhookToken] = useState<string | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
+  
+  // Notification services state
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [smsOnConfirmation, setSmsOnConfirmation] = useState(false);
+  const [smsOnCancellation, setSmsOnCancellation] = useState(false);
+  const [smsOnReminder, setSmsOnReminder] = useState(false);
+  const [emailOnConfirmation, setEmailOnConfirmation] = useState(false);
+  const [emailOnCancellation, setEmailOnCancellation] = useState(false);
+  const [emailOnReminder, setEmailOnReminder] = useState(false);
   
   // Notification services dialog state
   const [notificationServicesBusiness, setNotificationServicesBusiness] = useState<Business | null>(null);
@@ -451,6 +460,14 @@ const AdminDashboard = () => {
       if (twilioEnabled && twilioWebhookToken) {
         updateData.twilio_webhook_token = twilioWebhookToken;
       }
+      
+      // Notification service fields
+      updateData.sms_on_confirmation = smsOnConfirmation;
+      updateData.sms_on_cancellation = smsOnCancellation;
+      updateData.sms_on_reminder = smsOnReminder;
+      updateData.email_on_confirmation = emailOnConfirmation;
+      updateData.email_on_cancellation = emailOnCancellation;
+      updateData.email_on_reminder = emailOnReminder;
 
       const { error } = await supabase
         .from("businesses")
@@ -474,6 +491,14 @@ const AdminDashboard = () => {
       setTwilioPhoneNumber("");
       setTwilioEnabled(false);
       setTwilioWebhookToken(null);
+      // Reset notification state
+      setSmsEnabled(false);
+      setSmsOnConfirmation(false);
+      setSmsOnCancellation(false);
+      setSmsOnReminder(false);
+      setEmailOnConfirmation(false);
+      setEmailOnCancellation(false);
+      setEmailOnReminder(false);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -518,6 +543,14 @@ const AdminDashboard = () => {
     setTwilioEnabled(business.twilio_enabled || false);
     setTwilioWebhookToken(business.twilio_webhook_token || null);
     setCopiedWebhook(false);
+    // Pre-fill notification values
+    setSmsEnabled(business.twilio_enabled || false);
+    setSmsOnConfirmation(business.sms_on_confirmation || false);
+    setSmsOnCancellation(business.sms_on_cancellation || false);
+    setSmsOnReminder(business.sms_on_reminder || false);
+    setEmailOnConfirmation(business.email_on_confirmation || false);
+    setEmailOnCancellation(business.email_on_cancellation || false);
+    setEmailOnReminder(business.email_on_reminder || false);
   };
 
   const closeBusinessDialog = () => {
@@ -532,6 +565,14 @@ const AdminDashboard = () => {
     setTwilioEnabled(false);
     setTwilioWebhookToken(null);
     setCopiedWebhook(false);
+    // Reset notification state
+    setSmsEnabled(false);
+    setSmsOnConfirmation(false);
+    setSmsOnCancellation(false);
+    setSmsOnReminder(false);
+    setEmailOnConfirmation(false);
+    setEmailOnCancellation(false);
+    setEmailOnReminder(false);
   };
 
   const handleTwilioToggle = async (enabled: boolean) => {
@@ -1189,6 +1230,135 @@ const AdminDashboard = () => {
                         <Button
                           variant="outline"
                           onClick={() => setDialogStep(2)}
+                        >
+                          <ChevronLeft className="w-4 h-4 mr-2" />
+                          Back
+                        </Button>
+                        <Button
+                          onClick={() => setDialogStep(4)}
+                          className="flex-1"
+                        >
+                          Next
+                          <ChevronRight className="w-4 h-4 ml-2" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Step 4: Notification Services */}
+              {dialogStep === 4 && (
+                <>
+                  {selectedBusiness.status === "approved" && userPermissions.can_approve_businesses && (
+                    <>
+                      <div className="space-y-4">
+                        <h3 className="font-semibold text-sm flex items-center gap-2">
+                          <Mail className="w-4 h-4" />
+                          Notification Services
+                        </h3>
+                        
+                        {/* SMS Notifications */}
+                        <div className="space-y-3 p-3 border rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                              <Label className="text-sm font-medium">SMS Notifications</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Enable SMS notifications for this business
+                              </p>
+                            </div>
+                            <Switch
+                              checked={smsEnabled}
+                              onCheckedChange={(checked) => {
+                                setSmsEnabled(checked);
+                                if (!checked) {
+                                  setSmsOnConfirmation(false);
+                                  setSmsOnCancellation(false);
+                                  setSmsOnReminder(false);
+                                }
+                              }}
+                            />
+                          </div>
+                          
+                          {smsEnabled && (
+                            <div className="space-y-2 pl-4 border-l-2 border-muted">
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor="sms-confirm" className="font-normal text-sm">
+                                  Booking Confirmation
+                                </Label>
+                                <Switch
+                                  id="sms-confirm"
+                                  checked={smsOnConfirmation}
+                                  onCheckedChange={setSmsOnConfirmation}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor="sms-cancel" className="font-normal text-sm">
+                                  Booking Cancellation
+                                </Label>
+                                <Switch
+                                  id="sms-cancel"
+                                  checked={smsOnCancellation}
+                                  onCheckedChange={setSmsOnCancellation}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor="sms-remind" className="font-normal text-sm">
+                                  Booking Reminder
+                                </Label>
+                                <Switch
+                                  id="sms-remind"
+                                  checked={smsOnReminder}
+                                  onCheckedChange={setSmsOnReminder}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Email Notifications */}
+                        <div className="space-y-3 p-3 border rounded-lg">
+                          <Label className="text-sm font-medium">Email Notifications</Label>
+                          
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="email-confirm" className="font-normal text-sm">
+                                Booking Confirmation
+                              </Label>
+                              <Switch
+                                id="email-confirm"
+                                checked={emailOnConfirmation}
+                                onCheckedChange={setEmailOnConfirmation}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="email-cancel" className="font-normal text-sm">
+                                Booking Cancellation
+                              </Label>
+                              <Switch
+                                id="email-cancel"
+                                checked={emailOnCancellation}
+                                onCheckedChange={setEmailOnCancellation}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="email-remind" className="font-normal text-sm">
+                                Booking Reminder
+                              </Label>
+                              <Switch
+                                id="email-remind"
+                                checked={emailOnReminder}
+                                onCheckedChange={setEmailOnReminder}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => setDialogStep(3)}
                         >
                           <ChevronLeft className="w-4 h-4 mr-2" />
                           Back
