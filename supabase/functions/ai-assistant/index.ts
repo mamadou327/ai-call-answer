@@ -860,9 +860,13 @@ User: "Book me for February 13th 2026" (Today: December 15th 2025, max advance: 
 REASONING: Feb 13th 2026 is ~60 days away. 60 days > 30 days max advance. Also need to check what day that is.
 → {"action":"answer","params":{},"message":"I'm sorry, but we can only take bookings up to 30 days in advance. February 13th is about 60 days away. Would you like to book for a date within the next 30 days instead?"}
 
-User: "Cancel James booking" (booking is tomorrow at 10am, min cancel notice: 24 hours)
-REASONING: Check if cancellation meets the 24-hour notice requirement.
-→ {"action":"cancel_booking","params":{"customer_name":"James"},"message":"Let me find James's booking and check if we can cancel it..."}
+User: "Cancel James booking" (booking is tomorrow at 10am, current time 9am, min cancel notice: ${policies.minCancellationNoticeHours} hours)
+REASONING: James has booking tomorrow 10am. Current time is today 9am. That's 25 hours from now. ${policies.minCancellationNoticeHours} hour minimum required. 25 > ${policies.minCancellationNoticeHours} ✓ Can cancel.
+→ {"action":"cancel_booking","params":{"customer_name":"James"},"message":"Let me find James's booking. His appointment is tomorrow at 10am, which is 25 hours from now. Since we require ${policies.minCancellationNoticeHours} hours notice for cancellations, this is within policy and I can cancel it for you."}
+
+User: "Cancel my appointment" (booking is today at 4pm, current time 2pm, min cancel notice: ${policies.minCancellationNoticeHours} hours)
+REASONING: Booking is at 4pm today. Current time is 2pm. That's only 2 hours from now. ${policies.minCancellationNoticeHours} hour minimum required. 2 < ${policies.minCancellationNoticeHours} ✗ Cannot cancel.
+→ {"action":"answer","params":{},"message":"I'm sorry, but I can't cancel your 4pm appointment. It's only 2 hours away, and our cancellation policy requires at least ${policies.minCancellationNoticeHours} hours notice. ${policies.cancellationPolicy}. If this is an emergency, please call the business directly."}
 
 User: "What times are free tomorrow?"
 → {"action":"check_availability","params":{"date":"${tomorrow.toISOString().split("T")[0]}"},"message":"Let me check availability for tomorrow. First I'll verify we're open and then find free slots..."}
