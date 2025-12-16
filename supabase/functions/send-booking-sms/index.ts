@@ -21,10 +21,11 @@ serve(async (req: Request): Promise<Response> => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const messagebirdApiKey = Deno.env.get("MESSAGEBIRD_API_KEY");
+    const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
 
-    if (!messagebirdApiKey) {
-      console.error("MESSAGEBIRD_API_KEY not configured");
+    if (!twilioAccountSid || !twilioAuthToken) {
+      console.error("Twilio credentials not configured");
       return new Response(
         JSON.stringify({ error: "SMS service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -65,10 +66,10 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    if (!business.messagebird_enabled || !business.messagebird_phone_number) {
-      console.log(`[send-booking-sms] MessageBird not configured for business ${businessId}`);
+    if (!business.twilio_enabled || !business.twilio_phone_number) {
+      console.log(`[send-booking-sms] Twilio not configured for business ${businessId}`);
       return new Response(
-        JSON.stringify({ success: false, reason: "MessageBird not configured" }),
+        JSON.stringify({ success: false, reason: "Twilio not configured" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -191,38 +192,42 @@ See you soon!
 ${business.business_name}`;
     }
 
-    // Send SMS via MessageBird
-    console.log(`[send-booking-sms] Sending ${type} SMS to ${booking.customer_phone}`);
+    // Send SMS via Twilio
+    console.log(`[send-booking-sms] Sending ${type} SMS to ${booking.customer_phone} via Twilio`);
 
-    const messagebirdResponse = await fetch("https://rest.messagebird.com/messages", {
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
+    const authHeader = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+
+    const formData = new URLSearchParams();
+    formData.append("To", booking.customer_phone.replace(/\s/g, ""));
+    formData.append("From", business.twilio_phone_number);
+    formData.append("Body", message);
+
+    const twilioResponse = await fetch(twilioUrl, {
       method: "POST",
       headers: {
-        "Authorization": `AccessKey ${messagebirdApiKey}`,
-        "Content-Type": "application/json",
+        "Authorization": `Basic ${authHeader}`,
+        "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: JSON.stringify({
-        originator: business.messagebird_phone_number,
-        recipients: [booking.customer_phone.replace(/\s/g, "")],
-        body: message,
-      }),
+      body: formData.toString(),
     });
 
-    const responseData = await messagebirdResponse.json();
+    const responseData = await twilioResponse.json();
 
-    if (!messagebirdResponse.ok) {
-      console.error("[send-booking-sms] MessageBird API error:", responseData);
+    if (!twilioResponse.ok) {
+      console.error("[send-booking-sms] Twilio API error:", responseData);
       return new Response(
         JSON.stringify({ error: "Failed to send SMS", details: responseData }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[send-booking-sms] SMS sent successfully:`, responseData.id);
+    console.log(`[send-booking-sms] SMS sent successfully via Twilio:`, responseData.sid);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        messageId: responseData.id,
+        messageId: responseData.sid,
         type,
         recipient: booking.customer_phone 
       }),
