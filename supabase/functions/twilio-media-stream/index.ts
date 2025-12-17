@@ -1161,11 +1161,11 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
       return { success: false, message: advanceCheck.message };
     }
 
-    // Get all bookings for that day
+    // Get all bookings for that day (we need all to check across staff)
     const dayStart = `${params.date}T00:00:00`;
     const dayEnd = `${params.date}T23:59:59`;
 
-    let bookingsQuery = supabase
+    const { data: existingBookings } = await supabase
       .from("bookings")
       .select("staff_id, start_time, end_time")
       .eq("business_id", session.businessId)
@@ -1173,18 +1173,25 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
       .gte("start_time", dayStart)
       .lte("start_time", dayEnd);
 
+    const allBookings = existingBookings || [];
+
     // Filter by staff if specified
-    let staffId: string | null = null;
+    let targetStaffId: string | null = null;
+    let targetStaffName: string | null = null;
     if (params.staff_name) {
       const staff = session.staff.find(s => s.name.toLowerCase().includes(params.staff_name.toLowerCase()));
       if (staff) {
-        staffId = staff.id;
-        bookingsQuery = bookingsQuery.eq("staff_id", staff.id);
+        targetStaffId = staff.id;
+        targetStaffName = staff.name;
       }
     }
 
-    const { data: existingBookings } = await bookingsQuery;
-    const bookedSlots = existingBookings || [];
+    // Get AI-enabled staff for availability checking
+    const aiEnabledStaff = session.staff.filter(s => s.ai_enabled);
+    
+    if (aiEnabledStaff.length === 0) {
+      return { success: false, message: "Sorry, there are no staff members available for booking at the moment." };
+    }
 
     // Generate available slots
     const openTime = businessHours.openTime!;
@@ -1211,21 +1218,39 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
         // Skip if slot is in the past or within min notice period
         if (slotStart < minAllowedTime) continue;
 
-        // Check if slot conflicts with existing bookings
-        const hasConflict = bookedSlots.some((b: any) => {
-          const bStart = new Date(b.start_time);
-          const bEnd = new Date(b.end_time);
-          return slotStart < bEnd && slotEnd > bStart;
-        });
+        let slotIsAvailable = false;
 
-        // Check staff time off
-        let isOnLeave = false;
-        if (staffId) {
-          const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staffId, slotStart, slotEnd);
-          isOnLeave = timeOffCheck.onLeave;
+        if (targetStaffId) {
+          // Check specific staff availability
+          const staffBookings = allBookings.filter((b: any) => b.staff_id === targetStaffId);
+          const hasConflict = staffBookings.some((b: any) => {
+            const bStart = new Date(b.start_time);
+            const bEnd = new Date(b.end_time);
+            return slotStart < bEnd && slotEnd > bStart;
+          });
+          
+          const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, targetStaffId, slotStart, slotEnd);
+          slotIsAvailable = !hasConflict && !timeOffCheck.onLeave;
+        } else {
+          // Check if ANY AI-enabled staff is available at this slot
+          for (const staff of aiEnabledStaff) {
+            const staffBookings = allBookings.filter((b: any) => b.staff_id === staff.id);
+            const hasConflict = staffBookings.some((b: any) => {
+              const bStart = new Date(b.start_time);
+              const bEnd = new Date(b.end_time);
+              return slotStart < bEnd && slotEnd > bStart;
+            });
+            
+            const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, slotStart, slotEnd);
+            
+            if (!hasConflict && !timeOffCheck.onLeave) {
+              slotIsAvailable = true;
+              break; // At least one staff is available, slot is open
+            }
+          }
         }
 
-        if (!hasConflict && !isOnLeave) {
+        if (slotIsAvailable) {
           availableSlots.push(slotTime);
         }
       }
@@ -1249,7 +1274,7 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
       let aMinDistance = Infinity;
       let bMinDistance = Infinity;
       
-      for (const booking of bookedSlots) {
+      for (const booking of allBookings) {
         const bookingStart = new Date(booking.start_time).getTime();
         const bookingEnd = new Date(booking.end_time).getTime();
         
@@ -1280,7 +1305,7 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
       return `${hour12}:${m.toString().padStart(2, "0")} ${period}`;
     });
     const moreSlots = sortedSlots.length > 8 ? ` (plus ${sortedSlots.length - 8} more)` : "";
-    const staffNote = params.staff_name ? ` with ${params.staff_name}` : "";
+    const staffNote = targetStaffName ? ` with ${targetStaffName}` : "";
     const dateStr = requestedDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
     
     console.log("[MediaStream] Found", sortedSlots.length, "available slots for", params.date, "(sorted to minimize gaps)");
@@ -1290,7 +1315,7 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
       message: `On ${dateStr}${staffNote}, I have: ${displaySlots.join(", ")}${moreSlots}. Which time works for you?`,
       available_slots: sortedSlots,
       date: params.date,
-      staff: params.staff_name || null
+      staff: targetStaffName || null
     };
   } catch (error) {
     console.error("[MediaStream] Check availability error:", error);
