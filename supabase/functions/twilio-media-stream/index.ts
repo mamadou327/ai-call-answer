@@ -921,13 +921,31 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
       }
     }
 
+    // Send SMS confirmation
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      await fetch(`${supabaseUrl}/functions/v1/send-booking-sms`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          businessId: session.businessId,
+          bookingId: booking.id,
+          type: "confirmation",
+        }),
+      });
+      console.log("[MediaStream] SMS confirmation triggered");
+    } catch (smsError) {
+      console.warn("[MediaStream] SMS confirmation failed:", smsError);
+    }
+
     return {
       success: true,
-      message: `Done! You're booked with ${staff.name} on ${dateStr} at ${timeStr}. Your reference code is ${codeData}.`,
+      message: `Done! You're booked with ${staff.name} on ${dateStr} at ${timeStr}. Your reference code is ${codeData}. You should receive your booking details by SMS shortly.`,
       booking_code: codeData,
       booking_id: booking.id,
-      ask_for_email: shouldAskForEmail,
-      email_prompt: shouldAskForEmail ? "Would you like an email confirmation?" : null,
     };
   } catch (error) {
     console.error("[MediaStream] Create booking error:", error);
@@ -1222,24 +1240,55 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
       };
     }
 
-    // Format nicely - show up to 8 slots for better options
-    const displaySlots = availableSlots.slice(0, 8).map(t => {
+    // Sort slots to prioritize those adjacent to existing bookings (minimize gaps)
+    const sortedSlots = [...availableSlots].sort((a, b) => {
+      const aTime = new Date(`${params.date}T${a}:00`).getTime();
+      const bTime = new Date(`${params.date}T${b}:00`).getTime();
+      
+      // Calculate minimum distance to any existing booking for each slot
+      let aMinDistance = Infinity;
+      let bMinDistance = Infinity;
+      
+      for (const booking of bookedSlots) {
+        const bookingStart = new Date(booking.start_time).getTime();
+        const bookingEnd = new Date(booking.end_time).getTime();
+        
+        // Distance to start or end of booking
+        const aDistToStart = Math.abs(aTime - bookingStart);
+        const aDistToEnd = Math.abs(aTime + duration * 60000 - bookingEnd);
+        const bDistToStart = Math.abs(bTime - bookingStart);
+        const bDistToEnd = Math.abs(bTime + duration * 60000 - bookingEnd);
+        
+        aMinDistance = Math.min(aMinDistance, aDistToStart, aDistToEnd);
+        bMinDistance = Math.min(bMinDistance, bDistToStart, bDistToEnd);
+      }
+      
+      // If both have equal proximity to bookings, sort by time
+      if (aMinDistance === bMinDistance) {
+        return aTime - bTime;
+      }
+      
+      // Prefer slots closer to existing bookings
+      return aMinDistance - bMinDistance;
+    });
+
+    // Format nicely - show up to 8 slots, prioritizing gap-filling slots
+    const displaySlots = sortedSlots.slice(0, 8).map(t => {
       const [h, m] = t.split(":").map(Number);
       const period = h >= 12 ? "PM" : "AM";
       const hour12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
       return `${hour12}:${m.toString().padStart(2, "0")} ${period}`;
     });
-
-    const moreSlots = availableSlots.length > 8 ? ` (plus ${availableSlots.length - 8} more)` : "";
+    const moreSlots = sortedSlots.length > 8 ? ` (plus ${sortedSlots.length - 8} more)` : "";
     const staffNote = params.staff_name ? ` with ${params.staff_name}` : "";
     const dateStr = requestedDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
     
-    console.log("[MediaStream] Found", availableSlots.length, "available slots for", params.date);
+    console.log("[MediaStream] Found", sortedSlots.length, "available slots for", params.date, "(sorted to minimize gaps)");
     
     return { 
       success: true, 
       message: `On ${dateStr}${staffNote}, I have: ${displaySlots.join(", ")}${moreSlots}. Which time works for you?`,
-      available_slots: availableSlots,
+      available_slots: sortedSlots,
       date: params.date,
       staff: params.staff_name || null
     };
@@ -1833,6 +1882,16 @@ async function buildFullSystemPrompt(
 3. **STAFF SERVICES**: ONLY book a staff member for services listed in their [CAN DO:] section. If a customer asks for a service with a staff who can't do it, tell them which staff CAN do it.
 4. **TRANSFER ONLY**: Staff marked [TRANSFER ONLY] cannot be booked - offer to transfer instead.
 
+## SERVICE CLARIFICATION (CRITICAL):
+- NEVER assume which service type the customer wants (e.g., Kids Haircut vs Adult Haircut vs Women Haircut).
+- ALWAYS ask "Is that for an adult, a child, or a woman?" BEFORE booking if there are multiple similar services.
+- Use the EXACT service name when booking (e.g., "Kids Haircut" not just "haircut").
+
+## PHONE NUMBER HANDLING:
+- Use the caller's phone number (the number they're calling from) by default for the booking.
+- Only ask for a different phone number if the customer specifically says they want to use a different number.
+- When confirming the booking, mention they will receive booking details by SMS.
+
 ## POLICY ACCURACY (MUST FOLLOW):
 - NEVER guess policy numbers.
 - These are the ONLY correct numeric values:
@@ -1846,12 +1905,14 @@ async function buildFullSystemPrompt(
 - After booking is confirmed, ask "Is there anything else?" and WAIT for response.
 - Silence/pauses are NOT a reason to end - wait patiently.
 - If unsure about availability, ALWAYS use check_availability tool - don't make assumptions.
+- Do NOT ask for email - we send confirmations by SMS only.
 
 ## WHEN CUSTOMER ASKS FOR A TIME:
 1. First, call check_availability for that date (and staff if specified)
 2. Look at the returned available_slots list
 3. Only confirm times that appear in that list
 4. If their requested time is NOT in the list, suggest alternatives from the list
+5. PREFER times that minimize gaps - suggest times right before or after existing bookings when possible.
 
 ${greetingInstruction}
 
@@ -1859,6 +1920,7 @@ ${greetingInstruction}
 - Today: ${currentDay}, ${currentTime}
 - Business Status: ${todayStatus}
 - ${callerContext}
+- Caller Phone: ${callerPhone} (use this for booking unless they request otherwise)
 
 ## STAFF (check [CAN DO:] before booking):
 ${staffList}
@@ -1875,7 +1937,7 @@ ${servicesList}
 - Minimum cancellation notice: ${minCancelNotice} hours
 ${cancellationPolicyText ? `- Cancellation/refund policy text: ${cancellationPolicyText}` : "- Cancellation/refund policy text: Not provided"}
 
-${dataCollectionRules}${faqContext}`;
+BOOKING DATA: Collect name only. Use caller's phone number by default.${faqContext}`;
 
   return {
     prompt,
