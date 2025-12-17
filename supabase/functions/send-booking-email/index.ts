@@ -143,175 +143,169 @@ serve(async (req: Request): Promise<Response> => {
 
     // Build email content based on type
     let subject = "";
-    let html = "";
-
-    const baseStyles = `
-      <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; }
-        .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
-        .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
-        .detail-row { display: flex; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
-        .detail-label { color: #6b7280; width: 120px; }
-        .detail-value { color: #111827; font-weight: 500; }
-        .footer { background: #f3f4f6; padding: 20px; border-radius: 0 0 12px 12px; text-align: center; font-size: 14px; color: #6b7280; }
-        .booking-code { background: #eef2ff; color: #4f46e5; padding: 8px 16px; border-radius: 6px; font-family: monospace; font-size: 16px; }
-        .cta { display: inline-block; background: #4f46e5; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin-top: 20px; }
-      </style>
-    `;
+    let headerBg = "";
+    let headerTitle = "";
+    let headerSubtitle = "";
+    let mainMessage = "";
+    let noteBox = "";
 
     if (type === "confirmation") {
-      subject = `✅ Booking Confirmed - ${business.business_name}`;
-      html = `
-        ${baseStyles}
-        <div class="container">
-          <div class="header">
-            <h1 style="margin: 0; font-size: 24px;">Booking Confirmed!</h1>
-            <p style="margin: 10px 0 0; opacity: 0.9;">Your appointment is all set</p>
-          </div>
-          <div class="content">
-            <p>Hi ${booking.customer_name},</p>
-            <p>Great news! Your appointment at <strong>${business.business_name}</strong> has been confirmed.</p>
-            
-            <div class="details">
-              <div class="detail-row">
-                <span class="detail-label">📅 Date</span>
-                <span class="detail-value">${dateStr}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">⏰ Time</span>
-                <span class="detail-value">${timeStr}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">💇 Service</span>
-                <span class="detail-value">${serviceName} (${duration} mins)</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">💰 Price</span>
-                <span class="detail-value">${currencySymbol}${price}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">👤 With</span>
-                <span class="detail-value">${staffName}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">📍 Location</span>
-                <span class="detail-value">${business.address}</span>
-              </div>
-            </div>
-            
-            <p style="text-align: center;">
-              <span class="detail-label">Booking Reference:</span><br>
-              <span class="booking-code">${bookingCode}</span>
-            </p>
-            
-            <p style="font-size: 14px; color: #6b7280;">
-              Need to cancel or reschedule? Please call us on <strong>${business.main_phone}</strong>
-            </p>
-          </div>
-          <div class="footer">
-            <p>See you soon! 👋</p>
-            <p><strong>${business.business_name}</strong></p>
-          </div>
-        </div>
-      `;
+      subject = `Booking Confirmed - ${business.business_name}`;
+      headerBg = "linear-gradient(135deg, #10b981 0%, #059669 100%)";
+      headerTitle = "✓ Booking Confirmed";
+      headerSubtitle = "Your appointment is all set";
+      mainMessage = `Great news! Your appointment at <strong>${business.business_name}</strong> has been confirmed.`;
+      noteBox = `<table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981; margin-top: 24px;">
+        <tr><td style="padding: 14px 16px;">
+          <p style="margin: 0; color: #166534; font-size: 13px; line-height: 1.5;">
+            📞 Need to cancel or reschedule? Call us at <strong>${business.main_phone}</strong>
+          </p>
+        </td></tr>
+      </table>`;
     } else if (type === "cancellation") {
-      subject = `❌ Booking Cancelled - ${business.business_name}`;
-      html = `
-        ${baseStyles}
-        <div class="container">
-          <div class="header" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
-            <h1 style="margin: 0; font-size: 24px;">Booking Cancelled</h1>
-            <p style="margin: 10px 0 0; opacity: 0.9;">Your appointment has been cancelled</p>
-          </div>
-          <div class="content">
-            <p>Hi ${booking.customer_name},</p>
-            <p>Your appointment at <strong>${business.business_name}</strong> has been cancelled.</p>
-            
-            <div class="details">
-              <div class="detail-row">
-                <span class="detail-label">📅 Date</span>
-                <span class="detail-value">${dateStr}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">⏰ Time</span>
-                <span class="detail-value">${timeStr}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">💇 Service</span>
-                <span class="detail-value">${serviceName}</span>
-              </div>
-            </div>
-            
-            <p style="text-align: center;">
-              <span class="detail-label">Booking Reference:</span><br>
-              <span class="booking-code">${bookingCode}</span>
-            </p>
-            
-            <p>We'd love to see you again! To rebook, please call us on <strong>${business.main_phone}</strong>.</p>
-          </div>
-          <div class="footer">
-            <p><strong>${business.business_name}</strong></p>
-          </div>
-        </div>
-      `;
+      subject = `Booking Cancelled - ${business.business_name}`;
+      headerBg = "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)";
+      headerTitle = "✕ Booking Cancelled";
+      headerSubtitle = "Your appointment has been cancelled";
+      mainMessage = `Your appointment at <strong>${business.business_name}</strong> has been cancelled.`;
+      noteBox = `<table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fef2f2; border-radius: 8px; border-left: 4px solid #ef4444; margin-top: 24px;">
+        <tr><td style="padding: 14px 16px;">
+          <p style="margin: 0; color: #991b1b; font-size: 13px; line-height: 1.5;">
+            💬 We'd love to see you again! Call <strong>${business.main_phone}</strong> to rebook.
+          </p>
+        </td></tr>
+      </table>`;
     } else if (type === "reminder") {
-      subject = `⏰ Appointment Reminder - ${business.business_name}`;
-      html = `
-        ${baseStyles}
-        <div class="container">
-          <div class="header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-            <h1 style="margin: 0; font-size: 24px;">Appointment Reminder</h1>
-            <p style="margin: 10px 0 0; opacity: 0.9;">Don't forget your upcoming appointment!</p>
-          </div>
-          <div class="content">
-            <p>Hi ${booking.customer_name},</p>
-            <p>Just a friendly reminder about your upcoming appointment at <strong>${business.business_name}</strong>!</p>
-            
-            <div class="details">
-              <div class="detail-row">
-                <span class="detail-label">📅 Date</span>
-                <span class="detail-value">${dateStr}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">⏰ Time</span>
-                <span class="detail-value">${timeStr}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">💇 Service</span>
-                <span class="detail-value">${serviceName} (${duration} mins)</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">💰 Price</span>
-                <span class="detail-value">${currencySymbol}${price}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">👤 With</span>
-                <span class="detail-value">${staffName}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">📍 Location</span>
-                <span class="detail-value">${business.address}</span>
-              </div>
-            </div>
-            
-            <p style="text-align: center;">
-              <span class="detail-label">Booking Reference:</span><br>
-              <span class="booking-code">${bookingCode}</span>
-            </p>
-            
-            <p style="font-size: 14px; color: #6b7280;">
-              If you need to cancel or reschedule, please call us on <strong>${business.main_phone}</strong>
-            </p>
-          </div>
-          <div class="footer">
-            <p>See you soon! 👋</p>
-            <p><strong>${business.business_name}</strong></p>
-          </div>
-        </div>
-      `;
+      subject = `Reminder: Appointment Tomorrow - ${business.business_name}`;
+      headerBg = "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)";
+      headerTitle = "⏰ Appointment Reminder";
+      headerSubtitle = "Don't forget your upcoming visit";
+      mainMessage = `Just a friendly reminder about your appointment at <strong>${business.business_name}</strong>!`;
+      noteBox = `<table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fffbeb; border-radius: 8px; border-left: 4px solid #f59e0b; margin-top: 24px;">
+        <tr><td style="padding: 14px 16px;">
+          <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5;">
+            📞 Need to reschedule? Call us at <strong>${business.main_phone}</strong>
+          </p>
+        </td></tr>
+      </table>`;
     }
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
+          <tr>
+            <td align="center">
+              <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                
+                <!-- Header -->
+                <tr>
+                  <td style="background: ${headerBg}; padding: 32px 40px; text-align: center;">
+                    <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700;">${headerTitle}</h1>
+                    <p style="margin: 8px 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">${headerSubtitle}</p>
+                  </td>
+                </tr>
+                
+                <!-- Content -->
+                <tr>
+                  <td style="padding: 40px;">
+                    <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px;">Hi ${booking.customer_name},</p>
+                    <p style="margin: 0 0 28px; color: #4b5563; font-size: 15px; line-height: 1.7;">${mainMessage}</p>
+                    
+                    <!-- Booking Details Card -->
+                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 12px; overflow: hidden;">
+                      <tr>
+                        <td style="padding: 20px;">
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b; font-size: 13px; display: inline-block; width: 90px;">📅 Date</span>
+                                <span style="color: #1e293b; font-size: 14px; font-weight: 600;">${dateStr}</span>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b; font-size: 13px; display: inline-block; width: 90px;">⏰ Time</span>
+                                <span style="color: #1e293b; font-size: 14px; font-weight: 600;">${timeStr}</span>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b; font-size: 13px; display: inline-block; width: 90px;">✂️ Service</span>
+                                <span style="color: #1e293b; font-size: 14px; font-weight: 600;">${serviceName}</span>
+                                <span style="color: #64748b; font-size: 12px;"> (${duration} mins)</span>
+                              </td>
+                            </tr>
+                            ${type !== "cancellation" ? `
+                            <tr>
+                              <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b; font-size: 13px; display: inline-block; width: 90px;">💷 Price</span>
+                                <span style="color: #1e293b; font-size: 14px; font-weight: 600;">${currencySymbol}${price}</span>
+                              </td>
+                            </tr>
+                            ` : ""}
+                            <tr>
+                              <td style="padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b; font-size: 13px; display: inline-block; width: 90px;">👤 With</span>
+                                <span style="color: #1e293b; font-size: 14px; font-weight: 600;">${staffName}</span>
+                              </td>
+                            </tr>
+                            ${type !== "cancellation" ? `
+                            <tr>
+                              <td style="padding: 10px 0;">
+                                <span style="color: #64748b; font-size: 13px; display: inline-block; width: 90px;">📍 Location</span>
+                                <span style="color: #1e293b; font-size: 14px; font-weight: 600;">${business.address}</span>
+                              </td>
+                            </tr>
+                            ` : ""}
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                    
+                    <!-- Booking Code -->
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px;">
+                      <tr>
+                        <td align="center">
+                          <p style="margin: 0 0 8px; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Booking Reference</p>
+                          <p style="margin: 0; font-family: 'SF Mono', Monaco, monospace; font-size: 20px; font-weight: 700; color: #4F46E5; letter-spacing: 2px; background-color: #eef2ff; padding: 10px 20px; border-radius: 8px; display: inline-block;">
+                            ${bookingCode}
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                    
+                    <!-- Note Box -->
+                    ${noteBox}
+                  </td>
+                </tr>
+                
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 24px 40px; border-top: 1px solid #e2e8f0; text-align: center;">
+                    <p style="margin: 0 0 4px; color: #1e293b; font-size: 14px; font-weight: 600;">${business.business_name}</p>
+                    <p style="margin: 0; color: #64748b; font-size: 13px;">${business.address}</p>
+                    <p style="margin: 8px 0 0; color: #64748b; font-size: 13px;">📞 ${business.main_phone}</p>
+                  </td>
+                </tr>
+                
+              </table>
+              
+              <!-- Powered by -->
+              <p style="margin: 24px 0 0; color: #94a3b8; font-size: 11px; text-align: center;">
+                Powered by <a href="https://aiviaapp.co.uk" style="color: #4F46E5; text-decoration: none;">Aivia</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
 
     const results: any = { success: true, type, recipients: { customer: customerRecipients, internal: internalRecipients } };
 
@@ -336,28 +330,45 @@ serve(async (req: Request): Promise<Response> => {
 
     // 2) Internal notification email (business + staff)
     if (internalRecipients.length > 0) {
-      const internalSubject = `📩 Booking ${type} - ${business.business_name}`;
+      const internalSubject = `Booking ${type.charAt(0).toUpperCase() + type.slice(1)} - ${booking.customer_name}`;
       const internalHtml = `
-        ${baseStyles}
-        <div class="container">
-          <div class="header">
-            <h1 style="margin: 0; font-size: 22px;">Booking ${type}</h1>
-            <p style="margin: 10px 0 0; opacity: 0.9;">Internal notification</p>
-          </div>
-          <div class="content">
-            <div class="details">
-              <div class="detail-row"><span class="detail-label">Customer</span><span class="detail-value">${booking.customer_name} (${booking.customer_phone || ""})</span></div>
-              <div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">${dateStr}</span></div>
-              <div class="detail-row"><span class="detail-label">Time</span><span class="detail-value">${timeStr}</span></div>
-              <div class="detail-row"><span class="detail-label">Service</span><span class="detail-value">${serviceName} (${duration} mins)</span></div>
-              <div class="detail-row"><span class="detail-label">Staff</span><span class="detail-value">${staffName}</span></div>
-              <div class="detail-row"><span class="detail-label">Ref</span><span class="detail-value">${bookingCode}</span></div>
-            </div>
-          </div>
-          <div class="footer">
-            <p><strong>${business.business_name}</strong></p>
-          </div>
-        </div>
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 30px 20px;">
+            <tr>
+              <td align="center">
+                <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 480px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden;">
+                  <tr>
+                    <td style="background: ${type === "cancellation" ? "#ef4444" : type === "reminder" ? "#f59e0b" : "#4F46E5"}; padding: 20px; text-align: center;">
+                      <p style="margin: 0; color: #ffffff; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
+                        ${type === "confirmation" ? "New Booking" : type === "cancellation" ? "Cancelled" : "Reminder"}
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 24px;">
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr><td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;"><span style="color: #64748b; font-size: 12px;">Customer</span><br><span style="color: #1e293b; font-size: 14px; font-weight: 600;">${booking.customer_name}</span> <span style="color: #64748b; font-size: 13px;">${booking.customer_phone || ""}</span></td></tr>
+                        <tr><td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;"><span style="color: #64748b; font-size: 12px;">Date & Time</span><br><span style="color: #1e293b; font-size: 14px; font-weight: 600;">${dateStr} at ${timeStr}</span></td></tr>
+                        <tr><td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;"><span style="color: #64748b; font-size: 12px;">Service</span><br><span style="color: #1e293b; font-size: 14px; font-weight: 600;">${serviceName}</span> <span style="color: #64748b; font-size: 12px;">(${duration} mins)</span></td></tr>
+                        <tr><td style="padding: 8px 0; border-bottom: 1px solid #f1f5f9;"><span style="color: #64748b; font-size: 12px;">Staff</span><br><span style="color: #1e293b; font-size: 14px; font-weight: 600;">${staffName}</span></td></tr>
+                        <tr><td style="padding: 8px 0;"><span style="color: #64748b; font-size: 12px;">Reference</span><br><span style="color: #4F46E5; font-size: 14px; font-weight: 600; font-family: monospace;">${bookingCode}</span></td></tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="background-color: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
+                      <p style="margin: 0; color: #64748b; font-size: 12px;">${business.business_name}</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
       `;
 
       console.log(`[send-booking-email] Sending ${type} INTERNAL email to ${internalRecipients.join(", ")}`);
