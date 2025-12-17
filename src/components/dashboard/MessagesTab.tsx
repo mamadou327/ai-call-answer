@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, AlertTriangle, User, Phone, Check } from "lucide-react";
+import { MessageSquare, AlertTriangle, User, Phone, Check, Archive } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 interface MessagesTabProps {
   businessId?: string;
@@ -21,6 +22,7 @@ interface Message {
   recipient_type: string;
   is_urgent: boolean;
   is_read: boolean;
+  is_archived: boolean;
   created_at: string;
   staff?: { name: string } | null;
 }
@@ -29,7 +31,7 @@ export const MessagesTab = ({ businessId }: MessagesTabProps) => {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "urgent" | "unread">("all");
+  const [filter, setFilter] = useState<"all" | "urgent" | "unread" | "archived">("all");
 
   useEffect(() => {
     if (businessId) {
@@ -92,10 +94,44 @@ export const MessagesTab = ({ businessId }: MessagesTabProps) => {
     }
   };
 
+  const archiveMessage = async (messageId: string) => {
+    const { error } = await supabase
+      .from("messages")
+      .update({ is_archived: true, is_read: true })
+      .eq("id", messageId);
+
+    if (!error) {
+      setMessages(prev => prev.map(m => 
+        m.id === messageId ? { ...m, is_archived: true, is_read: true } : m
+      ));
+      toast.success("Message archived");
+    } else {
+      toast.error("Failed to archive message");
+    }
+  };
+
+  const unarchiveMessage = async (messageId: string) => {
+    const { error } = await supabase
+      .from("messages")
+      .update({ is_archived: false })
+      .eq("id", messageId);
+
+    if (!error) {
+      setMessages(prev => prev.map(m => 
+        m.id === messageId ? { ...m, is_archived: false } : m
+      ));
+      toast.success("Message restored");
+    } else {
+      toast.error("Failed to restore message");
+    }
+  };
+
   const filteredMessages = messages.filter(msg => {
-    if (filter === "urgent") return msg.is_urgent;
-    if (filter === "unread") return !msg.is_read;
-    return true;
+    if (filter === "archived") return msg.is_archived;
+    if (filter === "urgent") return msg.is_urgent && !msg.is_archived;
+    if (filter === "unread") return !msg.is_read && !msg.is_archived;
+    // "all" shows non-archived messages
+    return !msg.is_archived;
   });
 
   const getRecipientLabel = (msg: Message) => {
@@ -105,6 +141,9 @@ export const MessagesTab = ({ businessId }: MessagesTabProps) => {
     if (msg.recipient_type === "admin") return "Admin";
     return "Everyone";
   };
+
+  const archivedCount = messages.filter(m => m.is_archived).length;
+  const activeMessages = messages.filter(m => !m.is_archived);
 
   return (
     <div className="space-y-6">
@@ -116,32 +155,42 @@ export const MessagesTab = ({ businessId }: MessagesTabProps) => {
           </CardTitle>
           <div className="flex gap-2 text-sm">
             <Badge variant={filter === "all" ? "default" : "outline"}>
-              {messages.length} Total
+              {activeMessages.length} Total
             </Badge>
             <Badge variant="destructive" className={filter === "urgent" ? "" : "opacity-50"}>
-              {messages.filter(m => m.is_urgent).length} Urgent
+              {activeMessages.filter(m => m.is_urgent).length} Urgent
             </Badge>
             <Badge variant="secondary" className={filter === "unread" ? "" : "opacity-50"}>
-              {messages.filter(m => !m.is_read).length} Unread
+              {activeMessages.filter(m => !m.is_read).length} Unread
+            </Badge>
+            <Badge variant="outline" className={filter === "archived" ? "bg-muted" : "opacity-50"}>
+              {archivedCount} Archived
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="all" onValueChange={(v) => setFilter(v as "all" | "urgent" | "unread")}>
+          <Tabs defaultValue="all" onValueChange={(v) => setFilter(v as "all" | "urgent" | "unread" | "archived")}>
             <TabsList className="mb-4">
               <TabsTrigger value="all">All Messages</TabsTrigger>
               <TabsTrigger value="urgent">Urgent</TabsTrigger>
               <TabsTrigger value="unread">Unread</TabsTrigger>
+              <TabsTrigger value="archived" className="flex items-center gap-1">
+                <Archive className="w-4 h-4" />
+                Archived
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="all" className="mt-0">
-              {renderMessages(filteredMessages, loading, markAsRead, getRecipientLabel)}
+              {renderMessages(filteredMessages, loading, markAsRead, archiveMessage, unarchiveMessage, getRecipientLabel, false)}
             </TabsContent>
             <TabsContent value="urgent" className="mt-0">
-              {renderMessages(filteredMessages, loading, markAsRead, getRecipientLabel)}
+              {renderMessages(filteredMessages, loading, markAsRead, archiveMessage, unarchiveMessage, getRecipientLabel, false)}
             </TabsContent>
             <TabsContent value="unread" className="mt-0">
-              {renderMessages(filteredMessages, loading, markAsRead, getRecipientLabel)}
+              {renderMessages(filteredMessages, loading, markAsRead, archiveMessage, unarchiveMessage, getRecipientLabel, false)}
+            </TabsContent>
+            <TabsContent value="archived" className="mt-0">
+              {renderMessages(filteredMessages, loading, markAsRead, archiveMessage, unarchiveMessage, getRecipientLabel, true)}
             </TabsContent>
           </Tabs>
         </CardContent>
@@ -154,7 +203,10 @@ function renderMessages(
   messages: Message[], 
   loading: boolean, 
   markAsRead: (id: string) => void,
-  getRecipientLabel: (msg: Message) => string
+  archiveMessage: (id: string) => void,
+  unarchiveMessage: (id: string) => void,
+  getRecipientLabel: (msg: Message) => string,
+  isArchivedTab: boolean
 ) {
   if (loading) {
     return (
@@ -168,8 +220,12 @@ function renderMessages(
     return (
       <div className="text-center py-12 text-muted-foreground">
         <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
-        <p className="text-lg mb-2">No messages</p>
-        <p className="text-sm">Messages left by callers will appear here</p>
+        <p className="text-lg mb-2">No {isArchivedTab ? "archived " : ""}messages</p>
+        <p className="text-sm">
+          {isArchivedTab 
+            ? "Archived messages will appear here" 
+            : "Messages left by callers will appear here"}
+        </p>
       </div>
     );
   }
@@ -180,8 +236,8 @@ function renderMessages(
         <div
           key={msg.id}
           className={`p-4 border rounded-lg transition-colors ${
-            msg.is_urgent ? "border-destructive bg-destructive/5" : ""
-          } ${!msg.is_read ? "bg-primary/5 border-primary/20" : ""}`}
+            msg.is_urgent && !msg.is_archived ? "border-destructive bg-destructive/5" : ""
+          } ${!msg.is_read && !msg.is_archived ? "bg-primary/5 border-primary/20" : ""}`}
         >
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
@@ -190,8 +246,13 @@ function renderMessages(
                   <User className="w-4 h-4" />
                   {msg.caller_name || "Unknown Caller"}
                 </p>
-                {/* Status badges - always show one */}
-                {msg.is_urgent ? (
+                {/* Status badges */}
+                {msg.is_archived ? (
+                  <Badge variant="outline" className="text-muted-foreground">
+                    <Archive className="w-3 h-3 mr-1" />
+                    Archived
+                  </Badge>
+                ) : msg.is_urgent ? (
                   <Badge variant="destructive" className="flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />
                     Urgent
@@ -223,17 +284,41 @@ function renderMessages(
               </div>
             </div>
             
-            {!msg.is_read && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => markAsRead(msg.id)}
-                className="flex items-center gap-1"
-              >
-                <Check className="w-4 h-4" />
-                Mark Read
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {!msg.is_read && !msg.is_archived && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => markAsRead(msg.id)}
+                  className="flex items-center gap-1"
+                >
+                  <Check className="w-4 h-4" />
+                  Mark Read
+                </Button>
+              )}
+              
+              {msg.is_archived ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => unarchiveMessage(msg.id)}
+                  className="flex items-center gap-1"
+                >
+                  <Archive className="w-4 h-4" />
+                  Restore
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => archiveMessage(msg.id)}
+                  className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                >
+                  <Archive className="w-4 h-4" />
+                  Archive
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       ))}
