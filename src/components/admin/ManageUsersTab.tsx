@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,8 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ChevronDown, ChevronUp, Users, UserX, ShieldCheck, ShieldX, Eye, Building2 } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, Users, UserX, ShieldCheck, ShieldX, Eye, Building2, Filter } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -98,6 +99,7 @@ export const ManageUsersTab = ({
   const [showBusinessDialog, setShowBusinessDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
   const [showUserDialog, setShowUserDialog] = useState(false);
+  const [businessFilter, setBusinessFilter] = useState<string>("all");
 
   const loadUsers = async () => {
     setIsLoading(true);
@@ -262,6 +264,23 @@ export const ManageUsersTab = ({
   const adminUsers = users.filter((u) => ADMIN_EMAILS.includes(u.email.toLowerCase()));
   const activeUsers = users.filter((u) => u.is_active && !ADMIN_EMAILS.includes(u.email.toLowerCase()));
   const inactiveUsers = users.filter((u) => !u.is_active);
+
+  // Get unique businesses for the filter dropdown
+  const uniqueBusinesses = useMemo(() => {
+    const businessMap = new Map<string, string>();
+    activeUsers.forEach(user => {
+      if (user.business_id && user.business_name) {
+        businessMap.set(user.business_id, user.business_name);
+      }
+    });
+    return Array.from(businessMap.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [activeUsers]);
+
+  // Filter active users based on selected business
+  const filteredActiveUsers = useMemo(() => {
+    if (businessFilter === "all") return activeUsers;
+    return activeUsers.filter(user => user.business_id === businessFilter);
+  }, [activeUsers, businessFilter]);
 
   const getRoleBadge = (role: string | null) => {
     switch (role) {
@@ -467,23 +486,44 @@ export const ManageUsersTab = ({
       {/* Active Users */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5" />
-            Active Users
-          </CardTitle>
-          <CardDescription>
-            All active users on the platform. Toggle to deactivate accounts.
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Active Users
+                <Badge variant="secondary">{filteredActiveUsers.length}</Badge>
+              </CardTitle>
+              <CardDescription>
+                All active users on the platform. Toggle to deactivate accounts.
+              </CardDescription>
+            </div>
+            <Select value={businessFilter} onValueChange={setBusinessFilter}>
+              <SelectTrigger className="w-[200px]">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Filter by business" />
+              </SelectTrigger>
+              <SelectContent className="bg-background border shadow-lg z-50">
+                <SelectItem value="all">All Businesses</SelectItem>
+                {uniqueBusinesses.map((business) => (
+                  <SelectItem key={business.id} value={business.id}>
+                    {business.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
-          ) : activeUsers.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No active users</p>
+          ) : filteredActiveUsers.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              {businessFilter === "all" ? "No active users" : "No users found for this business"}
+            </p>
           ) : (
-            <UserTable userList={activeUsers} />
+            <UserTable userList={filteredActiveUsers} />
           )}
         </CardContent>
       </Card>
