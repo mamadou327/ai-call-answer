@@ -1957,12 +1957,21 @@ async function buildFullSystemPrompt(
         .join(" | ")
     : "Opening hours available upon request";
 
-  // Format staff time off compactly
+  // Format staff time off with precise times to avoid AI confusion
   const timeOffList = staffTimeOff.length > 0
     ? staffTimeOff.slice(0, 3).map(t => {
         const startDate = new Date(t.start_time);
         const endDate = new Date(t.end_time);
-        return `${t.staff_name}: ${startDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}-${endDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+        const startDateStr = startDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+        const endDateStr = endDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+        const startTimeStr = formatTime(startDate);
+        const endTimeStr = formatTime(endDate);
+        
+        // If same day, show times clearly
+        if (startDateStr === endDateStr) {
+          return `${t.staff_name}: ${startDateStr} (${startTimeStr}-${endTimeStr} ONLY)`;
+        }
+        return `${t.staff_name}: ${startDateStr} ${startTimeStr} to ${endDateStr} ${endTimeStr}`;
       }).join(", ")
     : "None";
 
