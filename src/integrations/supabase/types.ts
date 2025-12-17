@@ -653,6 +653,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          is_archived: boolean
           is_read: boolean
           is_urgent: boolean
           recipient_staff_id: string | null
@@ -666,6 +667,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          is_archived?: boolean
           is_read?: boolean
           is_urgent?: boolean
           recipient_staff_id?: string | null
@@ -679,6 +681,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          is_archived?: boolean
           is_read?: boolean
           is_urgent?: boolean
           recipient_staff_id?: string | null
