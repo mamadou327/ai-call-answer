@@ -143,7 +143,6 @@ Your appointment at ${business.business_name} is confirmed!
 📅 ${dateStr}
 ⏰ ${timeStr}
 💇 ${serviceName} (${duration} mins)
-💰 ${currencySymbol}${price}
 👤 With: ${staffName}
 📍 ${business.address}
 
@@ -180,7 +179,6 @@ Just a reminder about your upcoming appointment at ${business.business_name}!
 📅 ${dateStr}
 ⏰ ${timeStr}
 💇 ${serviceName} (${duration} mins)
-💰 ${currencySymbol}${price}
 👤 With: ${staffName}
 📍 ${business.address}
 
