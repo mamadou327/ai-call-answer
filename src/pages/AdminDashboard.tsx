@@ -1196,33 +1196,63 @@ const AdminDashboard = () => {
                         </div>
                         
                         {(twilioEnabled || twilioWebhookToken) && (
-                          <div>
-                            <Label className="text-sm font-medium">Webhook URL</Label>
-                            <div className="flex gap-2 mt-1.5">
-                              <Input
-                                value={getWebhookUrl()}
-                                readOnly
-                                className="bg-muted font-mono text-xs"
-                                placeholder="Enable Twilio to generate webhook URL"
-                              />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                onClick={copyWebhookUrl}
-                                disabled={!twilioWebhookToken}
-                              >
-                                {copiedWebhook ? (
-                                  <Check className="w-4 h-4 text-success" />
-                                ) : (
-                                  <Copy className="w-4 h-4" />
-                                )}
-                              </Button>
+                          <>
+                            <div>
+                              <Label className="text-sm font-medium">Voice Webhook URL</Label>
+                              <div className="flex gap-2 mt-1.5">
+                                <Input
+                                  value={getWebhookUrl()}
+                                  readOnly
+                                  className="bg-muted font-mono text-xs"
+                                  placeholder="Enable Twilio to generate webhook URL"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={copyWebhookUrl}
+                                  disabled={!twilioWebhookToken}
+                                >
+                                  {copiedWebhook ? (
+                                    <Check className="w-4 h-4 text-success" />
+                                  ) : (
+                                    <Copy className="w-4 h-4" />
+                                  )}
+                                </Button>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Paste this URL in Twilio's Voice webhook settings (for incoming calls)
+                              </p>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Paste this URL in Twilio's Voice webhook settings
-                            </p>
-                          </div>
+                            
+                            <div>
+                              <Label className="text-sm font-medium">SMS Webhook URL</Label>
+                              <div className="flex gap-2 mt-1.5">
+                                <Input
+                                  value={`https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-sms-webhook`}
+                                  readOnly
+                                  className="bg-muted font-mono text-xs"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(`https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-sms-webhook`);
+                                    toast({
+                                      title: "Copied",
+                                      description: "SMS Webhook URL copied to clipboard",
+                                    });
+                                  }}
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </Button>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Paste this URL in Twilio's Messaging webhook settings (for incoming SMS)
+                              </p>
+                            </div>
+                          </>
                         )}
                       </div>
 
