@@ -461,11 +461,12 @@ function sendSessionConfig(session: StreamSession) {
     {
       type: "function",
       name: "check_availability",
-      description: "**MANDATORY - CALL BEFORE EVERY AVAILABILITY RESPONSE** You MUST call this tool BEFORE saying ANY time is available or unavailable. Call it when the customer asks: 'is X available?', 'who's free at?', 'can I book for?', 'do you have openings?', 'what times?', or ANY question about availability. NEVER guess based on opening hours alone - there may be bookings! Always verify with this tool first.",
+      description: "**MANDATORY - CALL BEFORE EVERY AVAILABILITY RESPONSE** You MUST call this tool BEFORE saying ANY time is available or unavailable. Call it when the customer asks: 'is X available?', 'who\'s free at?', 'can I book for?', 'do you have openings?', 'what times?', or ANY question about availability. NEVER guess based on opening hours alone - there may be bookings! Always verify with this tool first. IMPORTANT: If the customer mentions a specific time (e.g. 5pm), include time in HH:MM 24-hour (e.g. 17:00).",
       parameters: {
         type: "object",
         properties: {
           date: { type: "string", description: "Date in YYYY-MM-DD format" },
+          time: { type: "string", description: "Specific time in HH:MM format (24-hour). Include this when the customer asks about a specific time (e.g. 5pm -> 17:00)." },
           staff_name: { type: "string", description: "Specific staff member (optional)" },
           duration_minutes: { type: "number", description: "Service duration in minutes (default 30)" },
         },
@@ -1291,7 +1292,7 @@ async function executeRescheduleBooking(supabase: any, session: StreamSession, p
 
 async function executeCheckAvailability(supabase: any, session: StreamSession, params: any): Promise<any> {
   console.log("[MediaStream] Checking availability:", params);
-  
+
   try {
     const requestedDate = new Date(params.date);
     const duration = params.duration_minutes || 30;
@@ -1326,7 +1327,7 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
     let targetStaffId: string | null = null;
     let targetStaffName: string | null = null;
     if (params.staff_name) {
-      const staff = session.staff.find(s => s.name.toLowerCase().includes(params.staff_name.toLowerCase()));
+      const staff = session.staff.find((s) => s.name.toLowerCase().includes(params.staff_name.toLowerCase()));
       if (staff) {
         targetStaffId = staff.id;
         targetStaffName = staff.name;
@@ -1334,11 +1335,125 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
     }
 
     // Get AI-enabled staff for availability checking
-    const aiEnabledStaff = session.staff.filter(s => s.ai_enabled);
-    
+    const aiEnabledStaff = session.staff.filter((s) => s.ai_enabled);
+
     if (aiEnabledStaff.length === 0) {
       return { success: false, message: "Sorry, there are no staff members available for booking at the moment." };
     }
+
+    // ----------------------------------------------------------------------
+    // EXACT TIME MODE: customer asked "who is available at 5pm" etc.
+    // ----------------------------------------------------------------------
+    if (params.time) {
+      const time = String(params.time).slice(0, 5); // HH:MM
+
+      // Validate opening hours for the specific time
+      const hoursCheck = isTimeWithinOpeningHours(session.openingHours, requestedDate, time);
+      if (!hoursCheck.valid) {
+        return { success: false, message: hoursCheck.message };
+      }
+
+      const requestedStart = new Date(`${params.date}T${time}:00`);
+      const requestedEnd = new Date(requestedStart.getTime() + duration * 60000);
+
+      // Validate min notice
+      const noticeCheck = checkMinBookingNotice(session.businessSettings, requestedStart);
+      if (!noticeCheck.valid) {
+        return { success: false, message: noticeCheck.message, too_soon: true };
+      }
+
+      // Ensure end time is before close
+      const openTime = businessHours.openTime!;
+      const closeTime = businessHours.closeTime!;
+      const [closeHour, closeMin] = closeTime.split(":").map(Number);
+      const closeTotal = closeHour * 60 + closeMin;
+      const endTotal = requestedEnd.getHours() * 60 + requestedEnd.getMinutes();
+      if (endTotal > closeTotal) {
+        return {
+          success: false,
+          message: `That time would run past closing. We close at ${closeTime}.`,
+        };
+      }
+
+      const staffToCheck = targetStaffId
+        ? aiEnabledStaff.filter((s) => s.id === targetStaffId)
+        : aiEnabledStaff;
+
+      const availableStaff: string[] = [];
+      const unavailableStaff: { name: string; reason: "time_off" | "booked" }[] = [];
+
+      for (const staff of staffToCheck) {
+        const staffBookings = allBookings.filter((b: any) => b.staff_id === staff.id);
+        const hasConflict = staffBookings.some((b: any) => {
+          const bStart = new Date(b.start_time);
+          const bEnd = new Date(b.end_time);
+          return requestedStart < bEnd && requestedEnd > bStart;
+        });
+
+        const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, requestedStart, requestedEnd);
+
+        if (!hasConflict && !timeOffCheck.onLeave) {
+          availableStaff.push(staff.name);
+        } else {
+          unavailableStaff.push({
+            name: staff.name,
+            reason: timeOffCheck.onLeave ? "time_off" : "booked",
+          });
+        }
+      }
+
+      if (targetStaffId) {
+        if (availableStaff.length > 0) {
+          return {
+            success: true,
+            available: true,
+            available_staff: availableStaff,
+            time: time,
+            date: params.date,
+            message: `Yes — ${targetStaffName} is available at ${time}.`,
+          };
+        }
+
+        const reason = unavailableStaff[0]?.reason === "time_off" ? "on leave" : "already booked";
+        return {
+          success: true,
+          available: false,
+          available_staff: [],
+          unavailable_staff: unavailableStaff,
+          time: time,
+          date: params.date,
+          message: `No — ${targetStaffName} is ${reason} at ${time}.`,
+        };
+      }
+
+      if (availableStaff.length === 0) {
+        return {
+          success: true,
+          available: false,
+          available_staff: [],
+          unavailable_staff: unavailableStaff,
+          time: time,
+          date: params.date,
+          message: `No one is available at ${time}. Would you like a different time?`,
+        };
+      }
+
+      const names = availableStaff.slice(0, 5).join(", ");
+      const more = availableStaff.length > 5 ? ` (and ${availableStaff.length - 5} more)` : "";
+      return {
+        success: true,
+        available: true,
+        available_staff: availableStaff,
+        unavailable_staff: unavailableStaff,
+        time: time,
+        date: params.date,
+        message: `At ${time}, ${names} ${availableStaff.length === 1 ? "is" : "are"} available${more}.`,
+      };
+    }
+
+    // ----------------------------------------------------------------------
+    // SLOT MODE: customer asked general openings for a date
+    // ----------------------------------------------------------------------
 
     // Generate available slots
     const openTime = businessHours.openTime!;
@@ -1375,7 +1490,7 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
             const bEnd = new Date(b.end_time);
             return slotStart < bEnd && slotEnd > bStart;
           });
-          
+
           const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, targetStaffId, slotStart, slotEnd);
           slotIsAvailable = !hasConflict && !timeOffCheck.onLeave;
         } else {
@@ -1387,9 +1502,9 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
               const bEnd = new Date(b.end_time);
               return slotStart < bEnd && slotEnd > bStart;
             });
-            
+
             const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, slotStart, slotEnd);
-            
+
             if (!hasConflict && !timeOffCheck.onLeave) {
               slotIsAvailable = true;
               break; // At least one staff is available, slot is open
@@ -1405,10 +1520,10 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
 
     if (availableSlots.length === 0) {
       console.log("[MediaStream] No available slots found for", params.date, "with staff:", params.staff_name || "any");
-      return { 
-        success: false, 
+      return {
+        success: false,
         message: `There are no available slots on ${requestedDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}. Would you like to try a different date?`,
-        no_slots: true
+        no_slots: true,
       };
     }
 
@@ -1416,53 +1531,53 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
     const sortedSlots = [...availableSlots].sort((a, b) => {
       const aTime = new Date(`${params.date}T${a}:00`).getTime();
       const bTime = new Date(`${params.date}T${b}:00`).getTime();
-      
+
       // Calculate minimum distance to any existing booking for each slot
       let aMinDistance = Infinity;
       let bMinDistance = Infinity;
-      
+
       for (const booking of allBookings) {
         const bookingStart = new Date(booking.start_time).getTime();
         const bookingEnd = new Date(booking.end_time).getTime();
-        
+
         // Distance to start or end of booking
         const aDistToStart = Math.abs(aTime - bookingStart);
         const aDistToEnd = Math.abs(aTime + duration * 60000 - bookingEnd);
         const bDistToStart = Math.abs(bTime - bookingStart);
         const bDistToEnd = Math.abs(bTime + duration * 60000 - bookingEnd);
-        
+
         aMinDistance = Math.min(aMinDistance, aDistToStart, aDistToEnd);
         bMinDistance = Math.min(bMinDistance, bDistToStart, bDistToEnd);
       }
-      
+
       // If both have equal proximity to bookings, sort by time
       if (aMinDistance === bMinDistance) {
         return aTime - bTime;
       }
-      
+
       // Prefer slots closer to existing bookings
       return aMinDistance - bMinDistance;
     });
 
     // Format nicely - show up to 8 slots, prioritizing gap-filling slots
-    const displaySlots = sortedSlots.slice(0, 8).map(t => {
+    const displaySlots = sortedSlots.slice(0, 8).map((t) => {
       const [h, m] = t.split(":").map(Number);
       const period = h >= 12 ? "PM" : "AM";
-      const hour12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+      const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
       return `${hour12}:${m.toString().padStart(2, "0")} ${period}`;
     });
     const moreSlots = sortedSlots.length > 8 ? ` (plus ${sortedSlots.length - 8} more)` : "";
     const staffNote = targetStaffName ? ` with ${targetStaffName}` : "";
     const dateStr = requestedDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
-    
+
     console.log("[MediaStream] Found", sortedSlots.length, "available slots for", params.date, "(sorted to minimize gaps)");
-    
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       message: `On ${dateStr}${staffNote}, I have: ${displaySlots.join(", ")}${moreSlots}. Which time works for you?`,
       available_slots: sortedSlots,
       date: params.date,
-      staff: targetStaffName || null
+      staff: targetStaffName || null,
     };
   } catch (error) {
     console.error("[MediaStream] Check availability error:", error);
@@ -2133,13 +2248,11 @@ ALWAYS DO THIS:
 - Do NOT ask for email - we send confirmations by SMS only.
 
 ## WHEN CUSTOMER ASKS FOR A TIME:
-1. IMMEDIATELY call check_availability for that date (and staff if specified) - DO NOT SKIP THIS
-2. Look at staff [WORKS:] schedule to confirm they work on that day/time
-3. Look at the returned available_slots list from the tool
-4. Only confirm times that appear in that list
-5. If their requested time is NOT in the list, suggest alternatives from the list
-6. PREFER times that minimize gaps - suggest times right before or after existing bookings when possible.
-7. If a customer asks "who's available at X time?", call check_availability for EACH staff member to verify.
+1. IMMEDIATELY call check_availability (DO NOT SKIP).
+2. If the customer mentions a specific time, include time in HH:MM (24-hour), e.g. 5pm -> 17:00.
+3. If the tool returns available_staff, tell them who is available at that exact time.
+4. If the tool returns available_slots, suggest a few options and ask which time works.
+5. Only confirm availability that appears in the tool result.
 
 ## STAFF AVAILABILITY RULES:
 - Each staff member's [WORKS:] shows which days/hours they work. If no [WORKS:] shown, assume they follow business hours.
