@@ -757,12 +757,43 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
       return { success: false, message: `${staff.name} does not take AI bookings. Would you like me to transfer you to them instead?` };
     }
 
-    // Find service
-    const service = session.services.find(s => s.name.toLowerCase().includes(params.service_name.toLowerCase()));
+    // Find service (strict resolution to avoid booking the wrong variant)
+    const normalize = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const requestedService = (params.service_name || "").toString().trim();
 
-    if (!service) {
-      return { success: false, message: `Could not find service ${params.service_name}` };
+    if (!requestedService) {
+      return { success: false, message: "Which service would you like to book?" };
     }
+
+    const requestedNorm = normalize(requestedService);
+
+    // 1) Prefer exact match by normalized name
+    let serviceCandidates = session.services.filter(s => normalize(s.name) === requestedNorm);
+
+    // 2) Fallback to fuzzy match, but NEVER auto-pick if ambiguous
+    if (serviceCandidates.length === 0) {
+      serviceCandidates = session.services.filter(s => {
+        const n = normalize(s.name);
+        return n.includes(requestedNorm) || requestedNorm.includes(n);
+      });
+    }
+
+    if (serviceCandidates.length === 0) {
+      return { success: false, message: `Could not find service ${requestedService}` };
+    }
+
+    if (serviceCandidates.length > 1) {
+      const options = serviceCandidates.slice(0, 6).map(s => s.name).join(", ");
+      const more = serviceCandidates.length > 6 ? ` (and ${serviceCandidates.length - 6} more)` : "";
+      console.log("[MediaStream] Ambiguous service name:", requestedService, "candidates:", serviceCandidates.map(s => s.name));
+      return {
+        success: false,
+        needs_clarification: true,
+        message: `Just to confirm, which one do you mean: ${options}${more}?`,
+      };
+    }
+
+    const service = serviceCandidates[0];
 
     // Check if staff is assigned to this service
     if (!isStaffAssignedToService(session.staffServices, staff.id, service.id)) {
