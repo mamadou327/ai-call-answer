@@ -78,6 +78,7 @@ export const BusinessNotificationServicesDialog = ({
   // Webhook URLs for Twilio
   const projectUrl = "https://zyqzypyncugihrawhppg.supabase.co";
   const voiceWebhookUrl = `${projectUrl}/functions/v1/twilio-voice-webhook`;
+  const smsWebhookUrl = `${projectUrl}/functions/v1/twilio-sms-webhook`;
   const recordingCallbackUrl = `${projectUrl}/functions/v1/twilio-recording-callback`;
 
   const handleCopy = async (text: string, label: string) => {
@@ -240,7 +241,7 @@ export const BusinessNotificationServicesDialog = ({
                   </div>
                   
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Voice Webhook URL</Label>
+                    <Label className="text-xs text-muted-foreground">Voice Webhook URL (for incoming calls)</Label>
                     <div className="flex items-center gap-2">
                       <Input
                         value={voiceWebhookUrl}
@@ -248,6 +249,18 @@ export const BusinessNotificationServicesDialog = ({
                         className="font-mono text-xs bg-muted"
                       />
                       <CopyButton text={voiceWebhookUrl} label="voice" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">SMS Webhook URL (for incoming SMS)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={smsWebhookUrl}
+                        readOnly
+                        className="font-mono text-xs bg-muted"
+                      />
+                      <CopyButton text={smsWebhookUrl} label="sms" />
                     </div>
                   </div>
                   
@@ -264,7 +277,7 @@ export const BusinessNotificationServicesDialog = ({
                   </div>
                   
                   <p className="text-xs text-muted-foreground">
-                    Configure these URLs in the Twilio console for the phone number above.
+                    Configure these URLs in the Twilio console for the phone number above. Set Voice webhook for calls, SMS webhook for messaging.
                   </p>
                 </div>
               </CardContent>
