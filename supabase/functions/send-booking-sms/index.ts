@@ -12,6 +12,39 @@ interface SendBookingSmsRequest {
   type: "confirmation" | "cancellation" | "reminder" | "reschedule";
 }
 
+const normalizePhoneToE164 = (raw: string | null | undefined): string | null => {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const lower = trimmed.toLowerCase();
+
+  // Guard against common placeholders or non-numbers coming from voice/chat
+  if (
+    trimmed.includes("[") ||
+    trimmed.includes("]") ||
+    lower.includes("use existing") ||
+    lower.includes("existing phone") ||
+    lower.includes("phone number") ||
+    lower === "unknown"
+  ) {
+    return null;
+  }
+
+  let cleaned = trimmed.replace(/[^\d+]/g, "");
+
+  // Convert 00-prefix to +
+  if (cleaned.startsWith("00")) cleaned = `+${cleaned.slice(2)}`;
+
+  // If digits-only, try assuming it's already an international number
+  if (!cleaned.startsWith("+") && /^\d{10,15}$/.test(cleaned)) {
+    cleaned = `+${cleaned}`;
+  }
+
+  if (/^\+\d{7,15}$/.test(cleaned)) return cleaned;
+  return null;
+};
+
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -94,12 +127,58 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    if (!booking.customer_phone) {
-      console.log(`[send-booking-sms] No customer phone for booking ${bookingId}`);
+    const directPhone = normalizePhoneToE164(booking.customer_phone);
+    let recipientPhone = directPhone;
+
+    // Fallback: if booking has placeholder/invalid phone, try to recover from call logs
+    if (!recipientPhone) {
+      const [{ data: callLog }, { data: callConvo }] = await Promise.all([
+        supabase
+          .from("calls_log")
+          .select("caller_phone")
+          .eq("booking_id", bookingId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("call_conversations")
+          .select("caller_phone")
+          .eq("booking_id", bookingId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      recipientPhone =
+        normalizePhoneToE164(callLog?.caller_phone) ||
+        normalizePhoneToE164(callConvo?.caller_phone) ||
+        null;
+    }
+
+    if (!recipientPhone) {
+      console.log(
+        `[send-booking-sms] Invalid/missing customer phone for booking ${bookingId}:`,
+        booking.customer_phone
+      );
       return new Response(
-        JSON.stringify({ success: false, reason: "No customer phone number" }),
+        JSON.stringify({ success: false, reason: "Invalid or missing customer phone number" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Use recovered/normalized phone going forward
+    booking.customer_phone = recipientPhone;
+
+    // Backfill the booking record to avoid future failures
+    if (!directPhone || directPhone !== recipientPhone) {
+      const { error: backfillError } = await supabase
+        .from("bookings")
+        .update({ customer_phone: recipientPhone })
+        .eq("id", bookingId);
+
+      if (backfillError) {
+        console.warn("[send-booking-sms] Failed to backfill booking customer_phone:", backfillError);
+      }
     }
 
     // Fetch business settings for currency

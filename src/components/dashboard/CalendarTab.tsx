@@ -189,10 +189,15 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
   };
 
   const getTimeOffsForDate = (date: Date) => {
-    return filteredTimeOffs.filter(to => {
-      const startDate = new Date(to.start_time);
-      const endDate = new Date(to.end_time);
-      return date >= startOfDay(startDate) && date <= endOfDay(endDate);
+    const dayStart = startOfDay(date);
+    const dayEnd = endOfDay(date);
+
+    return filteredTimeOffs.filter((to) => {
+      const toStart = new Date(to.start_time);
+      const toEnd = new Date(to.end_time);
+
+      // Overlap check (end is treated as exclusive)
+      return toStart < dayEnd && toEnd > dayStart;
     });
   };
 
@@ -202,10 +207,12 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
     const hourEnd = new Date(date);
     hourEnd.setHours(hour, 59, 59, 999);
 
-    return filteredTimeOffs.filter(to => {
+    return filteredTimeOffs.filter((to) => {
       const toStart = new Date(to.start_time);
       const toEnd = new Date(to.end_time);
-      return toStart <= hourEnd && toEnd >= hourStart;
+
+      // Overlap check (end is treated as exclusive)
+      return toStart < hourEnd && toEnd > hourStart;
     });
   };
 

@@ -82,17 +82,30 @@ export const TimeOffManagement = ({ businessId, onUpdate }: TimeOffManagementPro
     setLoading(true);
 
     try {
+      const start = new Date(formData.start_time);
+      const end = new Date(formData.end_time);
+
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        throw new Error("Please enter a valid start and end date/time.");
+      }
+      if (end <= start) {
+        throw new Error("End time must be after start time.");
+      }
+
+      // IMPORTANT: datetime-local has no timezone. Convert local time -> ISO (UTC) before saving.
       const { error } = await supabase
         .from("staff_time_off")
-        .insert([{
-          business_id: businessId,
-          staff_id: formData.staff_id,
-          start_time: formData.start_time,
-          end_time: formData.end_time,
-          reason: formData.reason,
-          notes: formData.notes,
-          status: "approved",
-        }]);
+        .insert([
+          {
+            business_id: businessId,
+            staff_id: formData.staff_id,
+            start_time: start.toISOString(),
+            end_time: end.toISOString(),
+            reason: formData.reason,
+            notes: formData.notes,
+            status: "approved",
+          },
+        ]);
 
       if (error) throw error;
 

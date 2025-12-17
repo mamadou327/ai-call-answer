@@ -856,13 +856,49 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
       p_business_name: session.businessName
     });
 
+    const normalizePhoneToE164 = (raw: string | null | undefined): string | null => {
+      if (!raw) return null;
+      const trimmed = raw.trim();
+      if (!trimmed) return null;
+
+      const lower = trimmed.toLowerCase();
+      if (
+        trimmed.includes("[") ||
+        trimmed.includes("]") ||
+        lower.includes("use existing") ||
+        lower.includes("existing phone") ||
+        lower.includes("phone number") ||
+        lower === "unknown"
+      ) {
+        return null;
+      }
+
+      let cleaned = trimmed.replace(/[^\d+]/g, "");
+      if (cleaned.startsWith("00")) cleaned = `+${cleaned.slice(2)}`;
+      if (!cleaned.startsWith("+") && /^\d{10,15}$/.test(cleaned)) cleaned = `+${cleaned}`;
+      if (/^\+\d{7,15}$/.test(cleaned)) return cleaned;
+      return null;
+    };
+
+    const resolvedCustomerPhone =
+      normalizePhoneToE164(params.customer_phone) ||
+      normalizePhoneToE164(session.callerPhone);
+
+    if (!resolvedCustomerPhone) {
+      return {
+        success: false,
+        message:
+          "What's the best mobile number to send your booking confirmation to? Please include the country code (e.g. +44...).",
+      };
+    }
+
     // Create booking
     const { data: booking, error } = await supabase
       .from("bookings")
       .insert({
         business_id: session.businessId,
         customer_name: params.customer_name,
-        customer_phone: params.customer_phone,
+        customer_phone: resolvedCustomerPhone,
         service_id: service.id,
         staff_id: staff.id,
         start_time: startTime.toISOString(),
@@ -880,11 +916,11 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
     }
 
     console.log("[MediaStream] Booking created:", booking.id);
-    
+
     // Save email if provided
     if (params.customer_email) {
       await executeSaveCustomerEmail(supabase, session.businessId, {
-        customer_phone: params.customer_phone,
+        customer_phone: resolvedCustomerPhone,
         email: params.customer_email,
         booking_id: booking.id
       });
