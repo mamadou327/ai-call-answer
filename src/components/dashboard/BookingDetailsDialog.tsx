@@ -44,7 +44,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
 
     const { error } = await supabase
       .from("bookings")
-      .update({ 
+      .update({
         status: "cancelled",
         cancelled_at: new Date().toISOString(),
         cancelled_by_user_id: user?.id || null
@@ -66,16 +66,29 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
       } catch (emailError) {
         console.warn("Failed to send cancellation email:", emailError);
       }
-      
-      // Send SMS
+
       try {
-        await supabase.functions.invoke("send-booking-sms", {
-          body: { businessId: booking.business_id, bookingId: booking.id, type: "cancellation" }
+        const { data: smsData, error: smsError } = await supabase.functions.invoke("send-booking-sms", {
+          body: { businessId: booking.business_id, bookingId: booking.id, type: "cancellation" },
         });
+
+        if (smsError) throw smsError;
+        if (smsData?.success === false) {
+          toast({
+            title: "SMS not sent",
+            description: smsData?.reason || "Customer phone number is missing or invalid.",
+            variant: "destructive",
+          });
+        }
       } catch (smsError) {
         console.warn("Failed to send cancellation SMS:", smsError);
+        toast({
+          title: "SMS not sent",
+          description: "Customer phone number is missing or invalid.",
+          variant: "destructive",
+        });
       }
-      
+
       toast({
         title: t("common.success"),
         description: t("bookingDetails.cancelSuccess"),
@@ -110,7 +123,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
   const handleReinstate = async () => {
     const { error } = await supabase
       .from("bookings")
-      .update({ 
+      .update({
         status: "confirmed",
         cancelled_at: null,
         cancelled_by_user_id: null
@@ -147,13 +160,13 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
     const originalStart = new Date(booking.start_time);
     const originalEnd = new Date(booking.end_time);
     const durationMs = originalEnd.getTime() - originalStart.getTime();
-    
+
     const newStart = new Date(newStartTime);
     const newEnd = new Date(newStart.getTime() + durationMs);
 
     const { error } = await supabase
       .from("bookings")
-      .update({ 
+      .update({
         start_time: newStart.toISOString(),
         end_time: newEnd.toISOString(),
       })
@@ -166,6 +179,29 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
         variant: "destructive",
       });
     } else {
+      // Send reschedule SMS
+      try {
+        const { data: smsData, error: smsError } = await supabase.functions.invoke("send-booking-sms", {
+          body: { businessId: booking.business_id, bookingId: booking.id, type: "reschedule" },
+        });
+
+        if (smsError) throw smsError;
+        if (smsData?.success === false) {
+          toast({
+            title: "SMS not sent",
+            description: smsData?.reason || "Customer phone number is missing or invalid.",
+            variant: "destructive",
+          });
+        }
+      } catch (smsError) {
+        console.warn("Failed to send reschedule SMS:", smsError);
+        toast({
+          title: "SMS not sent",
+          description: "Customer phone number is missing or invalid.",
+          variant: "destructive",
+        });
+      }
+
       toast({
         title: t("common.success"),
         description: t("bookingDetails.rescheduleSuccess"),
