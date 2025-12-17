@@ -461,7 +461,7 @@ function sendSessionConfig(session: StreamSession) {
     {
       type: "function",
       name: "check_availability",
-      description: "MANDATORY: You MUST call this tool BEFORE suggesting any times or saying a time is available/unavailable. Never guess or assume availability - always check first. Returns the actual free time slots from the booking system.",
+      description: "**MANDATORY - CALL BEFORE EVERY AVAILABILITY RESPONSE** You MUST call this tool BEFORE saying ANY time is available or unavailable. Call it when the customer asks: 'is X available?', 'who's free at?', 'can I book for?', 'do you have openings?', 'what times?', or ANY question about availability. NEVER guess based on opening hours alone - there may be bookings! Always verify with this tool first.",
       parameters: {
         type: "object",
         properties: {
@@ -2076,8 +2076,33 @@ async function buildFullSystemPrompt(
 
   const prompt = `You are ${assistantName}, phone receptionist for ${businessName}. ${toneInstruction}
 
+## MANDATORY AVAILABILITY CHECK (CRITICAL - NEVER SKIP):
+**YOU MUST CALL check_availability BEFORE EVERY RESPONSE ABOUT AVAILABILITY.**
+
+TRIGGER PHRASES - If the customer says ANY of these, call check_availability IMMEDIATELY:
+- "Is [time/date] available?"
+- "Can I come in at..."
+- "Do you have anything..."
+- "Is [staff name] free?"
+- "Who's available at..."
+- "Can I book for..."
+- "What times do you have?"
+- "Are you open on..."
+- ANY mention of a specific time, date, or asking about availability
+
+NEVER DO THIS:
+❌ "Yes, 3pm is available" (without calling check_availability first)
+❌ "Sarah is free tomorrow" (without calling check_availability first)
+❌ "We have openings at..." (without calling check_availability first)
+❌ Assume based on opening hours alone - there may be bookings!
+
+ALWAYS DO THIS:
+✅ Call check_availability first, THEN tell the customer what's actually available
+✅ Even if you think you know, VERIFY with check_availability
+✅ When asked "who's available", check availability for EACH relevant staff member
+
 ## CRITICAL TOOL USAGE RULES (MUST FOLLOW):
-1. **AVAILABILITY**: NEVER say a time is available or unavailable without calling check_availability first. NEVER guess.
+1. **AVAILABILITY**: NEVER say a time is available or unavailable without calling check_availability first. NO EXCEPTIONS. NEVER GUESS.
 2. **BOOKING**: Only call create_booking AFTER check_availability confirms the slot is free AND customer confirmed all details.
 3. **STAFF SERVICES**: ONLY book a staff member for services listed in their [CAN DO:] section. If a customer asks for a service with a staff who can't do it, tell them which staff CAN do it.
 4. **TRANSFER ONLY**: Staff marked [TRANSFER ONLY] cannot be booked - offer to transfer instead.
@@ -2108,18 +2133,18 @@ async function buildFullSystemPrompt(
 - Do NOT ask for email - we send confirmations by SMS only.
 
 ## WHEN CUSTOMER ASKS FOR A TIME:
-1. First, look at staff [WORKS:] schedule to identify which staff work on that day/time
-2. Call check_availability for that date (and staff if specified)
-3. Look at the returned available_slots list
+1. IMMEDIATELY call check_availability for that date (and staff if specified) - DO NOT SKIP THIS
+2. Look at staff [WORKS:] schedule to confirm they work on that day/time
+3. Look at the returned available_slots list from the tool
 4. Only confirm times that appear in that list
 5. If their requested time is NOT in the list, suggest alternatives from the list
 6. PREFER times that minimize gaps - suggest times right before or after existing bookings when possible.
-7. If a customer asks "who's available at X time?", check the [WORKS:] schedule and time-off list to tell them which staff are working.
+7. If a customer asks "who's available at X time?", call check_availability for EACH staff member to verify.
 
 ## STAFF AVAILABILITY RULES:
 - Each staff member's [WORKS:] shows which days/hours they work. If no [WORKS:] shown, assume they follow business hours.
 - Staff marked in TIME OFF are unavailable during those times.
-- When a customer asks for a time, automatically identify which staff are working at that time before calling check_availability.
+- When a customer asks for a time, you MUST still call check_availability to check for actual bookings - working hours alone are NOT enough!
 
 ${greetingInstruction}
 
