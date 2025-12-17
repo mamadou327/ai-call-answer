@@ -1016,11 +1016,12 @@ async function executeCancelBooking(supabase: any, session: StreamSession, param
       return { success: false, message: "I couldn't find that booking. Could you double-check the details?" };
     }
 
-    // Multiple matches - ask for clarification
+    // Multiple matches - ask for clarification with CORRECT staff names
     if (bookings.length > 1) {
       const options = bookings.map((b: any) => {
         const date = new Date(b.start_time);
-        return `${b.booking_code} - ${b.customer_name} on ${date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} at ${formatTime(date)}`;
+        const staffName = b.staff?.name || "staff";
+        return `${b.booking_code} - ${b.customer_name} with ${staffName} on ${date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} at ${formatTime(date)}`;
       }).join("; ");
       
       return { 
@@ -1049,7 +1050,33 @@ async function executeCancelBooking(supabase: any, session: StreamSession, param
       return { success: false, message: "Error cancelling booking." };
     }
 
-    return { success: true, message: `Your booking ${booking.booking_code} has been cancelled.` };
+    // Send cancellation SMS
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      await fetch(`${supabaseUrl}/functions/v1/send-booking-sms`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          businessId: session.businessId,
+          bookingId: booking.id,
+          type: "cancellation",
+        }),
+      });
+      console.log("[MediaStream] Cancellation SMS triggered");
+    } catch (smsError) {
+      console.warn("[MediaStream] Cancellation SMS failed:", smsError);
+    }
+
+    // Use the ACTUAL staff name from the database query
+    const staffName = booking.staff?.name || "your stylist";
+    const bookingDate = new Date(booking.start_time);
+    const dateStr = bookingDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+    const timeStr = formatTime(bookingDate);
+
+    return { success: true, message: `Your booking ${booking.booking_code} with ${staffName} on ${dateStr} at ${timeStr} has been cancelled. You should receive a confirmation SMS shortly.` };
   } catch (error) {
     console.error("[MediaStream] Cancel booking error:", error);
     return { success: false, message: "Error cancelling booking." };
@@ -1085,11 +1112,12 @@ async function executeRescheduleBooking(supabase: any, session: StreamSession, p
       return { success: false, message: "I couldn't find that booking. Could you double-check the details?" };
     }
 
-    // Multiple matches
+    // Multiple matches - include staff names for clarity
     if (bookings.length > 1) {
       const options = bookings.map((b: any) => {
         const date = new Date(b.start_time);
-        return `${b.booking_code} - ${b.customer_name} on ${date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}`;
+        const staffName = b.staff?.name || "staff";
+        return `${b.booking_code} - ${b.customer_name} with ${staffName} on ${date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}`;
       }).join("; ");
       
       return { 
@@ -1160,12 +1188,34 @@ async function executeRescheduleBooking(supabase: any, session: StreamSession, p
       return { success: false, message: "Sorry, there was an error updating the booking." };
     }
 
+    // Send reschedule SMS
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      await fetch(`${supabaseUrl}/functions/v1/send-booking-sms`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          businessId: session.businessId,
+          bookingId: booking.id,
+          type: "reschedule",
+        }),
+      });
+      console.log("[MediaStream] Reschedule SMS triggered");
+    } catch (smsError) {
+      console.warn("[MediaStream] Reschedule SMS failed:", smsError);
+    }
+
     const dateStr = newStartTime.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
     const timeStr = formatTime(newStartTime);
+    // Use the ACTUAL staff name from the database query
+    const staffName = booking.staff?.name || "your stylist";
 
     return { 
       success: true, 
-      message: `Done! Booking ${booking.booking_code} has been moved to ${dateStr} at ${timeStr}.`
+      message: `Done! Booking ${booking.booking_code} with ${staffName} has been moved to ${dateStr} at ${timeStr}. You should receive a confirmation SMS shortly.`
     };
   } catch (error) {
     console.error("[MediaStream] Reschedule booking error:", error);
