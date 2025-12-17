@@ -496,44 +496,43 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                           <X className="w-4 h-4 text-muted-foreground" />
                         </div>
                       ) : (
-                        <>
-                          {/* Time Off blocks */}
-                          {hourTimeOffs.map((timeOff) => (
-                            <div
-                              key={timeOff.id}
-                              className="text-xs p-1 rounded mb-1 truncate bg-amber-100 dark:bg-amber-900/40 border border-dashed border-amber-400 text-amber-800 dark:text-amber-200"
-                              title={`${timeOff.staff?.name} - ${getReasonLabel(timeOff.reason)}${timeOff.notes ? `: ${timeOff.notes}` : ''}`}
-                            >
-                              <div className="flex items-center gap-1">
-                                {getReasonIcon(timeOff.reason)}
-                                <p className="font-medium truncate">{timeOff.staff?.name}</p>
-                              </div>
-                              <p className="truncate opacity-80">{getReasonLabel(timeOff.reason)}</p>
-                            </div>
-                          ))}
-                          {/* Booking blocks - side by side when multiple */}
-                          {dayBookings.length > 0 && (
-                            <div className="flex gap-0.5">
-                              {dayBookings.map((booking) => (
-                                <div
-                                  key={booking.id}
-                                  className="text-xs p-1 rounded text-white truncate cursor-pointer hover:opacity-80 transition-opacity relative flex-1 min-w-0"
-                                  style={{ backgroundColor: booking.staff?.color || "#3B82F6" }}
-                                  title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})${booking.status === "completed" ? " ✓" : ""}`}
-                                  onClick={() => handleBookingClick(booking)}
-                                >
-                                  <div className="flex items-center gap-0.5">
-                                    <p className="font-medium truncate flex-1 text-[10px]">{booking.customer_name}</p>
-                                    {booking.status === "completed" && (
-                                      <Check className="w-2.5 h-2.5 flex-shrink-0" />
-                                    )}
-                                  </div>
-                                  <p className="truncate opacity-90 text-[9px]">{booking.service?.name}</p>
+                        /* All items (time offs + bookings) side by side */
+                        (hourTimeOffs.length > 0 || dayBookings.length > 0) && (
+                          <div className="flex gap-0.5 h-full">
+                            {/* Time Off blocks */}
+                            {hourTimeOffs.map((timeOff) => (
+                              <div
+                                key={timeOff.id}
+                                className="text-xs p-1 rounded truncate bg-amber-100 dark:bg-amber-900/40 border border-dashed border-amber-400 text-amber-800 dark:text-amber-200 flex-1 min-w-0"
+                                title={`${timeOff.staff?.name} - ${getReasonLabel(timeOff.reason)}${timeOff.notes ? `: ${timeOff.notes}` : ''}`}
+                              >
+                                <div className="flex items-center gap-0.5">
+                                  {getReasonIcon(timeOff.reason)}
+                                  <p className="font-medium truncate text-[10px]">{timeOff.staff?.name}</p>
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                        </>
+                                <p className="truncate opacity-80 text-[9px]">{getReasonLabel(timeOff.reason)}</p>
+                              </div>
+                            ))}
+                            {/* Booking blocks */}
+                            {dayBookings.map((booking) => (
+                              <div
+                                key={booking.id}
+                                className="text-xs p-1 rounded text-white truncate cursor-pointer hover:opacity-80 transition-opacity relative flex-1 min-w-0"
+                                style={{ backgroundColor: booking.staff?.color || "#3B82F6" }}
+                                title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})${booking.status === "completed" ? " ✓" : ""}`}
+                                onClick={() => handleBookingClick(booking)}
+                              >
+                                <div className="flex items-center gap-0.5">
+                                  <p className="font-medium truncate flex-1 text-[10px]">{booking.customer_name}</p>
+                                  {booking.status === "completed" && (
+                                    <Check className="w-2.5 h-2.5 flex-shrink-0" />
+                                  )}
+                                </div>
+                                <p className="truncate opacity-90 text-[9px]">{booking.service?.name}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )
                       )}
                     </div>
                   );
