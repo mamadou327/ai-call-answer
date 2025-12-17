@@ -2,15 +2,22 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Building2, Users, Phone, Calendar, DollarSign, TrendingUp, MessageSquare, UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, Building2, Users, Phone, Calendar, DollarSign, TrendingUp, MessageSquare, UserPlus, Download, FileText, Activity } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format, subDays, startOfDay, endOfDay, parseISO, startOfYear } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/dashboard/DateRangePicker";
+import { toast } from "sonner";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface Business {
   id: string;
   business_name: string;
+  status?: string;
+  aivia_active?: boolean;
 }
 
 interface AnalyticsData {
@@ -26,12 +33,15 @@ interface AnalyticsData {
   topActiveBusinesses: Array<{ business_name: string; bookingCount: number }>;
 }
 
+type ActiveFilter = "all" | "active" | "inactive" | "pending" | "approved" | "revoked";
+
 export const AdminAnalyticsDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [datePreset, setDatePreset] = useState("30");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [selectedBusiness, setSelectedBusiness] = useState<string>("all");
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const [data, setData] = useState<AnalyticsData>({
     totalBusinesses: 0,
     totalStaff: 0,
@@ -50,7 +60,7 @@ export const AdminAnalyticsDashboard = () => {
     const fetchBusinesses = async () => {
       const { data: businessList } = await supabase
         .from("businesses")
-        .select("id, business_name")
+        .select("id, business_name, status, aivia_active")
         .order("business_name");
       
       setBusinesses(businessList || []);
@@ -100,7 +110,7 @@ export const AdminAnalyticsDashboard = () => {
       const isFiltered = selectedBusiness !== "all";
 
       // Build queries with optional business filter
-      let businessesQuery = supabase.from("businesses").select("id, business_name, plan_tier, status, created_at");
+      let businessesQuery = supabase.from("businesses").select("id, business_name, plan_tier, status, created_at, aivia_active");
       let staffQuery = supabase.from("staff").select("id, business_id");
       let callsQuery = supabase.from("calls_log").select("id, business_id, created_at").gte("created_at", startDate).lte("created_at", endDate);
       let bookingsQuery = supabase.from("bookings").select("id, business_id, start_time, service_id").gte("start_time", startDate).lte("start_time", endDate);
@@ -113,6 +123,17 @@ export const AdminAnalyticsDashboard = () => {
         callsQuery = callsQuery.eq("business_id", selectedBusiness);
         bookingsQuery = bookingsQuery.eq("business_id", selectedBusiness);
         messagesQuery = messagesQuery.eq("business_id", selectedBusiness);
+      }
+
+      // Apply active/status filter
+      if (activeFilter !== "all") {
+        if (activeFilter === "active") {
+          businessesQuery = businessesQuery.eq("aivia_active", true);
+        } else if (activeFilter === "inactive") {
+          businessesQuery = businessesQuery.eq("aivia_active", false);
+        } else {
+          businessesQuery = businessesQuery.eq("status", activeFilter);
+        }
       }
 
       // Fetch all data in parallel
@@ -233,7 +254,165 @@ export const AdminAnalyticsDashboard = () => {
 
   useEffect(() => {
     loadAnalytics();
-  }, [datePreset, customDateRange, selectedBusiness]);
+  }, [datePreset, customDateRange, selectedBusiness, activeFilter]);
+
+  // Export to CSV
+  const exportToCSV = () => {
+    try {
+      const { startDate, endDate } = getDateRange();
+      const dateRangeStr = `${format(new Date(startDate), "yyyy-MM-dd")}_to_${format(new Date(endDate), "yyyy-MM-dd")}`;
+      
+      let csvContent = "Analytics Report\n";
+      csvContent += `Date Range: ${format(new Date(startDate), "MMM d, yyyy")} - ${format(new Date(endDate), "MMM d, yyyy")}\n`;
+      csvContent += `Generated: ${format(new Date(), "MMM d, yyyy HH:mm")}\n\n`;
+      
+      // Summary metrics
+      csvContent += "Summary Metrics\n";
+      csvContent += `Total Businesses,${data.totalBusinesses}\n`;
+      csvContent += `Total Staff,${data.totalStaff}\n`;
+      csvContent += `Total Calls,${data.totalCalls}\n`;
+      csvContent += `Total Bookings,${data.totalBookings}\n`;
+      csvContent += `Total Revenue,${formatCurrency(data.totalRevenue)}\n\n`;
+      
+      // Calls by business
+      if (data.callsPerBusiness.length > 0) {
+        csvContent += "Calls by Business\n";
+        csvContent += "Business Name,Call Count\n";
+        data.callsPerBusiness.forEach(item => {
+          csvContent += `"${item.business_name}",${item.count}\n`;
+        });
+        csvContent += "\n";
+      }
+      
+      // Messages by business
+      if (data.messagesPerBusiness.length > 0) {
+        csvContent += "Messages by Business\n";
+        csvContent += "Business Name,Message Count\n";
+        data.messagesPerBusiness.forEach(item => {
+          csvContent += `"${item.business_name}",${item.count}\n`;
+        });
+        csvContent += "\n";
+      }
+      
+      // Top active businesses
+      if (data.topActiveBusinesses.length > 0) {
+        csvContent += "Top Active Businesses\n";
+        csvContent += "Business Name,Booking Count\n";
+        data.topActiveBusinesses.forEach(item => {
+          csvContent += `"${item.business_name}",${item.bookingCount}\n`;
+        });
+        csvContent += "\n";
+      }
+      
+      // Recent signups
+      if (data.recentSignups.length > 0) {
+        csvContent += "Recent Signups\n";
+        csvContent += "Business Name,Signup Date,Status\n";
+        data.recentSignups.forEach(item => {
+          csvContent += `"${item.business_name}","${format(parseISO(item.created_at), "MMM d, yyyy")}",${item.status}\n`;
+        });
+      }
+      
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `analytics_${dateRangeStr}.csv`;
+      link.click();
+      
+      toast.success("CSV exported successfully");
+    } catch (error) {
+      console.error("Failed to export CSV:", error);
+      toast.error("Failed to export CSV");
+    }
+  };
+
+  // Export to PDF
+  const exportToPDF = () => {
+    try {
+      const { startDate, endDate } = getDateRange();
+      const dateRangeStr = `${format(new Date(startDate), "yyyy-MM-dd")}_to_${format(new Date(endDate), "yyyy-MM-dd")}`;
+      
+      const doc = new jsPDF();
+      let yPos = 20;
+      
+      // Title
+      doc.setFontSize(20);
+      doc.text("Analytics Report", 14, yPos);
+      yPos += 10;
+      
+      // Date range
+      doc.setFontSize(10);
+      doc.text(`Date Range: ${format(new Date(startDate), "MMM d, yyyy")} - ${format(new Date(endDate), "MMM d, yyyy")}`, 14, yPos);
+      yPos += 5;
+      doc.text(`Generated: ${format(new Date(), "MMM d, yyyy HH:mm")}`, 14, yPos);
+      yPos += 15;
+      
+      // Summary metrics table
+      doc.setFontSize(14);
+      doc.text("Summary Metrics", 14, yPos);
+      yPos += 5;
+      
+      autoTable(doc, {
+        startY: yPos,
+        head: [["Metric", "Value"]],
+        body: [
+          ["Total Businesses", data.totalBusinesses.toString()],
+          ["Total Staff", data.totalStaff.toString()],
+          ["Total Calls", data.totalCalls.toString()],
+          ["Total Bookings", data.totalBookings.toString()],
+          ["Total Revenue", formatCurrency(data.totalRevenue)],
+        ],
+        theme: "striped",
+        headStyles: { fillColor: [59, 130, 246] },
+      });
+      
+      yPos = (doc as any).lastAutoTable.finalY + 15;
+      
+      // Calls by business
+      if (data.callsPerBusiness.length > 0) {
+        doc.setFontSize(14);
+        doc.text("Calls by Business", 14, yPos);
+        yPos += 5;
+        
+        autoTable(doc, {
+          startY: yPos,
+          head: [["Business Name", "Call Count"]],
+          body: data.callsPerBusiness.map(item => [item.business_name, item.count.toString()]),
+          theme: "striped",
+          headStyles: { fillColor: [59, 130, 246] },
+        });
+        
+        yPos = (doc as any).lastAutoTable.finalY + 15;
+      }
+      
+      // Check if we need a new page
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
+      
+      // Top active businesses
+      if (data.topActiveBusinesses.length > 0) {
+        doc.setFontSize(14);
+        doc.text("Top Active Businesses", 14, yPos);
+        yPos += 5;
+        
+        autoTable(doc, {
+          startY: yPos,
+          head: [["Business Name", "Booking Count"]],
+          body: data.topActiveBusinesses.map(item => [item.business_name, item.bookingCount.toString()]),
+          theme: "striped",
+          headStyles: { fillColor: [59, 130, 246] },
+        });
+      }
+      
+      doc.save(`analytics_${dateRangeStr}.pdf`);
+      toast.success("PDF exported successfully");
+    } catch (error) {
+      console.error("Failed to export PDF:", error);
+      toast.error("Failed to export PDF");
+    }
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
@@ -288,6 +467,22 @@ export const AdminAnalyticsDashboard = () => {
             </SelectContent>
           </Select>
 
+          {/* Active/Status Filter */}
+          <Select value={activeFilter} onValueChange={(value) => setActiveFilter(value as ActiveFilter)}>
+            <SelectTrigger className="w-[160px]">
+              <Activity className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Status filter" />
+            </SelectTrigger>
+            <SelectContent className="bg-background border shadow-lg z-50">
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="active">Aivia Active</SelectItem>
+              <SelectItem value="inactive">Aivia Inactive</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="revoked">Revoked</SelectItem>
+            </SelectContent>
+          </Select>
+
           {/* Date Range Filter */}
           <Select value={datePreset} onValueChange={handlePresetChange}>
             <SelectTrigger className="w-[180px]">
@@ -308,15 +503,42 @@ export const AdminAnalyticsDashboard = () => {
               onDateRangeChange={setCustomDateRange}
             />
           )}
+
+          {/* Export Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-background border shadow-lg z-50">
+              <DropdownMenuItem onClick={exportToCSV}>
+                <FileText className="w-4 h-4 mr-2" />
+                Export as CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportToPDF}>
+                <FileText className="w-4 h-4 mr-2" />
+                Export as PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      {/* Selected Business Indicator */}
-      {selectedBusiness !== "all" && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Badge variant="outline" className="font-normal">
-            Showing data for: {businesses.find(b => b.id === selectedBusiness)?.business_name}
-          </Badge>
+      {/* Selected Filters Indicator */}
+      {(selectedBusiness !== "all" || activeFilter !== "all") && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+          {selectedBusiness !== "all" && (
+            <Badge variant="outline" className="font-normal">
+              Business: {businesses.find(b => b.id === selectedBusiness)?.business_name}
+            </Badge>
+          )}
+          {activeFilter !== "all" && (
+            <Badge variant="outline" className="font-normal">
+              Status: {activeFilter === "active" ? "Aivia Active" : activeFilter === "inactive" ? "Aivia Inactive" : activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)}
+            </Badge>
+          )}
         </div>
       )}
 
