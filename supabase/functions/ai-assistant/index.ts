@@ -436,6 +436,7 @@ serve(async (req) => {
       { data: allBookings }, // Include cancelled bookings for lookup
       { data: recentBookings },
       { data: customers },
+      { data: staffTimeOff }, // Staff time off data
     ] = await Promise.all([
       supabase.from("businesses").select("*").eq("id", validBusinessId).single(),
       supabase.from("business_settings").select("*").eq("business_id", validBusinessId).single(),
@@ -474,6 +475,13 @@ serve(async (req) => {
         .eq("business_id", validBusinessId)
         .order("total_visits", { ascending: false })
         .limit(100),
+      // Fetch staff time off (approved, current and future)
+      supabase
+        .from("staff_time_off")
+        .select("id, staff_id, start_time, end_time, reason")
+        .eq("business_id", validBusinessId)
+        .eq("status", "approved")
+        .gte("end_time", todayStr),
     ]);
 
     // Extract policy settings with defaults
@@ -692,14 +700,19 @@ Before answering ANY booking-related question, ALWAYS validate in this EXACT ord
    □ Is it at least ${policies.minBookingNoticeHours} hours from now? → REJECT if less
    □ For cancellations: Is it at least ${policies.minCancellationNoticeHours} hours before? → REJECT if less
 
-📋 STEP 4: AVAILABILITY VALIDATION
+📋 STEP 4: STAFF TIME OFF VALIDATION (CRITICAL!)
+   □ Check if the requested staff member is on TIME OFF
+   □ Is the staff member on approved time off during this slot? → REJECT or suggest alternative staff
+   □ ALWAYS check time off BEFORE confirming any availability!
+
+📋 STEP 5: BOOKING CONFLICT VALIDATION
    □ Check existing bookings for that date/time
    □ Is the requested staff member already booked? → REJECT or suggest alternative
    □ Would the booking overlap with existing ones? → REJECT
 
-📋 STEP 5: SERVICE/STAFF VALIDATION
+📋 STEP 6: SERVICE/STAFF VALIDATION
    □ Does the requested service exist?
-   □ Is the requested staff member available and AI-enabled?
+   □ Is the requested staff member AI-enabled for bookings?
    □ Can this staff member provide this service?
 
 ALWAYS explain your reasoning! Example response pattern:
@@ -707,13 +720,14 @@ ALWAYS explain your reasoning! Example response pattern:
 ✓ Date: [date] is a [day] - we're OPEN from [open] to [close]
 ✓ Time: [time] is within our hours
 ✓ Notice: That's [X] hours from now, which meets our ${policies.minBookingNoticeHours}-hour minimum
-✓ Availability: [staff] is free at that time
+✓ Time Off: [staff] is working (not on time off)
+✓ Bookings: [staff] has no conflicting bookings
 → Yes, I can book that for you!"
 
 OR if rejecting:
 "I'm sorry, but I can't book that because:
-✗ [specific reason with calculation]
-→ Here's what I can offer instead: [alternative]"
+✗ [specific reason - e.g., staff is on time off / already booked]
+→ Here's what I can offer instead: [alternative staff who ARE available]"
 
 ═══════════════════════════════════════════════════════════════
 YOUR CAPABILITIES
@@ -965,6 +979,7 @@ REMEMBER: ALWAYS respond with JSON. Never plain text.`;
         openingHours: openingHours || [],
         bookings: formattedBookings,
         policies,
+        staffTimeOff: staffTimeOff || [],
       });
       return jsonResponse(result);
     }
@@ -991,6 +1006,7 @@ REMEMBER: ALWAYS respond with JSON. Never plain text.`;
         openingHours: openingHours || [],
         bookings: formattedBookings,
         staff: staff || [],
+        staffTimeOff: staffTimeOff || [],
       });
       return jsonResponse({ assistantMessage: result, action: null });
     }
@@ -1235,7 +1251,7 @@ async function handleCreateBooking(
   businessId: string,
   userId: string,
   params: any,
-  context: { services: any[]; staff: any[]; openingHours: any[]; bookings: any[]; policies: any }
+  context: { services: any[]; staff: any[]; openingHours: any[]; bookings: any[]; policies: any; staffTimeOff: any[] }
 ): Promise<{ assistantMessage: string; action: string | null; metadata?: any }> {
   const { customer_name, customer_phone, service_name, staff_name, date, time, notes } = params;
   const { policies } = context;
@@ -1326,7 +1342,29 @@ async function handleCreateBooking(
     return { assistantMessage: `${hoursCheck.reason}. Would you like to pick a different time?`, action: null };
   }
 
-  // Check for conflicts
+  // Check staff time off FIRST
+  if (staffMember) {
+    const timeOffCheck = isStaffOnTimeOff(staffMember.id, startDate, context.staffTimeOff);
+    if (timeOffCheck.onTimeOff) {
+      // Find alternative available staff
+      const availableStaff = getAvailableStaffAtTime(
+        context.staff, startDate, duration, context.bookings, context.staffTimeOff
+      );
+      
+      if (availableStaff.length === 0) {
+        return {
+          assistantMessage: `Sorry, ${staffMember.name} is off (${timeOffCheck.reason}) and no other staff are available at ${time} on that date. Would you like to try a different time?`,
+          action: null,
+        };
+      }
+      return {
+        assistantMessage: `Sorry, ${staffMember.name} is off (${timeOffCheck.reason}). Available staff at that time: ${availableStaff.map(s => s.name).join(", ")}. Would you like to book with one of them?`,
+        action: null,
+      };
+    }
+  }
+
+  // Check for booking conflicts
   if (staffMember) {
     const { data: conflicts } = await supabase
       .from("bookings")
@@ -1338,10 +1376,20 @@ async function handleCreateBooking(
       .gt("end_time", startDate.toISOString());
 
     if (conflicts?.length > 0) {
-      // Suggest next available slot
-      const suggestedTime = new Date(startDate.getTime() + duration * 60000 + 30 * 60000);
+      // Find alternative available staff
+      const availableStaff = getAvailableStaffAtTime(
+        context.staff, startDate, duration, context.bookings, context.staffTimeOff
+      );
+      
+      if (availableStaff.length === 0) {
+        const suggestedTime = new Date(startDate.getTime() + duration * 60000 + 30 * 60000);
+        return {
+          assistantMessage: `${staffMember.name} is already booked at that time and no other staff are available. How about ${formatTime(suggestedTime)} instead?`,
+          action: null,
+        };
+      }
       return {
-        assistantMessage: `${staffMember.name} already has a booking at that time. How about ${formatTime(suggestedTime)} instead?`,
+        assistantMessage: `${staffMember.name} is already booked at that time. Available staff: ${availableStaff.map(s => s.name).join(", ")}. Would you like to book with one of them?`,
         action: null,
       };
     }
@@ -1565,11 +1613,68 @@ async function handleRescheduleBooking(
   };
 }
 
+// Helper: Check if staff is on time off at a specific datetime
+function isStaffOnTimeOff(staffId: string, datetime: Date, staffTimeOff: any[]): { onTimeOff: boolean; reason?: string } {
+  const timeOffEntry = staffTimeOff.find((t) => {
+    if (t.staff_id !== staffId) return false;
+    const start = new Date(t.start_time);
+    const end = new Date(t.end_time);
+    return datetime >= start && datetime < end;
+  });
+  
+  if (timeOffEntry) {
+    return { onTimeOff: true, reason: timeOffEntry.reason };
+  }
+  return { onTimeOff: false };
+}
+
+// Helper: Get all staff who are available at a specific datetime (not on time off AND not booked)
+function getAvailableStaffAtTime(
+  staffList: any[],
+  datetime: Date,
+  durationMinutes: number,
+  bookings: any[],
+  staffTimeOff: any[]
+): any[] {
+  const slotStart = datetime;
+  const slotEnd = new Date(datetime.getTime() + durationMinutes * 60000);
+  const slotStartTime = `${String(slotStart.getHours()).padStart(2, '0')}:${String(slotStart.getMinutes()).padStart(2, '0')}`;
+  const slotEndTime = `${String(slotEnd.getHours()).padStart(2, '0')}:${String(slotEnd.getMinutes()).padStart(2, '0')}`;
+  const dateStr = `${slotStart.getFullYear()}-${String(slotStart.getMonth() + 1).padStart(2, '0')}-${String(slotStart.getDate()).padStart(2, '0')}`;
+
+  return staffList.filter((s) => {
+    // Check if AI booking is enabled for this staff
+    if (!s.ai_enabled) return false;
+
+    // Check if staff is on time off
+    const timeOffCheck = isStaffOnTimeOff(s.id, datetime, staffTimeOff);
+    if (timeOffCheck.onTimeOff) {
+      console.log(`[Aivia] Staff ${s.name} is on time off at ${datetime.toISOString()}: ${timeOffCheck.reason}`);
+      return false;
+    }
+
+    // Check if staff has a booking at this time
+    const hasConflict = bookings.some((b) => {
+      if (b.staffId !== s.id) return false;
+      if (b.date !== dateStr) return false;
+      // Overlap check: booking starts before slot ends AND booking ends after slot starts
+      return slotStartTime < b.endTime && slotEndTime > b.time;
+    });
+
+    if (hasConflict) {
+      console.log(`[Aivia] Staff ${s.name} has a booking conflict at ${slotStartTime} on ${dateStr}`);
+      return false;
+    }
+
+    return true;
+  });
+}
+
 function handleCheckAvailability(
   params: any,
-  context: { openingHours: any[]; bookings: any[]; staff: any[] }
+  context: { openingHours: any[]; bookings: any[]; staff: any[]; staffTimeOff: any[] }
 ): string {
-  const { date, staff_name, duration_minutes = 60 } = params;
+  const { date, time, staff_name, duration_minutes = 60 } = params;
 
   if (!date) {
     return "Which date would you like me to check?";
@@ -1593,18 +1698,78 @@ function handleCheckAvailability(
     return `We're closed on ${dayName}.`;
   }
 
-  // Find bookings for this date
+  // If a specific time is requested, check who's available at that exact time
+  if (time) {
+    const timeParts = time.split(':');
+    if (timeParts.length >= 2) {
+      const checkDatetime = new Date(
+        parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]),
+        parseInt(timeParts[0]), parseInt(timeParts[1]), 0
+      );
+      
+      // Check if specific staff was requested
+      if (staff_name) {
+        const staffMember = findStaff(context.staff, staff_name);
+        if (!staffMember) {
+          const available = context.staff.map(s => s.name).join(", ");
+          return `I couldn't find staff member "${staff_name}". Our team: ${available}`;
+        }
+        
+        // Check if this specific staff is available
+        const timeOffCheck = isStaffOnTimeOff(staffMember.id, checkDatetime, context.staffTimeOff);
+        if (timeOffCheck.onTimeOff) {
+          // Find who IS available
+          const availableStaff = getAvailableStaffAtTime(
+            context.staff, checkDatetime, duration_minutes, context.bookings, context.staffTimeOff
+          );
+          if (availableStaff.length === 0) {
+            return `Sorry, ${staffMember.name} is off (${timeOffCheck.reason}) and no other staff are available at ${time} on ${formatDate(targetDate)}.`;
+          }
+          return `Sorry, ${staffMember.name} is off (${timeOffCheck.reason}) at that time. Available staff at ${time}: ${availableStaff.map(s => s.name).join(", ")}`;
+        }
+        
+        // Check for booking conflicts
+        const slotEnd = new Date(checkDatetime.getTime() + duration_minutes * 60000);
+        const slotEndTime = `${String(slotEnd.getHours()).padStart(2, '0')}:${String(slotEnd.getMinutes()).padStart(2, '0')}`;
+        
+        const hasConflict = context.bookings.some((b) => {
+          if (b.staffId !== staffMember.id) return false;
+          if (b.date !== date) return false;
+          return time < b.endTime && slotEndTime > b.time;
+        });
+        
+        if (hasConflict) {
+          const availableStaff = getAvailableStaffAtTime(
+            context.staff, checkDatetime, duration_minutes, context.bookings, context.staffTimeOff
+          );
+          if (availableStaff.length === 0) {
+            return `Sorry, ${staffMember.name} is already booked at ${time} and no other staff are available at that time.`;
+          }
+          return `Sorry, ${staffMember.name} is already booked at ${time}. Available staff: ${availableStaff.map(s => s.name).join(", ")}`;
+        }
+        
+        return `✓ ${staffMember.name} is available at ${time} on ${formatDate(targetDate)}. Would you like to book?`;
+      }
+      
+      // No specific staff - check who's available at this time
+      const availableStaff = getAvailableStaffAtTime(
+        context.staff, checkDatetime, duration_minutes, context.bookings, context.staffTimeOff
+      );
+      
+      if (availableStaff.length === 0) {
+        return `Sorry, no staff are available at ${time} on ${formatDate(targetDate)}. Would you like me to check a different time?`;
+      }
+      
+      return `Available at ${time} on ${formatDate(targetDate)}: ${availableStaff.map(s => s.name).join(", ")}. Would you like to book?`;
+    }
+  }
+
+  // No specific time - generate all available time slots
   const dateStr = date;
   const dayBookings = context.bookings.filter(b => b.date === dateStr);
 
-  // Filter by staff if specified
-  let staffMember = staff_name ? findStaff(context.staff, staff_name) : null;
-  const relevantBookings = staffMember
-    ? dayBookings.filter(b => b.staffId === staffMember.id)
-    : dayBookings;
-
   // Generate time slots (30-min increments)
-  const slots: string[] = [];
+  const slots: { time: string; availableStaff: string[] }[] = [];
   const [openH, openM] = hours.open.split(":").map(Number);
   const [closeH, closeM] = hours.close.split(":").map(Number);
   
@@ -1614,31 +1779,37 @@ function handleCheckAvailability(
       if (h === closeH && m >= closeM) continue;
       
       const slotTime = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-      const slotEnd = new Date(`${dateStr}T${slotTime}:00`);
-      slotEnd.setMinutes(slotEnd.getMinutes() + duration_minutes);
-      const slotEndTime = slotEnd.toTimeString().slice(0, 5);
-
-      if (slotEndTime > hours.close) continue;
-
-      // Check if slot is free
-      const conflict = relevantBookings.some(b => {
-        return slotTime < b.endTime && slotEndTime > b.time;
-      });
-
-      if (!conflict) {
-        slots.push(slotTime);
+      const slotDatetime = new Date(
+        parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]),
+        h, m, 0
+      );
+      
+      const availableStaff = getAvailableStaffAtTime(
+        context.staff, slotDatetime, duration_minutes, context.bookings, context.staffTimeOff
+      );
+      
+      if (availableStaff.length > 0) {
+        // Filter by specific staff if requested
+        if (staff_name) {
+          const staffMember = findStaff(context.staff, staff_name);
+          if (staffMember && availableStaff.some(s => s.id === staffMember.id)) {
+            slots.push({ time: slotTime, availableStaff: [staffMember.name] });
+          }
+        } else {
+          slots.push({ time: slotTime, availableStaff: availableStaff.map(s => s.name) });
+        }
       }
     }
   }
 
   const dateFormatted = formatDate(targetDate);
-  const staffInfo = staffMember ? ` with ${staffMember.name}` : "";
+  const staffInfo = staff_name ? ` with ${staff_name}` : "";
 
   if (slots.length === 0) {
     return `No available slots on ${dateFormatted}${staffInfo}. Would you like me to check another day?`;
   }
 
-  const displaySlots = slots.slice(0, 10).join(", ");
+  const displaySlots = slots.slice(0, 10).map(s => s.time).join(", ");
   const more = slots.length > 10 ? ` (and ${slots.length - 10} more)` : "";
 
   return `📅 Available on ${dateFormatted}${staffInfo}:\n${displaySlots}${more}\n\nWould you like to book any of these times?`;
