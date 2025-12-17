@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Building2, Users, Phone, Calendar, DollarSign, TrendingUp, MessageSquare, UserPlus, Download, FileText, Activity } from "lucide-react";
+import { Loader2, Building2, Users, Phone, Calendar, DollarSign, TrendingUp, MessageSquare, UserPlus, Download, FileText } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format, subDays, startOfDay, endOfDay, parseISO, startOfYear } from "date-fns";
@@ -33,15 +33,12 @@ interface AnalyticsData {
   topActiveBusinesses: Array<{ business_name: string; bookingCount: number }>;
 }
 
-type ActiveFilter = "all" | "active" | "inactive" | "pending" | "approved" | "revoked";
-
 export const AdminAnalyticsDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [datePreset, setDatePreset] = useState("30");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [selectedBusiness, setSelectedBusiness] = useState<string>("all");
-  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const [data, setData] = useState<AnalyticsData>({
     totalBusinesses: 0,
     totalStaff: 0,
@@ -125,16 +122,6 @@ export const AdminAnalyticsDashboard = () => {
         messagesQuery = messagesQuery.eq("business_id", selectedBusiness);
       }
 
-      // Apply active/status filter
-      if (activeFilter !== "all") {
-        if (activeFilter === "active") {
-          businessesQuery = businessesQuery.eq("aivia_active", true);
-        } else if (activeFilter === "inactive") {
-          businessesQuery = businessesQuery.eq("aivia_active", false);
-        } else {
-          businessesQuery = businessesQuery.eq("status", activeFilter);
-        }
-      }
 
       // Fetch all data in parallel
       const [
@@ -254,7 +241,7 @@ export const AdminAnalyticsDashboard = () => {
 
   useEffect(() => {
     loadAnalytics();
-  }, [datePreset, customDateRange, selectedBusiness, activeFilter]);
+  }, [datePreset, customDateRange, selectedBusiness]);
 
   // Export to CSV
   const exportToCSV = () => {
@@ -467,22 +454,6 @@ export const AdminAnalyticsDashboard = () => {
             </SelectContent>
           </Select>
 
-          {/* Active/Status Filter */}
-          <Select value={activeFilter} onValueChange={(value) => setActiveFilter(value as ActiveFilter)}>
-            <SelectTrigger className="w-[160px]">
-              <Activity className="w-4 h-4 mr-2" />
-              <SelectValue placeholder="Status filter" />
-            </SelectTrigger>
-            <SelectContent className="bg-background border shadow-lg z-50">
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Aivia Active</SelectItem>
-              <SelectItem value="inactive">Aivia Inactive</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="revoked">Revoked</SelectItem>
-            </SelectContent>
-          </Select>
-
           {/* Date Range Filter */}
           <Select value={datePreset} onValueChange={handlePresetChange}>
             <SelectTrigger className="w-[180px]">
@@ -526,19 +497,12 @@ export const AdminAnalyticsDashboard = () => {
         </div>
       </div>
 
-      {/* Selected Filters Indicator */}
-      {(selectedBusiness !== "all" || activeFilter !== "all") && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-          {selectedBusiness !== "all" && (
-            <Badge variant="outline" className="font-normal">
-              Business: {businesses.find(b => b.id === selectedBusiness)?.business_name}
-            </Badge>
-          )}
-          {activeFilter !== "all" && (
-            <Badge variant="outline" className="font-normal">
-              Status: {activeFilter === "active" ? "Aivia Active" : activeFilter === "inactive" ? "Aivia Inactive" : activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)}
-            </Badge>
-          )}
+      {/* Selected Business Indicator */}
+      {selectedBusiness !== "all" && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Badge variant="outline" className="font-normal">
+            Showing data for: {businesses.find(b => b.id === selectedBusiness)?.business_name}
+          </Badge>
         </div>
       )}
 
