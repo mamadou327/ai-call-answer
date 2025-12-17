@@ -1874,7 +1874,7 @@ function escapeXml(text: string): string {
 }
 
 function formatTime(date: Date): string {
-  return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase();
 }
 
 // ============================================================================
@@ -2246,6 +2246,7 @@ ALWAYS DO THIS:
 - Silence/pauses are NOT a reason to end - wait patiently.
 - If unsure about availability, ALWAYS use check_availability tool - don't make assumptions.
 - Do NOT ask for email - we send confirmations by SMS only.
+- ALWAYS speak times in 12-hour format with AM/PM (e.g., "5pm", "10:30am", "2pm"). NEVER use 24-hour format like "seventeen hundred" or "14:00".
 
 ## WHEN CUSTOMER ASKS FOR A TIME:
 1. IMMEDIATELY call check_availability (DO NOT SKIP).
