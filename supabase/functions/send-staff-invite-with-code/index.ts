@@ -104,57 +104,143 @@ const handler = async (req: Request): Promise<Response> => {
     const emailResponse = await resend.emails.send({
       from: resendFromEmail,
       to: [staffEmail],
-      subject: `Your staff join code for ${businessName} on Aivia`,
+      subject: `You're invited to join ${businessName} on Aivia`,
       html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h1 style="color: #4F46E5; margin-bottom: 24px;">Staff Invitation</h1>
-          
-          <p style="font-size: 16px; color: #374151; line-height: 1.6;">Hi ${displayName},</p>
-          
-          <p style="font-size: 16px; color: #374151; line-height: 1.6;">
-            Here is your staff login invitation for <strong>${businessName}</strong> on Aivia.
-          </p>
-          
-          <div style="background-color: #F3F4F6; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center;">
-            <p style="font-size: 14px; color: #6B7280; margin: 0 0 8px 0;">Your Join Code</p>
-            <p style="font-size: 32px; font-family: monospace; font-weight: bold; color: #4F46E5; letter-spacing: 4px; margin: 0;">
-              ${joinCode}
-            </p>
-          </div>
-          
-          <p style="font-size: 16px; color: #374151; line-height: 1.6;">
-            To complete your setup:
-          </p>
-          
-          <ol style="font-size: 16px; color: #374151; line-height: 1.8;">
-            <li>Click the button below to go to the signup page</li>
-            <li>Enter your email and create a password</li>
-            <li>Enter the join code shown above</li>
-          </ol>
-          
-          <div style="margin: 32px 0;">
-            <a href="${inviteLink}" 
-               style="display: inline-block; padding: 14px 28px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">
-              Complete Your Setup
-            </a>
-          </div>
-          
-          <p style="font-size: 14px; color: #6B7280; line-height: 1.6;">
-            Or copy and paste this link into your browser:<br/>
-            <a href="${inviteLink}" style="color: #4F46E5;">${inviteLink}</a>
-          </p>
-          
-          <p style="font-size: 16px; color: #374151; line-height: 1.6; margin-top: 24px;">
-            Your access will become active after the business owner approves it.
-          </p>
-          
-          <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 32px 0;" />
-          
-          <p style="font-size: 14px; color: #9CA3AF;">
-            Best regards,<br/>
-            The Aivia Team
-          </p>
-        </div>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
+            <tr>
+              <td align="center">
+                <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); overflow: hidden;">
+                  
+                  <!-- Header -->
+                  <tr>
+                    <td style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 32px 40px; text-align: center;">
+                      <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">
+                        ✨ You're Invited
+                      </h1>
+                    </td>
+                  </tr>
+                  
+                  <!-- Content -->
+                  <tr>
+                    <td style="padding: 40px;">
+                      <p style="margin: 0 0 20px; color: #1f2937; font-size: 16px; line-height: 1.6;">
+                        Hi ${displayName},
+                      </p>
+                      
+                      <p style="margin: 0 0 28px; color: #4b5563; font-size: 15px; line-height: 1.7;">
+                        You've been invited to join <strong style="color: #1f2937;">${businessName}</strong> as a staff member on Aivia.
+                      </p>
+                      
+                      <!-- Join Code Card -->
+                      <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-radius: 12px; border: 1px solid #bae6fd; margin-bottom: 28px;">
+                        <tr>
+                          <td style="padding: 24px; text-align: center;">
+                            <p style="margin: 0 0 8px; color: #0369a1; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
+                              Your Join Code
+                            </p>
+                            <p style="margin: 0; font-family: 'SF Mono', Monaco, 'Courier New', monospace; font-size: 28px; font-weight: 700; color: #0c4a6e; letter-spacing: 3px;">
+                              ${joinCode}
+                            </p>
+                            <p style="margin: 12px 0 0; color: #64748b; font-size: 12px;">
+                              Valid for 24 hours
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <!-- Steps -->
+                      <p style="margin: 0 0 16px; color: #1f2937; font-size: 14px; font-weight: 600;">
+                        How to get started:
+                      </p>
+                      
+                      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 28px;">
+                        <tr>
+                          <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
+                            <table cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td style="width: 28px; height: 28px; background-color: #4F46E5; border-radius: 50%; text-align: center; vertical-align: middle; color: #fff; font-size: 13px; font-weight: 600;">1</td>
+                                <td style="padding-left: 14px; color: #4b5563; font-size: 14px;">Click the button below to sign up</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
+                            <table cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td style="width: 28px; height: 28px; background-color: #4F46E5; border-radius: 50%; text-align: center; vertical-align: middle; color: #fff; font-size: 13px; font-weight: 600;">2</td>
+                                <td style="padding-left: 14px; color: #4b5563; font-size: 14px;">Create your account with this email</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 12px 0;">
+                            <table cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td style="width: 28px; height: 28px; background-color: #4F46E5; border-radius: 50%; text-align: center; vertical-align: middle; color: #fff; font-size: 13px; font-weight: 600;">3</td>
+                                <td style="padding-left: 14px; color: #4b5563; font-size: 14px;">Enter the join code above when prompted</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <!-- CTA Button -->
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td align="center">
+                            <a href="${inviteLink}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.4);">
+                              Get Started →
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <p style="margin: 24px 0 0; color: #9ca3af; font-size: 13px; text-align: center;">
+                        Or paste this link: <a href="${inviteLink}" style="color: #4F46E5; text-decoration: none;">${inviteLink}</a>
+                      </p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Note -->
+                  <tr>
+                    <td style="padding: 0 40px 32px;">
+                      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fefce8; border-radius: 8px; border-left: 4px solid #eab308;">
+                        <tr>
+                          <td style="padding: 14px 16px;">
+                            <p style="margin: 0; color: #854d0e; font-size: 13px; line-height: 1.5;">
+                              💡 <strong>Note:</strong> Your access will be activated after ${businessName} approves your request.
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  
+                  <!-- Footer -->
+                  <tr>
+                    <td style="background-color: #f8fafc; padding: 24px 40px; border-top: 1px solid #e2e8f0;">
+                      <p style="margin: 0; color: #94a3b8; font-size: 12px; text-align: center; line-height: 1.6;">
+                        Sent by <strong style="color: #64748b;">Aivia</strong> — Smart booking assistant<br/>
+                        <a href="https://aiviaapp.co.uk" style="color: #4F46E5; text-decoration: none;">aiviaapp.co.uk</a>
+                      </p>
+                    </td>
+                  </tr>
+                  
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
       `,
     });
 
