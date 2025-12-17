@@ -64,6 +64,7 @@ interface StaffMember {
   title: string | null;
   phone: string | null;
   ai_enabled: boolean;
+  working_hours: Record<string, { start: string; end: string }> | null;
 }
 
 interface Service {
@@ -137,7 +138,7 @@ Deno.serve(async (req) => {
   // Find business by token
   const { data: business, error: businessError } = await supabase
     .from("businesses")
-    .select("id, business_name, twilio_enabled, aivia_active, twilio_phone_number, website_knowledge")
+    .select("id, business_name, address, twilio_enabled, aivia_active, twilio_phone_number, website_knowledge")
     .eq("twilio_webhook_token", token)
     .maybeSingle();
 
@@ -213,7 +214,8 @@ Deno.serve(async (req) => {
           const promptData = await buildFullSystemPrompt(
             supabase, 
             business.id, 
-            business.business_name, 
+            business.business_name,
+            business.address,
             assistantName, 
             tone,
             session.callerPhone,
@@ -1778,6 +1780,7 @@ async function buildFullSystemPrompt(
   supabase: any,
   businessId: string,
   businessName: string,
+  businessAddress: string,
   assistantName: string,
   tone: string,
   callerPhone: string,
@@ -1786,7 +1789,7 @@ async function buildFullSystemPrompt(
 ): Promise<PromptData> {
   // Fetch all business data in parallel
   const [staffResult, servicesResult, hoursResult, settingsResult, timeOffResult, bookingsResult, customerSettingsResult] = await Promise.all([
-    supabase.from("staff").select("id, name, role, title, phone, ai_enabled").eq("business_id", businessId),
+    supabase.from("staff").select("id, name, role, title, phone, ai_enabled, working_hours").eq("business_id", businessId),
     supabase.from("services").select("id, name, duration_minutes, price, category, description").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
     supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours").eq("business_id", businessId).maybeSingle(),
@@ -1813,6 +1816,7 @@ async function buildFullSystemPrompt(
     title: s.title,
     phone: s.phone,
     ai_enabled: s.ai_enabled !== false,
+    working_hours: s.working_hours,
   }));
   
   const services: Service[] = (servicesResult.data || []).map((s: any) => ({
@@ -1904,7 +1908,8 @@ async function buildFullSystemPrompt(
     serviceNameMap[s.id] = s.name;
   });
 
-  // Format staff list with title, AI status, and services they can perform
+  // Format staff list with title, AI status, services, and working hours
+  const dayAbbreviations = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const staffList = staff.length > 0
     ? staff.map(s => {
         const aiStatus = !s.ai_enabled ? " [TRANSFER ONLY]" : "";
@@ -1913,7 +1918,23 @@ async function buildFullSystemPrompt(
         const servicesNote = canDoServices.length > 0 
           ? ` [CAN DO: ${canDoServices.join(", ")}]` 
           : " [NO SERVICES]";
-        return `- ${s.title ? s.title + " " : ""}${s.name}${aiStatus}${servicesNote}`;
+        
+        // Format working hours if available
+        let workingHoursNote = "";
+        if (s.working_hours && Object.keys(s.working_hours).length > 0) {
+          const workDays = Object.entries(s.working_hours)
+            .filter(([_, v]: [string, any]) => v && v.start && v.end)
+            .map(([day, hours]: [string, any]) => {
+              const dayNum = parseInt(day);
+              const dayName = dayAbbreviations[dayNum] || day;
+              return `${dayName}:${hours.start?.slice(0,5)}-${hours.end?.slice(0,5)}`;
+            });
+          if (workDays.length > 0) {
+            workingHoursNote = ` [WORKS: ${workDays.join(", ")}]`;
+          }
+        }
+        
+        return `- ${s.title ? s.title + " " : ""}${s.name}${aiStatus}${servicesNote}${workingHoursNote}`;
       }).join("\n")
     : "No staff configured";
 
@@ -2087,21 +2108,29 @@ async function buildFullSystemPrompt(
 - Do NOT ask for email - we send confirmations by SMS only.
 
 ## WHEN CUSTOMER ASKS FOR A TIME:
-1. First, call check_availability for that date (and staff if specified)
-2. Look at the returned available_slots list
-3. Only confirm times that appear in that list
-4. If their requested time is NOT in the list, suggest alternatives from the list
-5. PREFER times that minimize gaps - suggest times right before or after existing bookings when possible.
+1. First, look at staff [WORKS:] schedule to identify which staff work on that day/time
+2. Call check_availability for that date (and staff if specified)
+3. Look at the returned available_slots list
+4. Only confirm times that appear in that list
+5. If their requested time is NOT in the list, suggest alternatives from the list
+6. PREFER times that minimize gaps - suggest times right before or after existing bookings when possible.
+7. If a customer asks "who's available at X time?", check the [WORKS:] schedule and time-off list to tell them which staff are working.
+
+## STAFF AVAILABILITY RULES:
+- Each staff member's [WORKS:] shows which days/hours they work. If no [WORKS:] shown, assume they follow business hours.
+- Staff marked in TIME OFF are unavailable during those times.
+- When a customer asks for a time, automatically identify which staff are working at that time before calling check_availability.
 
 ${greetingInstruction}
 
 ## CURRENT CONTEXT:
 - Today: ${currentDay}, ${currentTime}
 - Business Status: ${todayStatus}
+- Business Address: ${businessAddress}
 - ${callerContext}
 - Caller Phone: ${callerPhone} (use this for booking unless they request otherwise)
 
-## STAFF (check [CAN DO:] before booking):
+## STAFF (check [CAN DO:] and [WORKS:] for availability by day/time):
 ${staffList}
 
 ## SERVICES:
