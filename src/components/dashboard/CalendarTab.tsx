@@ -511,24 +511,28 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                               <p className="truncate opacity-80">{getReasonLabel(timeOff.reason)}</p>
                             </div>
                           ))}
-                          {/* Booking blocks */}
-                          {dayBookings.map((booking) => (
-                            <div
-                              key={booking.id}
-                              className="text-xs p-1 rounded mb-1 text-white truncate cursor-pointer hover:opacity-80 transition-opacity relative"
-                              style={{ backgroundColor: booking.staff?.color || "#3B82F6" }}
-                              title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})${booking.status === "completed" ? " ✓" : ""}`}
-                              onClick={() => handleBookingClick(booking)}
-                            >
-                              <div className="flex items-center gap-1">
-                                <p className="font-medium truncate flex-1">{booking.customer_name}</p>
-                                {booking.status === "completed" && (
-                                  <Check className="w-3 h-3 flex-shrink-0" />
-                                )}
-                              </div>
-                              <p className="truncate opacity-90">{booking.service?.name}</p>
+                          {/* Booking blocks - side by side when multiple */}
+                          {dayBookings.length > 0 && (
+                            <div className="flex gap-0.5">
+                              {dayBookings.map((booking) => (
+                                <div
+                                  key={booking.id}
+                                  className="text-xs p-1 rounded text-white truncate cursor-pointer hover:opacity-80 transition-opacity relative flex-1 min-w-0"
+                                  style={{ backgroundColor: booking.staff?.color || "#3B82F6" }}
+                                  title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})${booking.status === "completed" ? " ✓" : ""}`}
+                                  onClick={() => handleBookingClick(booking)}
+                                >
+                                  <div className="flex items-center gap-0.5">
+                                    <p className="font-medium truncate flex-1 text-[10px]">{booking.customer_name}</p>
+                                    {booking.status === "completed" && (
+                                      <Check className="w-2.5 h-2.5 flex-shrink-0" />
+                                    )}
+                                  </div>
+                                  <p className="truncate opacity-90 text-[9px]">{booking.service?.name}</p>
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </>
                       )}
                     </div>
