@@ -8,6 +8,11 @@ import { format, subDays, startOfDay, endOfDay, parseISO, startOfYear } from "da
 import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/dashboard/DateRangePicker";
 
+interface Business {
+  id: string;
+  business_name: string;
+}
+
 interface AnalyticsData {
   totalBusinesses: number;
   totalStaff: number;
@@ -25,6 +30,8 @@ export const AdminAnalyticsDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [datePreset, setDatePreset] = useState("30");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [selectedBusiness, setSelectedBusiness] = useState<string>("all");
   const [data, setData] = useState<AnalyticsData>({
     totalBusinesses: 0,
     totalStaff: 0,
@@ -37,6 +44,19 @@ export const AdminAnalyticsDashboard = () => {
     recentSignups: [],
     topActiveBusinesses: [],
   });
+
+  // Fetch businesses list
+  useEffect(() => {
+    const fetchBusinesses = async () => {
+      const { data: businessList } = await supabase
+        .from("businesses")
+        .select("id, business_name")
+        .order("business_name");
+      
+      setBusinesses(businessList || []);
+    };
+    fetchBusinesses();
+  }, []);
 
   const getDateRange = (): { startDate: string; endDate: string } => {
     const endDate = endOfDay(new Date()).toISOString();
@@ -77,6 +97,23 @@ export const AdminAnalyticsDashboard = () => {
     setIsLoading(true);
     try {
       const { startDate, endDate } = getDateRange();
+      const isFiltered = selectedBusiness !== "all";
+
+      // Build queries with optional business filter
+      let businessesQuery = supabase.from("businesses").select("id, business_name, plan_tier, status, created_at");
+      let staffQuery = supabase.from("staff").select("id, business_id");
+      let callsQuery = supabase.from("calls_log").select("id, business_id, created_at").gte("created_at", startDate).lte("created_at", endDate);
+      let bookingsQuery = supabase.from("bookings").select("id, business_id, start_time, service_id").gte("start_time", startDate).lte("start_time", endDate);
+      let messagesQuery = supabase.from("messages").select("id, business_id, created_at").gte("created_at", startDate).lte("created_at", endDate);
+
+      // Apply business filter if selected
+      if (isFiltered) {
+        businessesQuery = businessesQuery.eq("id", selectedBusiness);
+        staffQuery = staffQuery.eq("business_id", selectedBusiness);
+        callsQuery = callsQuery.eq("business_id", selectedBusiness);
+        bookingsQuery = bookingsQuery.eq("business_id", selectedBusiness);
+        messagesQuery = messagesQuery.eq("business_id", selectedBusiness);
+      }
 
       // Fetch all data in parallel
       const [
@@ -86,22 +123,21 @@ export const AdminAnalyticsDashboard = () => {
         bookingsResult,
         messagesResult,
       ] = await Promise.all([
-        supabase.from("businesses").select("id, business_name, plan_tier, status, created_at"),
-        supabase.from("staff").select("id, business_id"),
-        supabase.from("calls_log").select("id, business_id, created_at").gte("created_at", startDate).lte("created_at", endDate),
-        // Use start_time for bookings to count bookings that are scheduled for the selected time period
-        supabase.from("bookings").select("id, business_id, start_time, service_id").gte("start_time", startDate).lte("start_time", endDate),
-        supabase.from("messages").select("id, business_id, created_at").gte("created_at", startDate).lte("created_at", endDate),
+        businessesQuery,
+        staffQuery,
+        callsQuery,
+        bookingsQuery,
+        messagesQuery,
       ]);
 
-      const businesses = businessesResult.data || [];
+      const businessesData = businessesResult.data || [];
       const staff = staffResult.data || [];
       const calls = callsResult.data || [];
       const bookings = bookingsResult.data || [];
       const messages = messagesResult.data || [];
 
       // Get services for revenue calculation
-      const serviceIds = [...new Set(bookings.filter(b => b.service_id).map(b => b.service_id))];
+      const serviceIds = [...new Set(bookings.filter(b => b.service_id).map(b => b.service_id as string))];
       const { data: services } = await supabase
         .from("services")
         .select("id, price")
@@ -119,13 +155,20 @@ export const AdminAnalyticsDashboard = () => {
 
       // Businesses by tier
       const businessesByTier: Record<string, number> = {};
-      businesses.forEach(b => {
+      businessesData.forEach(b => {
         const tier = b.plan_tier || "tier_1";
         businessesByTier[tier] = (businessesByTier[tier] || 0) + 1;
       });
 
-      // Calls per business
-      const businessIdToName = new Map(businesses.map(b => [b.id, b.business_name]));
+      // Calls per business - build name lookup
+      const businessIdToName = new Map<string, string>();
+      businessesData.forEach(b => businessIdToName.set(b.id, b.business_name));
+      
+      // For single business view, we need full business list for name lookup
+      if (isFiltered && businesses.length > 0) {
+        businesses.forEach(b => businessIdToName.set(b.id, b.business_name));
+      }
+      
       const callCounts: Record<string, number> = {};
       calls.forEach(c => {
         const name = businessIdToName.get(c.business_id) || "Unknown";
@@ -148,7 +191,7 @@ export const AdminAnalyticsDashboard = () => {
         .slice(0, 10);
 
       // Recent signups (last 10)
-      const recentSignups = businesses
+      const recentSignups = businessesData
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 10)
         .map(b => ({
@@ -170,7 +213,7 @@ export const AdminAnalyticsDashboard = () => {
         .slice(0, 10);
 
       setData({
-        totalBusinesses: businesses.length,
+        totalBusinesses: businessesData.length,
         totalStaff: staff.length,
         totalCalls: calls.length,
         totalBookings: bookings.length,
@@ -190,7 +233,7 @@ export const AdminAnalyticsDashboard = () => {
 
   useEffect(() => {
     loadAnalytics();
-  }, [datePreset, customDateRange]);
+  }, [datePreset, customDateRange, selectedBusiness]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-GB", {
@@ -225,15 +268,32 @@ export const AdminAnalyticsDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Date Range Filter */}
+      {/* Filters */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h2 className="text-xl font-semibold">Analytics Overview</h2>
         <div className="flex flex-wrap items-center gap-3">
+          {/* Business Filter */}
+          <Select value={selectedBusiness} onValueChange={setSelectedBusiness}>
+            <SelectTrigger className="w-[200px]">
+              <Building2 className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Select business" />
+            </SelectTrigger>
+            <SelectContent className="bg-background border shadow-lg z-50">
+              <SelectItem value="all">All Businesses</SelectItem>
+              {businesses.map((business) => (
+                <SelectItem key={business.id} value={business.id}>
+                  {business.business_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Date Range Filter */}
           <Select value={datePreset} onValueChange={handlePresetChange}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Select range" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-background border shadow-lg z-50">
               <SelectItem value="0">Today</SelectItem>
               <SelectItem value="7">Last 7 days</SelectItem>
               <SelectItem value="30">Last 30 days</SelectItem>
@@ -251,13 +311,22 @@ export const AdminAnalyticsDashboard = () => {
         </div>
       </div>
 
+      {/* Selected Business Indicator */}
+      {selectedBusiness !== "all" && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Badge variant="outline" className="font-normal">
+            Showing data for: {businesses.find(b => b.id === selectedBusiness)?.business_name}
+          </Badge>
+        </div>
+      )}
+
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
               <Building2 className="w-4 h-4" />
-              Total Businesses
+              {selectedBusiness === "all" ? "Total Businesses" : "Business"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -269,7 +338,7 @@ export const AdminAnalyticsDashboard = () => {
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
               <Users className="w-4 h-4" />
-              Total Staff
+              {selectedBusiness === "all" ? "Total Staff" : "Staff Members"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -314,26 +383,28 @@ export const AdminAnalyticsDashboard = () => {
         </Card>
       </div>
 
-      {/* Subscription Tiers */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Subscription Breakdown</CardTitle>
-          <CardDescription>Businesses by subscription tier</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4">
-            {Object.entries(data.businessesByTier).map(([tier, count]) => (
-              <div key={tier} className="flex items-center gap-2 bg-muted px-4 py-2 rounded-lg">
-                <Badge variant="secondary">{getTierLabel(tier)}</Badge>
-                <span className="font-semibold">{count}</span>
-              </div>
-            ))}
-            {Object.keys(data.businessesByTier).length === 0 && (
-              <p className="text-muted-foreground">No subscription data available</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Subscription Tiers - only show for "All" view */}
+      {selectedBusiness === "all" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Subscription Breakdown</CardTitle>
+            <CardDescription>Businesses by subscription tier</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4">
+              {Object.entries(data.businessesByTier).map(([tier, count]) => (
+                <div key={tier} className="flex items-center gap-2 bg-muted px-4 py-2 rounded-lg">
+                  <Badge variant="secondary">{getTierLabel(tier)}</Badge>
+                  <span className="font-semibold">{count}</span>
+                </div>
+              ))}
+              {Object.keys(data.businessesByTier).length === 0 && (
+                <p className="text-muted-foreground">No subscription data available</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -342,9 +413,11 @@ export const AdminAnalyticsDashboard = () => {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Phone className="w-4 h-4" />
-              Calls by Business
+              {selectedBusiness === "all" ? "Calls by Business" : "Call Activity"}
             </CardTitle>
-            <CardDescription>Top 10 businesses by call volume</CardDescription>
+            <CardDescription>
+              {selectedBusiness === "all" ? "Top 10 businesses by call volume" : "Calls in selected period"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {data.callsPerBusiness.length === 0 ? (
@@ -367,9 +440,11 @@ export const AdminAnalyticsDashboard = () => {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <MessageSquare className="w-4 h-4" />
-              Messages by Business
+              {selectedBusiness === "all" ? "Messages by Business" : "Message Activity"}
             </CardTitle>
-            <CardDescription>Top 10 businesses by message volume</CardDescription>
+            <CardDescription>
+              {selectedBusiness === "all" ? "Top 10 businesses by message volume" : "Messages in selected period"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {data.messagesPerBusiness.length === 0 ? (
@@ -387,46 +462,50 @@ export const AdminAnalyticsDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Recent Signups */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <UserPlus className="w-4 h-4" />
-              Recent Signups
-            </CardTitle>
-            <CardDescription>Last 10 business registrations</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {data.recentSignups.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No signups yet</p>
-            ) : (
-              <div className="space-y-3">
-                {data.recentSignups.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm font-medium">{item.business_name}</span>
-                      <p className="text-xs text-muted-foreground">
-                        {format(parseISO(item.created_at), "MMM d, yyyy")}
-                      </p>
+        {/* Recent Signups - only show for "All" view */}
+        {selectedBusiness === "all" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
+                Recent Signups
+              </CardTitle>
+              <CardDescription>Last 10 business registrations</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {data.recentSignups.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No signups yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {data.recentSignups.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm font-medium">{item.business_name}</span>
+                        <p className="text-xs text-muted-foreground">
+                          {format(parseISO(item.created_at), "MMM d, yyyy")}
+                        </p>
+                      </div>
+                      <Badge variant={item.status === "approved" ? "default" : "secondary"}>
+                        {item.status}
+                      </Badge>
                     </div>
-                    <Badge variant={item.status === "approved" ? "default" : "secondary"}>
-                      {item.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Top Active Businesses */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <TrendingUp className="w-4 h-4" />
-              Most Active Businesses
+              {selectedBusiness === "all" ? "Most Active Businesses" : "Booking Activity"}
             </CardTitle>
-            <CardDescription>Top 10 by booking volume</CardDescription>
+            <CardDescription>
+              {selectedBusiness === "all" ? "Top 10 by booking volume" : "Bookings in selected period"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {data.topActiveBusinesses.length === 0 ? (
@@ -436,7 +515,9 @@ export const AdminAnalyticsDashboard = () => {
                 {data.topActiveBusinesses.map((item, i) => (
                   <div key={i} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground w-5">#{i + 1}</span>
+                      {selectedBusiness === "all" && (
+                        <span className="text-xs text-muted-foreground w-5">#{i + 1}</span>
+                      )}
                       <span className="text-sm truncate max-w-[180px]">{item.business_name}</span>
                     </div>
                     <Badge variant="secondary">{item.bookingCount} bookings</Badge>
