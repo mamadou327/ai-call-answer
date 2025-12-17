@@ -9,7 +9,7 @@ const corsHeaders = {
 interface SendBookingSmsRequest {
   businessId: string;
   bookingId: string;
-  type: "confirmation" | "cancellation" | "reminder";
+  type: "confirmation" | "cancellation" | "reminder" | "reschedule";
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -52,9 +52,10 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Check if SMS is enabled for this type
+    // Check if SMS is enabled for this type (reschedule uses confirmation setting)
     const smsEnabled = 
       (type === "confirmation" && business.sms_on_confirmation) ||
+      (type === "reschedule" && business.sms_on_confirmation) ||
       (type === "cancellation" && business.sms_on_cancellation) ||
       (type === "reminder" && business.sms_on_reminder);
 
@@ -185,6 +186,26 @@ Just a reminder about your upcoming appointment at ${business.business_name}!
 Booking ref: ${bookingCode}
 
 If you need to cancel or reschedule, please call us on ${business.main_phone}.
+
+See you soon!
+${business.business_name}`;
+    } else if (type === "reschedule") {
+      message = `📅 Booking Rescheduled
+
+Hi ${booking.customer_name},
+
+Your appointment at ${business.business_name} has been rescheduled!
+
+NEW DATE & TIME:
+📅 ${dateStr}
+⏰ ${timeStr}
+💇 ${serviceName} (${duration} mins)
+👤 With: ${staffName}
+📍 ${business.address}
+
+Booking ref: ${bookingCode}
+
+To cancel or reschedule again, please call us on ${business.main_phone}.
 
 See you soon!
 ${business.business_name}`;
