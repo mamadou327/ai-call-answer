@@ -42,20 +42,17 @@ export const useOpeningHours = (businessId: string) => {
   }, [businessId]);
 
   const isDayClosed = (date: Date): boolean => {
-    // JS: Sunday = 0, Monday = 1, etc.
-    // Our DB: Monday = 0, Tuesday = 1, ..., Sunday = 6
+    // DB uses JS Date.getDay() convention: Sunday = 0 ... Saturday = 6
     const jsDay = date.getDay();
-    const dbDay = jsDay === 0 ? 6 : jsDay - 1; // Convert JS day to our DB format
-    
-    const dayHours = openingHours.find(h => h.day_of_week === dbDay);
+    const dayHours = openingHours.find((h) => h.day_of_week === jsDay);
     return dayHours?.is_closed ?? true;
   };
 
-  const getHoursForDate = (date: Date): { openTime: string | null; closeTime: string | null; isClosed: boolean } => {
+  const getHoursForDate = (
+    date: Date
+  ): { openTime: string | null; closeTime: string | null; isClosed: boolean } => {
     const jsDay = date.getDay();
-    const dbDay = jsDay === 0 ? 6 : jsDay - 1;
-    
-    const dayHours = openingHours.find(h => h.day_of_week === dbDay);
+    const dayHours = openingHours.find((h) => h.day_of_week === jsDay);
     return {
       openTime: dayHours?.open_time ?? null,
       closeTime: dayHours?.close_time ?? null,

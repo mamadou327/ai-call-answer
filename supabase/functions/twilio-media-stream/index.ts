@@ -565,41 +565,68 @@ function sendSessionConfig(session: StreamSession) {
 
 async function handleToolCall(session: StreamSession, supabase: any, callId: string, name: string, argumentsJson: string) {
   console.log("[MediaStream] Handling tool call:", name);
-  
+
   let result: any = { success: false, message: "Unknown tool" };
-  
+
   try {
     const args = JSON.parse(argumentsJson);
-    
-      switch (name) {
-        case "create_booking":
-          result = await executeCreateBooking(supabase, session, args);
-          break;
-        case "cancel_booking":
-          result = await executeCancelBooking(supabase, session, args);
-          break;
-        case "reschedule_booking":
-          result = await executeRescheduleBooking(supabase, session, args);
-          break;
-        case "check_availability":
-          result = await executeCheckAvailability(supabase, session, args);
-          break;
-        case "save_customer_email":
-          result = await executeSaveCustomerEmail(supabase, session.businessId, args);
-          break;
-        case "end_call":
-          result = await executeEndCall(session, args);
-          break;
-        case "leave_message":
-          result = await executeLeaveMessage(supabase, session.businessId, session.callerPhone, session.callerName, args);
-          break;
-        case "transfer_call":
-          result = await executeTransferCall(supabase, session, args);
-          break;
-      }
+
+    switch (name) {
+      case "create_booking":
+        result = await executeCreateBooking(supabase, session, args);
+        break;
+      case "cancel_booking":
+        result = await executeCancelBooking(supabase, session, args);
+        break;
+      case "reschedule_booking":
+        result = await executeRescheduleBooking(supabase, session, args);
+        break;
+      case "check_availability":
+        result = await executeCheckAvailability(supabase, session, args);
+        break;
+      case "save_customer_email":
+        result = await executeSaveCustomerEmail(supabase, session.businessId, args);
+        break;
+      case "end_call":
+        result = await executeEndCall(session, args);
+        break;
+      case "leave_message":
+        result = await executeLeaveMessage(supabase, session.businessId, session.callerPhone, session.callerName, args);
+        break;
+      case "transfer_call":
+        result = await executeTransferCall(supabase, session, args);
+        break;
+    }
   } catch (error) {
     console.error("[MediaStream] Tool execution error:", error);
     result = { success: false, message: "Sorry, there was an error processing that request." };
+  }
+
+  // Update the call tag in Calls tab based on what actually happened.
+  // (We only set tags for booking actions; other intents remain 'other' unless handled elsewhere.)
+  try {
+    const callTypeByToolName: Record<string, string> = {
+      create_booking: "new_booking",
+      cancel_booking: "cancel",
+      reschedule_booking: "reschedule",
+    };
+
+    const nextCallType = result?.success ? callTypeByToolName[name] : undefined;
+
+    if (nextCallType && session.callSid) {
+      const { error: callLogUpdateError } = await supabase
+        .from("calls_log")
+        .update({ call_type: nextCallType })
+        .eq("twilio_call_sid", session.callSid);
+
+      if (callLogUpdateError) {
+        console.warn("[MediaStream] Failed to update calls_log.call_type:", callLogUpdateError);
+      } else {
+        console.log(`[MediaStream] Updated calls_log.call_type => ${nextCallType}`);
+      }
+    }
+  } catch (error) {
+    console.warn("[MediaStream] Call tagging update failed:", error);
   }
 
   // Send tool result back to OpenAI
@@ -613,11 +640,12 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
       },
     };
     session.openAiWs.send(JSON.stringify(toolResponse));
-    
+
     // Trigger response generation
     session.openAiWs.send(JSON.stringify({ type: "response.create" }));
   }
 }
+
 
 // ============================================================================
 // VALIDATION HELPERS
