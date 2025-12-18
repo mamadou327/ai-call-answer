@@ -1885,15 +1885,31 @@ function formatPhoneNumberForSpeech(phone: string | null): string | null {
   if (!trimmed) return null;
 
   const hasPlus = trimmed.startsWith("+");
-  const digits = trimmed.replace(/\D/g, "");
-  if (!digits) return null;
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  if (!digitsOnly) return null;
+
+  // Convert common E.164 formats into a more familiar national format
+  // to reduce model mistakes (e.g. +4474... => 07...).
+  let digits = digitsOnly;
+  let sayPlus = hasPlus;
+
+  // UK: +44xxxxxxxxxx => 0xxxxxxxxxx (11 digits)
+  if (digits.length === 12 && digits.startsWith("44")) {
+    digits = `0${digits.slice(2)}`;
+    sayPlus = false;
+  }
+
+  // US/CA: +1xxxxxxxxxx => xxxxxxxxxx (10 digits)
+  if (digits.length === 11 && digits.startsWith("1")) {
+    digits = digits.slice(1);
+    sayPlus = false;
+  }
 
   // Create predictable pauses without using "..." (ellipses).
-  // Prefer familiar groupings for common lengths; fallback to 3-digit chunks.
   const groups: string[] = [];
 
   if (digits.length === 11 && digits.startsWith("0")) {
-    // Common UK national format: 5-3-3
+    // Common UK national format: 5-3-3 (e.g., 07488 688 082)
     groups.push(digits.slice(0, 5), digits.slice(5, 8), digits.slice(8, 11));
   } else if (digits.length === 10) {
     // Common 10-digit format: 3-3-4
@@ -1902,6 +1918,7 @@ function formatPhoneNumberForSpeech(phone: string | null): string | null {
     // Short local numbers: 3-4
     groups.push(digits.slice(0, 3), digits.slice(3, 7));
   } else {
+    // Fallback: readable 3-digit chunks
     for (let i = 0; i < digits.length; i += 3) {
       groups.push(digits.slice(i, i + 3));
     }
@@ -1910,7 +1927,7 @@ function formatPhoneNumberForSpeech(phone: string | null): string | null {
   const speakGroup = (g: string) => g.split("").join(" ");
   const spoken = groups.map(speakGroup).join(", ");
 
-  return hasPlus ? `plus ${spoken}` : spoken;
+  return sayPlus ? `plus ${spoken}` : spoken;
 }
 
 // ============================================================================
