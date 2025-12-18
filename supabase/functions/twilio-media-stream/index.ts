@@ -1874,7 +1874,43 @@ function escapeXml(text: string): string {
 }
 
 function formatTime(date: Date): string {
-  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase();
+  return date
+    .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+    .toLowerCase();
+}
+
+function formatPhoneNumberForSpeech(phone: string | null): string | null {
+  if (!phone) return null;
+  const trimmed = phone.trim();
+  if (!trimmed) return null;
+
+  const hasPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return null;
+
+  // Create predictable pauses without using "..." (ellipses).
+  // Prefer familiar groupings for common lengths; fallback to 3-digit chunks.
+  const groups: string[] = [];
+
+  if (digits.length === 11 && digits.startsWith("0")) {
+    // Common UK national format: 5-3-3
+    groups.push(digits.slice(0, 5), digits.slice(5, 8), digits.slice(8, 11));
+  } else if (digits.length === 10) {
+    // Common 10-digit format: 3-3-4
+    groups.push(digits.slice(0, 3), digits.slice(3, 6), digits.slice(6, 10));
+  } else if (digits.length === 7) {
+    // Short local numbers: 3-4
+    groups.push(digits.slice(0, 3), digits.slice(3, 7));
+  } else {
+    for (let i = 0; i < digits.length; i += 3) {
+      groups.push(digits.slice(i, i + 3));
+    }
+  }
+
+  const speakGroup = (g: string) => g.split("").join(" ");
+  const spoken = groups.map(speakGroup).join(", ");
+
+  return hasPlus ? `plus ${spoken}` : spoken;
 }
 
 // ============================================================================
@@ -2189,6 +2225,8 @@ async function buildFullSystemPrompt(
   const minCancelNotice = businessSettings?.min_cancellation_notice_hours || 24;
   const cancellationPolicyText = businessSettings?.cancellation_policy || "";
 
+  const businessPhoneForSpeech = formatPhoneNumberForSpeech(twilioPhoneNumber);
+
   const prompt = `You are ${assistantName}, phone receptionist for ${businessName}. ${toneInstruction}
 
 ## MANDATORY AVAILABILITY CHECK (CRITICAL - NEVER SKIP):
@@ -2231,8 +2269,7 @@ ALWAYS DO THIS:
 - Use the caller's phone number (the number they're calling from) by default for the booking.
 - Only ask for a different phone number if the customer specifically says they want to use a different number.
 - When confirming the booking, mention they will receive booking details by SMS.
-- CRITICAL: When reading ANY phone number aloud, speak EACH DIGIT SEPARATELY with natural pauses between groups of 3-4 digits. Read the ACTUAL phone number slowly so the caller can write it down. Never rush through phone numbers.
-
+- CRITICAL: If the caller asks for the business phone number, read EXACTLY the digits shown on the line "Business Phone Number" in CURRENT CONTEXT. Never invent a number, never give an example pattern, and never use "...". Speak one digit at a time; commas indicate short pauses.
 ## POLICY ACCURACY (MUST FOLLOW):
 - NEVER guess policy numbers.
 - These are the ONLY correct numeric values:
@@ -2267,6 +2304,7 @@ ${greetingInstruction}
 - Today: ${currentDay}, ${currentTime}
 - Business Status: ${todayStatus}
 - Business Address: ${businessAddress}
+- Business Phone Number: ${businessPhoneForSpeech || "(not available)"}
 - ${callerContext}
 - Caller Phone: ${callerPhone} (use this for booking unless they request otherwise)
 
