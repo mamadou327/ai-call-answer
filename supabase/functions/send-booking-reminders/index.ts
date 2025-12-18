@@ -20,14 +20,6 @@ serve(async (req: Request): Promise<Response> => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Find bookings starting in ~3 hours (between 2h45m and 3h15m from now)
-    // This gives a 30-minute window to catch bookings even if cron runs slightly off schedule
-    const now = new Date();
-    const reminderWindowStart = new Date(now.getTime() + 165 * 60 * 1000); // 2h45m
-    const reminderWindowEnd = new Date(now.getTime() + 195 * 60 * 1000);   // 3h15m
-
-    console.log(`[send-booking-reminders] Checking for bookings between ${reminderWindowStart.toISOString()} and ${reminderWindowEnd.toISOString()}`);
-
     // Get all businesses with SMS reminders enabled (either Twilio or MessageBird)
     const { data: businesses, error: businessesError } = await supabase
       .from("businesses")
@@ -53,10 +45,25 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    // Get business settings for custom reminder hours
     const businessIds = eligibleBusinesses.map(b => b.id);
+    const { data: businessSettings } = await supabase
+      .from("business_settings")
+      .select("business_id, sms_reminder_hours")
+      .in("business_id", businessIds);
+
+    const settingsMap = new Map(
+      (businessSettings || []).map(s => [s.business_id, s.sms_reminder_hours || 3])
+    );
     const businessMap = new Map(eligibleBusinesses.map(b => [b.id, b]));
 
-    // Find bookings needing reminders
+    // Find bookings needing reminders for each business
+    // We check across a wider window and filter by each business's specific reminder time
+    const now = new Date();
+    
+    // Check for bookings starting in the next 48 hours (max configurable reminder time)
+    const maxWindowEnd = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+
     const { data: bookings, error: bookingsError } = await supabase
       .from("bookings")
       .select(`
@@ -67,8 +74,8 @@ serve(async (req: Request): Promise<Response> => {
       .in("business_id", businessIds)
       .eq("status", "confirmed")
       .is("reminder_sent_at", null)
-      .gte("start_time", reminderWindowStart.toISOString())
-      .lte("start_time", reminderWindowEnd.toISOString())
+      .gte("start_time", now.toISOString())
+      .lte("start_time", maxWindowEnd.toISOString())
       .not("customer_phone", "is", null)
       .neq("customer_phone", "");
 
@@ -85,12 +92,41 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log(`[send-booking-reminders] Found ${bookings.length} bookings needing reminders`);
+    // Filter bookings that are within their business's reminder window
+    // Each business has a custom reminder time (default 3 hours)
+    // We use a 30-minute window around the target time to account for cron scheduling
+    const eligibleBookings = bookings.filter(booking => {
+      const reminderHours = settingsMap.get(booking.business_id) || 3;
+      const bookingTime = new Date(booking.start_time);
+      const targetReminderTime = new Date(bookingTime.getTime() - reminderHours * 60 * 60 * 1000);
+      
+      // 30-minute window: 15 minutes before and 15 minutes after the target time
+      const windowStart = new Date(targetReminderTime.getTime() - 15 * 60 * 1000);
+      const windowEnd = new Date(targetReminderTime.getTime() + 15 * 60 * 1000);
+      
+      const isInWindow = now >= windowStart && now <= windowEnd;
+      
+      if (isInWindow) {
+        console.log(`[send-booking-reminders] Booking ${booking.id} eligible: ${reminderHours}h before appointment at ${booking.start_time}`);
+      }
+      
+      return isInWindow;
+    });
+
+    if (eligibleBookings.length === 0) {
+      console.log("[send-booking-reminders] No bookings in their reminder window right now");
+      return new Response(
+        JSON.stringify({ success: true, sent: 0 }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`[send-booking-reminders] Found ${eligibleBookings.length} bookings needing reminders`);
 
     let sentCount = 0;
     const errors: string[] = [];
 
-    for (const booking of bookings) {
+    for (const booking of eligibleBookings) {
       const business = businessMap.get(booking.business_id);
       if (!business) continue;
 
@@ -208,7 +244,7 @@ ${business.business_name}`;
       JSON.stringify({ 
         success: true, 
         sent: sentCount, 
-        total: bookings.length,
+        total: eligibleBookings.length,
         errors: errors.length > 0 ? errors : undefined 
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
