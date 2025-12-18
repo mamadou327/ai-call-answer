@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, CheckCircle, XCircle, Lock, Phone, Send, Loader2, Clock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { MessageSquare, CheckCircle, XCircle, Lock, Phone, Send, Loader2, Clock, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -19,11 +20,13 @@ interface TwilioSettingsProps {
   onUpdate?: () => void;
 }
 
-export const TwilioSettings = ({ business }: TwilioSettingsProps) => {
+export const TwilioSettings = ({ business, onUpdate }: TwilioSettingsProps) => {
   const { toast } = useToast();
   const [requesting, setRequesting] = useState(false);
   const [pendingRequest, setPendingRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [reminderHours, setReminderHours] = useState<number>(3);
+  const [savingReminder, setSavingReminder] = useState(false);
 
   const twilioEnabled = business?.twilio_enabled ?? false;
   const twilioNumber = business?.twilio_phone_number || null;
@@ -35,8 +38,27 @@ export const TwilioSettings = ({ business }: TwilioSettingsProps) => {
   useEffect(() => {
     if (business?.id) {
       checkPendingRequest();
+      loadReminderHours();
     }
   }, [business?.id]);
+
+  const loadReminderHours = async () => {
+    if (!business?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from("business_settings")
+        .select("sms_reminder_hours")
+        .eq("business_id", business.id)
+        .maybeSingle();
+
+      if (!error && data?.sms_reminder_hours) {
+        setReminderHours(Number(data.sms_reminder_hours));
+      }
+    } catch (error) {
+      console.error("Error loading reminder hours:", error);
+    }
+  };
 
   const checkPendingRequest = async () => {
     if (!business?.id) return;
@@ -57,6 +79,40 @@ export const TwilioSettings = ({ business }: TwilioSettingsProps) => {
       console.error("Error checking pending request:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveReminderHours = async () => {
+    if (!business?.id) return;
+
+    setSavingReminder(true);
+    try {
+      const { error } = await supabase
+        .from("business_settings")
+        .upsert({
+          business_id: business.id,
+          sms_reminder_hours: reminderHours,
+        }, {
+          onConflict: "business_id",
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Settings saved",
+        description: `SMS reminders will be sent ${reminderHours} hour${reminderHours !== 1 ? 's' : ''} before appointments.`,
+      });
+
+      onUpdate?.();
+    } catch (error: any) {
+      console.error("Error saving reminder hours:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save settings",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingReminder(false);
     }
   };
 
@@ -156,6 +212,40 @@ export const TwilioSettings = ({ business }: TwilioSettingsProps) => {
                     {smsOnReminder ? "Enabled" : "Disabled"}
                   </Badge>
                 </div>
+                
+                {smsOnReminder && (
+                  <div className="pt-4 border-t space-y-3">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Reminder Time
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      How many hours before the appointment should customers receive their reminder SMS?
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={48}
+                        value={reminderHours}
+                        onChange={(e) => setReminderHours(Math.max(1, Math.min(48, parseInt(e.target.value) || 3)))}
+                        className="w-24"
+                      />
+                      <span className="text-sm text-muted-foreground">hours before</span>
+                      <Button 
+                        size="sm" 
+                        onClick={handleSaveReminderHours}
+                        disabled={savingReminder}
+                      >
+                        {savingReminder ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </>

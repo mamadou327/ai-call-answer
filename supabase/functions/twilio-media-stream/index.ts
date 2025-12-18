@@ -150,13 +150,14 @@ Deno.serve(async (req) => {
   // Get business AI settings
   const { data: settings } = await supabase
     .from("business_settings")
-    .select("assistant_name, tone, primary_language, voice_gender, elevenlabs_voice_id")
+    .select("assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id")
     .eq("business_id", business.id)
     .maybeSingle();
 
   const assistantName = settings?.assistant_name || "Aivia";
   const tone = settings?.tone || "neutral";
   const voiceGender = settings?.voice_gender || "female";
+  const voiceSpeed = settings?.voice_speed || "normal";
   const selectedVoice = settings?.elevenlabs_voice_id;
 
   // Use selected OpenAI voice, or fallback to gender-based default
@@ -218,6 +219,7 @@ Deno.serve(async (req) => {
             business.address,
             assistantName, 
             tone,
+            voiceSpeed,
             session.callerPhone,
             business.twilio_phone_number,
             business.website_knowledge
@@ -1951,6 +1953,7 @@ async function buildFullSystemPrompt(
   businessAddress: string,
   assistantName: string,
   tone: string,
+  voiceSpeed: string,
   callerPhone: string,
   twilioPhoneNumber: string | null,
   websiteKnowledge: string | null
@@ -2211,6 +2214,41 @@ async function buildFullSystemPrompt(
   // Build tone instructions compactly
   const toneInstruction = tone === "formal" ? "Be professional." : (tone === "casual" ? "Be friendly and casual." : "Be warm and professional.");
 
+  // Build pacing instructions based on voice_speed setting
+  let pacingInstruction = "";
+  if (voiceSpeed === "slow") {
+    pacingInstruction = `
+SPEAKING STYLE:
+- Speak at a calm, measured pace - take your time with each word
+- Use longer pauses between sentences for emphasis
+- Say "Let me check that for you" and similar thoughtful phrases
+- Enunciate clearly and don't rush through important details`;
+  } else if (voiceSpeed === "fast") {
+    pacingInstruction = `
+SPEAKING STYLE:
+- Speak efficiently and get to the point quickly
+- Keep responses concise and direct
+- Skip unnecessary filler words
+- Move the conversation forward purposefully`;
+  } else {
+    pacingInstruction = `
+SPEAKING STYLE:
+- Speak at a natural conversational pace
+- Use contractions naturally (don't, won't, can't, I'll, we're)
+- Include brief natural responses like "Sure!", "Absolutely!", "Of course!"
+- Vary your sentence structure to sound more human`;
+  }
+
+  // Add natural speech instructions to reduce robotic sound
+  const naturalSpeechRules = `
+SOUND NATURAL (IMPORTANT):
+- Use contractions: say "don't" not "do not", "won't" not "will not", "I'll" not "I will"
+- React naturally: "Oh, that works great!", "Perfect!", "No problem at all!"
+- Acknowledge what they said: "Right, so you're looking for..." or "Got it, let me check..."
+- Don't repeat the same phrase patterns - vary how you respond
+- If thinking, say something brief like "Let me see..." or "One moment..."
+- Sound warm and engaged, not like you're reading a script`;
+
   // Greeting
   const greetingInstruction = callerInfo.isReturning 
     ? `Greet: "Hi ${callerInfo.name}, thanks for calling ${businessName}, how can I help?"`
@@ -2245,6 +2283,8 @@ async function buildFullSystemPrompt(
   const businessPhoneForSpeech = formatPhoneNumberForSpeech(twilioPhoneNumber);
 
   const prompt = `You are ${assistantName}, phone receptionist for ${businessName}. ${toneInstruction}
+${pacingInstruction}
+${naturalSpeechRules}
 
 ## MANDATORY AVAILABILITY CHECK (CRITICAL - NEVER SKIP):
 **YOU MUST CALL check_availability BEFORE EVERY RESPONSE ABOUT AVAILABILITY.**

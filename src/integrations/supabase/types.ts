@@ -230,6 +230,7 @@ export type Database = {
           min_cancellation_notice_hours: number | null
           notification_email: string | null
           primary_language: string | null
+          sms_reminder_hours: number | null
           tone: Database["public"]["Enums"]["tone_type"] | null
           updated_at: string | null
           voice_gender: Database["public"]["Enums"]["voice_gender"] | null
@@ -250,6 +251,7 @@ export type Database = {
           min_cancellation_notice_hours?: number | null
           notification_email?: string | null
           primary_language?: string | null
+          sms_reminder_hours?: number | null
           tone?: Database["public"]["Enums"]["tone_type"] | null
           updated_at?: string | null
           voice_gender?: Database["public"]["Enums"]["voice_gender"] | null
@@ -270,6 +272,7 @@ export type Database = {
           min_cancellation_notice_hours?: number | null
           notification_email?: string | null
           primary_language?: string | null
+          sms_reminder_hours?: number | null
           tone?: Database["public"]["Enums"]["tone_type"] | null
           updated_at?: string | null
           voice_gender?: Database["public"]["Enums"]["voice_gender"] | null
