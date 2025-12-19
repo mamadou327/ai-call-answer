@@ -228,6 +228,7 @@ export type Database = {
           max_days_advance: number | null
           min_booking_notice_hours: number | null
           min_cancellation_notice_hours: number | null
+          min_reschedule_notice_hours: number | null
           notification_email: string | null
           primary_language: string | null
           sms_reminder_hours: number | null
@@ -249,6 +250,7 @@ export type Database = {
           max_days_advance?: number | null
           min_booking_notice_hours?: number | null
           min_cancellation_notice_hours?: number | null
+          min_reschedule_notice_hours?: number | null
           notification_email?: string | null
           primary_language?: string | null
           sms_reminder_hours?: number | null
@@ -270,6 +272,7 @@ export type Database = {
           max_days_advance?: number | null
           min_booking_notice_hours?: number | null
           min_cancellation_notice_hours?: number | null
+          min_reschedule_notice_hours?: number | null
           notification_email?: string | null
           primary_language?: string | null
           sms_reminder_hours?: number | null
