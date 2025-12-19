@@ -1891,7 +1891,15 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
   
   try {
     // Find staff member with phone
-    const staffMember = session.staff.find(s => s.name.toLowerCase().includes(params.staff_name.toLowerCase()));
+    // Match staff by name - check both directions and with title
+    const searchName = params.staff_name.toLowerCase().trim();
+    const staffMember = session.staff.find(s => {
+      const staffName = s.name.toLowerCase().trim();
+      const fullName = s.title ? `${s.title} ${s.name}`.toLowerCase().trim() : staffName;
+      return searchName.includes(staffName) || staffName.includes(searchName) || fullName === searchName;
+    });
+    
+    console.log("[MediaStream] Staff search for:", searchName, "Found:", staffMember?.name || "none");
 
     if (!staffMember) {
       return { success: false, message: `Could not find staff member ${params.staff_name}` };
@@ -1928,7 +1936,7 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
       await supabase
         .from("call_conversations")
         .update({ 
-          status: "transferred",
+          status: "transfer_pending",
           messages: messages,
         })
         .eq("id", conversation.id);
