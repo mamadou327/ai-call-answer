@@ -23,6 +23,7 @@ export const PoliciesTab = ({ businessId, onUpdate }: PoliciesTabProps) => {
     min_booking_notice_hours: 2,
     max_days_advance: 30,
     min_cancellation_notice_hours: 24,
+    min_reschedule_notice_hours: 24,
     notification_email: "",
   });
 
@@ -43,6 +44,7 @@ export const PoliciesTab = ({ businessId, onUpdate }: PoliciesTabProps) => {
         min_booking_notice_hours: data.min_booking_notice_hours ?? 2,
         max_days_advance: data.max_days_advance ?? 30,
         min_cancellation_notice_hours: data.min_cancellation_notice_hours ?? 24,
+        min_reschedule_notice_hours: data.min_reschedule_notice_hours ?? 24,
         notification_email: data.notification_email ?? "",
       });
     }
@@ -115,7 +117,7 @@ export const PoliciesTab = ({ businessId, onUpdate }: PoliciesTabProps) => {
               />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
                 <Label>Min. Booking Notice (hours) *</Label>
                 <Input
@@ -142,6 +144,16 @@ export const PoliciesTab = ({ businessId, onUpdate }: PoliciesTabProps) => {
                   type="number"
                   value={settingsData.min_cancellation_notice_hours}
                   onChange={(e) => setSettingsData({ ...settingsData, min_cancellation_notice_hours: parseInt(e.target.value) })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Min. Reschedule Notice (hours) *</Label>
+                <Input
+                  type="number"
+                  value={settingsData.min_reschedule_notice_hours}
+                  onChange={(e) => setSettingsData({ ...settingsData, min_reschedule_notice_hours: parseInt(e.target.value) })}
                   required
                 />
               </div>

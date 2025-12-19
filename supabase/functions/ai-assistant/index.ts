@@ -489,6 +489,7 @@ serve(async (req) => {
       minBookingNoticeHours: businessSettings?.min_booking_notice_hours || 2,
       maxDaysAdvance: businessSettings?.max_days_advance || 30,
       minCancellationNoticeHours: businessSettings?.min_cancellation_notice_hours || 24,
+      minRescheduleNoticeHours: businessSettings?.min_reschedule_notice_hours || 24,
       cancellationPolicy: businessSettings?.cancellation_policy || "No specific policy set",
     };
 
@@ -996,6 +997,7 @@ REMEMBER: ALWAYS respond with JSON. Never plain text.`;
         openingHours: openingHours || [],
         bookings: formattedAllBookings,
         rawBookings: allBookings || [],
+        policies,
       });
       return jsonResponse(result);
     }
@@ -1523,9 +1525,10 @@ async function handleRescheduleBooking(
   businessId: string,
   userId: string,
   params: any,
-  context: { openingHours: any[]; bookings: any[]; rawBookings: any[] }
+  context: { openingHours: any[]; bookings: any[]; rawBookings: any[]; policies: any }
 ): Promise<{ assistantMessage: string; action: string | null }> {
   const { new_date, new_time } = params;
+  const { policies } = context;
 
   const result = smartBookingLookup(context.bookings, context.rawBookings, params);
 
@@ -1547,6 +1550,19 @@ async function handleRescheduleBooking(
     return { assistantMessage: "This booking is cancelled and can't be rescheduled.", action: null };
   }
 
+  // Check reschedule notice policy against original booking time
+  const originalStartTime = new Date(rawBooking.start_time);
+  const minRescheduleNoticeHours = policies.minRescheduleNoticeHours || 24;
+  const now = new Date();
+  const minAllowedTime = new Date(now.getTime() + minRescheduleNoticeHours * 60 * 60 * 1000);
+  
+  if (originalStartTime < minAllowedTime) {
+    return { 
+      assistantMessage: `I'm sorry, this booking is too soon to reschedule. We require at least ${minRescheduleNoticeHours} hours notice for reschedules.`, 
+      action: null 
+    };
+  }
+
   // Parse date/time as local business time
   const dateParts = new_date.split('-');
   const timeParts = new_time.split(':');
@@ -1564,9 +1580,9 @@ async function handleRescheduleBooking(
     return { assistantMessage: "I couldn't understand that date/time.", action: null };
   }
 
-  const now = new Date();
-  const currentDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const currentTimeStr = now.toTimeString().slice(0, 5);
+  const currentTime = new Date();
+  const currentDateStr = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`;
+  const currentTimeStr = currentTime.toTimeString().slice(0, 5);
   
   if (new_date < currentDateStr || (new_date === currentDateStr && new_time <= currentTimeStr)) {
     return { assistantMessage: "That time has already passed.", action: null };

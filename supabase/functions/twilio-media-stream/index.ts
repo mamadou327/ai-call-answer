@@ -37,6 +37,7 @@ interface BusinessSettings {
   min_booking_notice_hours: number;
   max_days_advance: number;
   min_cancellation_notice_hours: number;
+  min_reschedule_notice_hours: number;
   cancellation_policy: string | null;
   currency: string;
 }
@@ -773,6 +774,21 @@ function checkMinCancellationNotice(settings: BusinessSettings | null, bookingSt
   return { valid: true };
 }
 
+function checkMinRescheduleNotice(settings: BusinessSettings | null, bookingStartTime: Date): { valid: boolean; message?: string } {
+  const minNoticeHours = settings?.min_reschedule_notice_hours || 24;
+  const now = new Date();
+  const minAllowedTime = new Date(now.getTime() + minNoticeHours * 60 * 60 * 1000);
+  
+  if (bookingStartTime < minAllowedTime) {
+    return { 
+      valid: false, 
+      message: `I'm sorry, this booking is too soon to reschedule. We require at least ${minNoticeHours} hours notice for reschedules.`
+    };
+  }
+  
+  return { valid: true };
+}
+
 function isStaffOnTimeOff(staffTimeOff: StaffTimeOff[], staffId: string, startTime: Date, endTime: Date): { onLeave: boolean; message?: string } {
   const timeOff = staffTimeOff.find(t => {
     if (t.staff_id !== staffId) return false;
@@ -1230,6 +1246,13 @@ async function executeRescheduleBooking(supabase: any, session: StreamSession, p
 
     const booking = bookings[0];
     const duration = booking.service?.duration_minutes || 30;
+
+    // Check reschedule notice policy against original booking time
+    const originalStartTime = new Date(booking.start_time);
+    const rescheduleCheck = checkMinRescheduleNotice(session.businessSettings, originalStartTime);
+    if (!rescheduleCheck.valid) {
+      return { success: false, message: rescheduleCheck.message };
+    }
 
     // Parse new date and time
     const newStartTime = new Date(`${params.new_date}T${params.new_time}:00`);
@@ -2151,7 +2174,7 @@ async function buildFullSystemPrompt(
     supabase.from("staff").select("id, name, role, title, phone, ai_enabled, working_hours").eq("business_id", businessId),
     supabase.from("services").select("id, name, duration_minutes, price, category, description").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
-    supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours").eq("business_id", businessId).maybeSingle(),
+    supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours, min_reschedule_notice_hours").eq("business_id", businessId).maybeSingle(),
     supabase.from("staff_time_off")
       .select("staff_id, start_time, end_time, reason, staff:staff_id(name)")
       .eq("business_id", businessId)
@@ -2198,6 +2221,7 @@ async function buildFullSystemPrompt(
     min_booking_notice_hours: settingsResult.data.min_booking_notice_hours || 2,
     max_days_advance: settingsResult.data.max_days_advance || 30,
     min_cancellation_notice_hours: settingsResult.data.min_cancellation_notice_hours || 24,
+    min_reschedule_notice_hours: settingsResult.data.min_reschedule_notice_hours || 24,
     cancellation_policy: settingsResult.data.cancellation_policy,
     currency: settingsResult.data.currency || "GBP",
   } : null;
