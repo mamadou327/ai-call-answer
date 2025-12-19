@@ -463,14 +463,15 @@ function sendSessionConfig(session: StreamSession) {
     {
       type: "function",
       name: "check_availability",
-      description: "**MANDATORY - CALL BEFORE EVERY AVAILABILITY RESPONSE** You MUST call this tool BEFORE saying ANY time is available or unavailable. Call it when the customer asks: 'is X available?', 'who\'s free at?', 'can I book for?', 'do you have openings?', 'what times?', or ANY question about availability. NEVER guess based on opening hours alone - there may be bookings! Always verify with this tool first. IMPORTANT: If the customer mentions a specific time (e.g. 5pm), include time in HH:MM 24-hour (e.g. 17:00).",
+      description: "**MANDATORY - CALL BEFORE EVERY AVAILABILITY RESPONSE** You MUST call this tool BEFORE saying ANY time is available or unavailable. IMPORTANT: If the customer mentions a specific service (e.g., 'haircut', 'kids haircut'), include service_name (EXACT service name from SERVICES) so this tool can filter to staff who are actually assigned to that service. If you don't know the exact service variant, ask a quick clarification first.",
       parameters: {
         type: "object",
         properties: {
           date: { type: "string", description: "Date in YYYY-MM-DD format" },
           time: { type: "string", description: "Specific time in HH:MM format (24-hour). Include this when the customer asks about a specific time (e.g. 5pm -> 17:00)." },
+          service_name: { type: "string", description: "Optional but STRONGLY RECOMMENDED. Exact service name (e.g., 'Kids Haircut', 'Adult Haircut'). When provided, availability is filtered to staff assigned to this service." },
           staff_name: { type: "string", description: "Specific staff member (optional)" },
-          duration_minutes: { type: "number", description: "Service duration in minutes (default 30)" },
+          duration_minutes: { type: "number", description: "Service duration in minutes (default 30). If service_name is provided, duration will be taken from that service." },
         },
         required: ["date"],
       },
@@ -1303,7 +1304,45 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
 
   try {
     const requestedDate = new Date(params.date);
-    const duration = params.duration_minutes || 30;
+    const fallbackDuration = params.duration_minutes || 30;
+
+    // If service_name is provided, filter staff to those assigned to that service and use the service duration
+    const normalize = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const requestedServiceName = (params.service_name || "").toString().trim();
+
+    let resolvedService: Service | null = null;
+    let duration = fallbackDuration;
+
+    if (requestedServiceName) {
+      const requestedNorm = normalize(requestedServiceName);
+
+      let serviceCandidates = session.services.filter((s) => normalize(s.name) === requestedNorm);
+      if (serviceCandidates.length === 0) {
+        serviceCandidates = session.services.filter((s) => {
+          const n = normalize(s.name);
+          return n.includes(requestedNorm) || requestedNorm.includes(n);
+        });
+      }
+
+      if (serviceCandidates.length === 0) {
+        return { success: false, message: `Could not find service ${requestedServiceName}.` };
+      }
+
+      if (serviceCandidates.length > 1) {
+        const options = serviceCandidates.slice(0, 6).map((s) => s.name).join(", ");
+        const more = serviceCandidates.length > 6 ? ` (and ${serviceCandidates.length - 6} more)` : "";
+        console.log("[MediaStream] Ambiguous service name in check_availability:", requestedServiceName, "candidates:", serviceCandidates.map((s) => s.name));
+        return {
+          success: false,
+          needs_clarification: true,
+          message: `Just to confirm, which one do you mean: ${options}${more}?`,
+        };
+      }
+
+      resolvedService = serviceCandidates[0];
+      duration = resolvedService.duration_minutes || duration;
+      console.log(`[MediaStream] check_availability resolved service='${resolvedService.name}' duration=${duration}`);
+    }
 
     // Check if business is open that day
     const businessHours = isBusinessOpen(session.openingHours, requestedDate);
@@ -1342,11 +1381,36 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
       }
     }
 
-    // Get AI-enabled staff for availability checking
-    const aiEnabledStaff = session.staff.filter((s) => s.ai_enabled);
+    // Base set: AI-enabled staff are bookable
+    let bookableStaff = session.staff.filter((s) => s.ai_enabled);
 
-    if (aiEnabledStaff.length === 0) {
-      return { success: false, message: "Sorry, there are no staff members available for booking at the moment." };
+    // If we know the service, only consider staff assigned to that service
+    if (resolvedService) {
+      bookableStaff = bookableStaff.filter((s) => isStaffAssignedToService(session.staffServices, s.id, resolvedService!.id));
+      console.log(`[MediaStream] check_availability filtered staff for service='${resolvedService.name}': eligible=${bookableStaff.length}`);
+
+      // If customer asked for a specific staff member who can't do the service, fail fast
+      if (targetStaffId && !bookableStaff.some((s) => s.id === targetStaffId)) {
+        const assignedStaff = session.staffServices
+          .filter((ss) => ss.service_id === resolvedService!.id)
+          .map((ss) => session.staff.find((s) => s.id === ss.staff_id)?.name)
+          .filter(Boolean);
+
+        return {
+          success: false,
+          service_mismatch: true,
+          message: `${targetStaffName || "That staff member"} doesn't do ${resolvedService.name}. That service is available with ${assignedStaff.join(" or ") || "another staff member"}.`,
+        };
+      }
+    }
+
+    if (bookableStaff.length === 0) {
+      return {
+        success: false,
+        message: resolvedService
+          ? `Sorry, there are no staff members available for booking ${resolvedService.name} at the moment.`
+          : "Sorry, there are no staff members available for booking at the moment.",
+      };
     }
 
     // ----------------------------------------------------------------------
@@ -1384,8 +1448,8 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
       }
 
       const staffToCheck = targetStaffId
-        ? aiEnabledStaff.filter((s) => s.id === targetStaffId)
-        : aiEnabledStaff;
+        ? bookableStaff.filter((s) => s.id === targetStaffId)
+        : bookableStaff;
 
       const availableStaff: string[] = [];
       const unavailableStaff: { name: string; reason: "time_off" | "booked" }[] = [];
@@ -1502,8 +1566,8 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
           const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, targetStaffId, slotStart, slotEnd);
           slotIsAvailable = !hasConflict && !timeOffCheck.onLeave;
         } else {
-          // Check if ANY AI-enabled staff is available at this slot
-          for (const staff of aiEnabledStaff) {
+          // Check if ANY eligible staff is available at this slot
+          for (const staff of bookableStaff) {
             const staffBookings = allBookings.filter((b: any) => b.staff_id === staff.id);
             const hasConflict = staffBookings.some((b: any) => {
               const bStart = new Date(b.start_time);
@@ -1515,7 +1579,7 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
 
             if (!hasConflict && !timeOffCheck.onLeave) {
               slotIsAvailable = true;
-              break; // At least one staff is available, slot is open
+              break; // At least one eligible staff is available, slot is open
             }
           }
         }
@@ -2411,9 +2475,10 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
 ## WHEN CUSTOMER ASKS FOR A TIME:
 1. IMMEDIATELY call check_availability (DO NOT SKIP).
 2. If the customer mentions a specific time, include time in HH:MM (24-hour), e.g. 5pm -> 17:00.
-3. If the tool returns available_staff, tell them who is available at that exact time.
-4. If the tool returns available_slots, suggest a few options and ask which time works.
-5. Only confirm availability that appears in the tool result.
+3. If the customer mentions a service (e.g. haircut), include service_name (EXACT service name) so availability is filtered to staff who actually do that service.
+4. If the tool returns available_staff, tell them who is available at that exact time.
+5. If the tool returns available_slots, suggest a few options and ask which time works.
+6. Only confirm availability that appears in the tool result.
 
 ## STAFF AVAILABILITY RULES:
 - Each staff member's [WORKS:] shows which days/hours they work. If no [WORKS:] shown, assume they follow business hours.
