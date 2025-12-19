@@ -231,7 +231,9 @@ Booking ref: ${bookingCode}
 To cancel or reschedule, please call us on ${business.main_phone}.
 
 See you soon!
-${business.business_name}`;
+${business.business_name}
+
+Reply POLICIES for booking terms.`;
     } else if (type === "cancellation") {
       message = `❌ Booking Cancelled
 
