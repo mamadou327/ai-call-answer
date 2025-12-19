@@ -416,7 +416,7 @@ function sendSessionConfig(session: StreamSession) {
     {
       type: "function",
       name: "create_booking",
-      description: "Create a new booking/appointment. CRITICAL: Only call this AFTER: 1) Confirming the service type (adult/kids/women), 2) Verifying the staff member is ASSIGNED to this service (check [CAN DO: ...]), 3) Verifying staff has AI booking enabled (NOT transfer-only), 4) Confirming all details with customer.",
+      description: "Create a new booking/appointment. **MANDATORY PRE-CHECK**: BEFORE calling this, you MUST verify the staff member's [CAN ONLY BOOK FOR:] list includes the requested service. If NOT listed, DO NOT call this tool - instead tell customer which staff CAN do that service. Call only AFTER: 1) Confirming service type (adult/kids/women), 2) Verifying staff's [CAN ONLY BOOK FOR:] includes this service, 3) Staff is NOT marked [TRANSFER ONLY], 4) Customer confirmed all details.",
       parameters: {
         type: "object",
         properties: {
@@ -424,7 +424,7 @@ function sendSessionConfig(session: StreamSession) {
           customer_phone: { type: "string", description: "Customer's phone number" },
           customer_email: { type: "string", description: "Customer's email address (optional)" },
           service_name: { type: "string", description: "EXACT name of the service including category (e.g., 'Kids Haircut', 'Women Haircut', 'Adult Haircut')" },
-          staff_name: { type: "string", description: "Name of the staff member who is ASSIGNED to this service (without title)" },
+          staff_name: { type: "string", description: "Name of the staff member - MUST be assigned to this service (check [CAN ONLY BOOK FOR:] list)" },
           date: { type: "string", description: "Date in YYYY-MM-DD format" },
           time: { type: "string", description: "Time in HH:MM format (24-hour)" },
         },
@@ -828,13 +828,19 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
 
     const service = serviceCandidates[0];
 
-    // Check if staff is assigned to this service
-    if (!isStaffAssignedToService(session.staffServices, staff.id, service.id)) {
+    // Check if staff is assigned to this service - THIS IS A HARD BLOCK
+    const isAssigned = isStaffAssignedToService(session.staffServices, staff.id, service.id);
+    console.log(`[MediaStream] Staff-service check: staff=${staff.name} (${staff.id}), service=${service.name} (${service.id}), isAssigned=${isAssigned}`);
+    console.log(`[MediaStream] staffServices count: ${session.staffServices.length}, entries for this staff:`, session.staffServices.filter(ss => ss.staff_id === staff.id));
+    
+    if (!isAssigned) {
       // Find who CAN do this service
       const assignedStaff = session.staffServices
         .filter(ss => ss.service_id === service.id)
         .map(ss => session.staff.find(s => s.id === ss.staff_id)?.name)
         .filter(Boolean);
+      
+      console.log(`[MediaStream] BLOCKED: ${staff.name} cannot do ${service.name}. Staff who can: ${assignedStaff.join(", ") || "none"}`);
       
       if (assignedStaff.length > 0) {
         return { success: false, message: `${staff.name} doesn't do ${service.name}. That service is available with ${assignedStaff.join(" or ")}.` };
@@ -2044,6 +2050,15 @@ async function buildFullSystemPrompt(
     staff_id: ss.staff_id,
     service_id: ss.service_id,
   }));
+  
+  console.log(`[MediaStream] Loaded ${staffServices.length} staff-service assignments for ${staffIds.length} staff members`);
+  if (staffServices.length > 0) {
+    console.log("[MediaStream] Staff-service assignments:", staffServices.map(ss => {
+      const staffName = staff.find(s => s.id === ss.staff_id)?.name || "Unknown";
+      const serviceName = services.find(s => s.id === ss.service_id)?.name || "Unknown";
+      return `${staffName} -> ${serviceName}`;
+    }).join(", "));
+  }
 
   // Build staff-to-services mapping
   const staffServiceMap: Record<string, string[]> = {};
@@ -2080,15 +2095,17 @@ async function buildFullSystemPrompt(
   });
 
   // Format staff list with title, AI status, services, and working hours
+  // CRITICAL: Use explicit "CAN ONLY BOOK FOR:" to prevent AI booking wrong service-staff pairs
   const dayAbbreviations = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const staffList = staff.length > 0
     ? staff.map(s => {
-        const aiStatus = !s.ai_enabled ? " [TRANSFER ONLY]" : "";
+        const aiStatus = !s.ai_enabled ? " [TRANSFER ONLY - NO AI BOOKING]" : "";
         const staffServiceIds = staffServiceMap[s.id] || [];
         const canDoServices = staffServiceIds.map(sid => serviceNameMap[sid]).filter(Boolean);
+        // Make it VERY explicit what services this staff can be booked for
         const servicesNote = canDoServices.length > 0 
-          ? ` [CAN DO: ${canDoServices.join(", ")}]` 
-          : " [NO SERVICES]";
+          ? ` [CAN ONLY BOOK FOR: ${canDoServices.join(", ")}] ⚠️ REJECT booking for any other service!` 
+          : " [NO SERVICES ASSIGNED - CANNOT BOOK]";
         
         // Format working hours if available
         let workingHoursNote = "";
@@ -2347,10 +2364,22 @@ ALWAYS DO THIS:
 ✅ Even if you think you know, VERIFY with check_availability
 ✅ When asked "who's available", check availability for EACH relevant staff member
 
+## ⛔ STAFF-SERVICE MATCHING (CRITICAL - BOOKING WILL FAIL IF IGNORED):
+**BEFORE CALLING create_booking, YOU MUST CHECK:**
+Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section below.
+- If the requested service IS in that list → OK to proceed
+- If the requested service is NOT in that list → DO NOT CALL create_booking!
+  Instead say: "[Staff name] doesn't do [service]. That service is available with [list staff who have it in their CAN ONLY BOOK FOR]."
+
+**Example:** 
+- Customer asks for "Kids Haircut" with "Mike"
+- Mike's line shows: [CAN ONLY BOOK FOR: Adult Haircut, Fade Cut]
+- "Kids Haircut" is NOT listed → REJECT and suggest staff who CAN do Kids Haircut
+
 ## CRITICAL TOOL USAGE RULES (MUST FOLLOW):
 1. **AVAILABILITY**: NEVER say a time is available or unavailable without calling check_availability first. NO EXCEPTIONS. NEVER GUESS.
-2. **BOOKING**: Only call create_booking AFTER check_availability confirms the slot is free AND customer confirmed all details.
-3. **STAFF SERVICES**: ONLY book a staff member for services listed in their [CAN DO:] section. If a customer asks for a service with a staff who can't do it, tell them which staff CAN do it.
+2. **BOOKING**: Only call create_booking AFTER: a) check_availability confirms slot is free, b) you verified staff's [CAN ONLY BOOK FOR:] includes the service, c) customer confirmed all details.
+3. **STAFF-SERVICE MISMATCH**: If staff CANNOT do the service, DO NOT attempt booking - tell customer who CAN do it.
 4. **TRANSFER ONLY**: Staff marked [TRANSFER ONLY] cannot be booked - offer to transfer instead.
 
 ## SERVICE CLARIFICATION (CRITICAL):
@@ -2401,7 +2430,7 @@ ${greetingInstruction}
 - ${callerContext}
 - Caller Phone: ${callerPhone} (use this for booking unless they request otherwise)
 
-## STAFF (check [CAN DO:] and [WORKS:] for availability by day/time):
+## STAFF (⚠️ CHECK [CAN ONLY BOOK FOR:] BEFORE BOOKING - service must be listed or booking WILL FAIL):
 ${staffList}
 
 ## SERVICES:
