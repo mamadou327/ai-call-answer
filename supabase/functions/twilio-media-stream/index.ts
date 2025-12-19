@@ -494,6 +494,18 @@ function sendSessionConfig(session: StreamSession) {
     },
     {
       type: "function",
+      name: "update_customer_name",
+      description: "Update a customer's name when they say it's incorrect. Use this when a returning customer says their name is wrong, spelled incorrectly, or asks to be called something different.",
+      parameters: {
+        type: "object",
+        properties: {
+          new_name: { type: "string", description: "The correct name the customer wants to use" },
+        },
+        required: ["new_name"],
+      },
+    },
+    {
+      type: "function",
       name: "end_call",
       description: "End the phone call. ONLY use this when the customer EXPLICITLY says goodbye (bye, goodbye, thanks bye, have a nice day, etc.) AND has no more questions. NEVER end the call: 1) Right after confirming a booking - always ask if there's anything else first, 2) During a pause or silence - wait for them to speak, 3) When the customer is still asking questions. Always say a brief goodbye BEFORE calling this.",
       parameters: {
@@ -594,6 +606,9 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
         break;
       case "save_customer_email":
         result = await executeSaveCustomerEmail(supabase, session.businessId, args);
+        break;
+      case "update_customer_name":
+        result = await executeUpdateCustomerName(supabase, session, args);
         break;
       case "end_call":
         result = await executeEndCall(session, args);
@@ -1730,6 +1745,57 @@ async function executeSaveCustomerEmail(supabase: any, businessId: string, param
   }
 }
 
+async function executeUpdateCustomerName(supabase: any, session: StreamSession, params: any): Promise<any> {
+  console.log("[MediaStream] Updating customer name:", params);
+  
+  try {
+    const { new_name } = params;
+    
+    if (!new_name || new_name.trim().length < 1) {
+      return { success: false, message: "I didn't catch that name. Could you tell me again?" };
+    }
+    
+    const trimmedName = new_name.trim();
+    const normalizedPhone = session.callerPhone.replace(/\D/g, "").slice(-10);
+    
+    // Find customer by phone
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("id, name")
+      .eq("business_id", session.businessId)
+      .or(`phone.ilike.%${normalizedPhone}%,phone.eq.${session.callerPhone}`)
+      .limit(1)
+      .maybeSingle();
+    
+    if (customer) {
+      console.log(`[MediaStream] Updating customer name from "${customer.name}" to "${trimmedName}"`);
+      
+      await supabase
+        .from("customers")
+        .update({ name: trimmedName, updated_at: new Date().toISOString() })
+        .eq("id", customer.id);
+      
+      // Update session so AI uses the correct name for the rest of the call
+      session.callerName = trimmedName;
+      
+      return { 
+        success: true, 
+        message: `No problem! I've updated your name to ${trimmedName}.`
+      };
+    } else {
+      // No existing customer record, just update session for this call
+      session.callerName = trimmedName;
+      return { 
+        success: true, 
+        message: `Got it, ${trimmedName}! I'll use that name.`
+      };
+    }
+  } catch (error) {
+    console.error("[MediaStream] Update name error:", error);
+    return { success: false, message: "Sorry, I couldn't update that. No worries, what can I help you with?" };
+  }
+}
+
 async function executeEndCall(session: StreamSession, params: any): Promise<any> {
   console.log("[MediaStream] Ending call:", params.reason);
   
@@ -2468,6 +2534,11 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
   - Booking notice: ${minNotice} hours
   - Cancellation notice: ${minCancelNotice} hours (DO NOT CONFUSE WITH BOOKING NOTICE)
 - If asked about cancellations, ALWAYS say: "Minimum cancellation notice is ${minCancelNotice} hours."
+
+## NAME CORRECTION:
+- If the caller says "that's not my name", "my name is actually...", "I go by...", "you can call me...", or indicates their name is wrong - use update_customer_name IMMEDIATELY.
+- Apologize briefly ("Oh, sorry about that!") and confirm the new name.
+- Use their corrected name for the rest of the call.
 
 ## CONVERSATION RULES:
 - Keep responses SHORT: 1-2 sentences max. Sound human, not robotic.
