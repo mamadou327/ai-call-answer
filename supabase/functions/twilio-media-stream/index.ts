@@ -11,6 +11,7 @@ const OPENAI_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimm
 interface StreamSession {
   businessId: string;
   businessName: string;
+  twilioPhoneNumber: string | null;
   callSid: string;
   callerPhone: string;
   callerName: string | null;
@@ -171,6 +172,7 @@ Deno.serve(async (req) => {
   const session: StreamSession = {
     businessId: business.id,
     businessName: business.business_name,
+    twilioPhoneNumber: business.twilio_phone_number || null,
     callSid: "",
     callerPhone: "",
     callerName: null,
@@ -1877,11 +1879,15 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
       return { success: false, message: "Transfer service is not configured. Would you like to leave a message instead?" };
     }
 
-    // Build TwiML for the transfer
+    // Build TwiML for the transfer - use business Twilio number as callerId (required by Twilio)
+    // The callerId must be a verified number or the Twilio number associated with the account
+    const callerId = session.twilioPhoneNumber || "";
+    const callerIdAttr = callerId ? ` callerId="${escapeXml(callerId)}"` : "";
+    
     const transferTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Amy-Neural" language="en-GB">Please hold while I transfer you.</Say>
-  <Dial callerId="${escapeXml(session.callerPhone)}" timeout="30">
+  <Dial${callerIdAttr} timeout="30">
     <Number>${escapeXml(staffMember.phone)}</Number>
   </Dial>
   <Say voice="Polly.Amy-Neural" language="en-GB">I'm sorry, they are not available right now. Goodbye.</Say>
