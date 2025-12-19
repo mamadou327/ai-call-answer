@@ -28,6 +28,9 @@ interface StreamSession {
   staffServices: StaffService[];
   staff: StaffMember[];
   services: Service[];
+  // Call stability tracking
+  interactionCount: number;
+  callStartTime: number;
 }
 
 interface BusinessSettings {
@@ -189,6 +192,9 @@ Deno.serve(async (req) => {
     staffServices: [],
     staff: [],
     services: [],
+    // Call stability tracking
+    interactionCount: 0,
+    callStartTime: Date.now(),
   };
 
   twilioWs.onopen = () => {
@@ -358,6 +364,8 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
 
         case "conversation.item.input_audio_transcription.completed":
           console.log("[MediaStream] User said:", data.transcript);
+          // Track user interactions for call stability
+          session.interactionCount++;
           // Log to conversation
           await logConversation(supabase, session.callSid, "user", data.transcript);
           break;
@@ -507,11 +515,11 @@ function sendSessionConfig(session: StreamSession) {
     {
       type: "function",
       name: "end_call",
-      description: "End the phone call. ONLY use this when the customer EXPLICITLY says goodbye (bye, goodbye, thanks bye, have a nice day, etc.) AND has no more questions. NEVER end the call: 1) Right after confirming a booking - always ask if there's anything else first, 2) During a pause or silence - wait for them to speak, 3) When the customer is still asking questions. Always say a brief goodbye BEFORE calling this.",
+      description: "End the phone call. STRICT RULES - ONLY call this when ALL conditions are met: 1) Customer EXPLICITLY said goodbye (bye, goodbye, thanks bye, have a nice day), 2) At least 2 conversation exchanges have happened, 3) You have already asked 'Is there anything else?' after any booking. NEVER end the call: 1) Within the first 30 seconds, 2) Right after confirming a booking without asking if there's more, 3) During silence or pauses - say 'Are you still there?' first, 4) When customer is mid-sentence or asking questions. Always say goodbye BEFORE calling this.",
       parameters: {
         type: "object",
         properties: {
-          reason: { type: "string", description: "Reason: 'customer_said_goodbye' only" },
+          reason: { type: "string", description: "MUST be 'customer_said_goodbye' - no other reason is valid" },
         },
         required: ["reason"],
       },
@@ -561,7 +569,7 @@ function sendSessionConfig(session: StreamSession) {
         type: "server_vad",
         threshold: 0.65,           // Slightly lower for better sensitivity to natural speech
         prefix_padding_ms: 300,    // Standard pre-speech buffer
-        silence_duration_ms: 650,  // Shorter for more natural conversational flow
+        silence_duration_ms: 800,  // Increased for more natural pauses (was 650)
         create_response: true,     // Auto-create response when speech ends
       },
       tools,
@@ -1797,7 +1805,36 @@ async function executeUpdateCustomerName(supabase: any, session: StreamSession, 
 }
 
 async function executeEndCall(session: StreamSession, params: any): Promise<any> {
-  console.log("[MediaStream] Ending call:", params.reason);
+  const callDurationSeconds = Math.round((Date.now() - session.callStartTime) / 1000);
+  
+  console.log("[MediaStream] End call requested:", {
+    reason: params.reason,
+    interactionCount: session.interactionCount,
+    callDurationSeconds,
+    callerPhone: session.callerPhone,
+  });
+  
+  // Check minimum interaction requirements to prevent premature endings
+  const MIN_INTERACTIONS = 2;
+  const MIN_CALL_DURATION_SECONDS = 15;
+  
+  if (session.interactionCount < MIN_INTERACTIONS) {
+    console.log("[MediaStream] BLOCKED end_call - not enough interactions:", session.interactionCount);
+    return { 
+      success: false, 
+      message: `Cannot end call yet - only ${session.interactionCount} interactions so far. Ask if there's anything else you can help with.`
+    };
+  }
+  
+  if (callDurationSeconds < MIN_CALL_DURATION_SECONDS) {
+    console.log("[MediaStream] BLOCKED end_call - call too short:", callDurationSeconds, "seconds");
+    return { 
+      success: false, 
+      message: `Cannot end call yet - only ${callDurationSeconds} seconds into the call. Make sure the customer has actually said goodbye.`
+    };
+  }
+  
+  console.log("[MediaStream] Proceeding with end_call after validation");
   
   try {
     const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
@@ -1838,6 +1875,7 @@ async function executeEndCall(session: StreamSession, params: any): Promise<any>
       session.openAiWs.close();
     }
     
+    console.log("[MediaStream] Call ended successfully after", callDurationSeconds, "seconds");
     return { success: true, message: "Call ended." };
   } catch (error) {
     console.error("[MediaStream] End call error:", error);
@@ -2552,7 +2590,8 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
 - Keep responses SHORT: 1-2 sentences max. Sound human, not robotic.
 - NEVER end the call unless customer explicitly says goodbye (bye, thanks bye, etc.)
 - After booking is confirmed, ask "Is there anything else?" and WAIT for response.
-- Silence/pauses are NOT a reason to end - wait patiently.
+- Silence/pauses are NOT a reason to end - if you hear silence, say "Are you still there?" and wait.
+- NEVER call end_call within the first 30 seconds of the call - the conversation needs time to develop.
 - If unsure about availability, ALWAYS use check_availability tool - don't make assumptions.
 - Do NOT ask for email - we send confirmations by SMS only.
 - ALWAYS speak times in 12-hour format with AM/PM (e.g., "5pm", "10:30am", "2pm"). NEVER use 24-hour format like "seventeen hundred" or "14:00".
