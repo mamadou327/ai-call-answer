@@ -544,14 +544,14 @@ function sendSessionConfig(session: StreamSession) {
       },
       turn_detection: {
         type: "server_vad",
-        threshold: 0.7,            // Higher threshold = less sensitive to background noise
+        threshold: 0.65,           // Slightly lower for better sensitivity to natural speech
         prefix_padding_ms: 300,    // Standard pre-speech buffer
-        silence_duration_ms: 700,  // Longer silence needed before AI responds (reduces false triggers)
+        silence_duration_ms: 650,  // Shorter for more natural conversational flow
         create_response: true,     // Auto-create response when speech ends
       },
       tools,
       tool_choice: "auto",
-      temperature: 0.6,            // More focused responses
+      temperature: 0.75,           // Higher for more natural variation in responses
       max_response_output_tokens: 300, // Shorter, faster responses
     },
   };
@@ -2213,6 +2213,13 @@ async function buildFullSystemPrompt(
 
   // Build tone instructions compactly
   const toneInstruction = tone === "formal" ? "Be professional." : (tone === "casual" ? "Be friendly and casual." : "Be warm and professional.");
+  
+  // Add personality touch based on tone for more human feel
+  const personalityTouch = tone === "casual" 
+    ? `PERSONALITY: Be warm and slightly playful. Light humor is okay. Say things like "No worries at all!" or "You're all sorted!"`
+    : tone === "formal"
+    ? `PERSONALITY: Be polished and professional but not stiff. Use "Certainly" and "Of course" naturally.`
+    : `PERSONALITY: Be warm and professional. Balance friendliness with efficiency.`;
 
   // Build pacing instructions based on voice_speed setting
   let pacingInstruction = "";
@@ -2239,20 +2246,48 @@ SPEAKING STYLE:
 - Vary your sentence structure to sound more human`;
   }
 
-  // Add natural speech instructions to reduce robotic sound
+  // Add comprehensive natural speech instructions for human-like voice
   const naturalSpeechRules = `
-SOUND NATURAL (IMPORTANT):
-- Use contractions: say "don't" not "do not", "won't" not "will not", "I'll" not "I will"
-- React naturally: "Oh, that works great!", "Perfect!", "No problem at all!"
-- Acknowledge what they said: "Right, so you're looking for..." or "Got it, let me check..."
-- Don't repeat the same phrase patterns - vary how you respond
-- If thinking, say something brief like "Let me see..." or "One moment..."
-- Sound warm and engaged, not like you're reading a script`;
+SOUND HUMAN - THIS IS CRITICAL:
 
-  // Greeting
+**Filler Words & Thinking Sounds (USE THESE):**
+- When checking something: "Hmm, let me take a look..." or "One sec, let me check that..."
+- When processing: "Ah, okay..." or "Right, so..."
+- When transitioning: "So..." or "Alright..."
+
+**Emotional Reactions:**
+- Confirming good news: "Oh, perfect!" or "Great news!" or "Lovely!"
+- Showing empathy: "Oh no, I'm sorry to hear that" or "I understand, that's frustrating"
+- Pleasant surprise: "Oh wonderful!" or "That works out nicely!"
+
+**NEVER DO THESE (sounds robotic):**
+- Starting every sentence with "I" or "So"
+- Using the same acknowledgment twice in a row
+- Saying "I understand" more than once per call
+- Overly formal phrases like "I would be happy to assist you"
+- Listing options in the exact same format every time
+
+**Varied Response Openers (rotate these):**
+- "Let me see..." / "One moment..." / "Let me just check..."
+- "Perfect!" / "Great!" / "Lovely!" / "That works!"
+- "Right, so..." / "Okay, so..." / "Alright..."
+- "Ah, I see..." / "Got it..." / "Makes sense..."
+
+**Natural Acknowledgments:**
+- Quick: "Mhm" / "Right" / "Sure" / "Yep"
+- Confirming: "Got it" / "Okay" / "Alright"
+- Positive: "Absolutely" / "Of course" / "No problem"
+
+**Conversational Flow:**
+- React before responding: "Oh, 3pm? Let me check that for you..."
+- Summarize naturally: "So that's a haircut with Sarah at 3pm on Friday - does that sound right?"
+- End naturally: "Lovely, you're all booked in!" not "Your booking has been confirmed."
+`;
+
+  // Greeting - more natural and personalized
   const greetingInstruction = callerInfo.isReturning 
-    ? `Greet: "Hi ${callerInfo.name}, thanks for calling ${businessName}, how can I help?"`
-    : `Greet: "Hi, thanks for calling ${businessName}, how can I help?"`;
+    ? `Greet warmly: "Oh hi ${callerInfo.name}! Great to hear from you again. What can I help with today?"`
+    : `Greet: "Hi there! Thanks for calling ${businessName}. How can I help you today?"`;
 
   // Build customer data collection rules
   let dataCollectionRules = "BOOKING DATA: Collect name and phone.";
@@ -2285,6 +2320,7 @@ SOUND NATURAL (IMPORTANT):
   const prompt = `You are ${assistantName}, phone receptionist for ${businessName}. ${toneInstruction}
 ${pacingInstruction}
 ${naturalSpeechRules}
+${personalityTouch}
 
 ## MANDATORY AVAILABILITY CHECK (CRITICAL - NEVER SKIP):
 **YOU MUST CALL check_availability BEFORE EVERY RESPONSE ABOUT AVAILABILITY.**
