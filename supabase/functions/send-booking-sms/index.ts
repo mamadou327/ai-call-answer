@@ -220,18 +220,31 @@ serve(async (req: Request): Promise<Response> => {
     // Build SMS message based on type
     let message = "";
 
-    // Build deposit section for SMS - use short URL
+    // Build deposit section for SMS
     let depositSection = "";
     if (needsDeposit) {
-      // Use short URL format: /pay/BOOKING_CODE
-      // Use the Lovable project URL
-      const siteUrl = Deno.env.get("SITE_URL") || "https://d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com";
-      const shortPaymentUrl = `${siteUrl}/pay/${bookingCode}`;
-      depositSection = `
+      // Prefer a custom domain short link if configured; otherwise use the Stripe URL directly.
+      // This keeps the SMS clean AND avoids showing the platform domain.
+      const siteUrlRaw = Deno.env.get("SITE_URL");
+      const siteUrl = siteUrlRaw ? siteUrlRaw.replace(/\/$/, "") : null;
+
+      const payUrl = siteUrl
+        ? `${siteUrl}/pay/${bookingCode}`
+        : (depositPaymentLink ?? null);
+
+      if (payUrl) {
+        depositSection = `
 
 💳 DEPOSIT: ${currencySymbol}${depositAmount.toFixed(2)}
-Pay here: ${shortPaymentUrl}`;
+Pay securely via Stripe: ${payUrl}`;
+      } else {
+        depositSection = `
+
+💳 DEPOSIT: ${currencySymbol}${depositAmount.toFixed(2)}
+Please contact us to arrange payment.`;
+      }
     }
+
 
     if (type === "confirmation") {
       message = `✅ Booking Confirmed

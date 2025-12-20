@@ -95,3 +95,6 @@ verify_jwt = false
 
 [functions.auto-cancel-unpaid-bookings]
 verify_jwt = false
+
+[functions.get-deposit-payment-link]
+verify_jwt = false
