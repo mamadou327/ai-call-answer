@@ -1,15 +1,153 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { encode as encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-twilio-signature",
 };
+
+// ============================================================================
+// RATE LIMITING (in-memory, resets on function cold start)
+// ============================================================================
+interface RateLimitEntry {
+  count: number;
+  firstRequest: number;
+  blocked: boolean;
+}
+
+const rateLimitMap = new Map<string, RateLimitEntry>();
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 30; // max 30 requests per minute per IP
+const RATE_LIMIT_BLOCK_DURATION_MS = 300000; // 5 minute block after exceeding
+
+function checkRateLimit(clientIp: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(clientIp);
+  
+  if (!entry) {
+    rateLimitMap.set(clientIp, { count: 1, firstRequest: now, blocked: false });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1 };
+  }
+  
+  // Check if currently blocked
+  if (entry.blocked) {
+    if (now - entry.firstRequest < RATE_LIMIT_BLOCK_DURATION_MS) {
+      console.warn(`[twilio-sms-webhook] Rate limit: IP ${clientIp} is blocked`);
+      return { allowed: false, remaining: 0 };
+    }
+    // Block expired, reset
+    rateLimitMap.set(clientIp, { count: 1, firstRequest: now, blocked: false });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1 };
+  }
+  
+  // Check if window expired
+  if (now - entry.firstRequest > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(clientIp, { count: 1, firstRequest: now, blocked: false });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1 };
+  }
+  
+  // Within window, check count
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
+    entry.blocked = true;
+    entry.firstRequest = now; // Reset for block duration
+    console.warn(`[twilio-sms-webhook] Rate limit exceeded for IP ${clientIp}, blocking for 5 minutes`);
+    return { allowed: false, remaining: 0 };
+  }
+  
+  return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - entry.count };
+}
+
+// ============================================================================
+// SECURITY LOGGING
+// ============================================================================
+function logSecurityEvent(event: string, details: Record<string, unknown>) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    event,
+    ...details,
+  };
+  console.warn(`[SECURITY] ${JSON.stringify(logEntry)}`);
+}
+
+// ============================================================================
+// TWILIO SIGNATURE VALIDATION
+// ============================================================================
+async function validateTwilioSignature(
+  authToken: string,
+  url: string,
+  params: Record<string, string>,
+  signature: string | null,
+  clientIp: string
+): Promise<boolean> {
+  if (!signature) {
+    logSecurityEvent("MISSING_SIGNATURE", { provider: "twilio", clientIp, url });
+    return false;
+  }
+
+  try {
+    // Sort params alphabetically and concatenate
+    const sortedKeys = Object.keys(params).sort();
+    let dataString = url;
+    for (const key of sortedKeys) {
+      dataString += key + params[key];
+    }
+
+    // Create HMAC-SHA1 signature
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(authToken);
+    const key = await crypto.subtle.importKey(
+      "raw",
+      keyData,
+      { name: "HMAC", hash: "SHA-1" },
+      false,
+      ["sign"]
+    );
+    
+    const data = encoder.encode(dataString);
+    const signatureBuffer = await crypto.subtle.sign("HMAC", key, data);
+    const expectedSignature = encodeBase64(new Uint8Array(signatureBuffer));
+
+    const isValid = expectedSignature === signature;
+    if (!isValid) {
+      logSecurityEvent("INVALID_SIGNATURE", { 
+        provider: "twilio", 
+        clientIp, 
+        url,
+        receivedSignaturePrefix: signature.substring(0, 10) + "..."
+      });
+    }
+    return isValid;
+  } catch (error) {
+    logSecurityEvent("SIGNATURE_VALIDATION_ERROR", { provider: "twilio", clientIp, error: String(error) });
+    return false;
+  }
+}
 
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Extract client IP for rate limiting and security logging
+  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || 
+                   req.headers.get("cf-connecting-ip") || 
+                   "unknown";
+
+  // Apply rate limiting
+  const rateLimit = checkRateLimit(clientIp);
+  if (!rateLimit.allowed) {
+    logSecurityEvent("RATE_LIMIT_EXCEEDED", { provider: "twilio", clientIp });
+    return new Response("Too Many Requests", { 
+      status: 429, 
+      headers: { 
+        ...corsHeaders, 
+        "Retry-After": "300",
+        "X-RateLimit-Remaining": "0"
+      } 
+    });
   }
 
   try {
@@ -26,8 +164,6 @@ serve(async (req: Request): Promise<Response> => {
         { headers: { "Content-Type": "text/xml" } }
       );
     }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Extract token from URL path (like voice webhook does)
     const url = new URL(req.url);
@@ -46,9 +182,34 @@ serve(async (req: Request): Promise<Response> => {
 
     // Parse incoming Twilio SMS webhook (form data)
     const formData = await req.formData();
-    const from = formData.get("From") as string;
-    const to = formData.get("To") as string;
-    const body = (formData.get("Body") as string || "").trim().toUpperCase();
+    const params: Record<string, string> = {};
+    for (const [key, value] of formData.entries()) {
+      params[key] = value.toString();
+    }
+
+    // Validate Twilio signature for security
+    const signature = req.headers.get("x-twilio-signature");
+    const publicUrl = `${supabaseUrl}/functions/v1/twilio-sms-webhook/${token}`;
+    
+    console.log("[twilio-sms-webhook] Validating signature with URL:", publicUrl);
+    
+    const isValid = await validateTwilioSignature(twilioAuthToken, publicUrl, params, signature, clientIp);
+    
+    if (!isValid) {
+      console.error("[twilio-sms-webhook] Invalid Twilio signature - request rejected");
+      return new Response(
+        '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+        { headers: { "Content-Type": "text/xml" } }
+      );
+    }
+    
+    console.log("[twilio-sms-webhook] Signature validated successfully");
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const from = params.From || "";
+    const to = params.To || "";
+    const body = (params.Body || "").trim().toUpperCase();
 
     console.log(`[twilio-sms-webhook] Received SMS from ${from} to ${to}: "${body}"`);
 

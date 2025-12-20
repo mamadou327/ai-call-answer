@@ -1538,15 +1538,24 @@ Deno.serve(async (req) => {
       params[key] = value.toString();
     }
 
-    // Temporarily skip signature validation due to URL format mismatch
-    // TODO: Re-enable once URL format is confirmed
+    // Validate Twilio signature for security
     const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
     if (twilioAuthToken) {
       const signature = req.headers.get("x-twilio-signature");
-      console.log("[VoiceContinue] Signature received:", signature ? "present" : "missing");
-      console.log("[VoiceContinue] Request URL:", req.url);
-      // Skip validation for now - URL format mismatch causing failures
-      console.warn("[VoiceContinue] Signature validation temporarily disabled");
+      const publicUrl = `${supabaseUrl}/functions/v1/twilio-voice-continue/${token}`;
+      
+      console.log("[VoiceContinue] Validating signature with URL:", publicUrl);
+      
+      const isValid = await validateTwilioSignature(twilioAuthToken, publicUrl, params, signature);
+      
+      if (!isValid) {
+        console.error("[VoiceContinue] Invalid Twilio signature - request rejected");
+        return twimlError("Security validation failed. Goodbye.");
+      }
+      
+      console.log("[VoiceContinue] Signature validated successfully");
+    } else {
+      console.warn("[VoiceContinue] TWILIO_AUTH_TOKEN not configured - skipping signature validation");
     }
 
     const callSid = params.CallSid || "";
