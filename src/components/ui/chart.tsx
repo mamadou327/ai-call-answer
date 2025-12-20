@@ -58,6 +58,31 @@ const ChartContainer = React.forwardRef<
 });
 ChartContainer.displayName = "Chart";
 
+// Validate color values to prevent CSS injection attacks
+const isValidColor = (color: string): boolean => {
+  // Hex colors (3, 4, 6, or 8 characters)
+  if (/^#[0-9A-Fa-f]{3,8}$/.test(color)) return true;
+  // RGB/RGBA with numeric values only
+  if (/^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+))?\s*\)$/.test(color)) return true;
+  // HSL/HSLA with numeric values only
+  if (/^hsla?\(\s*\d{1,3}\s*,?\s*\d{1,3}%?\s*,?\s*\d{1,3}%?\s*(,\s*(0|1|0?\.\d+))?\s*\)$/.test(color)) return true;
+  // CSS variable reference (safe pattern)
+  if (/^var\(--[a-zA-Z0-9-]+\)$/.test(color)) return true;
+  // Named colors (whitelist of safe CSS color names)
+  const safeColorNames = [
+    'transparent', 'currentcolor', 'inherit',
+    'black', 'white', 'red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink',
+    'gray', 'grey', 'cyan', 'magenta', 'brown', 'navy', 'teal', 'olive', 'maroon',
+    'silver', 'lime', 'aqua', 'fuchsia', 'coral', 'salmon', 'gold', 'indigo', 'violet'
+  ];
+  return safeColorNames.includes(color.toLowerCase());
+};
+
+// Sanitize key names to prevent CSS injection
+const sanitizeKey = (key: string): string => {
+  return key.replace(/[^a-zA-Z0-9-_]/g, '');
+};
+
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(([_, config]) => config.theme || config.color);
 
@@ -75,8 +100,14 @@ ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color;
-    return color ? `  --color-${key}: ${color};` : null;
+    // Validate color before including in CSS to prevent injection
+    if (color && isValidColor(color)) {
+      const safeKey = sanitizeKey(key);
+      return `  --color-${safeKey}: ${color};`;
+    }
+    return null;
   })
+  .filter(Boolean)
   .join("\n")}
 }
 `,
