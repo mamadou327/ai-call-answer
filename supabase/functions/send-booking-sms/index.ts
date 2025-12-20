@@ -108,12 +108,12 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Fetch booking details with service and staff
+    // Fetch booking details with service and staff (including deposit fields)
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
       .select(`
         *,
-        services:service_id (name, duration_minutes, price),
+        services:service_id (name, duration_minutes, price, deposit_required, deposit_amount),
         staff:staff_id (name)
       `)
       .eq("id", bookingId)
@@ -210,8 +210,30 @@ serve(async (req: Request): Promise<Response> => {
     const staffName = booking.staff?.name || "A member of our team";
     const bookingCode = booking.booking_code || "";
 
+    // Check if deposit is required and not yet paid
+    const depositRequired = booking.services?.deposit_required || false;
+    const depositAmount = booking.services?.deposit_amount || 0;
+    const depositPaid = !!booking.deposit_paid_at;
+    const depositPaymentLink = booking.deposit_payment_link;
+    const needsDeposit = depositRequired && !depositPaid && depositAmount > 0;
+
     // Build SMS message based on type
     let message = "";
+
+    // Build deposit section for SMS
+    let depositSection = "";
+    if (needsDeposit && depositPaymentLink) {
+      depositSection = `
+
+💳 DEPOSIT REQUIRED: ${currencySymbol}${depositAmount.toFixed(2)}
+To secure your booking, please pay here:
+${depositPaymentLink}`;
+    } else if (needsDeposit && !depositPaymentLink) {
+      depositSection = `
+
+💳 DEPOSIT REQUIRED: ${currencySymbol}${depositAmount.toFixed(2)}
+Please contact us to arrange payment.`;
+    }
 
     if (type === "confirmation") {
       message = `✅ Booking Confirmed
@@ -226,7 +248,7 @@ Your appointment at ${business.business_name} is confirmed!
 👤 With: ${staffName}
 📍 ${business.address}
 
-Booking ref: ${bookingCode}
+Booking ref: ${bookingCode}${depositSection}
 
 To cancel or reschedule, please call us on ${business.main_phone}.
 
@@ -252,6 +274,21 @@ To rebook, please call us on ${business.main_phone} or visit our website.
 
 ${business.business_name}`;
     } else if (type === "reminder") {
+      // Build reminder deposit section (more urgent tone if still unpaid)
+      let reminderDepositSection = "";
+      if (needsDeposit && depositPaymentLink) {
+        reminderDepositSection = `
+
+⚠️ DEPOSIT STILL REQUIRED: ${currencySymbol}${depositAmount.toFixed(2)}
+Please pay now to secure your booking:
+${depositPaymentLink}`;
+      } else if (needsDeposit && !depositPaymentLink) {
+        reminderDepositSection = `
+
+⚠️ DEPOSIT STILL REQUIRED: ${currencySymbol}${depositAmount.toFixed(2)}
+Please contact us urgently to arrange payment.`;
+      }
+
       message = `⏰ Appointment Reminder
 
 Hi ${booking.customer_name},
@@ -264,7 +301,7 @@ Just a reminder about your upcoming appointment at ${business.business_name}!
 👤 With: ${staffName}
 📍 ${business.address}
 
-Booking ref: ${bookingCode}
+Booking ref: ${bookingCode}${reminderDepositSection}
 
 If you need to cancel or reschedule, please call us on ${business.main_phone}.
 
@@ -284,7 +321,7 @@ NEW DATE & TIME:
 👤 With: ${staffName}
 📍 ${business.address}
 
-Booking ref: ${bookingCode}
+Booking ref: ${bookingCode}${depositSection}
 
 To cancel or reschedule again, please call us on ${business.main_phone}.
 
