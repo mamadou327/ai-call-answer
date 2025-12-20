@@ -220,19 +220,15 @@ serve(async (req: Request): Promise<Response> => {
     // Build SMS message based on type
     let message = "";
 
-    // Build deposit section for SMS
+    // Build deposit section for SMS - use short URL
     let depositSection = "";
-    if (needsDeposit && depositPaymentLink) {
+    if (needsDeposit) {
+      // Use short URL format: /pay/BOOKING_CODE
+      const shortPaymentUrl = `https://zyqzypyncugihrawhppg.lovableproject.com/pay/${bookingCode}`;
       depositSection = `
 
-💳 DEPOSIT REQUIRED: ${currencySymbol}${depositAmount.toFixed(2)}
-To secure your booking, please pay here:
-${depositPaymentLink}`;
-    } else if (needsDeposit && !depositPaymentLink) {
-      depositSection = `
-
-💳 DEPOSIT REQUIRED: ${currencySymbol}${depositAmount.toFixed(2)}
-Please contact us to arrange payment.`;
+💳 DEPOSIT: ${currencySymbol}${depositAmount.toFixed(2)}
+Pay here: ${shortPaymentUrl}`;
     }
 
     if (type === "confirmation") {
