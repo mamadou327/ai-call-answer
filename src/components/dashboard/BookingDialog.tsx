@@ -27,6 +27,8 @@ interface Service {
   name: string;
   duration_minutes: number;
   price: number;
+  deposit_required: boolean | null;
+  deposit_amount: number | null;
 }
 
 interface Staff {
@@ -217,7 +219,7 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
   const loadServices = async () => {
     const { data } = await supabase
       .from("services")
-      .select("id, name, duration_minutes, price")
+      .select("id, name, duration_minutes, price, deposit_required, deposit_amount")
       .eq("business_id", businessId);
     if (data) setServices(data);
   };
@@ -364,8 +366,21 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
 
       if (error) throw error;
 
-      // Send confirmation email and SMS
+      // Generate deposit payment link if service requires deposit
       if (newBooking?.id) {
+        const selectedService = services.find(s => s.id === formData.service_id);
+        if (selectedService?.deposit_required && selectedService?.deposit_amount && selectedService.deposit_amount > 0) {
+          try {
+            console.log("Generating deposit link for booking:", newBooking.id);
+            await supabase.functions.invoke("stripe-create-deposit-link", {
+              body: { bookingId: newBooking.id }
+            });
+            console.log("Deposit link generated successfully");
+          } catch (depositError) {
+            console.warn("Failed to generate deposit link:", depositError);
+          }
+        }
+
         // Send email
         try {
           await supabase.functions.invoke("send-booking-email", {
@@ -375,7 +390,7 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
           console.warn("Failed to send confirmation email:", emailError);
         }
         
-        // Send SMS
+        // Send SMS (will now include deposit link if generated)
         try {
           await supabase.functions.invoke("send-booking-sms", {
             body: { businessId, bookingId: newBooking.id, type: "confirmation" }

@@ -1435,6 +1435,19 @@ async function handleCreateBooking(
     return { assistantMessage: `Sorry, I couldn't create the booking: ${error.message}`, action: null };
   }
 
+  // Generate deposit payment link if service requires deposit
+  if (service?.deposit_required && service?.deposit_amount && service.deposit_amount > 0) {
+    try {
+      console.log("[Aivia] Generating deposit link for booking:", booking.id);
+      await supabase.functions.invoke("stripe-create-deposit-link", {
+        body: { bookingId: booking.id }
+      });
+      console.log("[Aivia] Deposit link generated successfully");
+    } catch (depositError) {
+      console.warn("[Aivia] Failed to generate deposit link:", depositError);
+    }
+  }
+
   // Update/create customer record
   if (customer_phone && customer_phone !== "Not provided") {
     try {

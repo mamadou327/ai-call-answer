@@ -82,6 +82,8 @@ interface Service {
   price: number;
   category: string;
   description: string | null;
+  deposit_required: boolean | null;
+  deposit_amount: number | null;
 }
 
 interface CustomerSettings {
@@ -1149,6 +1151,25 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
     }
 
     console.log("[MediaStream] Booking created:", booking.id);
+
+    // Generate deposit payment link if service requires deposit
+    if (service.deposit_required && service.deposit_amount && service.deposit_amount > 0) {
+      try {
+        console.log("[MediaStream] Generating deposit link for booking:", booking.id);
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        await fetch(`${supabaseUrl}/functions/v1/stripe-create-deposit-link`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ bookingId: booking.id }),
+        });
+        console.log("[MediaStream] Deposit link generated successfully");
+      } catch (depositError) {
+        console.warn("[MediaStream] Failed to generate deposit link:", depositError);
+      }
+    }
 
     // Save email if provided
     if (params.customer_email) {
@@ -2324,7 +2345,7 @@ async function buildFullSystemPrompt(
   // Fetch all business data in parallel
   const [staffResult, servicesResult, hoursResult, settingsResult, timeOffResult, bookingsResult, customerSettingsResult] = await Promise.all([
     supabase.from("staff").select("id, name, role, title, phone, ai_enabled, working_hours").eq("business_id", businessId),
-    supabase.from("services").select("id, name, duration_minutes, price, category, description").eq("business_id", businessId),
+    supabase.from("services").select("id, name, duration_minutes, price, category, description, deposit_required, deposit_amount").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
     supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours, min_reschedule_notice_hours").eq("business_id", businessId).maybeSingle(),
     supabase.from("staff_time_off")
@@ -2360,6 +2381,8 @@ async function buildFullSystemPrompt(
     price: s.price,
     category: s.category,
     description: s.description,
+    deposit_required: s.deposit_required,
+    deposit_amount: s.deposit_amount,
   }));
   
   const hours: OpeningHour[] = (hoursResult.data || []).map((h: any) => ({
