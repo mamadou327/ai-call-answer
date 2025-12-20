@@ -224,7 +224,9 @@ serve(async (req: Request): Promise<Response> => {
     let depositSection = "";
     if (needsDeposit) {
       // Use short URL format: /pay/BOOKING_CODE
-      const shortPaymentUrl = `https://zyqzypyncugihrawhppg.lovableproject.com/pay/${bookingCode}`;
+      // Use the Lovable project URL
+      const siteUrl = Deno.env.get("SITE_URL") || "https://d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com";
+      const shortPaymentUrl = `${siteUrl}/pay/${bookingCode}`;
       depositSection = `
 
 💳 DEPOSIT: ${currencySymbol}${depositAmount.toFixed(2)}
