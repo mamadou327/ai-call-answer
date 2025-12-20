@@ -186,15 +186,21 @@ Deno.serve(async (req) => {
 
     // Build Media Stream URL
     const mediaStreamUrl = `wss://${new URL(supabaseUrl).hostname}/functions/v1/twilio-media-stream/${token}`;
-    
+
     // Build action URL for when stream ends (used for transfers)
     const streamActionUrl = `${supabaseUrl}/functions/v1/twilio-stream-action/${token}?callSid=${encodeURIComponent(callSid)}&from=${encodeURIComponent(fromNumber)}`;
+
+    // Recording callback URL (stores recording in backend storage and links it to calls_log)
+    const recordingCallbackUrl = `${supabaseUrl}/functions/v1/twilio-recording-callback/${token}`;
 
     console.log("[VoiceWebhookRT] Starting media stream to:", mediaStreamUrl);
 
     // Return TwiML with Media Stream - the action URL is called when the stream ends
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  <Start>
+    <Record recordingStatusCallback="${escapeXml(recordingCallbackUrl)}" recordingStatusCallbackEvent="completed" recordingStatusCallbackMethod="POST"/>
+  </Start>
   <Connect action="${escapeXml(streamActionUrl)}">
     <Stream url="${escapeXml(mediaStreamUrl)}">
       <Parameter name="callerPhone" value="${escapeXml(fromNumber)}"/>
