@@ -17,6 +17,7 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
     const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
 
     if (!twilioAccountSid || !twilioAuthToken) {
       console.error("[twilio-sms-webhook] Twilio credentials not configured");
@@ -27,6 +28,21 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Extract token from URL path (like voice webhook does)
+    const url = new URL(req.url);
+    const pathParts = url.pathname.split("/");
+    const token = pathParts[pathParts.length - 1];
+
+    console.log(`[twilio-sms-webhook] Received request with token: ${token}`);
+
+    if (!token || token === "twilio-sms-webhook") {
+      console.error("[twilio-sms-webhook] No business token provided in URL path");
+      return new Response(
+        '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
+        { headers: { "Content-Type": "text/xml" } }
+      );
+    }
 
     // Parse incoming Twilio SMS webhook (form data)
     const formData = await req.formData();
@@ -45,16 +61,16 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Find business by Twilio phone number
+    // Find business by webhook token (like voice webhook does)
     const { data: business, error: businessError } = await supabase
       .from("businesses")
-      .select("id, business_name, twilio_phone_number, main_phone")
-      .eq("twilio_phone_number", to)
+      .select("id, business_name, twilio_phone_number, main_phone, twilio_enabled")
+      .eq("twilio_webhook_token", token)
       .eq("twilio_enabled", true)
       .single();
 
     if (businessError || !business) {
-      console.error("[twilio-sms-webhook] Business not found for number:", to, businessError);
+      console.error("[twilio-sms-webhook] Business not found for token:", token, businessError);
       return new Response(
         '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
         { headers: { "Content-Type": "text/xml" } }
@@ -70,45 +86,84 @@ serve(async (req: Request): Promise<Response> => {
       .eq("business_id", business.id)
       .single();
 
-    // Build policy message
-    let policyMessage = `📋 ${business.business_name} Booking Policies\n\n`;
-
+    // Build context for AI to generate a friendly response
+    let policyContext = `Business Name: ${business.business_name}\n`;
+    
     if (settings) {
-      const policies: string[] = [];
-
       if (settings.min_booking_notice_hours) {
-        policies.push(`• Bookings require at least ${settings.min_booking_notice_hours} hours notice`);
+        policyContext += `Minimum booking notice: ${settings.min_booking_notice_hours} hours\n`;
       }
-
       if (settings.max_days_advance) {
-        policies.push(`• You can book up to ${settings.max_days_advance} days in advance`);
+        policyContext += `Maximum advance booking: ${settings.max_days_advance} days\n`;
       }
-
       if (settings.min_cancellation_notice_hours) {
-        policies.push(`• Cancellations require ${settings.min_cancellation_notice_hours} hours notice`);
+        policyContext += `Minimum cancellation notice: ${settings.min_cancellation_notice_hours} hours\n`;
       }
-
       if (settings.min_reschedule_notice_hours) {
-        policies.push(`• Rescheduling requires ${settings.min_reschedule_notice_hours} hours notice`);
+        policyContext += `Minimum reschedule notice: ${settings.min_reschedule_notice_hours} hours\n`;
       }
-
-      if (policies.length > 0) {
-        policyMessage += policies.join("\n") + "\n\n";
-      }
-
       if (settings.cancellation_policy) {
-        // Truncate if too long for SMS
-        const maxPolicyLength = 300;
-        const truncatedPolicy = settings.cancellation_policy.length > maxPolicyLength
-          ? settings.cancellation_policy.substring(0, maxPolicyLength) + "..."
-          : settings.cancellation_policy;
-        policyMessage += `${truncatedPolicy}\n\n`;
+        policyContext += `Full cancellation policy: ${settings.cancellation_policy}\n`;
       }
-    } else {
-      policyMessage += "Please contact us for our booking policies.\n\n";
     }
 
-    policyMessage += `Questions? Call us: ${business.main_phone}`;
+    let policyMessage: string;
+
+    // Use AI to generate a friendly, concise response if OpenAI is available
+    if (openaiApiKey && settings) {
+      try {
+        console.log("[twilio-sms-webhook] Generating AI-powered policy response");
+        
+        const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${openaiApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: `You are a friendly SMS assistant for a business. A customer texted "POLICIES" to learn about booking rules.
+
+Your job is to summarize the business policies in a SHORT, friendly SMS format (max 320 characters).
+
+Rules:
+- Use emojis to make it scannable (📋, ⏰, 🔄, ❌, 💰)
+- Be concise - this is SMS, not email
+- Lead with the business name
+- Explain each policy simply (no jargon)
+- End with "Questions? Call us!" if there's room
+- DO NOT repeat yourself
+- DO NOT include the phone number in the response (they already have it)`
+              },
+              {
+                role: "user",
+                content: `Here are the policies to summarize:\n\n${policyContext}`
+              }
+            ],
+            max_tokens: 150,
+            temperature: 0.7,
+          }),
+        });
+
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          policyMessage = aiData.choices?.[0]?.message?.content || "";
+          console.log("[twilio-sms-webhook] AI generated response:", policyMessage);
+        } else {
+          console.error("[twilio-sms-webhook] OpenAI API error:", await aiResponse.text());
+          policyMessage = buildFallbackMessage(business.business_name, settings, business.main_phone);
+        }
+      } catch (aiError) {
+        console.error("[twilio-sms-webhook] AI generation failed:", aiError);
+        policyMessage = buildFallbackMessage(business.business_name, settings, business.main_phone);
+      }
+    } else {
+      // Fallback to manual formatting if no OpenAI key or no settings
+      policyMessage = buildFallbackMessage(business.business_name, settings, business.main_phone);
+    }
 
     // Send SMS reply via Twilio
     console.log(`[twilio-sms-webhook] Sending policy SMS to ${from}`);
@@ -152,3 +207,38 @@ serve(async (req: Request): Promise<Response> => {
     );
   }
 });
+
+// Fallback message builder when AI is not available
+function buildFallbackMessage(businessName: string, settings: any, mainPhone: string): string {
+  let message = `📋 ${businessName} Policies\n\n`;
+
+  if (settings) {
+    const policies: string[] = [];
+
+    if (settings.min_booking_notice_hours) {
+      policies.push(`⏰ Book ${settings.min_booking_notice_hours}h+ ahead`);
+    }
+
+    if (settings.max_days_advance) {
+      policies.push(`📅 Up to ${settings.max_days_advance} days advance`);
+    }
+
+    if (settings.min_cancellation_notice_hours) {
+      policies.push(`❌ Cancel ${settings.min_cancellation_notice_hours}h+ notice`);
+    }
+
+    if (settings.min_reschedule_notice_hours) {
+      policies.push(`🔄 Reschedule ${settings.min_reschedule_notice_hours}h+ notice`);
+    }
+
+    if (policies.length > 0) {
+      message += policies.join("\n") + "\n\n";
+    }
+  } else {
+    message += "Contact us for policy details.\n\n";
+  }
+
+  message += `Questions? Call ${mainPhone}`;
+
+  return message;
+}

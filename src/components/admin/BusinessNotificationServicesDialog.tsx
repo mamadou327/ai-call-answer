@@ -26,6 +26,7 @@ interface BusinessNotificationServicesDialogProps {
     business_name: string;
     twilio_enabled: boolean | null;
     twilio_phone_number: string | null;
+    twilio_webhook_token: string | null;
     email_on_confirmation: boolean;
     email_on_cancellation: boolean;
     email_on_reminder: boolean;
@@ -77,8 +78,12 @@ export const BusinessNotificationServicesDialog = ({
 
   // Webhook URLs for Twilio
   const projectUrl = "https://zyqzypyncugihrawhppg.supabase.co";
-  const voiceWebhookUrl = `${projectUrl}/functions/v1/twilio-voice-webhook`;
-  const smsWebhookUrl = `${projectUrl}/functions/v1/twilio-sms-webhook`;
+  const voiceWebhookUrl = business.twilio_webhook_token 
+    ? `${projectUrl}/functions/v1/twilio-voice-webhook-realtime/${business.twilio_webhook_token}`
+    : `${projectUrl}/functions/v1/twilio-voice-webhook-realtime`;
+  const smsWebhookUrl = business.twilio_webhook_token
+    ? `${projectUrl}/functions/v1/twilio-sms-webhook/${business.twilio_webhook_token}`
+    : `${projectUrl}/functions/v1/twilio-sms-webhook`;
   const recordingCallbackUrl = `${projectUrl}/functions/v1/twilio-recording-callback`;
 
   const handleCopy = async (text: string, label: string) => {
