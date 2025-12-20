@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { PolicyUpload } from "./PolicyUpload";
-import { FileText, Upload } from "lucide-react";
+import { FileText } from "lucide-react";
 
 interface PoliciesTabProps {
   businessId: string;
@@ -80,25 +79,9 @@ export const PoliciesTab = ({ businessId, onUpdate }: PoliciesTabProps) => {
     setLoading(false);
   };
 
-  const handlePolicyExtracted = (policies: any) => {
-    setSettingsData({
-      ...settingsData,
-      cancellation_policy: policies.cancellation_policy || settingsData.cancellation_policy,
-      min_booking_notice_hours: policies.min_booking_notice_hours || settingsData.min_booking_notice_hours,
-      max_days_advance: policies.max_days_advance || settingsData.max_days_advance,
-      min_cancellation_notice_hours: policies.min_cancellation_notice_hours || settingsData.min_cancellation_notice_hours,
-    });
-    toast({
-      title: "Policy Extracted",
-      description: "Review the extracted policy data below and save to apply.",
-    });
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Booking Policies */}
-      <form onSubmit={handleSubmit}>
-        <Card>
+    <form onSubmit={handleSubmit}>
+      <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
@@ -177,23 +160,6 @@ export const PoliciesTab = ({ businessId, onUpdate }: PoliciesTabProps) => {
             </Button>
           </CardContent>
         </Card>
-      </form>
-
-      {/* Upload Policy Document */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="w-5 h-5" />
-            Upload Policy Document
-          </CardTitle>
-          <CardDescription>
-            Upload a policy document and let AI extract the relevant information
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <PolicyUpload onPolicyExtracted={handlePolicyExtracted} />
-        </CardContent>
-      </Card>
-    </div>
+    </form>
   );
 };

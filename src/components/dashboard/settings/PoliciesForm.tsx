@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { PolicyUpload } from "./PolicyUpload";
+
 
 interface PoliciesFormProps {
   businessId: string;
@@ -74,16 +74,6 @@ export const PoliciesForm = ({ businessId, onUpdate }: PoliciesFormProps) => {
     }
 
     setLoading(false);
-  };
-
-  const handlePolicyExtracted = (policies: any) => {
-    setFormData({
-      ...formData,
-      cancellation_policy: policies.cancellation_policy || formData.cancellation_policy,
-      min_booking_notice_hours: policies.min_booking_notice_hours || formData.min_booking_notice_hours,
-      max_days_advance: policies.max_days_advance || formData.max_days_advance,
-      min_cancellation_notice_hours: policies.min_cancellation_notice_hours || formData.min_cancellation_notice_hours,
-    });
   };
 
   return (
@@ -156,8 +146,6 @@ export const PoliciesForm = ({ businessId, onUpdate }: PoliciesFormProps) => {
             {loading ? "Saving..." : "Save Policies"}
           </Button>
         </form>
-
-        <PolicyUpload onPolicyExtracted={handlePolicyExtracted} />
       </CardContent>
     </Card>
   );
