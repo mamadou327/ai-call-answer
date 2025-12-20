@@ -99,6 +99,9 @@ export type Database = {
           created_by_user_id: string | null
           customer_name: string
           customer_phone: string
+          deposit_amount: number | null
+          deposit_paid_at: string | null
+          deposit_payment_link: string | null
           end_time: string
           id: string
           last_modified_by_user_id: string | null
@@ -109,6 +112,7 @@ export type Database = {
           staff_id: string | null
           start_time: string
           status: Database["public"]["Enums"]["booking_status"]
+          stripe_payment_intent_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -121,6 +125,9 @@ export type Database = {
           created_by_user_id?: string | null
           customer_name: string
           customer_phone: string
+          deposit_amount?: number | null
+          deposit_paid_at?: string | null
+          deposit_payment_link?: string | null
           end_time: string
           id?: string
           last_modified_by_user_id?: string | null
@@ -131,6 +138,7 @@ export type Database = {
           staff_id?: string | null
           start_time: string
           status?: Database["public"]["Enums"]["booking_status"]
+          stripe_payment_intent_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -143,6 +151,9 @@ export type Database = {
           created_by_user_id?: string | null
           customer_name?: string
           customer_phone?: string
+          deposit_amount?: number | null
+          deposit_paid_at?: string | null
+          deposit_payment_link?: string | null
           end_time?: string
           id?: string
           last_modified_by_user_id?: string | null
@@ -153,6 +164,7 @@ export type Database = {
           staff_id?: string | null
           start_time?: string
           status?: Database["public"]["Enums"]["booking_status"]
+          stripe_payment_intent_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -218,6 +230,8 @@ export type Database = {
         Row: {
           app_language: string | null
           assistant_name: string | null
+          auto_cancel_hours: number | null
+          auto_cancel_unpaid_bookings: boolean | null
           business_id: string
           cancellation_policy: string | null
           country: string | null
@@ -240,6 +254,8 @@ export type Database = {
         Insert: {
           app_language?: string | null
           assistant_name?: string | null
+          auto_cancel_hours?: number | null
+          auto_cancel_unpaid_bookings?: boolean | null
           business_id: string
           cancellation_policy?: string | null
           country?: string | null
@@ -262,6 +278,8 @@ export type Database = {
         Update: {
           app_language?: string | null
           assistant_name?: string | null
+          auto_cancel_hours?: number | null
+          auto_cancel_unpaid_bookings?: boolean | null
           business_id?: string
           cancellation_policy?: string | null
           country?: string | null
@@ -319,6 +337,8 @@ export type Database = {
           staff_join_code: string | null
           staff_join_expires_at: string | null
           status: Database["public"]["Enums"]["business_status"]
+          stripe_account_id: string | null
+          stripe_connected_at: string | null
           twilio_enabled: boolean | null
           twilio_phone_number: string | null
           twilio_webhook_token: string | null
@@ -353,6 +373,8 @@ export type Database = {
           staff_join_code?: string | null
           staff_join_expires_at?: string | null
           status?: Database["public"]["Enums"]["business_status"]
+          stripe_account_id?: string | null
+          stripe_connected_at?: string | null
           twilio_enabled?: boolean | null
           twilio_phone_number?: string | null
           twilio_webhook_token?: string | null
@@ -387,6 +409,8 @@ export type Database = {
           staff_join_code?: string | null
           staff_join_expires_at?: string | null
           status?: Database["public"]["Enums"]["business_status"]
+          stripe_account_id?: string | null
+          stripe_connected_at?: string | null
           twilio_enabled?: boolean | null
           twilio_phone_number?: string | null
           twilio_webhook_token?: string | null
@@ -837,6 +861,8 @@ export type Database = {
           business_id: string
           category: string
           created_at: string | null
+          deposit_amount: number | null
+          deposit_required: boolean | null
           description: string | null
           duration_minutes: number
           id: string
@@ -848,6 +874,8 @@ export type Database = {
           business_id: string
           category: string
           created_at?: string | null
+          deposit_amount?: number | null
+          deposit_required?: boolean | null
           description?: string | null
           duration_minutes: number
           id?: string
@@ -859,6 +887,8 @@ export type Database = {
           business_id?: string
           category?: string
           created_at?: string | null
+          deposit_amount?: number | null
+          deposit_required?: boolean | null
           description?: string | null
           duration_minutes?: number
           id?: string
