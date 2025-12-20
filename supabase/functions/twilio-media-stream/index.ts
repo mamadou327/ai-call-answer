@@ -31,6 +31,9 @@ interface StreamSession {
   // Call stability tracking
   interactionCount: number;
   callStartTime: number;
+  // Audio playback tracking to prevent cutoff
+  isAISpeaking: boolean;
+  lastAudioSentAt: number | null;
 }
 
 interface BusinessSettings {
@@ -196,6 +199,9 @@ Deno.serve(async (req) => {
     // Call stability tracking
     interactionCount: 0,
     callStartTime: Date.now(),
+    // Audio playback tracking to prevent cutoff
+    isAISpeaking: false,
+    lastAudioSentAt: null,
   };
 
   twilioWs.onopen = () => {
@@ -261,6 +267,15 @@ Deno.serve(async (req) => {
           console.log("[MediaStream] Stream stopped");
           if (session.openAiWs) {
             session.openAiWs.close();
+          }
+          break;
+
+        case "mark":
+          // Twilio confirms audio has finished playing
+          console.log("[MediaStream] Twilio mark received:", data.mark?.name);
+          if (data.mark?.name === "audio_complete") {
+            session.isAISpeaking = false;
+            console.log("[MediaStream] Audio playback confirmed complete");
           }
           break;
 
@@ -335,6 +350,16 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
 
         case "response.audio.done":
           console.log("[MediaStream] AI response audio complete");
+          session.isAISpeaking = true;
+          session.lastAudioSentAt = Date.now();
+          // Send mark to track when Twilio finishes playing the audio
+          if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
+            session.twilioWs.send(JSON.stringify({
+              event: "mark",
+              streamSid: session.streamSid,
+              mark: { name: "audio_complete" }
+            }));
+          }
           break;
 
         case "response.audio_transcript.delta":
@@ -345,7 +370,18 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           break;
 
         case "input_audio_buffer.speech_started":
+          // Prevent interruption if AI just started speaking (prevents audio cutoff)
+          const timeSinceAudioSent = session.lastAudioSentAt 
+            ? Date.now() - session.lastAudioSentAt 
+            : 1000;
+          
+          if (timeSinceAudioSent < 600) {
+            console.log("[MediaStream] Ignoring interruption - AI just started speaking (" + timeSinceAudioSent + "ms ago)");
+            break;
+          }
+          
           console.log("[MediaStream] User started speaking - interrupting AI");
+          session.isAISpeaking = false;
           // Clear any pending AI audio (barge-in)
           if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
             session.twilioWs.send(JSON.stringify({
@@ -568,9 +604,9 @@ function sendSessionConfig(session: StreamSession) {
       },
       turn_detection: {
         type: "server_vad",
-        threshold: 0.65,           // Slightly lower for better sensitivity to natural speech
+        threshold: 0.80,           // Higher threshold to reduce false interruptions from background noise
         prefix_padding_ms: 300,    // Standard pre-speech buffer
-        silence_duration_ms: 800,  // Increased for more natural pauses (was 650)
+        silence_duration_ms: 800,  // Natural pauses
         create_response: true,     // Auto-create response when speech ends
       },
       tools,
