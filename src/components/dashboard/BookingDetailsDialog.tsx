@@ -470,7 +470,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
                      </div>
                    </div>
                  </div>
-               )
+               )}
 
                {booking.booking_code && (
                  <div className="flex items-center gap-3">
