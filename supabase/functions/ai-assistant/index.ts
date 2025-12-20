@@ -484,14 +484,16 @@ serve(async (req) => {
         .gte("end_time", todayStr),
     ]);
 
-    // Extract policy settings with defaults
+    // Extract policy settings - null means policy is disabled (toggle off)
     const policies = {
-      minBookingNoticeHours: businessSettings?.min_booking_notice_hours || 2,
-      maxDaysAdvance: businessSettings?.max_days_advance || 30,
-      minCancellationNoticeHours: businessSettings?.min_cancellation_notice_hours || 24,
-      minRescheduleNoticeHours: businessSettings?.min_reschedule_notice_hours || 24,
+      minBookingNoticeHours: businessSettings?.min_booking_notice_hours ?? null,
+      maxDaysAdvance: businessSettings?.max_days_advance ?? null,
+      minCancellationNoticeHours: businessSettings?.min_cancellation_notice_hours ?? null,
+      minRescheduleNoticeHours: businessSettings?.min_reschedule_notice_hours ?? null,
       cancellationPolicy: businessSettings?.cancellation_policy || "No specific policy set",
     };
+    
+    console.log(`[Aivia] Policies loaded:`, JSON.stringify(policies));
 
     // Extract assistant settings
     const assistantConfig = {
@@ -1316,22 +1318,32 @@ async function handleCreateBooking(
     };
   }
 
-  // POLICY: Check minimum booking notice
-  const hoursUntilBooking = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-  if (hoursUntilBooking < policies.minBookingNoticeHours) {
-    return { 
-      assistantMessage: `Sorry, I can't book that time. Our policy requires at least ${policies.minBookingNoticeHours} hours advance notice for bookings. The earliest I can book is ${formatTime(new Date(now.getTime() + policies.minBookingNoticeHours * 60 * 60 * 1000))} or later. Would you like a different time?`, 
-      action: null 
-    };
+  // POLICY: Check minimum booking notice (skip if policy is null/disabled)
+  if (policies.minBookingNoticeHours) {
+    const hoursUntilBooking = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+    console.log(`[Aivia] Min booking notice check - Hours until: ${hoursUntilBooking.toFixed(2)}, Required: ${policies.minBookingNoticeHours}h`);
+    
+    if (hoursUntilBooking < policies.minBookingNoticeHours) {
+      return { 
+        assistantMessage: `Sorry, I can't book that time. Our policy requires at least ${policies.minBookingNoticeHours} hours advance notice for bookings. The earliest I can book is ${formatTime(new Date(now.getTime() + policies.minBookingNoticeHours * 60 * 60 * 1000))} or later. Would you like a different time?`, 
+        action: null 
+      };
+    }
+  } else {
+    console.log(`[Aivia] Min booking notice check SKIPPED - policy is disabled`);
   }
 
-  // POLICY: Check maximum days in advance
-  const daysInAdvance = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-  if (daysInAdvance > policies.maxDaysAdvance) {
-    return { 
-      assistantMessage: `Sorry, I can't book that far in advance. Our policy allows bookings up to ${policies.maxDaysAdvance} days ahead. The latest available date is ${formatDate(new Date(now.getTime() + policies.maxDaysAdvance * 24 * 60 * 60 * 1000))}. Would you like to pick an earlier date?`, 
-      action: null 
-    };
+  // POLICY: Check maximum days in advance (skip if policy is null/disabled)
+  if (policies.maxDaysAdvance) {
+    const daysInAdvance = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysInAdvance > policies.maxDaysAdvance) {
+      return { 
+        assistantMessage: `Sorry, I can't book that far in advance. Our policy allows bookings up to ${policies.maxDaysAdvance} days ahead. The latest available date is ${formatDate(new Date(now.getTime() + policies.maxDaysAdvance * 24 * 60 * 60 * 1000))}. Would you like to pick an earlier date?`, 
+        action: null 
+      };
+    }
+  } else {
+    console.log(`[Aivia] Max advance booking check SKIPPED - policy is disabled`);
   }
 
   const duration = service?.duration_minutes || 60;
@@ -1487,7 +1499,8 @@ async function handleCancelBooking(
   const now = new Date();
   const hoursUntilBooking = (bookingStartTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-  if (hoursUntilBooking < policies.minCancellationNoticeHours) {
+  // Check cancellation notice policy (skip if policy is null/disabled)
+  if (policies.minCancellationNoticeHours && hoursUntilBooking < policies.minCancellationNoticeHours) {
     return { 
       assistantMessage: `Sorry, I can't cancel this booking. Our cancellation policy requires at least ${policies.minCancellationNoticeHours} hours notice, but this appointment is in ${Math.round(hoursUntilBooking * 10) / 10} hours.\n\nCancellation Policy: ${policies.cancellationPolicy}\n\nPlease call the business directly if this is an emergency.`, 
       action: null 
@@ -1550,17 +1563,19 @@ async function handleRescheduleBooking(
     return { assistantMessage: "This booking is cancelled and can't be rescheduled.", action: null };
   }
 
-  // Check reschedule notice policy against original booking time
+  // Check reschedule notice policy against original booking time (skip if policy is null/disabled)
   const originalStartTime = new Date(rawBooking.start_time);
-  const minRescheduleNoticeHours = policies.minRescheduleNoticeHours || 24;
   const now = new Date();
-  const minAllowedTime = new Date(now.getTime() + minRescheduleNoticeHours * 60 * 60 * 1000);
   
-  if (originalStartTime < minAllowedTime) {
-    return { 
-      assistantMessage: `I'm sorry, this booking is too soon to reschedule. We require at least ${minRescheduleNoticeHours} hours notice for reschedules.`, 
-      action: null 
-    };
+  if (policies.minRescheduleNoticeHours) {
+    const minAllowedTime = new Date(now.getTime() + policies.minRescheduleNoticeHours * 60 * 60 * 1000);
+    
+    if (originalStartTime < minAllowedTime) {
+      return { 
+        assistantMessage: `I'm sorry, this booking is too soon to reschedule. We require at least ${policies.minRescheduleNoticeHours} hours notice for reschedules.`, 
+        action: null 
+      };
+    }
   }
 
   // Parse date/time as local business time
