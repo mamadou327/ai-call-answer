@@ -81,13 +81,21 @@ Deno.serve(async (req) => {
       params[key] = value.toString();
     }
 
+    // Read backend URL early (used for signature validation and later operations)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+
     // Validate Twilio signature
     const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
     if (twilioAuthToken) {
       const signature = req.headers.get("x-twilio-signature");
-      const fullUrl = req.url;
-      
-      const isValid = await validateTwilioSignature(twilioAuthToken, fullUrl, params, signature);
+
+      // Build the webhook URL as Twilio sees it (public URL, not internal req.url)
+      const publicUrl = `${supabaseUrl}/functions/v1/twilio-recording-callback/${token}`;
+
+      console.log("[RecordingCallback] Validating signature with URL:", publicUrl);
+      console.log("[RecordingCallback] req.url seen by function:", req.url);
+
+      const isValid = await validateTwilioSignature(twilioAuthToken, publicUrl, params, signature);
       if (!isValid) {
         console.error("[RecordingCallback] Invalid Twilio signature - rejecting request");
         return new Response("Forbidden", { status: 403, headers: corsHeaders });
@@ -98,7 +106,6 @@ Deno.serve(async (req) => {
     }
 
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
