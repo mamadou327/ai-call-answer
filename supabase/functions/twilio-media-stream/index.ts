@@ -115,6 +115,59 @@ interface CallerInfo {
   };
 }
 
+// Start recording via Twilio REST API - called when call is in-progress
+async function tryStartTwilioCallRecording(opts: {
+  callSid: string;
+  recordingStatusCallbackUrl: string;
+}): Promise<void> {
+  const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+  const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+
+  if (!opts.callSid) {
+    console.warn("[MediaStream] No CallSid - cannot start recording");
+    return;
+  }
+
+  if (!twilioAccountSid || !twilioAuthToken) {
+    console.warn("[MediaStream] Missing TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN - cannot start recording");
+    return;
+  }
+
+  const endpoint = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Calls/${opts.callSid}/Recordings.json`;
+  const authHeader = "Basic " + btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+
+  console.log("[MediaStream] Starting call recording via Twilio API:", {
+    callSid: opts.callSid,
+    callbackUrl: opts.recordingStatusCallbackUrl,
+  });
+
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        RecordingStatusCallback: opts.recordingStatusCallbackUrl,
+        RecordingStatusCallbackMethod: "POST",
+        RecordingStatusCallbackEvent: "completed",
+      }),
+    });
+
+    const bodyText = await res.text();
+
+    if (!res.ok) {
+      console.error("[MediaStream] Failed to start recording:", res.status, bodyText);
+      return;
+    }
+
+    console.log("[MediaStream] Recording started successfully:", bodyText);
+  } catch (error) {
+    console.error("[MediaStream] Error starting recording:", error);
+  }
+}
+
 Deno.serve(async (req) => {
   // Check for WebSocket upgrade
   const upgradeHeader = req.headers.get("upgrade") || "";
@@ -223,8 +276,19 @@ Deno.serve(async (req) => {
           // Get callSid from customParameters (passed from webhook) or fallback to stream's callSid
           session.callSid = data.start.customParameters?.callSid || data.start.callSid;
           session.callerPhone = data.start.customParameters?.callerPhone || "";
+          const recordingCallbackUrl = data.start.customParameters?.recordingCallbackUrl || "";
           
           console.log("[MediaStream] Session initialized - callSid:", session.callSid, "callerPhone:", session.callerPhone);
+          
+          // Start recording now that call is definitely in-progress
+          if (recordingCallbackUrl && session.callSid) {
+            tryStartTwilioCallRecording({
+              callSid: session.callSid,
+              recordingStatusCallbackUrl: recordingCallbackUrl,
+            });
+          } else {
+            console.warn("[MediaStream] Cannot start recording - missing callSid or recordingCallbackUrl");
+          }
           
           // Build full system prompt with caller context AND cache business data for tool validation
           const promptData = await buildFullSystemPrompt(
