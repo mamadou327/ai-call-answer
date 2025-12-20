@@ -1155,9 +1155,9 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
     // Generate deposit payment link if service requires deposit
     if (service.deposit_required && service.deposit_amount && service.deposit_amount > 0) {
       try {
-        console.log("[MediaStream] Generating deposit link for booking:", booking.id);
+        console.log("[MediaStream] Generating deposit link for booking:", booking.id, "service requires deposit:", service.deposit_amount);
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        await fetch(`${supabaseUrl}/functions/v1/stripe-create-deposit-link`, {
+        const depositResponse = await fetch(`${supabaseUrl}/functions/v1/stripe-create-deposit-link`, {
           method: "POST",
           headers: { 
             "Content-Type": "application/json",
@@ -1165,9 +1165,14 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
           },
           body: JSON.stringify({ bookingId: booking.id }),
         });
-        console.log("[MediaStream] Deposit link generated successfully");
+        const depositResult = await depositResponse.json();
+        if (depositResponse.ok && depositResult.url) {
+          console.log("[MediaStream] Deposit link generated successfully:", depositResult.url);
+        } else {
+          console.warn("[MediaStream] Deposit link generation returned error:", depositResult.error || depositResult);
+        }
       } catch (depositError) {
-        console.warn("[MediaStream] Failed to generate deposit link:", depositError);
+        console.error("[MediaStream] Failed to generate deposit link:", depositError);
       }
     }
 
