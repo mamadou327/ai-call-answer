@@ -13,6 +13,8 @@ import { PoliciesTab } from "./settings/PoliciesTab";
 import { EmailNotificationSettings } from "./settings/EmailNotificationSettings";
 import { TwilioSettings } from "./settings/TwilioSettings";
 import { ContactAdminForm } from "./settings/ContactAdminForm";
+import { StripeConnectSettings } from "./settings/StripeConnectSettings";
+import { DepositSettings } from "./settings/DepositSettings";
 import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, HelpCircle } from "lucide-react";
 
 interface SettingsTabProps {
@@ -124,6 +126,8 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
       </TabsContent>
 
       <TabsContent value="notifications" className="space-y-6">
+        <StripeConnectSettings business={business} onUpdate={onUpdate} />
+        <DepositSettings businessId={businessId} onUpdate={onUpdate} />
         <TwilioSettings business={business} onUpdate={onUpdate} />
         <EmailNotificationSettings business={business} onUpdate={onUpdate} />
       </TabsContent>

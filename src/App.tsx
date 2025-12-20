@@ -18,6 +18,7 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminRegister from "./pages/AdminRegister";
 import AdminPending from "./pages/AdminPending";
 import FontDemo from "./pages/FontDemo";
+import StripeConnectCallback from "./pages/StripeConnectCallback";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,7 @@ const App = () => (
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/register" element={<AdminRegister />} />
           <Route path="/admin/pending" element={<AdminPending />} />
+          <Route path="/stripe-connect-callback" element={<StripeConnectCallback />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

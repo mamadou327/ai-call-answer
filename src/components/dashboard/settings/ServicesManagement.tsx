@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 
 interface ServicesManagementProps {
   businessId: string;
@@ -22,6 +23,8 @@ interface Service {
   duration_minutes: number;
   price: number;
   category: string;
+  deposit_required: boolean;
+  deposit_amount: number;
 }
 
 export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: ServicesManagementProps) => {
@@ -36,6 +39,8 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
     duration_minutes: 60,
     price: 0,
     category: "",
+    deposit_required: false,
+    deposit_amount: 0,
   });
 
   const getCurrencySymbol = (curr: string) => {
@@ -77,6 +82,8 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
       duration_minutes: service.duration_minutes,
       price: service.price,
       category: service.category,
+      deposit_required: service.deposit_required || false,
+      deposit_amount: service.deposit_amount || 0,
     });
     setDialogOpen(true);
   };
@@ -85,7 +92,7 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
     setDialogOpen(open);
     if (!open) {
       setEditingService(null);
-      setFormData({ name: "", description: "", duration_minutes: 60, price: 0, category: "" });
+      setFormData({ name: "", description: "", duration_minutes: 60, price: 0, category: "", deposit_required: false, deposit_amount: 0 });
     }
   };
 
@@ -172,7 +179,7 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
         </div>
         <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
-            <Button onClick={() => { setEditingService(null); setFormData({ name: "", description: "", duration_minutes: 60, price: 0, category: "" }); }}>
+            <Button onClick={() => { setEditingService(null); setFormData({ name: "", description: "", duration_minutes: 60, price: 0, category: "", deposit_required: false, deposit_amount: 0 }); }}>
               <Plus className="w-4 h-4 mr-2" />
               Add Service
             </Button>
@@ -233,6 +240,33 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
                     required
                   />
                 </div>
+              </div>
+              <div className="space-y-4 pt-4 border-t">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="deposit_required">Require Deposit</Label>
+                    <p className="text-sm text-muted-foreground">Collect a deposit when booking this service</p>
+                  </div>
+                  <Switch
+                    id="deposit_required"
+                    checked={formData.deposit_required}
+                    onCheckedChange={(checked) => setFormData({ ...formData, deposit_required: checked })}
+                  />
+                </div>
+                {formData.deposit_required && (
+                  <div className="space-y-2">
+                    <Label htmlFor="deposit_amount">Deposit Amount ({currencySymbol})</Label>
+                    <Input
+                      id="deposit_amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={formData.price}
+                      value={formData.deposit_amount}
+                      onChange={(e) => setFormData({ ...formData, deposit_amount: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                )}
               </div>
               <Button type="submit" disabled={loading}>
                 {loading ? (editingService ? "Updating..." : "Adding...") : (editingService ? "Update Service" : "Add Service")}
