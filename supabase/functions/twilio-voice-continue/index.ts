@@ -1348,6 +1348,26 @@ async function handleCreateBooking(
     return { success: false, error: "Failed to create booking" };
   }
 
+  // Generate deposit payment link if service requires deposit
+  const service = context.services?.find((s: any) => s.id === serviceId);
+  if (service?.deposit_required && service?.deposit_amount && service.deposit_amount > 0) {
+    try {
+      console.log("[VoiceAction] Generating deposit link for booking:", booking.id);
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      await fetch(`${supabaseUrl}/functions/v1/stripe-create-deposit-link`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({ bookingId: booking.id }),
+      });
+      console.log("[VoiceAction] Deposit link generated successfully");
+    } catch (depositError) {
+      console.warn("[VoiceAction] Failed to generate deposit link:", depositError);
+    }
+  }
+
   console.log("[VoiceAction] Created booking:", booking.booking_code);
   return { success: true, code: booking.booking_code };
 }
@@ -1663,7 +1683,7 @@ Deno.serve(async (req) => {
       { data: upcomingBookings },
       { data: staffTimeOff }
     ] = await Promise.all([
-      supabase.from("services").select("id, name, duration_minutes, price").eq("business_id", business.id),
+      supabase.from("services").select("id, name, duration_minutes, price, deposit_required, deposit_amount").eq("business_id", business.id),
       supabase.from("staff").select("id, name, role").eq("business_id", business.id),
       supabase.from("opening_hours").select("*").eq("business_id", business.id).order("day_of_week"),
       supabase.from("bookings")
