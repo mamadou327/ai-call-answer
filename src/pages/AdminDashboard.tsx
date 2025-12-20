@@ -22,6 +22,7 @@ import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
 import { BusinessNotificationServicesDialog } from "@/components/admin/BusinessNotificationServicesDialog";
 import { ServiceRequestsTab } from "@/components/admin/ServiceRequestsTab";
 import { AdminMessagesTab } from "@/components/admin/AdminMessagesTab";
+import { AdminCallsTab } from "@/components/admin/AdminCallsTab";
 import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare, Mail } from "lucide-react";
 
 // Super admin emails that cannot be deactivated
@@ -99,7 +100,7 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "messages">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "messages" | "calls">("analytics");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
     can_manage_business_numbers: false,
@@ -691,6 +692,15 @@ const AdminDashboard = () => {
             <MessageSquare className="w-4 h-4 mr-2" />
             Messages
           </Button>
+          {(isSuperAdmin || userPermissions.can_view_calls_messages) && (
+            <Button
+              variant={activeTab === "calls" ? "default" : "outline"}
+              onClick={() => setActiveTab("calls")}
+            >
+              <Phone className="w-4 h-4 mr-2" />
+              Calls
+            </Button>
+          )}
         </div>
 
         {activeTab === "analytics" && (
@@ -854,6 +864,10 @@ const AdminDashboard = () => {
 
         {activeTab === "messages" && (
           <AdminMessagesTab />
+        )}
+
+        {activeTab === "calls" && (isSuperAdmin || userPermissions.can_view_calls_messages) && (
+          <AdminCallsTab />
         )}
       </div>
 
