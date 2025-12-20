@@ -76,61 +76,6 @@ function twimlError(message: string): Response {
   });
 }
 
-async function tryStartTwilioCallRecording(opts: {
-  callSid: string;
-  recordingStatusCallbackUrl: string;
-}): Promise<void> {
-  const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
-  const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-
-  if (!opts.callSid) {
-    console.warn("[VoiceWebhookRT] No CallSid - cannot start recording");
-    return;
-  }
-
-  if (!twilioAccountSid || !twilioAuthToken) {
-    console.warn("[VoiceWebhookRT] Missing TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN - cannot start recording");
-    return;
-  }
-
-  const endpoint = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Calls/${opts.callSid}/Recordings.json`;
-  const authHeader = "Basic " + btoa(`${twilioAccountSid}:${twilioAuthToken}`);
-
-  console.log("[VoiceWebhookRT] Starting call recording via Twilio API:", {
-    callSid: opts.callSid,
-  });
-
-  try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: authHeader,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        RecordingStatusCallback: opts.recordingStatusCallbackUrl,
-        RecordingStatusCallbackMethod: "POST",
-        RecordingStatusCallbackEvent: "completed",
-      }),
-    });
-
-    const bodyText = await res.text();
-
-    if (!res.ok) {
-      console.error(
-        "[VoiceWebhookRT] Failed to start recording:",
-        res.status,
-        bodyText
-      );
-      return;
-    }
-
-    console.log("[VoiceWebhookRT] Recording started successfully:", bodyText);
-  } catch (error) {
-    console.error("[VoiceWebhookRT] Error starting recording:", error);
-  }
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -248,20 +193,17 @@ Deno.serve(async (req) => {
     // Recording callback URL (stores recording in backend storage and links it to calls_log)
     const recordingCallbackUrl = `${supabaseUrl}/functions/v1/twilio-recording-callback/${token}`;
 
-    await tryStartTwilioCallRecording({
-      callSid,
-      recordingStatusCallbackUrl: recordingCallbackUrl,
-    });
-
     console.log("[VoiceWebhookRT] Starting media stream to:", mediaStreamUrl);
 
     // Return TwiML with Media Stream - the action URL is called when the stream ends
+    // Pass recordingCallbackUrl so twilio-media-stream can start recording when call is in-progress
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Connect action="${escapeXml(streamActionUrl)}">
     <Stream url="${escapeXml(mediaStreamUrl)}">
       <Parameter name="callerPhone" value="${escapeXml(fromNumber)}"/>
       <Parameter name="callSid" value="${escapeXml(callSid)}"/>
+      <Parameter name="recordingCallbackUrl" value="${escapeXml(recordingCallbackUrl)}"/>
     </Stream>
   </Connect>
 </Response>`;
