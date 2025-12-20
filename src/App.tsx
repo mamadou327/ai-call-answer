@@ -19,6 +19,7 @@ import AdminRegister from "./pages/AdminRegister";
 import AdminPending from "./pages/AdminPending";
 import FontDemo from "./pages/FontDemo";
 import StripeConnectCallback from "./pages/StripeConnectCallback";
+import DepositPayment from "./pages/DepositPayment";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ const App = () => (
           <Route path="/admin/register" element={<AdminRegister />} />
           <Route path="/admin/pending" element={<AdminPending />} />
           <Route path="/stripe-connect-callback" element={<StripeConnectCallback />} />
+          <Route path="/pay/:bookingCode" element={<DepositPayment />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
