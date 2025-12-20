@@ -2447,6 +2447,12 @@ async function buildFullSystemPrompt(
   const jsDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const currentDay = jsDayNames[jsDay];
   const currentTime = formatTime(now);
+  // Include full calendar date to prevent AI from guessing wrong dates
+  const currentDate = now.toLocaleDateString("en-GB", { 
+    day: "numeric", 
+    month: "long", 
+    year: "numeric" 
+  }); // e.g., "20 December 2025"
 
   // Determine if business is open TODAY
   const todayHours = hours.find(h => h.day_of_week === jsDay);
@@ -2669,7 +2675,7 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
 ${greetingInstruction}
 
 ## CURRENT CONTEXT:
-- Today: ${currentDay}, ${currentTime}
+- Today: ${currentDay}, ${currentDate} at ${currentTime}
 - Business Status: ${todayStatus}
 - Business Address: ${businessAddress}
 - Business Phone Number: ${businessPhoneForSpeech || "(not available)"}
