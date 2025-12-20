@@ -1230,20 +1230,24 @@ const AdminDashboard = () => {
                               <Label className="text-sm font-medium">SMS Webhook URL</Label>
                               <div className="flex gap-2 mt-1.5">
                                 <Input
-                                  value={`https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-sms-webhook`}
+                                  value={twilioWebhookToken ? `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-sms-webhook/${twilioWebhookToken}` : "Enable Twilio to generate webhook URL"}
                                   readOnly
                                   className="bg-muted font-mono text-xs"
+                                  placeholder="Enable Twilio to generate webhook URL"
                                 />
                                 <Button
                                   type="button"
                                   variant="outline"
                                   size="icon"
                                   onClick={() => {
-                                    navigator.clipboard.writeText(`https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-sms-webhook`);
-                                    setCopiedSmsWebhook(true);
-                                    setTimeout(() => setCopiedSmsWebhook(false), 2000);
-                                    toast({ title: "SMS Webhook URL copied!" });
+                                    if (twilioWebhookToken) {
+                                      navigator.clipboard.writeText(`https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/twilio-sms-webhook/${twilioWebhookToken}`);
+                                      setCopiedSmsWebhook(true);
+                                      setTimeout(() => setCopiedSmsWebhook(false), 2000);
+                                      toast({ title: "SMS Webhook URL copied!" });
+                                    }
                                   }}
+                                  disabled={!twilioWebhookToken}
                                 >
                                   {copiedSmsWebhook ? (
                                     <Check className="w-4 h-4 text-success" />
