@@ -953,12 +953,31 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
   console.log("[MediaStream] Creating booking:", params);
   
   try {
-    // Find staff
-    const staff = session.staff.find(s => s.name.toLowerCase().includes(params.staff_name.toLowerCase()));
+    // Find staff - handle titles like "Mr adam", "Mr. John", etc.
+    const searchName = (params.staff_name || "").toLowerCase().trim();
+    const staff = session.staff.find(s => {
+      const staffName = s.name.toLowerCase().trim();
+      const staffTitle = (s.title || "").toLowerCase().trim();
+      const fullName = `${staffTitle} ${staffName}`.trim();
+      const fullNameDot = `${staffTitle}. ${staffName}`.trim();
+      
+      // Match if: searchName contains staff name OR staff name contains searchName 
+      // OR full name matches (with or without dot after title)
+      return staffName.includes(searchName) || 
+             searchName.includes(staffName) || 
+             fullName.includes(searchName) ||
+             searchName.includes(fullName) ||
+             fullNameDot.includes(searchName) ||
+             searchName.includes(fullNameDot) ||
+             staffName === searchName;
+    });
     
     if (!staff) {
+      console.log("[MediaStream] Staff not found. Searched for:", searchName, "Available staff:", session.staff.map(s => ({ name: s.name, title: s.title })));
       return { success: false, message: `Could not find staff member ${params.staff_name}` };
     }
+    
+    console.log("[MediaStream] Found staff:", staff.name, "with title:", staff.title);
 
     // Check if staff has AI booking enabled
     if (staff.ai_enabled === false) {
