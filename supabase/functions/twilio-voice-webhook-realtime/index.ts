@@ -7,6 +7,70 @@ const corsHeaders = {
 };
 
 // ============================================================================
+// RATE LIMITING (in-memory, resets on function cold start)
+// ============================================================================
+interface RateLimitEntry {
+  count: number;
+  firstRequest: number;
+  blocked: boolean;
+}
+
+const rateLimitMap = new Map<string, RateLimitEntry>();
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 30; // max 30 requests per minute per IP
+const RATE_LIMIT_BLOCK_DURATION_MS = 300000; // 5 minute block after exceeding
+
+function checkRateLimit(clientIp: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(clientIp);
+  
+  if (!entry) {
+    rateLimitMap.set(clientIp, { count: 1, firstRequest: now, blocked: false });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1 };
+  }
+  
+  // Check if currently blocked
+  if (entry.blocked) {
+    if (now - entry.firstRequest < RATE_LIMIT_BLOCK_DURATION_MS) {
+      console.warn(`[VoiceWebhookRT] Rate limit: IP ${clientIp} is blocked`);
+      return { allowed: false, remaining: 0 };
+    }
+    // Block expired, reset
+    rateLimitMap.set(clientIp, { count: 1, firstRequest: now, blocked: false });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1 };
+  }
+  
+  // Check if window expired
+  if (now - entry.firstRequest > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(clientIp, { count: 1, firstRequest: now, blocked: false });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1 };
+  }
+  
+  // Within window, check count
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
+    entry.blocked = true;
+    entry.firstRequest = now; // Reset for block duration
+    console.warn(`[VoiceWebhookRT] Rate limit exceeded for IP ${clientIp}, blocking for 5 minutes`);
+    return { allowed: false, remaining: 0 };
+  }
+  
+  return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - entry.count };
+}
+
+// ============================================================================
+// SECURITY LOGGING
+// ============================================================================
+function logSecurityEvent(event: string, details: Record<string, unknown>) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    event,
+    ...details,
+  };
+  console.warn(`[SECURITY] ${JSON.stringify(logEntry)}`);
+}
+
+// ============================================================================
 // TWILIO SIGNATURE VALIDATION
 // ============================================================================
 
@@ -14,10 +78,11 @@ async function validateTwilioSignature(
   authToken: string,
   url: string,
   params: Record<string, string>,
-  signature: string | null
+  signature: string | null,
+  clientIp: string
 ): Promise<boolean> {
   if (!signature) {
-    console.error("[VoiceWebhookRT] No X-Twilio-Signature header provided");
+    logSecurityEvent("MISSING_SIGNATURE", { provider: "twilio", clientIp, url });
     return false;
   }
 
@@ -46,11 +111,16 @@ async function validateTwilioSignature(
 
     const isValid = expectedSignature === signature;
     if (!isValid) {
-      console.error("[VoiceWebhookRT] Signature mismatch. Expected:", expectedSignature, "Got:", signature);
+      logSecurityEvent("INVALID_SIGNATURE", { 
+        provider: "twilio", 
+        clientIp, 
+        url,
+        receivedSignaturePrefix: signature.substring(0, 10) + "..."
+      });
     }
     return isValid;
   } catch (error) {
-    console.error("[VoiceWebhookRT] Error validating signature:", error);
+    logSecurityEvent("SIGNATURE_VALIDATION_ERROR", { provider: "twilio", clientIp, error: String(error) });
     return false;
   }
 }
@@ -79,6 +149,18 @@ function twimlError(message: string): Response {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Extract client IP for rate limiting and security logging
+  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || 
+                   req.headers.get("cf-connecting-ip") || 
+                   "unknown";
+
+  // Apply rate limiting
+  const rateLimit = checkRateLimit(clientIp);
+  if (!rateLimit.allowed) {
+    logSecurityEvent("RATE_LIMIT_EXCEEDED", { provider: "twilio", clientIp });
+    return twimlError("Too many requests. Please try again later.");
   }
 
   try {
@@ -112,7 +194,7 @@ Deno.serve(async (req) => {
       
       console.log("[VoiceWebhookRT] Validating signature with URL:", publicUrl);
       
-      const isValid = await validateTwilioSignature(twilioAuthToken, publicUrl, params, signature);
+      const isValid = await validateTwilioSignature(twilioAuthToken, publicUrl, params, signature, clientIp);
       
       if (!isValid) {
         console.error("[VoiceWebhookRT] Invalid Twilio signature - request rejected");
@@ -121,6 +203,7 @@ Deno.serve(async (req) => {
       
       console.log("[VoiceWebhookRT] Signature validated successfully");
     } else {
+      logSecurityEvent("MISSING_AUTH_TOKEN", { provider: "twilio", clientIp });
       console.warn("[VoiceWebhookRT] TWILIO_AUTH_TOKEN not configured - skipping signature validation");
     }
 
