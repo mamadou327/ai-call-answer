@@ -73,44 +73,38 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 
-    // Create a checkout session on behalf of the connected account
-    const origin = req.headers.get("origin") || "https://zyqzypyncugihrawhppg.lovableproject.com";
-    
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "gbp",
-            product_data: {
-              name: `Deposit for ${booking.services.name}`,
-              description: `Booking ref: ${booking.booking_code} at ${booking.business.business_name}`,
-            },
-            unit_amount: Math.round(depositAmount * 100), // Convert to pence
-          },
-          quantity: 1,
-        },
-      ],
+    // Create a price for the deposit amount on the connected account
+    const price = await stripe.prices.create({
+      currency: "gbp",
+      unit_amount: Math.round(depositAmount * 100), // Convert to pence
+      product_data: {
+        name: `Deposit for ${booking.services.name}`,
+      },
+    }, {
+      stripeAccount: stripeAccountId,
+    });
+    logStep("Price created", { priceId: price.id });
+
+    // Create a Payment Link (generates short URLs like buy.stripe.com/xxx)
+    const paymentLink = await stripe.paymentLinks.create({
+      line_items: [{ price: price.id, quantity: 1 }],
       metadata: {
         booking_id: bookingId,
         booking_code: booking.booking_code,
         customer_name: booking.customer_name,
         customer_phone: booking.customer_phone,
       },
-      success_url: `${origin}/deposit-success?booking=${bookingId}`,
-      cancel_url: `${origin}/deposit-cancelled?booking=${bookingId}`,
     }, {
-      stripeAccount: stripeAccountId, // Payments go directly to the business
+      stripeAccount: stripeAccountId,
     });
 
-    logStep("Checkout session created", { sessionId: session.id, url: session.url });
+    logStep("Payment Link created", { paymentLinkId: paymentLink.id, url: paymentLink.url });
 
     // Store the payment link on the booking
     const { error: updateError } = await supabaseClient
       .from("bookings")
       .update({
-        deposit_payment_link: session.url,
+        deposit_payment_link: paymentLink.url,
         deposit_amount: depositAmount,
       })
       .eq("id", bookingId);
@@ -120,8 +114,8 @@ serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ 
-      url: session.url,
-      session_id: session.id,
+      url: paymentLink.url,
+      payment_link_id: paymentLink.id,
       deposit_amount: depositAmount,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
