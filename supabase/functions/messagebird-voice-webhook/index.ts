@@ -5,15 +5,81 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, messagebird-signature, messagebird-request-timestamp",
 };
 
+// ============================================================================
+// RATE LIMITING (in-memory, resets on function cold start)
+// ============================================================================
+interface RateLimitEntry {
+  count: number;
+  firstRequest: number;
+  blocked: boolean;
+}
+
+const rateLimitMap = new Map<string, RateLimitEntry>();
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 30; // max 30 requests per minute per IP
+const RATE_LIMIT_BLOCK_DURATION_MS = 300000; // 5 minute block after exceeding
+
+function checkRateLimit(clientIp: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(clientIp);
+  
+  if (!entry) {
+    rateLimitMap.set(clientIp, { count: 1, firstRequest: now, blocked: false });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1 };
+  }
+  
+  // Check if currently blocked
+  if (entry.blocked) {
+    if (now - entry.firstRequest < RATE_LIMIT_BLOCK_DURATION_MS) {
+      console.warn(`[MessageBirdWebhook] Rate limit: IP ${clientIp} is blocked`);
+      return { allowed: false, remaining: 0 };
+    }
+    // Block expired, reset
+    rateLimitMap.set(clientIp, { count: 1, firstRequest: now, blocked: false });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1 };
+  }
+  
+  // Check if window expired
+  if (now - entry.firstRequest > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(clientIp, { count: 1, firstRequest: now, blocked: false });
+    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1 };
+  }
+  
+  // Within window, check count
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX_REQUESTS) {
+    entry.blocked = true;
+    entry.firstRequest = now; // Reset for block duration
+    console.warn(`[MessageBirdWebhook] Rate limit exceeded for IP ${clientIp}, blocking for 5 minutes`);
+    return { allowed: false, remaining: 0 };
+  }
+  
+  return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - entry.count };
+}
+
+// ============================================================================
+// SECURITY LOGGING
+// ============================================================================
+function logSecurityEvent(event: string, details: Record<string, unknown>) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    event,
+    ...details,
+  };
+  console.warn(`[SECURITY] ${JSON.stringify(logEntry)}`);
+}
+
 // MessageBird signature validation using Web Crypto API
 async function validateMessageBirdSignature(
   signingKey: string,
   signature: string,
   timestamp: string,
-  body: string
+  body: string,
+  clientIp: string
 ): Promise<boolean> {
   try {
     if (!signingKey || !signature || !timestamp) {
+      logSecurityEvent("MISSING_SIGNATURE", { provider: "messagebird", clientIp, hasSigningKey: !!signingKey, hasSignature: !!signature, hasTimestamp: !!timestamp });
       return false;
     }
     
@@ -34,9 +100,17 @@ async function validateMessageBirdSignature(
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
     
-    return computedSignature === signature;
+    const isValid = computedSignature === signature;
+    if (!isValid) {
+      logSecurityEvent("INVALID_SIGNATURE", { 
+        provider: "messagebird", 
+        clientIp,
+        receivedSignaturePrefix: signature.substring(0, 10) + "..."
+      });
+    }
+    return isValid;
   } catch (error) {
-    console.error("MessageBird signature validation error:", error);
+    logSecurityEvent("SIGNATURE_VALIDATION_ERROR", { provider: "messagebird", clientIp, error: String(error) });
     return false;
   }
 }
@@ -102,6 +176,26 @@ Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Extract client IP for rate limiting and security logging
+  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || 
+                   req.headers.get("cf-connecting-ip") || 
+                   "unknown";
+
+  // Apply rate limiting
+  const rateLimit = checkRateLimit(clientIp);
+  if (!rateLimit.allowed) {
+    logSecurityEvent("RATE_LIMIT_EXCEEDED", { provider: "messagebird", clientIp });
+    return new Response(JSON.stringify({ error: "Too Many Requests" }), { 
+      status: 429, 
+      headers: { 
+        ...corsHeaders, 
+        "Content-Type": "application/json",
+        "Retry-After": "300",
+        "X-RateLimit-Remaining": "0"
+      } 
+    });
   }
 
   try {
@@ -170,6 +264,7 @@ Deno.serve(async (req) => {
       const timestamp = req.headers.get("messagebird-request-timestamp");
       
       if (!messageBirdApiKey) {
+        logSecurityEvent("MISSING_AUTH_TOKEN", { provider: "messagebird", clientIp });
         console.error("MESSAGEBIRD_API_KEY not configured - rejecting request for security");
         return jsonResponse("Security configuration error. Please contact support. Goodbye.", "", false);
       }
@@ -179,7 +274,8 @@ Deno.serve(async (req) => {
           messageBirdApiKey,
           signature,
           timestamp,
-          bodyText
+          bodyText,
+          clientIp
         );
         
         if (!isValid) {
@@ -192,6 +288,7 @@ Deno.serve(async (req) => {
           console.log("MessageBird signature validated successfully");
         }
       } else {
+        logSecurityEvent("MISSING_SIGNATURE", { provider: "messagebird", clientIp, hasSignature: !!signature, hasTimestamp: !!timestamp });
         console.error("Missing MessageBird signature headers - rejecting request");
         return new Response(JSON.stringify({ error: "Missing signature" }), {
           status: 403,
