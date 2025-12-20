@@ -19,7 +19,7 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const stripeClientId = Deno.env.get("STRIPE_CLIENT_ID");
+    const stripeClientId = Deno.env.get("STRIPE_CLIENT_ID")?.trim();
     if (!stripeClientId) throw new Error("STRIPE_CLIENT_ID is not set");
     logStep("Stripe Client ID verified");
 
