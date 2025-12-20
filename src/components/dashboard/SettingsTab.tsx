@@ -95,8 +95,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
         <AISettingsTab businessId={businessId} business={business} onUpdate={onUpdate} />
       </TabsContent>
 
-      <TabsContent value="policies">
+      <TabsContent value="policies" className="space-y-6">
         <PoliciesTab businessId={businessId} onUpdate={onUpdate} />
+        <StripeConnectSettings business={business} onUpdate={onUpdate} />
+        <DepositSettings businessId={businessId} onUpdate={onUpdate} />
       </TabsContent>
 
       <TabsContent value="services">
@@ -126,8 +128,6 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
       </TabsContent>
 
       <TabsContent value="notifications" className="space-y-6">
-        <StripeConnectSettings business={business} onUpdate={onUpdate} />
-        <DepositSettings businessId={businessId} onUpdate={onUpdate} />
         <TwilioSettings business={business} onUpdate={onUpdate} />
         <EmailNotificationSettings business={business} onUpdate={onUpdate} />
       </TabsContent>
