@@ -33,6 +33,7 @@ interface CallDetailsDialogProps {
   call: CallLog | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  isAdmin?: boolean;
 }
 
 const callTypeLabels: Record<string, string> = {
@@ -53,7 +54,7 @@ const callTypeBadgeVariants: Record<string, "default" | "secondary" | "destructi
   other: "outline",
 };
 
-export const CallDetailsDialog = ({ call, open, onOpenChange }: CallDetailsDialogProps) => {
+export const CallDetailsDialog = ({ call, open, onOpenChange, isAdmin = false }: CallDetailsDialogProps) => {
   const { t } = useTranslation();
   const [slide, setSlide] = useState<1 | 2>(1);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -204,22 +205,25 @@ export const CallDetailsDialog = ({ call, open, onOpenChange }: CallDetailsDialo
               </div>
             )}
 
-            <div className="flex justify-end pt-4">
-              <Button 
-                onClick={() => setSlide(2)}
-                disabled={!call.recording_url && !call.transcription}
-                className="gap-2"
-              >
-                {call.recording_url || call.transcription ? (
-                  <>
-                    View Recording & Transcript
-                    <ChevronRight className="w-4 h-4" />
-                  </>
-                ) : (
-                  "No Recording Available"
-                )}
-              </Button>
-            </div>
+            {/* Only show recording button for admins */}
+            {isAdmin && (
+              <div className="flex justify-end pt-4">
+                <Button 
+                  onClick={() => setSlide(2)}
+                  disabled={!call.recording_url && !call.transcription}
+                  className="gap-2"
+                >
+                  {call.recording_url || call.transcription ? (
+                    <>
+                      View Recording & Transcript
+                      <ChevronRight className="w-4 h-4" />
+                    </>
+                  ) : (
+                    "No Recording Available"
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
           // Slide 2: Audio & Transcription
