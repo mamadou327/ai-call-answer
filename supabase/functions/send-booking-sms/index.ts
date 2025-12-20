@@ -220,29 +220,18 @@ serve(async (req: Request): Promise<Response> => {
     // Build SMS message based on type
     let message = "";
 
-    // Build deposit section for SMS
+    // Build deposit section for SMS - use Stripe link directly
     let depositSection = "";
-    if (needsDeposit) {
-      // Prefer a custom domain short link if configured; otherwise use the Stripe URL directly.
-      // This keeps the SMS clean AND avoids showing the platform domain.
-      const siteUrlRaw = Deno.env.get("SITE_URL");
-      const siteUrl = siteUrlRaw ? siteUrlRaw.replace(/\/$/, "") : null;
-
-      const payUrl = siteUrl
-        ? `${siteUrl}/pay/${bookingCode}`
-        : (depositPaymentLink ?? null);
-
-      if (payUrl) {
-        depositSection = `
+    if (needsDeposit && depositPaymentLink) {
+      depositSection = `
 
 💳 DEPOSIT: ${currencySymbol}${depositAmount.toFixed(2)}
-Pay securely via Stripe: ${payUrl}`;
-      } else {
-        depositSection = `
+Pay securely: ${depositPaymentLink}`;
+    } else if (needsDeposit) {
+      depositSection = `
 
 💳 DEPOSIT: ${currencySymbol}${depositAmount.toFixed(2)}
 Please contact us to arrange payment.`;
-      }
     }
 
 
