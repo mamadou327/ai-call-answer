@@ -80,3 +80,18 @@ verify_jwt = true
 
 [functions.send-booking-reminders]
 verify_jwt = false
+
+[functions.stripe-connect-authorize]
+verify_jwt = true
+
+[functions.stripe-connect-callback]
+verify_jwt = true
+
+[functions.stripe-create-deposit-link]
+verify_jwt = false
+
+[functions.stripe-deposit-webhook]
+verify_jwt = false
+
+[functions.auto-cancel-unpaid-bookings]
+verify_jwt = false
