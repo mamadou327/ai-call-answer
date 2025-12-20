@@ -7,9 +7,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
-import { WebsiteAnalysis } from "./WebsiteAnalysis";
 import { VoiceSelector } from "./VoiceSelector";
-import { Bot, Globe } from "lucide-react";
+import { Bot } from "lucide-react";
 
 interface AISettingsTabProps {
   businessId: string;
@@ -84,13 +83,6 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
     setLoading(false);
   };
 
-  const handleWebsiteAnalysis = (analysis: any) => {
-    console.log("Website analysis completed:", analysis);
-    toast({
-      title: "Analysis Complete",
-      description: "Review the extracted data in the analysis results.",
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -184,26 +176,6 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
           </CardContent>
         </Card>
       </form>
-
-      {/* AI Website Analysis */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Globe className="w-5 h-5" />
-            AI Website Analysis
-          </CardTitle>
-          <CardDescription>
-            Analyze your website to automatically extract business information
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <WebsiteAnalysis 
-            businessId={businessId} 
-            currentWebsite={business?.website || ""}
-            onAnalysisComplete={handleWebsiteAnalysis}
-          />
-        </CardContent>
-      </Card>
     </div>
   );
 };
