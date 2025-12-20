@@ -203,29 +203,50 @@ Deno.serve(async (req) => {
       console.log("[RecordingCallback] Call log updated with recording URL");
     }
 
-    // Request transcription from Twilio (async, will be handled separately)
-    try {
-      const transcriptionResponse = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Recordings/${recordingSid}/Transcriptions.json`,
-        {
+    // Transcribe using OpenAI Whisper
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
+    if (openaiApiKey) {
+      try {
+        console.log("[RecordingCallback] Transcribing with OpenAI Whisper...");
+        
+        const formDataWhisper = new FormData();
+        formDataWhisper.append("file", new Blob([audioBytes], { type: "audio/mpeg" }), "recording.mp3");
+        formDataWhisper.append("model", "whisper-1");
+        
+        const whisperResponse = await fetch("https://api.openai.com/v1/audio/transcriptions", {
           method: "POST",
           headers: {
-            Authorization: authHeader,
-            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": `Bearer ${openaiApiKey}`,
           },
-          body: new URLSearchParams({
-            "TranscriptionCallback": `${supabaseUrl}/functions/v1/twilio-transcription-callback/${token}`,
-          }),
+          body: formDataWhisper,
+        });
+        
+        if (whisperResponse.ok) {
+          const whisperResult = await whisperResponse.json();
+          const transcriptionText = whisperResult.text || "";
+          
+          console.log("[RecordingCallback] Transcription complete, length:", transcriptionText.length);
+          
+          // Update the call log with transcription
+          const { error: transcriptError } = await supabase
+            .from("calls_log")
+            .update({ transcription: transcriptionText })
+            .eq("twilio_call_sid", callSid)
+            .eq("business_id", business.id);
+          
+          if (transcriptError) {
+            console.error("[RecordingCallback] Error saving transcription:", transcriptError);
+          } else {
+            console.log("[RecordingCallback] Transcription saved to call log");
+          }
+        } else {
+          console.error("[RecordingCallback] Whisper API error:", await whisperResponse.text());
         }
-      );
-
-      if (!transcriptionResponse.ok) {
-        console.log("[RecordingCallback] Transcription request failed:", await transcriptionResponse.text());
-      } else {
-        console.log("[RecordingCallback] Transcription requested successfully");
+      } catch (e) {
+        console.error("[RecordingCallback] Error transcribing:", e);
       }
-    } catch (e) {
-      console.error("[RecordingCallback] Error requesting transcription:", e);
+    } else {
+      console.warn("[RecordingCallback] OPENAI_API_KEY not set - skipping transcription");
     }
 
     return new Response("OK", { status: 200, headers: corsHeaders });
