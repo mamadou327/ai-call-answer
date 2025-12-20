@@ -1,7 +1,22 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2, User, Clock, FileText, Calendar as CalendarIcon, CheckCircle, RotateCcw, Edit, Save, X } from "lucide-react";
+import {
+  Trash2,
+  User,
+  Clock,
+  FileText,
+  Calendar as CalendarIcon,
+  CheckCircle,
+  RotateCcw,
+  Edit,
+  Save,
+  X,
+  CreditCard,
+  ExternalLink,
+  Copy,
+  RefreshCw,
+} from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -26,10 +41,13 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [newStartTime, setNewStartTime] = useState("");
   const [editedNotes, setEditedNotes] = useState("");
+  const [depositPaymentLink, setDepositPaymentLink] = useState<string | null>(null);
+  const [isUpdatingDepositLink, setIsUpdatingDepositLink] = useState(false);
 
   useEffect(() => {
     if (booking) {
       setEditedNotes(booking.notes || "");
+      setDepositPaymentLink(booking.deposit_payment_link || null);
     }
   }, [booking]);
 
@@ -234,6 +252,63 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
     }
   };
 
+  const handleCopyDepositLink = async () => {
+    if (!depositPaymentLink) return;
+
+    try {
+      await navigator.clipboard.writeText(depositPaymentLink);
+      toast({
+        title: t("common.success"),
+        description: "Payment link copied",
+      });
+    } catch {
+      toast({
+        title: t("common.error"),
+        description: "Couldn't copy link. Please copy it manually.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRegenerateDepositLink = async () => {
+    if (!booking?.id) return;
+
+    setIsUpdatingDepositLink(true);
+    try {
+      const { error: invokeError } = await supabase.functions.invoke("stripe-create-deposit-link", {
+        body: { bookingId: booking.id },
+      });
+
+      if (invokeError) throw invokeError;
+
+      const { data: refreshed, error: refreshError } = await supabase
+        .from("bookings")
+        .select("deposit_payment_link")
+        .eq("id", booking.id)
+        .maybeSingle();
+
+      if (refreshError) throw refreshError;
+
+      setDepositPaymentLink(refreshed?.deposit_payment_link || null);
+      onDelete();
+
+      toast({
+        title: t("common.success"),
+        description: refreshed?.deposit_payment_link?.includes("buy.stripe.com")
+          ? "Short payment link generated"
+          : "Payment link generated",
+      });
+    } catch (err: any) {
+      toast({
+        title: t("common.error"),
+        description: err?.message || "Failed to generate payment link",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingDepositLink(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     if (status === "confirmed") return "default";
     if (status === "cancelled") return "destructive";
@@ -342,10 +417,63 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
                     </p>
                   )}
                 </div>
-              </div>
+               </div>
 
-              {booking.booking_code && (
-                <div className="flex items-center gap-3">
+               {/* Deposit payment link (business view) */}
+               {!isStaffView && typeof booking.deposit_amount === "number" && booking.deposit_amount > 0 && (
+                 <div className="rounded-lg border bg-card p-4">
+                   <div className="flex items-start justify-between gap-4">
+                     <div className="space-y-2 min-w-0">
+                       <div className="flex items-center gap-2">
+                         <CreditCard className="h-4 w-4 text-muted-foreground" />
+                         <p className="text-sm font-medium">Deposit payment</p>
+                         <Badge variant={booking.deposit_paid_at ? "secondary" : "outline"} className="text-xs">
+                           {booking.deposit_paid_at ? "Paid" : "Unpaid"}
+                         </Badge>
+                       </div>
+
+                       <p className="text-sm text-muted-foreground">
+                         Amount: <span className="font-medium text-foreground">£{Number(booking.deposit_amount).toFixed(2)}</span>
+                       </p>
+
+                       {depositPaymentLink ? (
+                         <p className="text-xs text-muted-foreground break-all">{depositPaymentLink}</p>
+                       ) : (
+                         <p className="text-xs text-muted-foreground">No payment link yet.</p>
+                       )}
+                     </div>
+
+                     <div className="flex flex-col gap-2 shrink-0">
+                       {depositPaymentLink && (
+                         <>
+                           <Button
+                             size="sm"
+                             variant="outline"
+                             onClick={() => window.open(depositPaymentLink, "_blank", "noopener,noreferrer")}
+                           >
+                             <ExternalLink className="h-4 w-4 mr-2" />
+                             Open
+                           </Button>
+                           <Button size="sm" variant="outline" onClick={handleCopyDepositLink}>
+                             <Copy className="h-4 w-4 mr-2" />
+                             Copy
+                           </Button>
+                         </>
+                       )}
+
+                       {!booking.deposit_paid_at && booking.status !== "cancelled" && (
+                         <Button size="sm" onClick={handleRegenerateDepositLink} disabled={isUpdatingDepositLink}>
+                           <RefreshCw className={`h-4 w-4 mr-2 ${isUpdatingDepositLink ? "animate-spin" : ""}`} />
+                           {depositPaymentLink?.includes("checkout.stripe.com") ? "Generate short link" : "Regenerate link"}
+                         </Button>
+                       )}
+                     </div>
+                   </div>
+                 </div>
+               )
+
+               {booking.booking_code && (
+                 <div className="flex items-center gap-3">
                   <FileText className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="text-sm font-medium">Booking Code</p>
