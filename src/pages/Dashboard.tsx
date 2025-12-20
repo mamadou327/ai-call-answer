@@ -177,7 +177,9 @@ const Dashboard = () => {
       action: "business"
     }, {
       label: "Booking rules configured",
-      isComplete: !!(settingsRes.data?.min_booking_notice_hours && settingsRes.data?.max_days_advance),
+      // Consider policies configured if user has reviewed them (settings record exists and at least cancellation_policy is set)
+      // This allows intentionally disabled time-based policies (null values) to still count as "configured"
+      isComplete: !!settingsRes.data?.cancellation_policy,
       action: "business"
     }, {
       label: "Notifications enabled (email or SMS)",
