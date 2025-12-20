@@ -728,11 +728,22 @@ function isTimeWithinOpeningHours(openingHours: OpeningHour[], date: Date, time:
 }
 
 function checkMinBookingNotice(settings: BusinessSettings | null, requestedDateTime: Date): { valid: boolean; message?: string; earliestTime?: Date } {
-  const minNoticeHours = settings?.min_booking_notice_hours || 2;
+  const minNoticeHours = settings?.min_booking_notice_hours;
+  
+  // If policy is null/undefined/0, skip validation (toggle is off)
+  if (!minNoticeHours) {
+    console.log(`[MediaStream] Min booking notice check SKIPPED - policy is disabled (value: ${minNoticeHours})`);
+    return { valid: true };
+  }
+  
   const now = new Date();
+  const hoursUntilBooking = (requestedDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
   const minAllowedTime = new Date(now.getTime() + minNoticeHours * 60 * 60 * 1000);
   
-  if (requestedDateTime < minAllowedTime) {
+  console.log(`[MediaStream] Min booking notice check - Requested: ${requestedDateTime.toISOString()}, Now: ${now.toISOString()}, Hours until: ${hoursUntilBooking.toFixed(2)}, Required: ${minNoticeHours}h`);
+  
+  if (hoursUntilBooking < minNoticeHours) {
+    console.log(`[MediaStream] Min booking notice FAILED - ${hoursUntilBooking.toFixed(2)}h < ${minNoticeHours}h required`);
     return { 
       valid: false, 
       message: `We need at least ${minNoticeHours} hours notice. The earliest I can book is ${formatTime(minAllowedTime)}.`,
@@ -740,11 +751,19 @@ function checkMinBookingNotice(settings: BusinessSettings | null, requestedDateT
     };
   }
   
+  console.log(`[MediaStream] Min booking notice PASSED`);
   return { valid: true };
 }
 
 function checkMaxAdvanceBooking(settings: BusinessSettings | null, requestedDate: Date): { valid: boolean; message?: string } {
-  const maxDays = settings?.max_days_advance || 30;
+  const maxDays = settings?.max_days_advance;
+  
+  // If policy is null/undefined/0, skip validation (toggle is off)
+  if (!maxDays) {
+    console.log(`[MediaStream] Max advance booking check SKIPPED - policy is disabled`);
+    return { valid: true };
+  }
+  
   const now = new Date();
   const maxDate = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
   
@@ -759,7 +778,14 @@ function checkMaxAdvanceBooking(settings: BusinessSettings | null, requestedDate
 }
 
 function checkMinCancellationNotice(settings: BusinessSettings | null, bookingStartTime: Date): { valid: boolean; message?: string } {
-  const minNoticeHours = settings?.min_cancellation_notice_hours || 24;
+  const minNoticeHours = settings?.min_cancellation_notice_hours;
+  
+  // If policy is null/undefined/0, skip validation (toggle is off)
+  if (!minNoticeHours) {
+    console.log(`[MediaStream] Min cancellation notice check SKIPPED - policy is disabled`);
+    return { valid: true };
+  }
+  
   const now = new Date();
   const minAllowedTime = new Date(now.getTime() + minNoticeHours * 60 * 60 * 1000);
   
@@ -775,7 +801,14 @@ function checkMinCancellationNotice(settings: BusinessSettings | null, bookingSt
 }
 
 function checkMinRescheduleNotice(settings: BusinessSettings | null, bookingStartTime: Date): { valid: boolean; message?: string } {
-  const minNoticeHours = settings?.min_reschedule_notice_hours || 24;
+  const minNoticeHours = settings?.min_reschedule_notice_hours;
+  
+  // If policy is null/undefined/0, skip validation (toggle is off)
+  if (!minNoticeHours) {
+    console.log(`[MediaStream] Min reschedule notice check SKIPPED - policy is disabled`);
+    return { valid: true };
+  }
+  
   const now = new Date();
   const minAllowedTime = new Date(now.getTime() + minNoticeHours * 60 * 60 * 1000);
   
