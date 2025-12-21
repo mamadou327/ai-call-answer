@@ -50,6 +50,27 @@ const Dashboard = () => {
   const [activeSettingsSection, setActiveSettingsSection] = useState<string>("");
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isStaffView, setIsStaffView] = useState(false);
+  // Background polling for unpaid deposit checks every 15 seconds
+  useEffect(() => {
+    if (!business?.id) return;
+    
+    const checkUnpaidDeposits = async () => {
+      try {
+        await supabase.functions.invoke('check-unpaid-deposits');
+      } catch (error) {
+        console.error('Background deposit check failed:', error);
+      }
+    };
+    
+    // Initial check
+    checkUnpaidDeposits();
+    
+    // Poll every 15 seconds
+    const intervalId = setInterval(checkUnpaidDeposits, 15000);
+    
+    return () => clearInterval(intervalId);
+  }, [business?.id]);
+
   useEffect(() => {
     const checkUser = async () => {
       const {
