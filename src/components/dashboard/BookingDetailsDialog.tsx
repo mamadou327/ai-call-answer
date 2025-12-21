@@ -47,13 +47,22 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
   const [isCheckingPayment, setIsCheckingPayment] = useState(false);
   const [currency, setCurrency] = useState<string>("USD");
   const hasAutoChecked = useRef(false);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
   // Auto-check payment status when dialog opens for unpaid deposits + poll every 15 seconds
+  useEffect(() => {
+    // Reset payment confirmed state when booking changes
+    if (booking?.id) {
+      setPaymentConfirmed(!!booking.deposit_paid_at);
+    }
+  }, [booking?.id, booking?.deposit_paid_at]);
+
   useEffect(() => {
     const shouldPoll = 
       open &&
       booking &&
       !booking.deposit_paid_at &&
+      !paymentConfirmed &&
       booking.deposit_amount > 0 &&
       booking.deposit_payment_link &&
       booking.status !== "cancelled";
@@ -77,7 +86,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
         clearInterval(intervalId);
       }
     };
-  }, [open, booking]);
+  }, [open, booking, paymentConfirmed]);
 
   useEffect(() => {
     if (booking) {
@@ -375,12 +384,17 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
       const currencySymbol = getCurrencySymbol(currency);
 
       if (data?.paymentFound) {
+        // Stop polling by marking as confirmed
+        setPaymentConfirmed(true);
         toast({
           title: t("common.success"),
           description: `Payment confirmed! ${currencySymbol}${Number(data.depositAmount).toFixed(2)} received.`,
         });
-        onDelete(); // Refresh data
+        // Refresh the bookings list to update the green pound sign
+        onDelete();
       } else if (data?.alreadyPaid) {
+        // Stop polling - already paid
+        setPaymentConfirmed(true);
         if (!silent) {
           toast({
             title: "Already paid",
