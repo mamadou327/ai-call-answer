@@ -43,6 +43,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
   const [editedNotes, setEditedNotes] = useState("");
   const [depositPaymentLink, setDepositPaymentLink] = useState<string | null>(null);
   const [isUpdatingDepositLink, setIsUpdatingDepositLink] = useState(false);
+  const [isCheckingPayment, setIsCheckingPayment] = useState(false);
 
   useEffect(() => {
     if (booking) {
@@ -309,6 +310,46 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
     }
   };
 
+  const handleCheckPaymentStatus = async () => {
+    if (!booking?.id) return;
+
+    setIsCheckingPayment(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("check-deposit-payment", {
+        body: { bookingId: booking.id },
+      });
+
+      if (error) throw error;
+
+      if (data?.paymentFound) {
+        toast({
+          title: t("common.success"),
+          description: `Payment confirmed! £${Number(data.depositAmount).toFixed(2)} received.`,
+        });
+        onDelete(); // Refresh data
+      } else if (data?.alreadyPaid) {
+        toast({
+          title: "Already paid",
+          description: `This deposit was already marked as paid.`,
+        });
+      } else {
+        toast({
+          title: "No payment found",
+          description: "The customer hasn't completed the payment yet.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: t("common.error"),
+        description: err?.message || "Failed to check payment status",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingPayment(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     if (status === "confirmed") return "default";
     if (status === "cancelled") return "destructive";
@@ -461,12 +502,23 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
                          </>
                        )}
 
-                       {!booking.deposit_paid_at && booking.status !== "cancelled" && (
-                         <Button size="sm" onClick={handleRegenerateDepositLink} disabled={isUpdatingDepositLink}>
-                           <RefreshCw className={`h-4 w-4 mr-2 ${isUpdatingDepositLink ? "animate-spin" : ""}`} />
-                           {depositPaymentLink?.includes("checkout.stripe.com") ? "Generate short link" : "Regenerate link"}
-                         </Button>
-                       )}
+                        {!booking.deposit_paid_at && booking.status !== "cancelled" && (
+                          <>
+                            <Button 
+                              size="sm" 
+                              variant="secondary"
+                              onClick={handleCheckPaymentStatus} 
+                              disabled={isCheckingPayment}
+                            >
+                              <CheckCircle className={`h-4 w-4 mr-2 ${isCheckingPayment ? "animate-pulse" : ""}`} />
+                              {isCheckingPayment ? "Checking..." : "Check Payment"}
+                            </Button>
+                            <Button size="sm" onClick={handleRegenerateDepositLink} disabled={isUpdatingDepositLink}>
+                              <RefreshCw className={`h-4 w-4 mr-2 ${isUpdatingDepositLink ? "animate-spin" : ""}`} />
+                              {depositPaymentLink?.includes("checkout.stripe.com") ? "Generate short link" : "Regenerate link"}
+                            </Button>
+                          </>
+                        )}
                      </div>
                    </div>
                  </div>
