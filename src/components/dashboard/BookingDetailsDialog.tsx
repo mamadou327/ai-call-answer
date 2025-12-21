@@ -48,6 +48,23 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
   const [currency, setCurrency] = useState<string>("USD");
   const hasAutoChecked = useRef(false);
 
+  // Auto-check payment status when dialog opens for unpaid deposits
+  useEffect(() => {
+    if (
+      open &&
+      booking &&
+      !booking.deposit_paid_at &&
+      booking.deposit_amount > 0 &&
+      booking.deposit_payment_link &&
+      booking.status !== "cancelled" &&
+      !hasAutoChecked.current
+    ) {
+      hasAutoChecked.current = true;
+      // Delayed to allow component to settle
+      setTimeout(() => handleCheckPaymentStatusRef.current?.(true), 500);
+    }
+  }, [open, booking]);
+
   useEffect(() => {
     if (booking) {
       setEditedNotes(booking.notes || "");
@@ -68,6 +85,9 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
       fetchCurrency();
     }
   }, [booking]);
+
+  // Store handleCheckPaymentStatus ref for use in effect
+  const handleCheckPaymentStatusRef = useRef<((silent?: boolean) => Promise<void>) | null>(null);
 
   if (!booking) return null;
 
@@ -375,21 +395,8 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
     }
   };
 
-  // Auto-check payment status when dialog opens for unpaid deposits
-  useEffect(() => {
-    if (
-      open &&
-      booking &&
-      !booking.deposit_paid_at &&
-      booking.deposit_amount > 0 &&
-      booking.deposit_payment_link &&
-      booking.status !== "cancelled" &&
-      !hasAutoChecked.current
-    ) {
-      hasAutoChecked.current = true;
-      handleCheckPaymentStatus(true);
-    }
-  }, [open, booking]);
+  // Update the ref when the function changes
+  handleCheckPaymentStatusRef.current = handleCheckPaymentStatus;
 
   const getStatusBadge = (status: string) => {
     if (status === "confirmed") return "default";
