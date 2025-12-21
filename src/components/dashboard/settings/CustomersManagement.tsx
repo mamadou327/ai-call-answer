@@ -88,6 +88,53 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
   useEffect(() => {
     loadCustomers();
     loadSettings();
+    
+    // Set up realtime subscription with smart updates
+    const channel = supabase
+      .channel('customers-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'customers',
+          filter: `business_id=eq.${businessId}`
+        },
+        (payload) => {
+          setCustomers(prev => [payload.new as Customer, ...prev]);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'customers',
+          filter: `business_id=eq.${businessId}`
+        },
+        (payload) => {
+          setCustomers(prev => prev.map(customer => 
+            customer.id === payload.new.id ? payload.new as Customer : customer
+          ));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'customers',
+          filter: `business_id=eq.${businessId}`
+        },
+        (payload) => {
+          setCustomers(prev => prev.filter(customer => customer.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [businessId]);
 
   const loadCustomers = async () => {

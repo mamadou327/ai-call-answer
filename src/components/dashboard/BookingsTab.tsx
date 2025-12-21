@@ -66,19 +66,61 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
   useEffect(() => {
     loadBookings();
     
-    // Set up realtime subscription for new bookings
+    // Set up realtime subscription with smart updates (no loading state flash)
     const channel = supabase
       .channel('bookings-changes')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'bookings',
           filter: `business_id=eq.${businessId}`
         },
-        () => {
-          loadBookings();
+        async (payload) => {
+          // Fetch the new booking with relations
+          const { data } = await supabase
+            .from("bookings")
+            .select(`*, service:service_id(name), staff:staff_id(name)`)
+            .eq("id", payload.new.id)
+            .single();
+          if (data) {
+            setBookings(prev => [data, ...prev]);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'bookings',
+          filter: `business_id=eq.${businessId}`
+        },
+        async (payload) => {
+          // Fetch the updated booking with relations
+          const { data } = await supabase
+            .from("bookings")
+            .select(`*, service:service_id(name), staff:staff_id(name)`)
+            .eq("id", payload.new.id)
+            .single();
+          if (data) {
+            setBookings(prev => prev.map(booking => 
+              booking.id === payload.new.id ? { ...data, creator_name: booking.creator_name } : booking
+            ));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'bookings',
+          filter: `business_id=eq.${businessId}`
+        },
+        (payload) => {
+          setBookings(prev => prev.filter(booking => booking.id !== payload.old.id));
         }
       )
       .subscribe();

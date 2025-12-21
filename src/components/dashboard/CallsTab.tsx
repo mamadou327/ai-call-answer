@@ -56,6 +56,53 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
   useEffect(() => {
     if (businessId) {
       loadCalls();
+      
+      // Set up realtime subscription with smart updates
+      const channel = supabase
+        .channel('calls-log-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'calls_log',
+            filter: `business_id=eq.${businessId}`
+          },
+          (payload) => {
+            setCalls(prev => [payload.new as CallLog, ...prev].slice(0, 50));
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'calls_log',
+            filter: `business_id=eq.${businessId}`
+          },
+          (payload) => {
+            setCalls(prev => prev.map(call => 
+              call.id === payload.new.id ? payload.new as CallLog : call
+            ));
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'calls_log',
+            filter: `business_id=eq.${businessId}`
+          },
+          (payload) => {
+            setCalls(prev => prev.filter(call => call.id !== payload.old.id));
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [businessId]);
 

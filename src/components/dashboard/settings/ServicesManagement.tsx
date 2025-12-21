@@ -63,6 +63,53 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
 
   useEffect(() => {
     loadServices();
+    
+    // Set up realtime subscription with smart updates
+    const channel = supabase
+      .channel('services-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'services',
+          filter: `business_id=eq.${businessId}`
+        },
+        (payload) => {
+          setServices(prev => [...prev, payload.new as Service]);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'services',
+          filter: `business_id=eq.${businessId}`
+        },
+        (payload) => {
+          setServices(prev => prev.map(service => 
+            service.id === payload.new.id ? payload.new as Service : service
+          ));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'services',
+          filter: `business_id=eq.${businessId}`
+        },
+        (payload) => {
+          setServices(prev => prev.filter(service => service.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [businessId]);
 
   const loadServices = async () => {
