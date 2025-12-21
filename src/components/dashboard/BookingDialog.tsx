@@ -684,8 +684,9 @@ export const BookingDialog = ({ businessId, open, onOpenChange, onSuccess }: Boo
               <>
                 This staff member already has a booking at this time:
                 <br />
-                <strong>{overlapInfo.conflictingBooking.customer_name}</strong> at{" "}
-                <strong>{format(new Date(overlapInfo.conflictingBooking.start_time), "h:mm a")}</strong>
+                <strong>{overlapInfo.conflictingBooking.customer_name}</strong> from{" "}
+                <strong>{format(new Date(overlapInfo.conflictingBooking.start_time), "h:mm a")}</strong> to{" "}
+                <strong>{format(new Date(overlapInfo.conflictingBooking.end_time), "h:mm a")}</strong>
                 <br /><br />
                 Are you sure you want to create this booking anyway?
               </>
