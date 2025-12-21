@@ -33,6 +33,7 @@ interface Booking {
   status: string;
   notes: string | null;
   created_by: string | null;
+  booking_code: string;
   staff_id?: string | null;
   service?: { name: string } | null;
   staff?: { id: string; name: string; color: string } | null;
@@ -150,7 +151,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
         .from("bookings")
         .select(`
           id, customer_name, customer_phone, start_time, end_time, status, notes, created_by, staff_id, business_id,
-          deposit_amount, deposit_paid_at, payment_status,
+          booking_code, deposit_amount, deposit_paid_at, payment_status,
           service:service_id(name),
           staff:staff_id(id, name, color)
         `)
