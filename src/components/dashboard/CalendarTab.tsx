@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight, User, X, Check, Palmtree, Clock, Users, Chev
 import { useTranslation } from "react-i18next";
 import { BookingDetailsDialog } from "./BookingDetailsDialog";
 import { useOpeningHours } from "@/hooks/use-opening-hours";
+import { getCurrencySymbol } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -35,6 +36,10 @@ interface Booking {
   staff_id?: string | null;
   service?: { name: string } | null;
   staff?: { id: string; name: string; color: string } | null;
+  deposit_amount?: number | null;
+  deposit_paid_at?: string | null;
+  payment_status?: string;
+  business_id?: string;
 }
 
 interface TimeOff {
@@ -144,7 +149,8 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
       supabase
         .from("bookings")
         .select(`
-          *,
+          id, customer_name, customer_phone, start_time, end_time, status, notes, created_by, staff_id, business_id,
+          deposit_amount, deposit_paid_at, payment_status,
           service:service_id(name),
           staff:staff_id(id, name, color)
         `)
@@ -397,6 +403,11 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="flex items-center gap-2">
+                      {booking.deposit_amount && booking.deposit_amount > 0 && (
+                        <span className={`font-bold text-lg ${booking.deposit_paid_at ? "text-green-500" : "text-red-500"}`}>
+                          {getCurrencySymbol(currency)}
+                        </span>
+                      )}
                       <p className="font-medium">{booking.customer_name}</p>
                       {booking.status === "completed" && (
                         <Badge variant="secondary" className="text-xs">Completed</Badge>
@@ -519,10 +530,15 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                                 key={booking.id}
                                 className="text-xs p-1 rounded text-white truncate cursor-pointer hover:opacity-80 transition-opacity relative flex-1 min-w-0"
                                 style={{ backgroundColor: booking.staff?.color || "#3B82F6" }}
-                                title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})${booking.status === "completed" ? " ✓" : ""}`}
+                                title={`${booking.customer_name} - ${booking.service?.name} (${booking.staff?.name})${booking.status === "completed" ? " ✓" : ""}${booking.deposit_amount ? ` - Deposit: ${booking.deposit_paid_at ? "Paid" : "Unpaid"}` : ""}`}
                                 onClick={() => handleBookingClick(booking)}
                               >
                                 <div className="flex items-center gap-0.5">
+                                  {booking.deposit_amount && booking.deposit_amount > 0 && (
+                                    <span className={`font-bold text-[10px] ${booking.deposit_paid_at ? "text-green-300" : "text-red-300"}`}>
+                                      {getCurrencySymbol(currency)}
+                                    </span>
+                                  )}
                                   <p className="font-medium truncate flex-1 text-[10px]">{booking.customer_name}</p>
                                   {booking.status === "completed" && (
                                     <Check className="w-2.5 h-2.5 flex-shrink-0" />
@@ -624,6 +640,11 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
                   onClick={() => handleBookingClick(booking)}
                 >
                   <div className="flex items-center gap-2">
+                    {booking.deposit_amount && booking.deposit_amount > 0 && (
+                      <span className={`font-bold text-sm ${booking.deposit_paid_at ? "text-green-500" : "text-red-500"}`}>
+                        {getCurrencySymbol(currency)}
+                      </span>
+                    )}
                     {booking.status === "completed" && (
                       <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
                     )}
