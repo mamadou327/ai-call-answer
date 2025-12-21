@@ -48,21 +48,35 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
   const [currency, setCurrency] = useState<string>("USD");
   const hasAutoChecked = useRef(false);
 
-  // Auto-check payment status when dialog opens for unpaid deposits
+  // Auto-check payment status when dialog opens for unpaid deposits + poll every 15 seconds
   useEffect(() => {
-    if (
+    const shouldPoll = 
       open &&
       booking &&
       !booking.deposit_paid_at &&
       booking.deposit_amount > 0 &&
       booking.deposit_payment_link &&
-      booking.status !== "cancelled" &&
-      !hasAutoChecked.current
-    ) {
+      booking.status !== "cancelled";
+
+    if (shouldPoll && !hasAutoChecked.current) {
       hasAutoChecked.current = true;
-      // Delayed to allow component to settle
+      // Initial check after delay to allow component to settle
       setTimeout(() => handleCheckPaymentStatusRef.current?.(true), 500);
     }
+
+    // Set up polling interval while dialog is open for unpaid deposits
+    let intervalId: NodeJS.Timeout | null = null;
+    if (shouldPoll) {
+      intervalId = setInterval(() => {
+        handleCheckPaymentStatusRef.current?.(true);
+      }, 15000); // Poll every 15 seconds
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
   }, [open, booking]);
 
   useEffect(() => {
