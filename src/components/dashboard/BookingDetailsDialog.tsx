@@ -21,10 +21,11 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { getCurrencySymbol } from "@/lib/utils";
 
 interface BookingDetailsDialogProps {
   booking: any;
@@ -44,11 +45,27 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
   const [depositPaymentLink, setDepositPaymentLink] = useState<string | null>(null);
   const [isUpdatingDepositLink, setIsUpdatingDepositLink] = useState(false);
   const [isCheckingPayment, setIsCheckingPayment] = useState(false);
+  const [currency, setCurrency] = useState<string>("USD");
+  const hasAutoChecked = useRef(false);
 
   useEffect(() => {
     if (booking) {
       setEditedNotes(booking.notes || "");
       setDepositPaymentLink(booking.deposit_payment_link || null);
+      hasAutoChecked.current = false;
+      
+      // Fetch business currency
+      const fetchCurrency = async () => {
+        const { data } = await supabase
+          .from("business_settings")
+          .select("currency")
+          .eq("business_id", booking.business_id)
+          .maybeSingle();
+        if (data?.currency) {
+          setCurrency(data.currency);
+        }
+      };
+      fetchCurrency();
     }
   }, [booking]);
 
@@ -310,7 +327,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
     }
   };
 
-  const handleCheckPaymentStatus = async () => {
+  const handleCheckPaymentStatus = async (silent = false) => {
     if (!booking?.id) return;
 
     setIsCheckingPayment(true);
@@ -321,34 +338,58 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
 
       if (error) throw error;
 
+      const currencySymbol = getCurrencySymbol(currency);
+
       if (data?.paymentFound) {
         toast({
           title: t("common.success"),
-          description: `Payment confirmed! £${Number(data.depositAmount).toFixed(2)} received.`,
+          description: `Payment confirmed! ${currencySymbol}${Number(data.depositAmount).toFixed(2)} received.`,
         });
         onDelete(); // Refresh data
       } else if (data?.alreadyPaid) {
-        toast({
-          title: "Already paid",
-          description: `This deposit was already marked as paid.`,
-        });
+        if (!silent) {
+          toast({
+            title: "Already paid",
+            description: `This deposit was already marked as paid.`,
+          });
+        }
       } else {
+        if (!silent) {
+          toast({
+            title: "No payment found",
+            description: "The customer hasn't completed the payment yet.",
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (err: any) {
+      if (!silent) {
         toast({
-          title: "No payment found",
-          description: "The customer hasn't completed the payment yet.",
+          title: t("common.error"),
+          description: err?.message || "Failed to check payment status",
           variant: "destructive",
         });
       }
-    } catch (err: any) {
-      toast({
-        title: t("common.error"),
-        description: err?.message || "Failed to check payment status",
-        variant: "destructive",
-      });
     } finally {
       setIsCheckingPayment(false);
     }
   };
+
+  // Auto-check payment status when dialog opens for unpaid deposits
+  useEffect(() => {
+    if (
+      open &&
+      booking &&
+      !booking.deposit_paid_at &&
+      booking.deposit_amount > 0 &&
+      booking.deposit_payment_link &&
+      booking.status !== "cancelled" &&
+      !hasAutoChecked.current
+    ) {
+      hasAutoChecked.current = true;
+      handleCheckPaymentStatus(true);
+    }
+  }, [open, booking]);
 
   const getStatusBadge = (status: string) => {
     if (status === "confirmed") return "default";
@@ -466,7 +507,9 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
                    <div className="flex items-start justify-between gap-4">
                      <div className="space-y-2 min-w-0">
                        <div className="flex items-center gap-2">
-                         <CreditCard className="h-4 w-4 text-muted-foreground" />
+                         <span className={`text-lg font-bold ${booking.deposit_paid_at ? "text-green-500" : "text-red-500"}`}>
+                           {getCurrencySymbol(currency)}
+                         </span>
                          <p className="text-sm font-medium">Deposit payment</p>
                          <Badge variant={booking.deposit_paid_at ? "secondary" : "outline"} className="text-xs">
                            {booking.deposit_paid_at ? "Paid" : "Unpaid"}
@@ -474,7 +517,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
                        </div>
 
                        <p className="text-sm text-muted-foreground">
-                         Amount: <span className="font-medium text-foreground">£{Number(booking.deposit_amount).toFixed(2)}</span>
+                         Amount: <span className={`font-medium ${booking.deposit_paid_at ? "text-green-600" : "text-red-600"}`}>{getCurrencySymbol(currency)}{Number(booking.deposit_amount).toFixed(2)}</span>
                        </p>
 
                        {depositPaymentLink ? (
@@ -507,7 +550,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
                             <Button 
                               size="sm" 
                               variant="secondary"
-                              onClick={handleCheckPaymentStatus} 
+                              onClick={() => handleCheckPaymentStatus(false)} 
                               disabled={isCheckingPayment}
                             >
                               <CheckCircle className={`h-4 w-4 mr-2 ${isCheckingPayment ? "animate-pulse" : ""}`} />

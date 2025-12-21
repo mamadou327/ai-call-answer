@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { getCurrencySymbol } from "@/lib/utils";
 
 interface BookingsTabProps {
   businessId: string;
@@ -28,6 +29,8 @@ interface Booking {
   cancelled_by_user_id: string | null;
   cancelled_at: string | null;
   notes: string | null;
+  deposit_amount: number | null;
+  deposit_paid_at: string | null;
   service?: { name: string };
   staff?: { name: string };
   creator_name?: string;
@@ -43,6 +46,22 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
   const [loading, setLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
   const [cancelledOpen, setCancelledOpen] = useState(false);
+  const [currency, setCurrency] = useState<string>("USD");
+
+  // Fetch business currency
+  useEffect(() => {
+    const fetchCurrency = async () => {
+      const { data } = await supabase
+        .from("business_settings")
+        .select("currency")
+        .eq("business_id", businessId)
+        .maybeSingle();
+      if (data?.currency) {
+        setCurrency(data.currency);
+      }
+    };
+    fetchCurrency();
+  }, [businessId]);
 
   useEffect(() => {
     loadBookings();
@@ -199,6 +218,15 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
                         <p className="font-medium text-sm sm:text-base truncate">{booking.customer_name}</p>
                         {booking.status === "completed" && (
                           <Check className="h-4 w-4 text-green-500 shrink-0" />
+                        )}
+                        {/* Currency indicator for deposits */}
+                        {booking.deposit_amount && booking.deposit_amount > 0 && (
+                          <span 
+                            className={`text-sm font-bold ${booking.deposit_paid_at ? "text-green-500" : "text-red-500"}`}
+                            title={booking.deposit_paid_at ? "Deposit paid" : "Deposit unpaid"}
+                          >
+                            {getCurrencySymbol(currency)}
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
