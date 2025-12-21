@@ -37,8 +37,8 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
   useEffect(() => {
     loadDashboardData();
 
-    // Set up realtime subscription for bookings
-    const channel = supabase
+    // Set up realtime subscriptions for bookings, calls, and messages (smart refresh without loading state)
+    const bookingsChannel = supabase
       .channel('dashboard-bookings')
       .on(
         'postgres_changes',
@@ -49,15 +49,79 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
           filter: `business_id=eq.${businessId}`
         },
         () => {
-          loadDashboardData();
+          // Refresh silently without loading state
+          loadDashboardDataSilent();
+        }
+      )
+      .subscribe();
+
+    const callsChannel = supabase
+      .channel('dashboard-calls')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'calls_log',
+          filter: `business_id=eq.${businessId}`
+        },
+        () => {
+          loadDashboardDataSilent();
+        }
+      )
+      .subscribe();
+
+    const messagesChannel = supabase
+      .channel('dashboard-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: `business_id=eq.${businessId}`
+        },
+        () => {
+          loadDashboardDataSilent();
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(bookingsChannel);
+      supabase.removeChannel(callsChannel);
+      supabase.removeChannel(messagesChannel);
     };
   }, [businessId, dateRange, customDateRange]);
+
+  // Silent refresh without loading state (for realtime updates)
+  const loadDashboardDataSilent = async () => {
+    const { start, end } = getDateRange();
+    const today = new Date();
+
+    const [bookingsResult, cancelledResult, callsResult, messagesResult, todayResult, upcomingResult, cancelledBookingsResult, revenueResult] = await Promise.all([
+      supabase.from("bookings").select("*", { count: "exact", head: true }).eq("business_id", businessId).neq("status", "cancelled").gte("start_time", start.toISOString()).lte("start_time", end.toISOString()),
+      supabase.from("bookings").select("*", { count: "exact", head: true }).eq("business_id", businessId).eq("status", "cancelled").gte("start_time", start.toISOString()).lte("start_time", end.toISOString()),
+      supabase.from("calls_log").select("*", { count: "exact", head: true }).eq("business_id", businessId).gte("created_at", start.toISOString()).lte("created_at", end.toISOString()),
+      supabase.from("messages").select("*", { count: "exact", head: true }).eq("business_id", businessId).eq("is_read", false),
+      supabase.from("bookings").select(`*, service:service_id(name, price), staff:staff_id(name)`).eq("business_id", businessId).neq("status", "cancelled").gte("start_time", startOfDay(today).toISOString()).lte("start_time", endOfDay(today).toISOString()).order("start_time", { ascending: true }),
+      supabase.from("bookings").select(`*, service:service_id(name), staff:staff_id(name)`).eq("business_id", businessId).neq("status", "cancelled").gte("start_time", new Date().toISOString()).order("start_time", { ascending: true }).limit(5),
+      supabase.from("bookings").select(`*, service:service_id(name), staff:staff_id(name)`).eq("business_id", businessId).eq("status", "cancelled").order("cancelled_at", { ascending: false }).limit(5),
+      supabase.from("bookings").select(`service:service_id(price)`).eq("business_id", businessId).eq("status", "confirmed").gte("start_time", start.toISOString()).lte("start_time", end.toISOString())
+    ]);
+
+    if (bookingsResult.count !== null) setBookingsCount(bookingsResult.count);
+    if (cancelledResult.count !== null) setCancelledCount(cancelledResult.count);
+    if (callsResult.count !== null) setCallsCount(callsResult.count);
+    if (messagesResult.count !== null) setMessagesCount(messagesResult.count);
+    if (todayResult.data) setTodaysAppointments(todayResult.data);
+    if (upcomingResult.data) setUpcomingBookings(upcomingResult.data);
+    if (cancelledBookingsResult.data) setCancelledBookings(cancelledBookingsResult.data);
+    if (revenueResult.data) {
+      const total = revenueResult.data.reduce((sum, booking) => sum + (booking.service?.price || 0), 0);
+      setRevenue(total);
+    }
+  };
 
   const getDateRange = () => {
     const now = new Date();

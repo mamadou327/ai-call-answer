@@ -37,19 +37,53 @@ export const MessagesTab = ({ businessId }: MessagesTabProps) => {
     if (businessId) {
       loadMessages();
       
-      // Set up realtime subscription
+      // Set up realtime subscription with smart updates (no loading state flash)
       const channel = supabase
         .channel('messages-changes')
         .on(
           'postgres_changes',
           {
-            event: '*',
+            event: 'INSERT',
             schema: 'public',
             table: 'messages',
             filter: `business_id=eq.${businessId}`
           },
-          () => {
-            loadMessages();
+          async (payload) => {
+            // Fetch the new message with relations
+            const { data } = await supabase
+              .from("messages")
+              .select(`*, staff:recipient_staff_id(name)`)
+              .eq("id", payload.new.id)
+              .single();
+            if (data) {
+              setMessages(prev => [data, ...prev]);
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'messages',
+            filter: `business_id=eq.${businessId}`
+          },
+          (payload) => {
+            setMessages(prev => prev.map(msg => 
+              msg.id === payload.new.id ? { ...msg, ...payload.new } as Message : msg
+            ));
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'messages',
+            filter: `business_id=eq.${businessId}`
+          },
+          (payload) => {
+            setMessages(prev => prev.filter(msg => msg.id !== payload.old.id));
           }
         )
         .subscribe();

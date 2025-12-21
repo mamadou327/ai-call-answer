@@ -96,6 +96,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
   useEffect(() => {
     loadData();
     
+    // Set up realtime subscriptions with smart updates (no loading flash)
     const bookingsChannel = supabase
       .channel('calendar-bookings')
       .on(
@@ -106,7 +107,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
           table: 'bookings',
           filter: `business_id=eq.${businessId}`
         },
-        () => loadData()
+        () => loadDataSilent()
       )
       .subscribe();
 
@@ -120,7 +121,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
           table: 'staff_time_off',
           filter: `business_id=eq.${businessId}`
         },
-        () => loadData()
+        () => loadDataSilent()
       )
       .subscribe();
 
@@ -129,6 +130,48 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
       supabase.removeChannel(timeOffChannel);
     };
   }, [businessId, selectedDate, view]);
+
+  // Silent refresh without loading state (for realtime updates)
+  const loadDataSilent = async () => {
+    let startDate: Date;
+    let endDate: Date;
+
+    if (view === "day") {
+      startDate = startOfDay(selectedDate);
+      endDate = endOfDay(selectedDate);
+    } else if (view === "week") {
+      startDate = startOfWeek(selectedDate, { weekStartsOn: 1 });
+      endDate = endOfWeek(selectedDate, { weekStartsOn: 1 });
+    } else {
+      startDate = startOfMonth(selectedDate);
+      endDate = endOfMonth(selectedDate);
+    }
+
+    const [bookingsResult, timeOffResult] = await Promise.all([
+      supabase
+        .from("bookings")
+        .select(`
+          id, customer_name, customer_phone, start_time, end_time, status, notes, created_by, staff_id, business_id,
+          booking_code, deposit_amount, deposit_paid_at, deposit_payment_link, payment_status,
+          service:service_id(name),
+          staff:staff_id(id, name, color)
+        `)
+        .eq("business_id", businessId)
+        .gte("start_time", startDate.toISOString())
+        .lte("start_time", endDate.toISOString())
+        .order("start_time", { ascending: true }),
+      supabase
+        .from("staff_time_off")
+        .select(`*, staff:staff_id(id, name, color)`)
+        .eq("business_id", businessId)
+        .eq("status", "approved")
+        .or(`start_time.gte.${startDate.toISOString()},end_time.gte.${startDate.toISOString()}`)
+        .lte("start_time", endDate.toISOString())
+    ]);
+
+    if (bookingsResult.data) setBookings(bookingsResult.data.filter(b => b.status !== "cancelled") as Booking[]);
+    if (timeOffResult.data) setTimeOffs(timeOffResult.data as TimeOff[]);
+  };
 
   const loadData = async () => {
     setLoading(true);

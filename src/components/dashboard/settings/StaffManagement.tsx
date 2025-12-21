@@ -98,6 +98,53 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
   useEffect(() => {
     loadStaff();
     loadServices();
+    
+    // Set up realtime subscription with smart updates
+    const channel = supabase
+      .channel('staff-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'staff',
+          filter: `business_id=eq.${businessId}`
+        },
+        (payload) => {
+          setStaff(prev => [...prev, payload.new as Staff]);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'staff',
+          filter: `business_id=eq.${businessId}`
+        },
+        (payload) => {
+          setStaff(prev => prev.map(member => 
+            member.id === payload.new.id ? payload.new as Staff : member
+          ));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'staff',
+          filter: `business_id=eq.${businessId}`
+        },
+        (payload) => {
+          setStaff(prev => prev.filter(member => member.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [businessId]);
 
   const loadStaff = async () => {
