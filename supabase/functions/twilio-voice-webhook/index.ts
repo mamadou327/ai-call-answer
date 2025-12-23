@@ -405,13 +405,13 @@ function generateGreeting(businessName: string, settings: any, callerInfo: { nam
   
   if (isReturning && firstName) {
     // Returning customer with known name
-    return `Hey ${firstName}! Great to hear from you again! Just a heads up, this call's recorded. What can I do for you today?`;
+    return `Hey ${firstName}! Great to hear from you again! Quick heads up - this call may be recorded to help us improve our service. What can I do for you today?`;
   } else if (isReturning) {
     // Returning customer but no name
-    return `Hey there! Welcome back to ${businessName}! Just so you know, this call may be recorded. I'm ${assistantName}, how can I help?`;
+    return `Hey there! Welcome back to ${businessName}! Just so you know, this call may be recorded to help us improve our service. I'm ${assistantName}, how can I help?`;
   } else {
     // New caller
-    return `Hey there! Thanks for calling ${businessName}! Just so you know, this call may be recorded. I'm ${assistantName}, how can I help you today?`;
+    return `Hey there! Thanks for calling ${businessName}! Just so you know, this call may be recorded to help us improve our service. I'm ${assistantName}, how can I help you today?`;
   }
 }
 
