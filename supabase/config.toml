@@ -88,7 +88,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.stripe-create-deposit-link]
-verify_jwt = false
+verify_jwt = true
 
 [functions.stripe-deposit-webhook]
 verify_jwt = false
