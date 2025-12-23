@@ -20,7 +20,7 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    // Authenticate user
+    // Get authorization header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       logStep("No authorization header");
@@ -32,22 +32,35 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     
-    // Create client with user's JWT to check permissions
-    const userSupabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
-    });
-
-    const { data: { user }, error: authError } = await userSupabase.auth.getUser();
-    if (authError || !user) {
-      logStep("Authentication failed", { error: authError?.message });
-      return new Response(JSON.stringify({ error: "Invalid authentication" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 401,
+    // Check if this is an internal call using service role key
+    const token = authHeader.replace("Bearer ", "");
+    const isInternalCall = token === supabaseServiceKey;
+    
+    let userId: string | null = null;
+    
+    if (isInternalCall) {
+      // Internal call from another edge function (e.g., twilio-media-stream)
+      logStep("Internal service call detected - skipping user auth");
+    } else {
+      // External call from frontend - requires user authentication
+      const userSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+        auth: { persistSession: false },
       });
+
+      const { data: { user }, error: authError } = await userSupabase.auth.getUser();
+      if (authError || !user) {
+        logStep("Authentication failed", { error: authError?.message });
+        return new Response(JSON.stringify({ error: "Invalid authentication" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        });
+      }
+      userId = user.id;
+      logStep("User authenticated", { userId });
     }
-    logStep("User authenticated", { userId: user.id });
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
@@ -84,27 +97,31 @@ serve(async (req) => {
       businessOwnerId: booking.business?.owner_id
     });
 
-    // Authorization check: verify user owns the business
-    if (booking.business?.owner_id !== user.id) {
-      // Check if user is staff with access to this business
-      const { data: staffMembership } = await supabaseClient
-        .from("staff_memberships")
-        .select("id")
-        .eq("business_id", booking.business_id)
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .maybeSingle();
+    // Authorization check: only required for external (user) calls, skip for internal service calls
+    if (userId !== null) {
+      if (booking.business?.owner_id !== userId) {
+        // Check if user is staff with access to this business
+        const { data: staffMembership } = await supabaseClient
+          .from("staff_memberships")
+          .select("id")
+          .eq("business_id", booking.business_id)
+          .eq("user_id", userId)
+          .eq("status", "active")
+          .maybeSingle();
 
-      if (!staffMembership) {
-        logStep("Authorization failed", { userId: user.id, businessOwnerId: booking.business?.owner_id });
-        return new Response(JSON.stringify({ error: "Unauthorized access to this booking" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 403,
-        });
+        if (!staffMembership) {
+          logStep("Authorization failed", { userId, businessOwnerId: booking.business?.owner_id });
+          return new Response(JSON.stringify({ error: "Unauthorized access to this booking" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 403,
+          });
+        }
+        logStep("Staff member authorized", { userId });
+      } else {
+        logStep("Business owner authorized", { userId });
       }
-      logStep("Staff member authorized", { userId: user.id });
     } else {
-      logStep("Business owner authorized", { userId: user.id });
+      logStep("Internal call - authorization bypassed");
     }
 
     // Check if service requires deposit
