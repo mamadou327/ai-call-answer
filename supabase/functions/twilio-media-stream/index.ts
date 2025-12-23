@@ -118,21 +118,22 @@ interface CallerInfo {
 }
 
 // Start recording via Twilio REST API - called when call is in-progress
+// Returns the recording SID if successful, null otherwise
 async function tryStartTwilioCallRecording(opts: {
   callSid: string;
   recordingStatusCallbackUrl: string;
-}): Promise<void> {
+}): Promise<string | null> {
   const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
   const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
 
   if (!opts.callSid) {
     console.warn("[MediaStream] No CallSid - cannot start recording");
-    return;
+    return null;
   }
 
   if (!twilioAccountSid || !twilioAuthToken) {
     console.warn("[MediaStream] Missing TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN - cannot start recording");
-    return;
+    return null;
   }
 
   const endpoint = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Calls/${opts.callSid}/Recordings.json`;
@@ -161,12 +162,81 @@ async function tryStartTwilioCallRecording(opts: {
 
     if (!res.ok) {
       console.error("[MediaStream] Failed to start recording:", res.status, bodyText);
-      return;
+      return null;
     }
 
     console.log("[MediaStream] Recording started successfully:", bodyText);
+    
+    // Parse the response to get the recording SID
+    try {
+      const recordingData = JSON.parse(bodyText);
+      return recordingData.sid || null;
+    } catch {
+      return null;
+    }
   } catch (error) {
     console.error("[MediaStream] Error starting recording:", error);
+    return null;
+  }
+}
+
+// Stop recording via Twilio REST API - called when caller opts out
+async function stopTwilioCallRecording(callSid: string): Promise<boolean> {
+  const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+  const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+
+  if (!callSid || !twilioAccountSid || !twilioAuthToken) {
+    console.warn("[MediaStream] Missing credentials or callSid - cannot stop recording");
+    return false;
+  }
+
+  const authHeader = "Basic " + btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+
+  try {
+    // First, get active recordings for this call
+    const listEndpoint = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Calls/${callSid}/Recordings.json`;
+    const listRes = await fetch(listEndpoint, {
+      headers: { Authorization: authHeader },
+    });
+
+    if (!listRes.ok) {
+      console.error("[MediaStream] Failed to list recordings:", listRes.status);
+      return false;
+    }
+
+    const listData = await listRes.json();
+    const activeRecordings = (listData.recordings || []).filter(
+      (r: any) => r.status === "in-progress"
+    );
+
+    if (activeRecordings.length === 0) {
+      console.log("[MediaStream] No active recordings to stop");
+      return true; // Nothing to stop, consider it success
+    }
+
+    // Stop each active recording
+    for (const recording of activeRecordings) {
+      const stopEndpoint = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Recordings/${recording.sid}.json`;
+      const stopRes = await fetch(stopEndpoint, {
+        method: "POST",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({ Status: "stopped" }),
+      });
+
+      if (stopRes.ok) {
+        console.log("[MediaStream] Recording stopped successfully:", recording.sid);
+      } else {
+        console.error("[MediaStream] Failed to stop recording:", recording.sid, stopRes.status);
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error("[MediaStream] Error stopping recording:", error);
+    return false;
   }
 }
 
@@ -655,6 +725,18 @@ function sendSessionConfig(session: StreamSession) {
         required: ["staff_name"],
       },
     },
+    {
+      type: "function",
+      name: "stop_recording",
+      description: "Stop the call recording when the caller explicitly asks NOT to be recorded. Use this ONLY when the caller clearly says they don't want the call recorded, e.g., 'I don't want to be recorded', 'please don't record this', 'can you turn off the recording'. After stopping, confirm to the caller that recording has been stopped.",
+      parameters: {
+        type: "object",
+        properties: {
+          reason: { type: "string", description: "Brief note about why recording was stopped, e.g., 'caller requested'" },
+        },
+        required: ["reason"],
+      },
+    },
   ];
 
   const config = {
@@ -729,6 +811,9 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
         break;
       case "transfer_call":
         result = await executeTransferCall(supabase, session, args);
+        break;
+      case "stop_recording":
+        result = await executeStopRecording(session, args);
         break;
     }
   } catch (error) {
@@ -2255,6 +2340,30 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
   }
 }
 
+// Execute stop recording - called when caller opts out of being recorded
+async function executeStopRecording(
+  session: StreamSession,
+  params: { reason?: string }
+): Promise<{ success: boolean; message: string }> {
+  console.log("[MediaStream] Stopping recording for call:", session.callSid, "reason:", params.reason);
+  
+  const success = await stopTwilioCallRecording(session.callSid);
+  
+  if (success) {
+    console.log("[MediaStream] Recording stopped successfully");
+    return { 
+      success: true, 
+      message: "Recording has been stopped. The rest of this call will not be recorded. How can I help you?" 
+    };
+  } else {
+    console.error("[MediaStream] Failed to stop recording");
+    return { 
+      success: false, 
+      message: "I had trouble stopping the recording, but I'll note your preference. How can I help you?" 
+    };
+  }
+}
+
 function escapeXml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -2701,10 +2810,10 @@ SOUND HUMAN - THIS IS CRITICAL:
 - End naturally: "Lovely, you're all booked in!" not "Your booking has been confirmed."
 `;
 
-  // Greeting - casual, personalized with recording disclosure
+  // Greeting - casual, personalized with recording disclosure (explains purpose)
   const greetingInstruction = callerInfo.isReturning 
-    ? `Greet warmly: "Hey ${callerInfo.name?.split(' ')[0] || callerInfo.name}! Great to hear from you again! Just a heads up, this call's recorded. What can I do for you today?"`
-    : `Greet: "Hey there! Thanks for calling ${businessName}! Just so you know, this call may be recorded. I'm ${assistantName}, how can I help you today?"`;
+    ? `Greet warmly: "Hey ${callerInfo.name?.split(' ')[0] || callerInfo.name}! Great to hear from you again! Quick heads up - this call may be recorded to help us improve our service. What can I do for you today?"`
+    : `Greet: "Hey there! Thanks for calling ${businessName}! Just so you know, this call may be recorded to help us improve our service. I'm ${assistantName}, how can I help you today?"`;
 
   // Build customer data collection rules based on business settings
   let dataCollectionRules = "## DATA COLLECTION:\nCollect: name, phone (use caller's number by default).\nDO NOT ask for email, marketing consent, preferred staff, notes, or how they heard about us.";
@@ -2866,6 +2975,12 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
 - If the caller says "that's not my name", "my name is actually...", "I go by...", "you can call me...", or indicates their name is wrong - use update_customer_name IMMEDIATELY.
 - Apologize briefly ("Oh, sorry about that!") and confirm the new name.
 - Use their corrected name for the rest of the call.
+
+## RECORDING OPT-OUT:
+- If the caller says they don't want to be recorded (e.g., "I don't want to be recorded", "please turn off recording", "can you stop recording"), use stop_recording IMMEDIATELY.
+- After stopping, confirm: "No problem, I've stopped the recording. How can I help you?"
+- Continue the call normally after stopping the recording.
+- Most callers are fine with recording - only stop if they explicitly ask.
 
 ## CONVERSATION RULES:
 - Keep responses SHORT: 1-2 sentences max. Sound human, not robotic.
