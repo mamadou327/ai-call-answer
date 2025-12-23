@@ -2693,10 +2693,10 @@ SOUND HUMAN - THIS IS CRITICAL:
 - End naturally: "Lovely, you're all booked in!" not "Your booking has been confirmed."
 `;
 
-  // Greeting - more natural and personalized
+  // Greeting - casual, personalized with recording disclosure
   const greetingInstruction = callerInfo.isReturning 
-    ? `Greet warmly: "Oh hi ${callerInfo.name}! Great to hear from you again. What can I help with today?"`
-    : `Greet: "Hi there! Thanks for calling ${businessName}. How can I help you today?"`;
+    ? `Greet warmly: "Hey ${callerInfo.name?.split(' ')[0] || callerInfo.name}! Great to hear from you again! Just a heads up, this call's recorded. What can I do for you today?"`
+    : `Greet: "Hey there! Thanks for calling ${businessName}! Just so you know, this call may be recorded. I'm ${assistantName}, how can I help you today?"`;
 
   // Build customer data collection rules
   let dataCollectionRules = "BOOKING DATA: Collect name and phone.";
