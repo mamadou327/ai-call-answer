@@ -2706,19 +2706,50 @@ SOUND HUMAN - THIS IS CRITICAL:
     ? `Greet warmly: "Hey ${callerInfo.name?.split(' ')[0] || callerInfo.name}! Great to hear from you again! Just a heads up, this call's recorded. What can I do for you today?"`
     : `Greet: "Hey there! Thanks for calling ${businessName}! Just so you know, this call may be recorded. I'm ${assistantName}, how can I help you today?"`;
 
-  // Build customer data collection rules
-  let dataCollectionRules = "BOOKING DATA: Collect name and phone.";
+  // Build customer data collection rules based on business settings
+  let dataCollectionRules = "## DATA COLLECTION:\nCollect: name, phone (use caller's number by default).\nDO NOT ask for email, marketing consent, preferred staff, notes, or how they heard about us.";
+  
   if (customerSettings) {
-    const fields: string[] = [];
-    if (customerSettings.collect_name) fields.push("name");
-    if (customerSettings.collect_phone) fields.push("phone");
-    if (customerSettings.collect_email) fields.push("email (if enabled)");
-    if (customerSettings.ask_preferred_staff) fields.push("preferred staff");
-    if (customerSettings.ask_notes_preferences) fields.push("any special notes");
-    if (customerSettings.ask_how_heard) fields.push("how they heard about us");
-    if (fields.length > 0) {
-      dataCollectionRules = `BOOKING DATA: Collect ${fields.join(", ")}.`;
+    const collectFields: string[] = [];
+    const doNotAskFields: string[] = [];
+    
+    // Always collect name and phone by default
+    if (customerSettings.collect_name) collectFields.push("name");
+    if (customerSettings.collect_phone) collectFields.push("phone (use caller's number by default)");
+    
+    // Optional fields - only ask if enabled
+    if (customerSettings.collect_email) {
+      collectFields.push("email address");
+    } else {
+      doNotAskFields.push("email");
     }
+    
+    if (customerSettings.ask_preferred_staff) {
+      collectFields.push("preferred staff member (if they have one)");
+    } else {
+      doNotAskFields.push("preferred staff");
+    }
+    
+    if (customerSettings.ask_notes_preferences) {
+      collectFields.push("any special notes or preferences");
+    } else {
+      doNotAskFields.push("notes or preferences");
+    }
+    
+    if (customerSettings.ask_how_heard) {
+      collectFields.push("how they heard about us (at the end of booking)");
+    } else {
+      doNotAskFields.push("how they heard about us");
+    }
+    
+    if (customerSettings.ask_marketing_consent) {
+      collectFields.push("if they'd like to receive marketing updates (at the end)");
+    } else {
+      doNotAskFields.push("marketing consent");
+    }
+    
+    dataCollectionRules = `## DATA COLLECTION:
+Collect: ${collectFields.join(", ")}.${doNotAskFields.length > 0 ? `\nDO NOT ask for: ${doNotAskFields.join(", ")}.` : ""}`; 
   }
 
   // Deposit instruction - only include if some services require deposits
@@ -2885,7 +2916,7 @@ ${servicesList}
 ${cancellationPolicyText ? `- Cancellation/refund policy text: ${cancellationPolicyText}` : "- Cancellation/refund policy text: Not provided"}
 ${depositInstruction}
 
-BOOKING DATA: Collect name only. Use caller's phone number by default.${faqContext}`;
+${dataCollectionRules}${faqContext}`;
 
   return {
     prompt,
