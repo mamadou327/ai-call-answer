@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
       return twimlError(`Thank you for calling ${business.business_name}. We're currently unavailable. Please try again later.`);
     }
 
-    // Check if caller is blocked
+    // Check if caller is blocked AND look up customer info
     const normalizedCaller = fromNumber.replace(/\D/g, "").slice(-10);
     const { data: blockedCustomer } = await supabase
       .from("customers")
@@ -245,11 +245,25 @@ Deno.serve(async (req) => {
       return twimlError("I'm sorry, we're unable to take bookings from this number. Goodbye.");
     }
 
+    // Look up if this is a returning customer (for personalized greeting in media stream)
+    const { data: customerInfo } = await supabase
+      .from("customers")
+      .select("name, total_visits")
+      .eq("business_id", business.id)
+      .eq("is_blocked", false)
+      .or(`phone.ilike.%${normalizedCaller}%,phone.eq.${fromNumber}`)
+      .maybeSingle();
+
+    const isReturning = customerInfo && customerInfo.total_visits > 0;
+    const customerFirstName = customerInfo?.name?.trim().split(/\s+/)[0] || null;
+
+    console.log("[VoiceWebhookRT] Customer lookup:", { isReturning, customerFirstName, totalVisits: customerInfo?.total_visits });
+
     // Log the call
     await supabase.from("calls_log").insert({
       business_id: business.id,
       caller_phone: fromNumber,
-      caller_name: callerName,
+      caller_name: callerName || customerInfo?.name,
       call_type: "other",
       call_outcome: "in_progress",
       twilio_call_sid: callSid,
@@ -262,7 +276,7 @@ Deno.serve(async (req) => {
       call_sid: callSid,
       business_id: business.id,
       caller_phone: fromNumber,
-      caller_name: callerName,
+      caller_name: callerName || customerInfo?.name,
       messages: [],
       status: "active",
     });
@@ -287,6 +301,8 @@ Deno.serve(async (req) => {
       <Parameter name="callerPhone" value="${escapeXml(fromNumber)}"/>
       <Parameter name="callSid" value="${escapeXml(callSid)}"/>
       <Parameter name="recordingCallbackUrl" value="${escapeXml(recordingCallbackUrl)}"/>
+      <Parameter name="isReturning" value="${isReturning ? 'true' : 'false'}"/>
+      <Parameter name="customerFirstName" value="${escapeXml(customerFirstName || '')}"/>
     </Stream>
   </Connect>
 </Response>`;

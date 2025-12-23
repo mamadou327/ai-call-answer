@@ -366,18 +366,52 @@ async function getBusinessAiVoiceSettings(supabase: any, businessId: string) {
     elevenLabsVoiceId: settings?.elevenlabs_voice_id || null,
   };
 }
-
-// Generate greeting based on business and AI settings
-function generateGreeting(businessName: string, settings: any): string {
-  const { assistantName, tone } = settings;
+// Look up caller in customers table to check if returning customer
+async function getCallerInfo(supabase: any, businessId: string, callerPhone: string): Promise<{ name: string | null; totalVisits: number } | null> {
+  const normalizedPhone = callerPhone.replace(/\D/g, "").slice(-10);
   
-  switch (tone) {
-    case "formal":
-      return `Good day. Thank you for calling ${businessName}. This is ${assistantName} speaking.`;
-    case "casual":
-      return `Hey there! Thanks for calling ${businessName}! This is ${assistantName}.`;
-    default:
-      return `Hi, thanks for calling ${businessName}. This is ${assistantName}, how can I help?`;
+  try {
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("name, total_visits")
+      .eq("business_id", businessId)
+      .eq("is_blocked", false)
+      .or(`phone.ilike.%${normalizedPhone}%,phone.eq.${callerPhone}`)
+      .maybeSingle();
+    
+    if (customer) {
+      console.log(`[TwilioWebhook] Found returning customer: ${customer.name}, visits: ${customer.total_visits}`);
+      return { name: customer.name, totalVisits: customer.total_visits };
+    }
+    return null;
+  } catch (error) {
+    console.error("[TwilioWebhook] Error looking up caller:", error);
+    return null;
+  }
+}
+
+// Extract first name from full name
+function getFirstName(fullName: string | null): string | null {
+  if (!fullName) return null;
+  const firstName = fullName.trim().split(/\s+/)[0];
+  return firstName || null;
+}
+
+// Generate personalized casual greeting with recording disclosure
+function generateGreeting(businessName: string, settings: any, callerInfo: { name: string | null; totalVisits: number } | null): string {
+  const { assistantName } = settings;
+  const firstName = getFirstName(callerInfo?.name || null);
+  const isReturning = callerInfo && callerInfo.totalVisits > 0;
+  
+  if (isReturning && firstName) {
+    // Returning customer with known name
+    return `Hey ${firstName}! Great to hear from you again! Just a heads up, this call's recorded. What can I do for you today?`;
+  } else if (isReturning) {
+    // Returning customer but no name
+    return `Hey there! Welcome back to ${businessName}! Just so you know, this call may be recorded. I'm ${assistantName}, how can I help?`;
+  } else {
+    // New caller
+    return `Hey there! Thanks for calling ${businessName}! Just so you know, this call may be recorded. I'm ${assistantName}, how can I help you today?`;
   }
 }
 
@@ -557,10 +591,13 @@ Deno.serve(async (req) => {
       console.error("[TwilioWebhook] Error creating conversation:", convError);
     }
 
-    // Generate greeting text
-    const greetingText = generateGreeting(business.business_name, aiSettings);
-    const gatherPromptText = "How can I help you today?";
+    // Look up if this is a returning customer
+    const callerInfo = await getCallerInfo(supabase, business.id, fromNumber);
     
+    // Generate personalized greeting text
+    const greetingText = generateGreeting(business.business_name, aiSettings, callerInfo);
+    const gatherPromptText = ""; // Prompt is now included in the greeting
+
     // Build URLs
     const continueUrl = `${supabaseUrl}/functions/v1/twilio-voice-continue/${token}`;
     const recordingCallbackUrl = `${supabaseUrl}/functions/v1/twilio-recording-callback/${token}`;
