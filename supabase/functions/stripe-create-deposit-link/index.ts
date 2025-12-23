@@ -20,6 +20,35 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
+    // Authenticate user
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      logStep("No authorization header");
+      return new Response(JSON.stringify({ error: "Authentication required" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    
+    // Create client with user's JWT to check permissions
+    const userSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    });
+
+    const { data: { user }, error: authError } = await userSupabase.auth.getUser();
+    if (authError || !user) {
+      logStep("Authentication failed", { error: authError?.message });
+      return new Response(JSON.stringify({ error: "Invalid authentication" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+    logStep("User authenticated", { userId: user.id });
+
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
     logStep("Stripe key verified");
@@ -34,13 +63,13 @@ serve(async (req) => {
     if (!bookingId) throw new Error("No booking ID provided");
     logStep("Received request", { bookingId });
 
-    // Get booking details
+    // Get booking details with business owner info
     const { data: booking, error: bookingError } = await supabaseClient
       .from("bookings")
       .select(`
         *,
         services:service_id (name, deposit_required, deposit_amount),
-        business:business_id (business_name, stripe_account_id)
+        business:business_id (id, business_name, stripe_account_id, owner_id)
       `)
       .eq("id", bookingId)
       .single();
@@ -51,8 +80,32 @@ serve(async (req) => {
     logStep("Booking found", { 
       bookingId: booking.id, 
       customer: booking.customer_name,
-      service: booking.services?.name
+      service: booking.services?.name,
+      businessOwnerId: booking.business?.owner_id
     });
+
+    // Authorization check: verify user owns the business
+    if (booking.business?.owner_id !== user.id) {
+      // Check if user is staff with access to this business
+      const { data: staffMembership } = await supabaseClient
+        .from("staff_memberships")
+        .select("id")
+        .eq("business_id", booking.business_id)
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (!staffMembership) {
+        logStep("Authorization failed", { userId: user.id, businessOwnerId: booking.business?.owner_id });
+        return new Response(JSON.stringify({ error: "Unauthorized access to this booking" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 403,
+        });
+      }
+      logStep("Staff member authorized", { userId: user.id });
+    } else {
+      logStep("Business owner authorized", { userId: user.id });
+    }
 
     // Check if service requires deposit
     if (!booking.services?.deposit_required || !booking.services?.deposit_amount) {
