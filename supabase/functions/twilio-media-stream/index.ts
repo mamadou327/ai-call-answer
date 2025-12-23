@@ -1040,6 +1040,16 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
   console.log("[MediaStream] Creating booking:", params);
   
   try {
+    // VALIDATE CUSTOMER NAME - Must have a real name, not "Unknown" or empty
+    const customerName = (params.customer_name || "").trim();
+    const invalidNames = ["unknown", "caller", "customer", "guest", "anonymous", "n/a", "na", "none", ""];
+    if (!customerName || invalidNames.includes(customerName.toLowerCase())) {
+      console.log("[MediaStream] Invalid customer name:", params.customer_name);
+      return { 
+        success: false, 
+        message: "I just need to get your name for the booking. What name should I put it under?" 
+      };
+    }
     // Find staff - handle titles like "Mr adam", "Mr. John", etc.
     const searchName = (params.staff_name || "").toLowerCase().trim();
     const staff = session.staff.find(s => {
@@ -2927,9 +2937,10 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
 
 ## CRITICAL TOOL USAGE RULES (MUST FOLLOW):
 1. **AVAILABILITY**: NEVER say a time is available or unavailable without calling check_availability first. NO EXCEPTIONS. NEVER GUESS.
-2. **BOOKING**: Only call create_booking AFTER: a) check_availability confirms slot is free, b) you verified staff's [CAN ONLY BOOK FOR:] includes the service, c) customer confirmed all details.
-3. **STAFF-SERVICE MISMATCH**: If staff CANNOT do the service, DO NOT attempt booking - tell customer who CAN do it.
-4. **TRANSFER ONLY**: Staff marked [TRANSFER ONLY] cannot be booked - offer to transfer instead.
+2. **NAME REQUIRED**: BEFORE calling create_booking, you MUST have asked and received the customer's name. NEVER use "Unknown", "Guest", "Caller", or any placeholder - if you don't have their real name, ASK: "Can I get your name for the booking?"
+3. **BOOKING**: Only call create_booking AFTER: a) check_availability confirms slot is free, b) you verified staff's [CAN ONLY BOOK FOR:] includes the service, c) you have the customer's REAL NAME, d) customer confirmed all details.
+4. **STAFF-SERVICE MISMATCH**: If staff CANNOT do the service, DO NOT attempt booking - tell customer who CAN do it.
+5. **TRANSFER ONLY**: Staff marked [TRANSFER ONLY] cannot be booked - offer to transfer instead.
 
 ## ⚠️ RESCHEDULE vs CREATE - THIS IS CRITICAL! ⚠️
 **RESCHEDULE** means MOVE AN EXISTING BOOKING to a new time/date.
