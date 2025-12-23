@@ -2520,6 +2520,9 @@ async function buildFullSystemPrompt(
     servicesByCategory[cat].push(s);
   });
   
+  // Check if any service requires deposit
+  const hasDepositServices = services.some(s => s.deposit_required && s.deposit_amount && s.deposit_amount > 0);
+  
   const servicesList = services.length > 0
     ? Object.entries(servicesByCategory).map(([cat, svcs]) => 
         `${cat}:\n${svcs.map(s => {
@@ -2533,7 +2536,12 @@ async function buildFullSystemPrompt(
             availabilityNote = " [TRANSFER ONLY]";
           }
           
-          return `  - ${s.name}: ${s.duration_minutes}min, ${currency}${s.price}${availabilityNote}`;
+          // Show deposit requirement if applicable
+          const depositNote = s.deposit_required && s.deposit_amount && s.deposit_amount > 0 
+            ? ` [DEPOSIT: ${currency}${s.deposit_amount}]`
+            : "";
+          
+          return `  - ${s.name}: ${s.duration_minutes}min, ${currency}${s.price}${availabilityNote}${depositNote}`;
         }).join("\n")}`
       ).join("\n")
     : "Services available upon request";
@@ -2713,6 +2721,15 @@ SOUND HUMAN - THIS IS CRITICAL:
     }
   }
 
+  // Deposit instruction - only include if some services require deposits
+  const depositInstruction = hasDepositServices 
+    ? `\n## DEPOSITS:
+Some services require a deposit to secure the booking. If the service requires a deposit:
+- AFTER confirming the booking, tell the caller: "Just so you know, this service requires a deposit of [amount]. You'll get a text with a payment link shortly."
+- If they ask about the deposit: "You'll receive a text message with a secure payment link after we confirm. Just click the link to pay whenever you're ready."
+- DO NOT mention deposits for services that don't require them.`
+    : "";
+
   // Website knowledge for FAQs
   const faqContext = websiteKnowledge 
     ? `\nFAQ INFO: ${websiteKnowledge.slice(0, 500)}`
@@ -2866,6 +2883,7 @@ ${servicesList}
 - Maximum advance booking: ${maxAdvance} days
 - Minimum cancellation notice: ${minCancelNotice} hours
 ${cancellationPolicyText ? `- Cancellation/refund policy text: ${cancellationPolicyText}` : "- Cancellation/refund policy text: Not provided"}
+${depositInstruction}
 
 BOOKING DATA: Collect name only. Use caller's phone number by default.${faqContext}`;
 
