@@ -914,6 +914,7 @@ export type Database = {
           created_at: string | null
           email: string | null
           id: string
+          is_business_owner: boolean
           name: string
           phone: string | null
           role: string
@@ -928,6 +929,7 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           id?: string
+          is_business_owner?: boolean
           name: string
           phone?: string | null
           role: string
@@ -942,6 +944,7 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           id?: string
+          is_business_owner?: boolean
           name?: string
           phone?: string | null
           role?: string
