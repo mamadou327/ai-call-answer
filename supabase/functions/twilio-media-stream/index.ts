@@ -72,6 +72,7 @@ interface StaffMember {
   title: string | null;
   phone: string | null;
   ai_enabled: boolean;
+  is_business_owner: boolean;
   working_hours: Record<string, { start: string; end: string }> | null;
 }
 
@@ -2602,9 +2603,11 @@ async function buildFullSystemPrompt(
   // Format staff list with title, AI status, services, and working hours
   // CRITICAL: Use explicit "CAN ONLY BOOK FOR:" to prevent AI booking wrong service-staff pairs
   const dayAbbreviations = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const businessOwner = staff.find(s => s.is_business_owner);
   const staffList = staff.length > 0
     ? staff.map(s => {
         const aiStatus = !s.ai_enabled ? " [TRANSFER ONLY - NO AI BOOKING]" : "";
+        const ownerStatus = s.is_business_owner ? " [BUSINESS OWNER]" : "";
         const staffServiceIds = staffServiceMap[s.id] || [];
         const canDoServices = staffServiceIds.map(sid => serviceNameMap[sid]).filter(Boolean);
         // Make it VERY explicit what services this staff can be booked for
@@ -2627,7 +2630,7 @@ async function buildFullSystemPrompt(
           }
         }
         
-        return `- ${s.title ? s.title + " " : ""}${s.name}${aiStatus}${servicesNote}${workingHoursNote}`;
+        return `- ${s.title ? s.title + " " : ""}${s.name}${ownerStatus}${aiStatus}${servicesNote}${workingHoursNote}`;
       }).join("\n")
     : "No staff configured";
 
@@ -3016,6 +3019,11 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
 - Each staff member's [WORKS:] shows which days/hours they work. If no [WORKS:] shown, assume they follow business hours.
 - Staff marked in TIME OFF are unavailable during those times.
 - When a customer asks for a time, you MUST still call check_availability to check for actual bookings - working hours alone are NOT enough!
+
+## BUSINESS OWNER REQUESTS:
+- If the caller asks to "speak to the owner", "talk to the business owner", "speak with the manager", or similar, look for staff marked [BUSINESS OWNER] in the STAFF list below.
+- If a business owner is identified, use transfer_call to transfer them to the owner's number (if they have a phone).
+- If no business owner is set or they don't have a phone number, apologize and offer to take a message or help with their query.
 
 ${greetingInstruction}
 

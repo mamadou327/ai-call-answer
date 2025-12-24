@@ -24,6 +24,7 @@ interface Staff {
   color?: string;
   title?: string;
   ai_enabled?: boolean;
+  is_business_owner?: boolean;
 }
 
 interface Service {
@@ -47,6 +48,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
     phone: "",
     color: "#3B82F6",
     ai_enabled: true,
+    is_business_owner: false,
   });
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
@@ -186,6 +188,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
       phone: member.phone || "",
       color: member.color || "#3B82F6",
       ai_enabled: member.ai_enabled !== false,
+      is_business_owner: member.is_business_owner || false,
     });
     await loadStaffServices(member.id);
     setDialogOpen(true);
@@ -267,7 +270,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
 
       setDialogOpen(false);
       setSelectedStaff(null);
-      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true });
+      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false });
       setSelectedServices([]);
       loadStaff();
       onUpdate();
@@ -323,7 +326,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
           setDialogOpen(open);
           if (!open) {
             setSelectedStaff(null);
-            setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true });
+            setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false });
             setSelectedServices([]);
           }
         }}>
@@ -449,23 +452,45 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                     }
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      id="ai_enabled"
-                      checked={formData.ai_enabled}
-                      onChange={(e) => setFormData({ ...formData, ai_enabled: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-ring transition-colors">
-                      <div className={`absolute top-0.5 left-0.5 bg-background border border-border rounded-full h-5 w-5 transition-transform ${formData.ai_enabled ? 'translate-x-5' : ''}`}></div>
-                    </div>
-                  </label>
-                  <Button type="submit" disabled={loading}>
-                    {loading ? "Saving..." : selectedStaff ? "Update Staff" : "Add Staff"}
-                  </Button>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="ai_enabled"
+                    checked={formData.ai_enabled}
+                    onChange={(e) => setFormData({ ...formData, ai_enabled: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-ring transition-colors">
+                    <div className={`absolute top-0.5 left-0.5 bg-background border border-border rounded-full h-5 w-5 transition-transform ${formData.ai_enabled ? 'translate-x-5' : ''}`}></div>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between py-2">
+                <div className="space-y-1">
+                  <Label htmlFor="is_business_owner" className="text-sm font-medium">Business Owner</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Callers can ask to speak with "the owner"
+                  </p>
                 </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="is_business_owner"
+                    checked={formData.is_business_owner}
+                    onChange={(e) => setFormData({ ...formData, is_business_owner: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-ring transition-colors">
+                    <div className={`absolute top-0.5 left-0.5 bg-background border border-border rounded-full h-4 w-4 transition-transform ${formData.is_business_owner ? 'translate-x-4' : ''}`}></div>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Saving..." : selectedStaff ? "Update Staff" : "Add Staff"}
+                </Button>
               </div>
             </form>
           </DialogContent>
@@ -490,6 +515,11 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                   <div>
                     <h4 className="font-semibold">
                       {member.title ? `${member.title} ` : ""}{member.name}
+                      {member.is_business_owner && (
+                        <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                          Owner
+                        </span>
+                      )}
                       {member.ai_enabled === false && (
                         <span className="ml-2 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">
                           Transfer only
