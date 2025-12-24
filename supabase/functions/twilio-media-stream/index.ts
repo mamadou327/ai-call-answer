@@ -2469,7 +2469,7 @@ async function buildFullSystemPrompt(
 ): Promise<PromptData> {
   // Fetch all business data in parallel
   const [staffResult, servicesResult, hoursResult, settingsResult, timeOffResult, bookingsResult, customerSettingsResult] = await Promise.all([
-    supabase.from("staff").select("id, name, role, title, phone, ai_enabled, working_hours").eq("business_id", businessId),
+    supabase.from("staff").select("id, name, role, title, phone, ai_enabled, is_business_owner, working_hours").eq("business_id", businessId),
     supabase.from("services").select("id, name, duration_minutes, price, category, description, deposit_required, deposit_amount").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
     supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours, min_reschedule_notice_hours").eq("business_id", businessId).maybeSingle(),
@@ -2496,6 +2496,7 @@ async function buildFullSystemPrompt(
     title: s.title,
     phone: s.phone,
     ai_enabled: s.ai_enabled !== false,
+    is_business_owner: s.is_business_owner === true,
     working_hours: s.working_hours,
   }));
   
