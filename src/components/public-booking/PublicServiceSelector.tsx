@@ -1,6 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Clock, ChevronDown } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useState } from "react";
 
 interface Service {
@@ -59,6 +58,8 @@ export const PublicServiceSelector = ({
   currency,
   onSelect,
 }: PublicServiceSelectorProps) => {
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
   // Group services by category
   const servicesByCategory = services.reduce((acc, service) => {
     if (!acc[service.category]) {
@@ -73,96 +74,113 @@ export const PublicServiceSelector = ({
     const orderA = getCategoryOrder(a);
     const orderB = getCategoryOrder(b);
     if (orderA !== orderB) return orderA - orderB;
-    return a.localeCompare(b); // Alphabetically for same order
+    return a.localeCompare(b);
   });
-
-  // Track which categories are open - default first one open
-  const [openCategories, setOpenCategories] = useState<string[]>(categories.length > 0 ? [categories[0]] : []);
-
-  const toggleCategory = (category: string) => {
-    setOpenCategories(prev => 
-      prev.includes(category) 
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
-    );
-  };
 
   if (services.length === 0) {
     return (
       <Card className="border-2 border-primary shadow-sm">
-        <CardHeader>
-          <CardTitle>No Services Available</CardTitle>
-          <CardDescription>
+        <CardContent className="pt-6 text-center">
+          <h3 className="font-semibold text-lg">No Services Available</h3>
+          <p className="text-muted-foreground mt-2">
             This business hasn't added any services yet.
-          </CardDescription>
-        </CardHeader>
+          </p>
+        </CardContent>
       </Card>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold mb-2">Select a Service</h2>
+      <div className="text-center">
+        <h2 className="text-2xl font-bold mb-2">Our Services</h2>
         <p className="text-muted-foreground">
-          Choose the service you'd like to book
+          {selectedCategory ? "Choose a service" : "Select a category to view services"}
         </p>
       </div>
 
-      {categories.map((category) => (
-        <Collapsible
-          key={category}
-          open={openCategories.includes(category)}
-          onOpenChange={() => toggleCategory(category)}
-        >
-          <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
-            <h3 className="font-semibold text-lg">{capitalizeFirstLetter(category)}</h3>
-            <ChevronDown 
-              className={`h-5 w-5 transition-transform ${openCategories.includes(category) ? 'rotate-180' : ''}`} 
-            />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="mt-3">
-            <div className="grid gap-3">
-              {servicesByCategory[category].map((service) => (
-                <Card
-                  key={service.id}
-                  className="border-2 border-primary shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => onSelect(service)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h4 className="font-semibold">{service.name}</h4>
-                        {service.description && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {service.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            <span>{service.duration_minutes} min</span>
-                          </div>
+      {/* Category Cards - shown when no category selected */}
+      {!selectedCategory && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {categories.map((category) => (
+            <Card
+              key={category}
+              className="cursor-pointer hover:border-primary hover:shadow-lg transition-all group"
+              onClick={() => setSelectedCategory(category)}
+            >
+              <CardContent className="p-6 flex flex-col justify-between min-h-[140px]">
+                <h3 className="text-xl font-bold">{capitalizeFirstLetter(category)}</h3>
+                <div className="flex items-center justify-between mt-4">
+                  <span className="text-sm text-muted-foreground">
+                    {servicesByCategory[category].length} service{servicesByCategory[category].length !== 1 ? 's' : ''}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-sm font-medium bg-primary text-primary-foreground px-4 py-2 rounded-full group-hover:bg-primary/90 transition-colors">
+                    View services
+                    <ChevronDown className="h-4 w-4 -rotate-90" />
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Services List - shown when category is selected */}
+      {selectedCategory && (
+        <div className="space-y-4">
+          {/* Back to categories button */}
+          <button
+            onClick={() => setSelectedCategory(null)}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronDown className="h-4 w-4 rotate-90" />
+            <span>Back to categories</span>
+          </button>
+
+          <div className="flex items-center gap-3 pb-2">
+            <h3 className="text-xl font-bold">{capitalizeFirstLetter(selectedCategory)}</h3>
+          </div>
+
+          <div className="grid gap-3">
+            {servicesByCategory[selectedCategory].map((service) => (
+              <Card
+                key={service.id}
+                className="border-2 border-muted hover:border-primary cursor-pointer hover:shadow-md transition-all"
+                onClick={() => onSelect(service)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-lg">{service.name}</h4>
+                      {service.description && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {service.description}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          <span>{service.duration_minutes} min</span>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold text-lg">
-                          {formatCurrency(service.price, currency)}
-                        </div>
-                        {service.deposit_required && service.deposit_amount && (
-                          <div className="text-xs text-muted-foreground">
-                            {formatCurrency(service.deposit_amount, currency)} deposit
-                          </div>
-                        )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      ))}
+                    <div className="text-right">
+                      <div className="font-bold text-xl">
+                        {formatCurrency(service.price, currency)}
+                      </div>
+                      {service.deposit_required && service.deposit_amount && (
+                        <div className="text-xs text-muted-foreground">
+                          {formatCurrency(service.deposit_amount, currency)} deposit
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
