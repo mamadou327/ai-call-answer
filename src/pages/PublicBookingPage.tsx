@@ -153,11 +153,28 @@ const PublicBookingPage = () => {
   useEffect(() => {
     const fetchStaff = async () => {
       if (!business || !selectedService) return;
+      
+      // First get staff assigned to this service
+      const { data: staffServiceData } = await supabase
+        .from("staff_services")
+        .select("staff_id")
+        .eq("service_id", selectedService.id);
+      
+      const assignedStaffIds = staffServiceData?.map(ss => ss.staff_id) || [];
+      
+      if (assignedStaffIds.length === 0) {
+        setStaff([]);
+        return;
+      }
+      
+      // Then get staff details for those who can provide the service
       const { data: staffData } = await supabase
         .from("staff")
         .select("id, name")
         .eq("business_id", business.id)
-        .eq("ai_enabled", true);
+        .eq("ai_enabled", true)
+        .in("id", assignedStaffIds);
+      
       if (staffData) setStaff(staffData);
     };
     fetchStaff();

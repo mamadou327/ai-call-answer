@@ -27,6 +27,27 @@ const formatCurrency = (amount: number, currency: string) => {
   return `${symbols[currency] || currency}${amount.toFixed(2)}`;
 };
 
+// Define category display order - categories not in this list will appear at the end alphabetically
+const CATEGORY_ORDER = [
+  "men",
+  "adults", 
+  "men/adults",
+  "kids",
+  "hairstyle",
+  "hairstyles",
+  "women",
+  "color",
+  "treatment",
+  "unisex",
+  "other",
+];
+
+const getCategoryOrder = (category: string): number => {
+  const lowerCategory = category.toLowerCase();
+  const index = CATEGORY_ORDER.findIndex(c => lowerCategory.includes(c) || c.includes(lowerCategory));
+  return index === -1 ? CATEGORY_ORDER.length : index;
+};
+
 export const PublicServiceSelector = ({
   services,
   currency,
@@ -41,7 +62,13 @@ export const PublicServiceSelector = ({
     return acc;
   }, {} as Record<string, Service[]>);
 
-  const categories = Object.keys(servicesByCategory).sort();
+  // Sort categories by predefined order
+  const categories = Object.keys(servicesByCategory).sort((a, b) => {
+    const orderA = getCategoryOrder(a);
+    const orderB = getCategoryOrder(b);
+    if (orderA !== orderB) return orderA - orderB;
+    return a.localeCompare(b); // Alphabetically for same order
+  });
 
   if (services.length === 0) {
     return (
