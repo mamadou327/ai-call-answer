@@ -104,3 +104,12 @@ verify_jwt = false
 
 [functions.public-create-booking]
 verify_jwt = false
+
+[functions.public-lookup-booking]
+verify_jwt = false
+
+[functions.public-cancel-booking]
+verify_jwt = false
+
+[functions.public-reschedule-booking]
+verify_jwt = false

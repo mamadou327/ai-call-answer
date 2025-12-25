@@ -6,9 +6,13 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, ExternalLink, Globe, Loader2 } from "lucide-react";
+import { LogoUpload } from "./LogoUpload";
+import { SocialMediaSettings } from "./SocialMediaSettings";
+import { GalleryManagement } from "./GalleryManagement";
 
 interface OnlineBookingSettingsProps {
   businessId: string;
@@ -71,7 +75,10 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
     }
   };
 
-  const bookingUrl = `${window.location.origin}/book/${settings.booking_slug}`;
+  // Use production URL for display
+  const bookingUrl = settings.custom_booking_domain 
+    ? `https://${settings.custom_booking_domain}`
+    : `https://aiviaapp.co.uk/book/${settings.booking_slug}`;
 
   const copyLink = () => {
     navigator.clipboard.writeText(bookingUrl);
@@ -136,7 +143,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => window.open(bookingUrl, "_blank")}
+                  onClick={() => window.open(`${window.location.origin}/book/${settings.booking_slug}`, "_blank")}
                 >
                   <ExternalLink className="h-4 w-4" />
                 </Button>
@@ -180,9 +187,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
                 </SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Choose when to collect deposits for services that require them.
-            </p>
           </div>
 
           {/* Welcome Message */}
@@ -196,9 +200,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
               placeholder="Welcome to our booking page! We look forward to seeing you."
               rows={3}
             />
-            <p className="text-xs text-muted-foreground">
-              This message will be displayed at the top of your booking page.
-            </p>
           </div>
 
           <Button onClick={handleSave} disabled={loading}>
@@ -211,6 +212,44 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
               "Save Settings"
             )}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Logo Upload */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Branding</CardTitle>
+          <CardDescription>
+            Customize your booking page appearance
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LogoUpload
+            businessId={businessId}
+            currentLogoUrl={business?.logo_url}
+            onUpdate={onUpdate}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Social Media */}
+      <Card>
+        <CardContent className="pt-6">
+          <SocialMediaSettings
+            businessId={businessId}
+            business={business}
+            onUpdate={onUpdate}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Gallery */}
+      <Card>
+        <CardContent className="pt-6">
+          <GalleryManagement
+            businessId={businessId}
+            onUpdate={onUpdate}
+          />
         </CardContent>
       </Card>
     </div>
