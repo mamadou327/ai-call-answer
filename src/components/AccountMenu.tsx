@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { User, LogOut, KeyRound, Bot, Loader2 } from "lucide-react";
+import { User, LogOut, KeyRound, Bot, Loader2, HelpCircle } from "lucide-react";
+import { ContactAdminForm } from "./dashboard/settings/ContactAdminForm";
 
 interface AccountMenuProps {
   businessName: string;
@@ -42,6 +43,7 @@ export const AccountMenu = ({
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     newPassword: "",
@@ -162,6 +164,18 @@ export const AccountMenu = ({
               Change password
             </button>
 
+            {/* Support */}
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                setSupportOpen(true);
+              }}
+              className="flex items-center gap-2 w-full text-sm hover:text-primary transition-colors"
+            >
+              <HelpCircle className="h-4 w-4" />
+              Contact Support
+            </button>
+
             <DropdownMenuSeparator />
 
             {/* Sign Out */}
@@ -235,6 +249,19 @@ export const AccountMenu = ({
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Support Dialog */}
+      <Dialog open={supportOpen} onOpenChange={setSupportOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Contact Support</DialogTitle>
+            <DialogDescription>
+              Need help? Send a message to our admin team.
+            </DialogDescription>
+          </DialogHeader>
+          <ContactAdminForm businessId={businessId} />
         </DialogContent>
       </Dialog>
     </>

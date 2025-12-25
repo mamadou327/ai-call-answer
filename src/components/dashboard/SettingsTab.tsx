@@ -12,10 +12,10 @@ import { AISettingsTab } from "./settings/AISettingsTab";
 import { PoliciesTab } from "./settings/PoliciesTab";
 import { EmailNotificationSettings } from "./settings/EmailNotificationSettings";
 import { TwilioSettings } from "./settings/TwilioSettings";
-import { ContactAdminForm } from "./settings/ContactAdminForm";
 import { StripeConnectSettings } from "./settings/StripeConnectSettings";
 import { DepositSettings } from "./settings/DepositSettings";
-import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, HelpCircle } from "lucide-react";
+import { OnlineBookingSettings } from "./settings/OnlineBookingSettings";
+import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe } from "lucide-react";
 
 interface SettingsTabProps {
   businessId: string;
@@ -73,6 +73,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
           <CalendarOff className="w-4 h-4" />
           <span className="hidden sm:inline">Time Off</span>
         </TabsTrigger>
+        <TabsTrigger value="booking" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <Globe className="w-4 h-4" />
+          <span className="hidden sm:inline">Booking</span>
+        </TabsTrigger>
         <TabsTrigger value="customers" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
           <UserCircle className="w-4 h-4" />
           <span className="hidden sm:inline">Customers</span>
@@ -80,10 +84,6 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
         <TabsTrigger value="notifications" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
           <Bell className="w-4 h-4" />
           <span className="hidden sm:inline">Notifications</span>
-        </TabsTrigger>
-        <TabsTrigger value="support" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
-          <HelpCircle className="w-4 h-4" />
-          <span className="hidden sm:inline">Support</span>
         </TabsTrigger>
       </TabsList>
 
@@ -123,6 +123,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
         <TimeOffManagement businessId={businessId} onUpdate={onUpdate} />
       </TabsContent>
 
+      <TabsContent value="booking">
+        <OnlineBookingSettings businessId={businessId} business={business} onUpdate={onUpdate} />
+      </TabsContent>
+
       <TabsContent value="customers">
         <CustomersManagement businessId={businessId} onUpdate={onUpdate} />
       </TabsContent>
@@ -130,10 +134,6 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
       <TabsContent value="notifications" className="space-y-6">
         <TwilioSettings business={business} onUpdate={onUpdate} />
         <EmailNotificationSettings business={business} onUpdate={onUpdate} />
-      </TabsContent>
-
-      <TabsContent value="support">
-        <ContactAdminForm businessId={businessId} />
       </TabsContent>
     </Tabs>
   );
