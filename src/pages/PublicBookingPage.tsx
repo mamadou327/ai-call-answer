@@ -349,6 +349,9 @@ const PublicBookingPage = () => {
           <PublicLandingPage
             businessName={business.business_name}
             welcomeMessage={business.online_booking_message}
+            address={business.address}
+            phone={business.main_phone}
+            website={business.website}
             hasGallery={hasGallery}
             onMakeBooking={() => setStep("service")}
             onCancelBooking={() => setStep("lookup-cancel")}
