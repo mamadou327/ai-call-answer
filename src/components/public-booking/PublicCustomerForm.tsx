@@ -1,0 +1,259 @@
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Loader2, CreditCard } from "lucide-react";
+import { format } from "date-fns";
+
+interface Service {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  price: number;
+  deposit_required: boolean;
+  deposit_amount: number | null;
+}
+
+interface Staff {
+  id: string;
+  name: string;
+}
+
+interface PublicCustomerFormProps {
+  selectedService: Service;
+  selectedStaff: Staff | null;
+  selectedDate: Date;
+  selectedTime: string;
+  currency: string;
+  collectDuringBooking: boolean;
+  hasStripe: boolean;
+  onSubmit: (data: {
+    name: string;
+    phone: string;
+    email?: string;
+    notes?: string;
+  }) => Promise<void>;
+  onBack: () => void;
+}
+
+const formatCurrency = (amount: number, currency: string) => {
+  const symbols: Record<string, string> = {
+    GBP: "£",
+    USD: "$",
+    EUR: "€",
+  };
+  return `${symbols[currency] || currency}${amount.toFixed(2)}`;
+};
+
+export const PublicCustomerForm = ({
+  selectedService,
+  selectedStaff,
+  selectedDate,
+  selectedTime,
+  currency,
+  collectDuringBooking,
+  hasStripe,
+  onSubmit,
+  onBack,
+}: PublicCustomerFormProps) => {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const depositRequired = selectedService.deposit_required && selectedService.deposit_amount && selectedService.deposit_amount > 0;
+  const willPayNow = depositRequired && collectDuringBooking && hasStripe;
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!name.trim() || name.trim().length < 2) {
+      newErrors.name = "Please enter your full name";
+    }
+
+    if (!phone.trim()) {
+      newErrors.phone = "Phone number is required";
+    } else if (!/^[+\d\s()-]{8,}$/.test(phone)) {
+      newErrors.phone = "Please enter a valid phone number";
+    }
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validate()) return;
+
+    setLoading(true);
+    try {
+      await onSubmit({
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email.trim() || undefined,
+        notes: notes.trim() || undefined,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Button variant="outline" onClick={onBack} className="gap-2" disabled={loading}>
+        <ArrowLeft className="h-4 w-4" />
+        Back to date & time
+      </Button>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Booking summary */}
+        <Card className="border-2 border-primary shadow-sm bg-secondary">
+          <CardHeader>
+            <CardTitle className="text-lg">Booking Summary</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Service</span>
+              <span className="font-medium">{selectedService.name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Duration</span>
+              <span className="font-medium">{selectedService.duration_minutes} minutes</span>
+            </div>
+            {selectedStaff && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Staff</span>
+                <span className="font-medium">{selectedStaff.name}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Date</span>
+              <span className="font-medium">{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Time</span>
+              <span className="font-medium">{selectedTime}</span>
+            </div>
+            <div className="border-t-2 border-primary pt-3 mt-3">
+              <div className="flex justify-between font-bold">
+                <span>Total Price</span>
+                <span>{formatCurrency(selectedService.price, currency)}</span>
+              </div>
+              {depositRequired && (
+                <div className="flex justify-between text-sm text-muted-foreground mt-1">
+                  <span>Deposit required</span>
+                  <span>{formatCurrency(selectedService.deposit_amount!, currency)}</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Customer form */}
+        <Card className="border-2 border-primary shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">Your Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name *</Label>
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="John Smith"
+                  className="border-2"
+                  disabled={loading}
+                />
+                {errors.name && (
+                  <p className="text-sm text-destructive">{errors.name}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number *</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+44 7123 456789"
+                  className="border-2"
+                  disabled={loading}
+                />
+                {errors.phone && (
+                  <p className="text-sm text-destructive">{errors.phone}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email (optional)</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="john@example.com"
+                  className="border-2"
+                  disabled={loading}
+                />
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes (optional)</Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Any special requests or information..."
+                  className="border-2"
+                  rows={3}
+                  disabled={loading}
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : willPayNow ? (
+                  <>
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Pay {formatCurrency(selectedService.deposit_amount!, currency)} Deposit
+                  </>
+                ) : (
+                  "Confirm Booking"
+                )}
+              </Button>
+
+              {willPayNow && (
+                <p className="text-xs text-center text-muted-foreground">
+                  You'll be redirected to our secure payment page
+                </p>
+              )}
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
