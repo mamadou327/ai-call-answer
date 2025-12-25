@@ -1,5 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, DollarSign } from "lucide-react";
+import { Clock, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useState } from "react";
 
 interface Service {
   id: string;
@@ -48,6 +50,10 @@ const getCategoryOrder = (category: string): number => {
   return index === -1 ? CATEGORY_ORDER.length : index;
 };
 
+const capitalizeFirstLetter = (str: string): string => {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
+
 export const PublicServiceSelector = ({
   services,
   currency,
@@ -69,6 +75,17 @@ export const PublicServiceSelector = ({
     if (orderA !== orderB) return orderA - orderB;
     return a.localeCompare(b); // Alphabetically for same order
   });
+
+  // Track which categories are open - default first one open
+  const [openCategories, setOpenCategories] = useState<string[]>(categories.length > 0 ? [categories[0]] : []);
+
+  const toggleCategory = (category: string) => {
+    setOpenCategories(prev => 
+      prev.includes(category) 
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+    );
+  };
 
   if (services.length === 0) {
     return (
@@ -93,47 +110,58 @@ export const PublicServiceSelector = ({
       </div>
 
       {categories.map((category) => (
-        <div key={category} className="space-y-3">
-          <h3 className="font-semibold text-lg">{category}</h3>
-          <div className="grid gap-3">
-            {servicesByCategory[category].map((service) => (
-              <Card
-                key={service.id}
-                className="border-2 border-primary shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => onSelect(service)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{service.name}</h4>
-                      {service.description && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {service.description}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          <span>{service.duration_minutes} min</span>
+        <Collapsible
+          key={category}
+          open={openCategories.includes(category)}
+          onOpenChange={() => toggleCategory(category)}
+        >
+          <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
+            <h3 className="font-semibold text-lg">{capitalizeFirstLetter(category)}</h3>
+            <ChevronDown 
+              className={`h-5 w-5 transition-transform ${openCategories.includes(category) ? 'rotate-180' : ''}`} 
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-3">
+            <div className="grid gap-3">
+              {servicesByCategory[category].map((service) => (
+                <Card
+                  key={service.id}
+                  className="border-2 border-primary shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => onSelect(service)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-semibold">{service.name}</h4>
+                        {service.description && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {service.description}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            <span>{service.duration_minutes} min</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-lg">
-                        {formatCurrency(service.price, currency)}
-                      </div>
-                      {service.deposit_required && service.deposit_amount && (
-                        <div className="text-xs text-muted-foreground">
-                          {formatCurrency(service.deposit_amount, currency)} deposit
+                      <div className="text-right">
+                        <div className="font-bold text-lg">
+                          {formatCurrency(service.price, currency)}
                         </div>
-                      )}
+                        {service.deposit_required && service.deposit_amount && (
+                          <div className="text-xs text-muted-foreground">
+                            {formatCurrency(service.deposit_amount, currency)} deposit
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       ))}
     </div>
   );
