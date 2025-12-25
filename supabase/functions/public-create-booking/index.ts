@@ -358,27 +358,11 @@ serve(async (req) => {
     // Send confirmation SMS if enabled
     if (business.sms_on_confirmation && business.twilio_enabled && business.twilio_phone_number) {
       try {
-        const formattedDate = startDateTime.toLocaleDateString("en-GB", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-        });
-        const formattedTime = startDateTime.toLocaleTimeString("en-GB", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-
-        let smsMessage = `Hi ${trimmedName}, your booking at ${business.business_name} is confirmed for ${formattedDate} at ${formattedTime}. Ref: ${bookingCode}`;
-        
-        if (depositRequired && depositPaymentLink) {
-          smsMessage += ` Please pay your £${service.deposit_amount} deposit: ${depositPaymentLink}`;
-        }
-
         await supabase.functions.invoke("send-booking-sms", {
           body: {
+            businessId,
             bookingId: booking.id,
             type: "confirmation",
-            customMessage: smsMessage,
           },
         });
 

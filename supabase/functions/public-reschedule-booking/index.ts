@@ -150,6 +150,7 @@ serve(async (req) => {
       try {
         await supabase.functions.invoke("send-booking-sms", {
           body: {
+            businessId: business.id,
             bookingId,
             type: "reschedule",
           },
