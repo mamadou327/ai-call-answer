@@ -191,6 +191,54 @@ export type Database = {
           },
         ]
       }
+      business_gallery: {
+        Row: {
+          business_id: string
+          caption: string | null
+          created_at: string | null
+          display_order: number | null
+          id: string
+          image_url: string
+          staff_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          business_id: string
+          caption?: string | null
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          image_url: string
+          staff_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string
+          caption?: string | null
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          image_url?: string
+          staff_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_gallery_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_gallery_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_number_selection: {
         Row: {
           business_id: string
@@ -323,6 +371,7 @@ export type Database = {
           email_on_confirmation: boolean
           email_on_reminder: boolean
           id: string
+          logo_url: string | null
           main_phone: string
           messagebird_enabled: boolean
           messagebird_phone_number: string | null
@@ -338,6 +387,11 @@ export type Database = {
           sms_on_cancellation: boolean
           sms_on_confirmation: boolean
           sms_on_reminder: boolean
+          social_facebook: string | null
+          social_instagram: string | null
+          social_tiktok: string | null
+          social_twitter: string | null
+          social_youtube: string | null
           staff_count: number
           staff_join_code: string | null
           staff_join_expires_at: string | null
@@ -364,6 +418,7 @@ export type Database = {
           email_on_confirmation?: boolean
           email_on_reminder?: boolean
           id?: string
+          logo_url?: string | null
           main_phone: string
           messagebird_enabled?: boolean
           messagebird_phone_number?: string | null
@@ -379,6 +434,11 @@ export type Database = {
           sms_on_cancellation?: boolean
           sms_on_confirmation?: boolean
           sms_on_reminder?: boolean
+          social_facebook?: string | null
+          social_instagram?: string | null
+          social_tiktok?: string | null
+          social_twitter?: string | null
+          social_youtube?: string | null
           staff_count?: number
           staff_join_code?: string | null
           staff_join_expires_at?: string | null
@@ -405,6 +465,7 @@ export type Database = {
           email_on_confirmation?: boolean
           email_on_reminder?: boolean
           id?: string
+          logo_url?: string | null
           main_phone?: string
           messagebird_enabled?: boolean
           messagebird_phone_number?: string | null
@@ -420,6 +481,11 @@ export type Database = {
           sms_on_cancellation?: boolean
           sms_on_confirmation?: boolean
           sms_on_reminder?: boolean
+          social_facebook?: string | null
+          social_instagram?: string | null
+          social_tiktok?: string | null
+          social_twitter?: string | null
+          social_youtube?: string | null
           staff_count?: number
           staff_join_code?: string | null
           staff_join_expires_at?: string | null
@@ -875,6 +941,9 @@ export type Database = {
         Row: {
           business_id: string
           category: string
+          category_type:
+            | Database["public"]["Enums"]["service_category_type"]
+            | null
           created_at: string | null
           deposit_amount: number | null
           deposit_required: boolean | null
@@ -888,6 +957,9 @@ export type Database = {
         Insert: {
           business_id: string
           category: string
+          category_type?:
+            | Database["public"]["Enums"]["service_category_type"]
+            | null
           created_at?: string | null
           deposit_amount?: number | null
           deposit_required?: boolean | null
@@ -901,6 +973,9 @@ export type Database = {
         Update: {
           business_id?: string
           category?: string
+          category_type?:
+            | Database["public"]["Enums"]["service_category_type"]
+            | null
           created_at?: string | null
           deposit_amount?: number | null
           deposit_required?: boolean | null
@@ -1347,6 +1422,15 @@ export type Database = {
         | "other"
       number_selection_type: "aivia_provided" | "port_existing" | "do_later"
       payment_status: "unpaid" | "deposit_paid" | "paid_in_full"
+      service_category_type:
+        | "kids"
+        | "women"
+        | "men"
+        | "unisex"
+        | "hairstyle"
+        | "color"
+        | "treatment"
+        | "other"
       tone_type: "casual" | "neutral" | "formal"
       voice_gender: "male" | "female" | "neutral"
       voice_speed: "slow" | "normal" | "fast"
@@ -1497,6 +1581,16 @@ export const Constants = {
       ],
       number_selection_type: ["aivia_provided", "port_existing", "do_later"],
       payment_status: ["unpaid", "deposit_paid", "paid_in_full"],
+      service_category_type: [
+        "kids",
+        "women",
+        "men",
+        "unisex",
+        "hairstyle",
+        "color",
+        "treatment",
+        "other",
+      ],
       tone_type: ["casual", "neutral", "formal"],
       voice_gender: ["male", "female", "neutral"],
       voice_speed: ["slow", "normal", "fast"],

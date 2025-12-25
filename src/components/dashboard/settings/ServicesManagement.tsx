@@ -9,6 +9,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const SERVICE_CATEGORIES = [
+  { value: "kids", label: "Kids" },
+  { value: "women", label: "Women" },
+  { value: "men", label: "Men/Adults" },
+  { value: "unisex", label: "Unisex" },
+  { value: "hairstyle", label: "Hairstyle" },
+  { value: "color", label: "Color" },
+  { value: "treatment", label: "Treatment" },
+  { value: "other", label: "Other" },
+];
 
 interface ServicesManagementProps {
   businessId: string;
@@ -250,12 +262,21 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
-                <Input
-                  id="category"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  required
-                />
+                <Select
+                  value={formData.category || "other"}
+                  onValueChange={(value) => setFormData({ ...formData, category: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SERVICE_CATEGORIES.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
