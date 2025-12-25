@@ -103,6 +103,24 @@ serve(async (req) => {
       );
     }
 
+    // Validate that the staff member can provide this service
+    if (staffId) {
+      const { data: staffServiceAssignment } = await supabase
+        .from("staff_services")
+        .select("id")
+        .eq("staff_id", staffId)
+        .eq("service_id", serviceId)
+        .maybeSingle();
+
+      if (!staffServiceAssignment) {
+        logStep("Staff cannot provide this service", { staffId, serviceId });
+        return new Response(
+          JSON.stringify({ error: "The selected staff member does not provide this service. Please select a different staff member." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Calculate end time
     const startDateTime = new Date(startTime);
     const endDateTime = new Date(startDateTime.getTime() + service.duration_minutes * 60 * 1000);

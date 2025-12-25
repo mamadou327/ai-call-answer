@@ -58,7 +58,7 @@ serve(async (req) => {
     const dayOfWeek = requestedDate.getDay();
 
     // Fetch all required data in parallel
-    const [openingHoursResult, staffResult, bookingsResult, timeOffResult, serviceResult, settingsResult] = await Promise.all([
+    const [openingHoursResult, staffResult, bookingsResult, timeOffResult, serviceResult, settingsResult, staffServicesResult] = await Promise.all([
       supabase
         .from("opening_hours")
         .select("open_time, close_time, is_closed")
@@ -86,20 +86,31 @@ serve(async (req) => {
         .gte("end_time", `${date}T00:00:00`),
       serviceId ? supabase.from("services").select("duration_minutes").eq("id", serviceId).single() : Promise.resolve({ data: null }),
       supabase.from("business_settings").select("min_booking_notice_hours").eq("business_id", businessId).single(),
+      // Get staff-service assignments to filter staff who can provide the service
+      serviceId ? supabase.from("staff_services").select("staff_id").eq("service_id", serviceId) : Promise.resolve({ data: null }),
     ]);
 
     const openingHours = openingHoursResult.data;
-    const staff = staffResult.data || [];
+    const allStaff = staffResult.data || [];
     const existingBookings = bookingsResult.data || [];
     const timeOffs = timeOffResult.data || [];
     const service = serviceResult.data;
     const settings = settingsResult.data;
+    const staffServices = staffServicesResult.data || [];
+
+    // Filter staff to only those who can provide the requested service
+    const staffIdsForService = staffServices.map((ss: any) => ss.staff_id);
+    const staff = serviceId && staffIdsForService.length > 0 
+      ? allStaff.filter(s => staffIdsForService.includes(s.id))
+      : allStaff;
 
     logStep("Data fetched", { 
       hasOpeningHours: !!openingHours, 
-      staffCount: staff.length,
+      totalStaff: allStaff.length,
+      staffForService: staff.length,
       bookingsCount: existingBookings.length,
-      timeOffsCount: timeOffs.length
+      timeOffsCount: timeOffs.length,
+      serviceId: serviceId || "none"
     });
 
     // Check if business is closed on this day
