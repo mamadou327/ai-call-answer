@@ -155,25 +155,37 @@ const PublicBookingPage = () => {
       if (!business || !selectedService) return;
       
       // First get staff assigned to this service
-      const { data: staffServiceData } = await supabase
+      const { data: staffServiceData, error: ssError } = await supabase
         .from("staff_services")
         .select("staff_id")
         .eq("service_id", selectedService.id);
       
+      console.log("Staff services for service:", selectedService.id, staffServiceData, ssError);
+      
       const assignedStaffIds = staffServiceData?.map(ss => ss.staff_id) || [];
       
+      // If no staff assigned to this service, get all AI-enabled staff as fallback
       if (assignedStaffIds.length === 0) {
-        setStaff([]);
+        console.log("No staff assigned to service, fetching all AI-enabled staff");
+        const { data: allStaffData } = await supabase
+          .from("staff")
+          .select("id, name")
+          .eq("business_id", business.id)
+          .eq("ai_enabled", true);
+        
+        if (allStaffData) setStaff(allStaffData);
         return;
       }
       
       // Then get staff details for those who can provide the service
-      const { data: staffData } = await supabase
+      const { data: staffData, error: staffError } = await supabase
         .from("staff")
         .select("id, name")
         .eq("business_id", business.id)
         .eq("ai_enabled", true)
         .in("id", assignedStaffIds);
+      
+      console.log("Staff for service:", staffData, staffError);
       
       if (staffData) setStaff(staffData);
     };
