@@ -162,7 +162,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
               placeholder="booking.yourdomain.com"
             />
             <p className="text-xs text-muted-foreground">
-              To use a custom domain, first connect it through your Lovable project settings, then enter it here.
+              Want to use your own domain? Enter it here and we’ll connect it for you—no platform access needed. You’ll only need to add DNS records at your domain provider.
             </p>
           </div>
 
