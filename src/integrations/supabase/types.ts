@@ -314,8 +314,11 @@ export type Database = {
           address: string
           aivia_active: boolean
           assigned_aivia_number: string | null
+          booking_slug: string | null
           business_name: string
           created_at: string | null
+          custom_booking_domain: string | null
+          deposit_collection_timing: string
           email_on_cancellation: boolean
           email_on_confirmation: boolean
           email_on_reminder: boolean
@@ -325,6 +328,8 @@ export type Database = {
           messagebird_phone_number: string | null
           messagebird_token: string | null
           number_notes: string | null
+          online_booking_enabled: boolean
+          online_booking_message: string | null
           owner_id: string
           plan_tier: string | null
           porting_instructions: string | null
@@ -350,8 +355,11 @@ export type Database = {
           address: string
           aivia_active?: boolean
           assigned_aivia_number?: string | null
+          booking_slug?: string | null
           business_name: string
           created_at?: string | null
+          custom_booking_domain?: string | null
+          deposit_collection_timing?: string
           email_on_cancellation?: boolean
           email_on_confirmation?: boolean
           email_on_reminder?: boolean
@@ -361,6 +369,8 @@ export type Database = {
           messagebird_phone_number?: string | null
           messagebird_token?: string | null
           number_notes?: string | null
+          online_booking_enabled?: boolean
+          online_booking_message?: string | null
           owner_id: string
           plan_tier?: string | null
           porting_instructions?: string | null
@@ -386,8 +396,11 @@ export type Database = {
           address?: string
           aivia_active?: boolean
           assigned_aivia_number?: string | null
+          booking_slug?: string | null
           business_name?: string
           created_at?: string | null
+          custom_booking_domain?: string | null
+          deposit_collection_timing?: string
           email_on_cancellation?: boolean
           email_on_confirmation?: boolean
           email_on_reminder?: boolean
@@ -397,6 +410,8 @@ export type Database = {
           messagebird_phone_number?: string | null
           messagebird_token?: string | null
           number_notes?: string | null
+          online_booking_enabled?: boolean
+          online_booking_message?: string | null
           owner_id?: string
           plan_tier?: string | null
           porting_instructions?: string | null
@@ -1256,6 +1271,10 @@ export type Database = {
       }
       ensure_super_admin: { Args: never; Returns: undefined }
       generate_booking_code: {
+        Args: { p_business_name: string }
+        Returns: string
+      }
+      generate_booking_slug: {
         Args: { p_business_name: string }
         Returns: string
       }

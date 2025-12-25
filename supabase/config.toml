@@ -98,3 +98,9 @@ verify_jwt = false
 
 [functions.get-deposit-payment-link]
 verify_jwt = false
+
+[functions.public-check-availability]
+verify_jwt = false
+
+[functions.public-create-booking]
+verify_jwt = false
