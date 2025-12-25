@@ -153,42 +153,44 @@ const PublicBookingPage = () => {
   useEffect(() => {
     const fetchStaff = async () => {
       if (!business || !selectedService) return;
-      
-      // First get staff assigned to this service
+
+      // Get staff assigned to this service
       const { data: staffServiceData, error: ssError } = await supabase
         .from("staff_services")
         .select("staff_id")
         .eq("service_id", selectedService.id);
-      
-      console.log("Staff services for service:", selectedService.id, staffServiceData, ssError);
-      
-      const assignedStaffIds = staffServiceData?.map(ss => ss.staff_id) || [];
-      
-      // If no staff assigned to this service, get all AI-enabled staff as fallback
-      if (assignedStaffIds.length === 0) {
-        console.log("No staff assigned to service, fetching all AI-enabled staff");
-        const { data: allStaffData } = await supabase
-          .from("staff")
-          .select("id, name")
-          .eq("business_id", business.id)
-          .eq("ai_enabled", true);
-        
-        if (allStaffData) setStaff(allStaffData);
+
+      if (ssError) {
+        console.error("Error fetching staff services:", ssError);
+        setStaff([]);
         return;
       }
-      
-      // Then get staff details for those who can provide the service
+
+      const assignedStaffIds = (staffServiceData ?? []).map((ss) => ss.staff_id);
+
+      // If no staff are assigned to this service, show none (except No Preference option)
+      if (assignedStaffIds.length === 0) {
+        setStaff([]);
+        return;
+      }
+
+      // Fetch staff details for only those assigned to this service
       const { data: staffData, error: staffError } = await supabase
         .from("staff")
         .select("id, name")
         .eq("business_id", business.id)
-        .eq("ai_enabled", true)
-        .in("id", assignedStaffIds);
-      
-      console.log("Staff for service:", staffData, staffError);
-      
-      if (staffData) setStaff(staffData);
+        .in("id", assignedStaffIds)
+        .order("name", { ascending: true });
+
+      if (staffError) {
+        console.error("Error fetching staff:", staffError);
+        setStaff([]);
+        return;
+      }
+
+      setStaff(staffData ?? []);
     };
+
     fetchStaff();
   }, [business, selectedService]);
 
