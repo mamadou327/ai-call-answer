@@ -12,6 +12,9 @@ const logStep = (step: string, details?: any) => {
 };
 
 serve(async (req) => {
+  // Log immediately to confirm function is invoked
+  console.log("[auto-cancel-unpaid-bookings] Function invoked at", new Date().toISOString());
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -67,9 +70,9 @@ serve(async (req) => {
 
       // Find bookings that:
       // 1. Belong to this business
-      // 2. Have a service that requires deposit
+      // 2. Have a deposit amount set and > 0
       // 3. Deposit is not paid
-      // 4. Start time is before the cutoff
+      // 4. EITHER: start time is in the past (missed booking) OR start time is before the cutoff window
       // 5. Are confirmed (not already cancelled)
       const { data: bookings, error: bookingsError } = await supabaseClient
         .from("bookings")
@@ -81,6 +84,7 @@ serve(async (req) => {
           start_time,
           deposit_amount,
           deposit_paid_at,
+          notes,
           services:service_id (deposit_required)
         `)
         .eq("business_id", setting.business_id)
@@ -88,8 +92,8 @@ serve(async (req) => {
         .is("deposit_paid_at", null)
         .not("deposit_amount", "is", null)
         .gt("deposit_amount", 0)
-        .lte("start_time", cutoffTime.toISOString())
-        .gte("start_time", now.toISOString());
+        .lte("start_time", cutoffTime.toISOString());
+      // REMOVED: .gte("start_time", now.toISOString()) - this was excluding past unpaid bookings!
 
       if (bookingsError) {
         logStep("Error fetching bookings", { error: bookingsError.message });
@@ -108,17 +112,21 @@ serve(async (req) => {
         // Only cancel if service requires deposit
         const serviceData = booking.services as { deposit_required?: boolean } | null;
         if (!serviceData?.deposit_required) {
+          logStep("Skipping booking - service does not require deposit", { bookingId: booking.id });
           continue;
         }
+
+        const bookingStartTime = new Date(booking.start_time);
+        const isPastBooking = bookingStartTime < now;
 
         const { error: cancelError } = await supabaseClient
           .from("bookings")
           .update({
             status: "cancelled",
             cancelled_at: now.toISOString(),
-            notes: (booking as any).notes 
-              ? `${(booking as any).notes}\n\nAuto-cancelled: Deposit not paid`
-              : "Auto-cancelled: Deposit not paid",
+            notes: booking.notes 
+              ? `${booking.notes}\n\nAuto-cancelled: Deposit not paid${isPastBooking ? ' (past booking)' : ''}`
+              : `Auto-cancelled: Deposit not paid${isPastBooking ? ' (past booking)' : ''}`,
           })
           .eq("id", booking.id);
 
@@ -131,11 +139,10 @@ serve(async (req) => {
         } else {
           logStep("Booking cancelled", { 
             bookingId: booking.id, 
-            code: booking.booking_code 
+            code: booking.booking_code,
+            isPastBooking
           });
           cancelledCount++;
-
-          // TODO: Send cancellation SMS/email notification
         }
       }
     }
