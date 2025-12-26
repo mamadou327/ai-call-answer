@@ -376,19 +376,19 @@ serve(async (req) => {
           stripeAccount: business.stripe_account_id,
         });
 
-        const firstBookingCode = createdBookings[0].bookingCode;
+        const allBookingCodes = createdBookings.map(b => b.bookingCode).join(",");
         const paymentLink = await stripe.paymentLinks.create({
           line_items: [{ price: price.id, quantity: 1 }],
           after_completion: {
             type: "redirect",
             redirect: {
-              url: `${returnUrl || req.headers.get("origin")}/book/${businessSlug}/success?code=${firstBookingCode}`,
+              url: `${returnUrl || req.headers.get("origin")}/book/${businessSlug}/success?codes=${allBookingCodes}&paid=true`,
             },
           },
           metadata: {
             booking_ids: createdBookings.map(b => b.bookingId).join(","),
             business_id: businessId,
-            booking_codes: createdBookings.map(b => b.bookingCode).join(","),
+            booking_codes: allBookingCodes,
           },
         }, {
           stripeAccount: business.stripe_account_id,

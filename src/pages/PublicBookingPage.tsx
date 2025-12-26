@@ -119,17 +119,72 @@ const PublicBookingPage = () => {
   } | null>(null);
 
   useEffect(() => {
-    const code = searchParams.get("code");
-    const paid = searchParams.get("paid");
-    if (code) {
+    const fetchBookingsFromPayment = async () => {
+      const singleCode = searchParams.get("code");
+      const multipleCodes = searchParams.get("codes");
+      const paid = searchParams.get("paid");
+      
+      if (!singleCode && !multipleCodes) return;
+      
+      // Parse booking codes (handle both single and multiple)
+      const bookingCodes = multipleCodes 
+        ? multipleCodes.split(",").filter(Boolean)
+        : singleCode ? [singleCode] : [];
+      
+      if (bookingCodes.length === 0) return;
+      
+      // Fetch all booking details from database
+      const { data: bookings, error } = await supabase
+        .from("bookings")
+        .select(`
+          booking_code,
+          start_time,
+          end_time,
+          customer_name,
+          services:service_id (name, deposit_required, deposit_amount),
+          staff:staff_id (name)
+        `)
+        .in("booking_code", bookingCodes);
+      
+      if (error || !bookings || bookings.length === 0) {
+        // Fallback to showing just the codes
+        setStep("confirmation");
+        setBookingResult({
+          bookingCode: bookingCodes[0],
+          requiresPayment: false,
+          depositRequired: paid === "true",
+          depositAmount: 0,
+          groupBookings: bookingCodes.length > 1 ? bookingCodes.map(code => ({
+            bookingCode: code,
+            serviceName: "Service",
+            staffName: null,
+            startTime: "",
+            endTime: "",
+          })) : undefined,
+        });
+        return;
+      }
+      
+      // Build full booking result with all details
       setStep("confirmation");
       setBookingResult({
-        bookingCode: code,
+        bookingCode: bookings[0].booking_code,
         requiresPayment: false,
         depositRequired: paid === "true",
         depositAmount: 0,
+        groupBookings: bookings.length > 1 ? bookings.map(b => ({
+          bookingCode: b.booking_code,
+          serviceName: (b.services as any)?.name || "Service",
+          staffName: (b.staff as any)?.name || null,
+          startTime: b.start_time,
+          endTime: b.end_time,
+          depositRequired: (b.services as any)?.deposit_required,
+          depositAmount: (b.services as any)?.deposit_amount,
+        })) : undefined,
       });
-    }
+    };
+    
+    fetchBookingsFromPayment();
   }, [searchParams]);
 
   useEffect(() => {
