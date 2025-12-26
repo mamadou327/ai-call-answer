@@ -213,8 +213,8 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
     }
   };
 
-  // Filter bookings into active and cancelled
-  const activeBookings = bookings.filter(b => b.status !== "cancelled");
+  // Filter bookings into active and cancelled (exclude pending - awaiting payment)
+  const activeBookings = bookings.filter(b => b.status !== "cancelled" && b.status !== "pending");
   const cancelledBookings = bookings.filter(b => b.status === "cancelled");
 
   const getStatusBadge = (status: string) => {

@@ -532,19 +532,21 @@ serve(async (req) => {
       );
     }
 
-    // Send confirmation SMS for first booking if enabled
+    // Send confirmation SMS for ALL bookings if enabled
     if (business.sms_on_confirmation && business.twilio_enabled && business.twilio_phone_number && createdBookings.length > 0) {
-      try {
-        await supabase.functions.invoke("send-booking-sms", {
-          body: {
-            businessId,
-            bookingId: createdBookings[0].bookingId,
-            type: "confirmation",
-          },
-        });
-        logStep("Confirmation SMS sent");
-      } catch (smsError: any) {
-        logStep("Failed to send SMS", { error: smsError?.message || String(smsError) });
+      for (const booking of createdBookings) {
+        try {
+          await supabase.functions.invoke("send-booking-sms", {
+            body: {
+              businessId,
+              bookingId: booking.bookingId,
+              type: "confirmation",
+            },
+          });
+          logStep("Confirmation SMS sent", { bookingCode: booking.bookingCode });
+        } catch (smsError: any) {
+          logStep("Failed to send SMS", { bookingCode: booking.bookingCode, error: smsError?.message || String(smsError) });
+        }
       }
     }
 
