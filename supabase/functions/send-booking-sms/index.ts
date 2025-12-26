@@ -36,6 +36,11 @@ const normalizePhoneToE164 = (raw: string | null | undefined): string | null => 
   // Convert 00-prefix to +
   if (cleaned.startsWith("00")) cleaned = `+${cleaned.slice(2)}`;
 
+  // Handle UK numbers: 07XXX format → +447XXX (remove leading 0, add +44)
+  if (cleaned.startsWith("0") && !cleaned.startsWith("+") && cleaned.length >= 10 && cleaned.length <= 11) {
+    cleaned = `+44${cleaned.slice(1)}`;
+  }
+
   // If digits-only, try assuming it's already an international number
   if (!cleaned.startsWith("+") && /^\d{10,15}$/.test(cleaned)) {
     cleaned = `+${cleaned}`;
