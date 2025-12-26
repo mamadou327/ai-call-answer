@@ -16,6 +16,7 @@ interface BookedSlot {
   staffId: string | null;
   date: string; // yyyy-MM-dd format
   time: string;
+  durationMinutes: number;
 }
 
 interface PublicDateTimePickerProps {
@@ -83,29 +84,39 @@ export const PublicDateTimePicker = ({
     fetchSlots();
   }, [selectedDate, businessSlug, serviceId, staffId]);
 
-  // Filter out slots that are already booked in the cart for the same staff
+  // Filter out slots that overlap with appointments already in the cart for the same staff
   const availableSlots = timeSlots.filter((slot) => {
     if (!slot.available) return false;
     if (!selectedDate) return true;
-    
+
     const dateStr = format(selectedDate, "yyyy-MM-dd");
-    
-    // Check if this slot conflicts with any booked slot in cart
-    const isBooked = bookedSlots.some((booked) => {
-      // If same date and time
-      if (booked.date === dateStr && booked.time === slot.time) {
-        // If specific staff selected, only block if same staff
-        if (staffId && booked.staffId) {
-          return booked.staffId === staffId;
-        }
-        // If no specific staff selected but booked slot has staff, check if that staff would be available
-        // For simplicity, block if same time regardless (user hasn't chosen specific staff)
-        return true;
+
+    const [slotHours, slotMinutes] = slot.time.split(":").map(Number);
+    const candidateStart = new Date(selectedDate);
+    candidateStart.setHours(slotHours, slotMinutes, 0, 0);
+    const candidateEnd = new Date(candidateStart.getTime() + serviceDuration * 60 * 1000);
+
+    const overlapsBooked = bookedSlots.some((booked) => {
+      if (booked.date !== dateStr) return false;
+
+      const [bookedHours, bookedMinutes] = booked.time.split(":").map(Number);
+      const bookedStart = new Date(selectedDate);
+      bookedStart.setHours(bookedHours, bookedMinutes, 0, 0);
+      const bookedEnd = new Date(bookedStart.getTime() + booked.durationMinutes * 60 * 1000);
+
+      const overlaps = candidateStart < bookedEnd && candidateEnd > bookedStart;
+      if (!overlaps) return false;
+
+      // If a specific staff is selected, only block overlaps for that staff
+      if (staffId) {
+        return booked.staffId === staffId || booked.staffId === null;
       }
-      return false;
+
+      // If no staff is selected, block overlaps regardless (can't guarantee a different staff)
+      return true;
     });
-    
-    return !isBooked;
+
+    return !overlapsBooked;
   });
 
   const handleTimeSelect = (time: string) => {
