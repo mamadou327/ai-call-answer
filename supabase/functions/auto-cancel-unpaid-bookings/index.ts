@@ -11,48 +11,7 @@ const logStep = (step: string, details?: any) => {
   console.log(`[auto-cancel-unpaid-bookings] ${step}${detailsStr}`);
 };
 
-// Send cancellation SMS via the send-booking-sms edge function
-const sendCancellationSms = async (
-  supabaseUrl: string,
-  supabaseAnonKey: string,
-  businessId: string,
-  bookingId: string
-): Promise<boolean> => {
-  try {
-    logStep("Sending cancellation SMS", { businessId, bookingId });
-    
-    const response = await fetch(`${supabaseUrl}/functions/v1/send-booking-sms`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({
-        businessId,
-        bookingId,
-        type: "cancellation",
-      }),
-    });
-
-    const result = await response.json();
-    
-    if (response.ok && result.success) {
-      logStep("Cancellation SMS sent successfully", { bookingId, messageId: result.messageId });
-      return true;
-    } else {
-      logStep("Cancellation SMS not sent", { bookingId, reason: result.reason || result.error });
-      return false;
-    }
-  } catch (error) {
-    logStep("Error sending cancellation SMS", { bookingId, error: String(error) });
-    return false;
-  }
-};
-
 serve(async (req) => {
-  // Log immediately to confirm function is invoked
-  console.log("[auto-cancel-unpaid-bookings] Function invoked at", new Date().toISOString());
-
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -60,13 +19,11 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { persistSession: false },
-    });
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      { auth: { persistSession: false } }
+    );
 
     const now = new Date();
     logStep("Current time", { now: now.toISOString() });
@@ -96,7 +53,6 @@ serve(async (req) => {
     logStep("Found businesses with auto-cancel", { count: settings.length });
 
     let cancelledCount = 0;
-    let smsCount = 0;
     const errors: string[] = [];
 
     for (const setting of settings) {
@@ -111,9 +67,9 @@ serve(async (req) => {
 
       // Find bookings that:
       // 1. Belong to this business
-      // 2. Have a deposit amount set and > 0
+      // 2. Have a service that requires deposit
       // 3. Deposit is not paid
-      // 4. EITHER: start time is in the past (missed booking) OR start time is before the cutoff window
+      // 4. Start time is before the cutoff
       // 5. Are confirmed (not already cancelled)
       const { data: bookings, error: bookingsError } = await supabaseClient
         .from("bookings")
@@ -125,7 +81,6 @@ serve(async (req) => {
           start_time,
           deposit_amount,
           deposit_paid_at,
-          notes,
           services:service_id (deposit_required)
         `)
         .eq("business_id", setting.business_id)
@@ -133,8 +88,8 @@ serve(async (req) => {
         .is("deposit_paid_at", null)
         .not("deposit_amount", "is", null)
         .gt("deposit_amount", 0)
-        .lte("start_time", cutoffTime.toISOString());
-      // REMOVED: .gte("start_time", now.toISOString()) - this was excluding past unpaid bookings!
+        .lte("start_time", cutoffTime.toISOString())
+        .gte("start_time", now.toISOString());
 
       if (bookingsError) {
         logStep("Error fetching bookings", { error: bookingsError.message });
@@ -153,21 +108,17 @@ serve(async (req) => {
         // Only cancel if service requires deposit
         const serviceData = booking.services as { deposit_required?: boolean } | null;
         if (!serviceData?.deposit_required) {
-          logStep("Skipping booking - service does not require deposit", { bookingId: booking.id });
           continue;
         }
-
-        const bookingStartTime = new Date(booking.start_time);
-        const isPastBooking = bookingStartTime < now;
 
         const { error: cancelError } = await supabaseClient
           .from("bookings")
           .update({
             status: "cancelled",
             cancelled_at: now.toISOString(),
-            notes: booking.notes 
-              ? `${booking.notes}\n\nAuto-cancelled: Deposit not paid${isPastBooking ? ' (past booking)' : ''}`
-              : `Auto-cancelled: Deposit not paid${isPastBooking ? ' (past booking)' : ''}`,
+            notes: (booking as any).notes 
+              ? `${(booking as any).notes}\n\nAuto-cancelled: Deposit not paid`
+              : "Auto-cancelled: Deposit not paid",
           })
           .eq("id", booking.id);
 
@@ -180,29 +131,20 @@ serve(async (req) => {
         } else {
           logStep("Booking cancelled", { 
             bookingId: booking.id, 
-            code: booking.booking_code,
-            isPastBooking
+            code: booking.booking_code 
           });
           cancelledCount++;
 
-          // Send cancellation SMS notification
-          const smsSent = await sendCancellationSms(
-            supabaseUrl,
-            supabaseAnonKey,
-            setting.business_id,
-            booking.id
-          );
-          if (smsSent) smsCount++;
+          // TODO: Send cancellation SMS/email notification
         }
       }
     }
 
-    logStep("Completed", { cancelled: cancelledCount, smsSent: smsCount, errors: errors.length });
+    logStep("Completed", { cancelled: cancelledCount, errors: errors.length });
 
     return new Response(JSON.stringify({ 
       success: true, 
       cancelled: cancelledCount,
-      smsSent: smsCount,
       errors: errors.length > 0 ? errors : undefined
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
