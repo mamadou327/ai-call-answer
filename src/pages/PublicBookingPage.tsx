@@ -560,7 +560,9 @@ const PublicBookingPage = () => {
                 <PublicMiniCart
                   items={cartItems}
                   currency={currency}
-                  onViewCart={handleViewCart}
+                  onRemoveItem={handleRemoveCartItem}
+                  onContinue={handleCartContinue}
+                  onAddAnother={handleCartAddAnother}
                 />
               )}
               <PublicSocialLinks socials={{
