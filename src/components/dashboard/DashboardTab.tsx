@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "./DateRangePicker";
 import { supabase } from "@/integrations/supabase/client";
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { StatDetailDialog } from "./StatDetailDialog";
 
@@ -105,7 +105,7 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
       supabase.from("calls_log").select("*", { count: "exact", head: true }).eq("business_id", businessId).gte("created_at", start.toISOString()).lte("created_at", end.toISOString()),
       supabase.from("messages").select("*", { count: "exact", head: true }).eq("business_id", businessId).eq("is_read", false),
       supabase.from("bookings").select(`*, service:service_id(name, price), staff:staff_id(name)`).eq("business_id", businessId).neq("status", "cancelled").gte("start_time", startOfDay(today).toISOString()).lte("start_time", endOfDay(today).toISOString()).order("start_time", { ascending: true }),
-      supabase.from("bookings").select(`*, service:service_id(name), staff:staff_id(name)`).eq("business_id", businessId).neq("status", "cancelled").gte("start_time", new Date().toISOString()).order("start_time", { ascending: true }).limit(5),
+      supabase.from("bookings").select(`*, service:service_id(name), staff:staff_id(name)`).eq("business_id", businessId).neq("status", "cancelled").gte("start_time", startOfDay(addDays(today, 1)).toISOString()).order("start_time", { ascending: true }).limit(5),
       supabase.from("bookings").select(`*, service:service_id(name), staff:staff_id(name)`).eq("business_id", businessId).eq("status", "cancelled").order("cancelled_at", { ascending: false }).limit(5),
       supabase.from("bookings").select(`service:service_id(price)`).eq("business_id", businessId).in("status", ["confirmed", "completed"]).gte("start_time", start.toISOString()).lte("start_time", end.toISOString())
     ]);
@@ -203,7 +203,7 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
 
     if (todayData) setTodaysAppointments(todayData);
 
-    // Load upcoming bookings (next 5 from now, exclude cancelled)
+    // Load upcoming bookings (next 5 from tomorrow onwards, exclude cancelled)
     const { data: upcomingData } = await supabase
       .from("bookings")
       .select(`
@@ -213,7 +213,7 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
       `)
       .eq("business_id", businessId)
       .neq("status", "cancelled")
-      .gte("start_time", new Date().toISOString())
+      .gte("start_time", startOfDay(addDays(today, 1)).toISOString())
       .order("start_time", { ascending: true })
       .limit(5);
 
