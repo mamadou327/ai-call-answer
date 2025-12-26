@@ -58,7 +58,7 @@ export const PaymentProvidersSettings = ({ business, onUpdate, currency = "GBP" 
     try {
       const { error } = await supabase
         .from("businesses")
-        .update({ preferred_payment_provider: provider })
+        .update({ preferred_payment_provider: provider } as any)
         .eq("id", business.id);
 
       if (error) throw error;

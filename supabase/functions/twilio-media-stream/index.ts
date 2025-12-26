@@ -2138,17 +2138,23 @@ async function executeEndCall(session: StreamSession, params: any): Promise<any>
     const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
     
     if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !session.callSid) {
-      // Just close the WebSocket connections
+      // Wait for any remaining audio to finish, then close
+      await new Promise(resolve => setTimeout(resolve, 2500));
       if (session.openAiWs?.readyState === WebSocket.OPEN) {
         session.openAiWs.close();
       }
       return { success: true, message: "Call ended." };
     }
     
-    // Build TwiML to hang up gracefully
+    // IMPORTANT: Wait for audio to finish playing before hanging up
+    // The AI may still be streaming its goodbye message
+    console.log("[MediaStream] Waiting for audio to finish before hangup...");
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Build TwiML to hang up gracefully with a pause for final audio
     const hangupTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Pause length="1"/>
+  <Pause length="2"/>
   <Hangup/>
 </Response>`;
     
@@ -2167,10 +2173,12 @@ async function executeEndCall(session: StreamSession, params: any): Promise<any>
       }),
     });
     
-    // Close OpenAI connection
-    if (session.openAiWs?.readyState === WebSocket.OPEN) {
-      session.openAiWs.close();
-    }
+    // Delay closing OpenAI to allow any final audio to complete
+    setTimeout(() => {
+      if (session.openAiWs?.readyState === WebSocket.OPEN) {
+        session.openAiWs.close();
+      }
+    }, 1000);
     
     console.log("[MediaStream] Call ended successfully after", callDurationSeconds, "seconds");
     return { success: true, message: "Call ended." };
@@ -2942,9 +2950,10 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
 ## CRITICAL TOOL USAGE RULES (MUST FOLLOW):
 1. **AVAILABILITY**: NEVER say a time is available or unavailable without calling check_availability first. NO EXCEPTIONS. NEVER GUESS.
 2. **NAME REQUIRED**: BEFORE calling create_booking, you MUST have asked and received the customer's name. NEVER use "Unknown", "Guest", "Caller", or any placeholder - if you don't have their real name, ASK: "Can I get your name for the booking?"
-3. **BOOKING**: Only call create_booking AFTER: a) check_availability confirms slot is free, b) you verified staff's [CAN ONLY BOOK FOR:] includes the service, c) you have the customer's REAL NAME, d) customer confirmed all details.
-4. **STAFF-SERVICE MISMATCH**: If staff CANNOT do the service, DO NOT attempt booking - tell customer who CAN do it.
-5. **TRANSFER ONLY**: Staff marked [TRANSFER ONLY] cannot be booked - offer to transfer instead.
+3. **BOOKING - MANDATORY TOOL CALL**: You MUST call create_booking BEFORE confirming any booking to the customer. NEVER say "You're all booked in" or "I've booked you in" or "You're all set" UNTIL create_booking returns success=true. If you say the booking is confirmed without calling the tool, NO BOOKING IS ACTUALLY CREATED.
+4. **BOOKING SEQUENCE**: Only call create_booking AFTER: a) check_availability confirms slot is free, b) you verified staff's [CAN ONLY BOOK FOR:] includes the service, c) you have the customer's REAL NAME, d) customer confirmed all details. THEN call create_booking. THEN after the tool succeeds, confirm to the customer.
+5. **STAFF-SERVICE MISMATCH**: If staff CANNOT do the service, DO NOT attempt booking - tell customer who CAN do it.
+6. **TRANSFER ONLY**: Staff marked [TRANSFER ONLY] cannot be booked - offer to transfer instead.
 
 ## ⚠️ RESCHEDULE vs CREATE - THIS IS CRITICAL! ⚠️
 **RESCHEDULE** means MOVE AN EXISTING BOOKING to a new time/date.
@@ -3015,6 +3024,17 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
 4. If the tool returns available_staff, tell them who is available at that exact time.
 5. If the tool returns available_slots, suggest a few options and ask which time works.
 6. Only confirm availability that appears in the tool result.
+
+## ⚠️ BOOKING WORKFLOW - NEVER SKIP create_booking ⚠️
+When customer chooses a staff member and time:
+1. Confirm you will book them in: "Perfect, I'll get that booked for you."
+2. **CALL create_booking** with all details (customer_name, customer_phone, service_name, staff_name, date, time)
+3. **WAIT for the tool result** - if success=true, the booking is real
+4. **ONLY AFTER success=true**, confirm to customer: "You're all set! You'll get a text with the details."
+5. If the tool fails, tell the customer what went wrong and try to resolve it
+
+⚠️ **CRITICAL**: If you say "You're all booked in" without calling create_booking, the booking does NOT exist!
+The customer will not receive an SMS and the booking will not appear in the calendar.
 
 ## STAFF AVAILABILITY RULES:
 - Each staff member's [WORKS:] shows which days/hours they work. If no [WORKS:] shown, assume they follow business hours.
