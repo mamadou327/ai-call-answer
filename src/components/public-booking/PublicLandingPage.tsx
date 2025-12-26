@@ -1,6 +1,23 @@
-import { Calendar, XCircle, RefreshCw, Image, MapPin, Phone, Mail, Globe } from "lucide-react";
+import { useState } from "react";
+import { Calendar, XCircle, RefreshCw, Image, MapPin, Phone, Globe, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+interface PolicySettings {
+  minBookingNoticeHours: number | null;
+  maxDaysAdvance: number | null;
+  minCancellationNoticeHours: number | null;
+  minRescheduleNoticeHours: number | null;
+  cancellationPolicy: string | null;
+}
 
 interface PublicLandingPageProps {
   businessName: string;
@@ -9,6 +26,7 @@ interface PublicLandingPageProps {
   phone: string;
   website: string | null;
   hasGallery: boolean;
+  policies?: PolicySettings;
   onMakeBooking: () => void;
   onCancelBooking: () => void;
   onRescheduleBooking: () => void;
@@ -22,11 +40,24 @@ export const PublicLandingPage = ({
   phone,
   website,
   hasGallery,
+  policies,
   onMakeBooking,
   onCancelBooking,
   onRescheduleBooking,
   onViewGallery,
 }: PublicLandingPageProps) => {
+  const [policiesOpen, setPoliciesOpen] = useState(false);
+
+  const formatPolicyItem = (label: string, value: number | null, unit: string) => {
+    if (value === null) return null;
+    return (
+      <div className="flex justify-between items-center py-2 border-b border-border/50 last:border-0">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-medium">{value} {unit}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8">
       {/* Hero Section */}
@@ -64,35 +95,6 @@ export const PublicLandingPage = ({
         </div>
       )}
 
-      {/* Contact Info Footer - before More Options */}
-      <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-12 py-6 border-t">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <MapPin className="h-5 w-5 text-primary" />
-          <span className="text-sm md:text-base">{address}</span>
-        </div>
-        
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Phone className="h-5 w-5 text-primary" />
-          <a href={`tel:${phone}`} className="text-sm md:text-base hover:text-foreground transition-colors">
-            {phone}
-          </a>
-        </div>
-        
-        {website && (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Globe className="h-5 w-5 text-primary" />
-            <a 
-              href={website.startsWith('http') ? website : `https://${website}`} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-sm md:text-base hover:text-foreground transition-colors"
-            >
-              Visit Website
-            </a>
-          </div>
-        )}
-      </div>
-
       {/* Action Cards - More Options */}
       <div className="pt-4 border-t">
         <h2 className="text-xl font-semibold text-center mb-6">More Options</h2>
@@ -129,6 +131,91 @@ export const PublicLandingPage = ({
           </Card>
         </div>
       </div>
+
+      {/* Footer with Contact Info and Policies */}
+      <footer className="pt-8 border-t mt-8">
+        <div className="flex flex-col items-center gap-6">
+          {/* Contact Info */}
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <MapPin className="h-4 w-4 text-primary" />
+              <span className="text-sm">{address}</span>
+            </div>
+            
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Phone className="h-4 w-4 text-primary" />
+              <a href={`tel:${phone}`} className="text-sm hover:text-foreground transition-colors">
+                {phone}
+              </a>
+            </div>
+            
+            {website && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Globe className="h-4 w-4 text-primary" />
+                <a 
+                  href={website.startsWith('http') ? website : `https://${website}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm hover:text-foreground transition-colors"
+                >
+                  Visit Website
+                </a>
+              </div>
+            )}
+          </div>
+
+          {/* Policies Button */}
+          <Dialog open={policiesOpen} onOpenChange={setPoliciesOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+                <FileText className="h-4 w-4" />
+                Policies
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Booking Policies</DialogTitle>
+                <DialogDescription>
+                  Our booking, cancellation, and rescheduling policies
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-1 mt-4">
+                {policies?.minBookingNoticeHours !== null && policies?.minBookingNoticeHours !== undefined && (
+                  formatPolicyItem("Minimum booking notice", policies.minBookingNoticeHours, "hours")
+                )}
+                {policies?.maxDaysAdvance !== null && policies?.maxDaysAdvance !== undefined && (
+                  formatPolicyItem("Book up to", policies.maxDaysAdvance, "days in advance")
+                )}
+                {policies?.minCancellationNoticeHours !== null && policies?.minCancellationNoticeHours !== undefined && (
+                  formatPolicyItem("Cancellation notice required", policies.minCancellationNoticeHours, "hours")
+                )}
+                {policies?.minRescheduleNoticeHours !== null && policies?.minRescheduleNoticeHours !== undefined && (
+                  formatPolicyItem("Reschedule notice required", policies.minRescheduleNoticeHours, "hours")
+                )}
+                
+                {policies?.cancellationPolicy && (
+                  <div className="pt-4 mt-4 border-t">
+                    <h4 className="font-medium mb-2">Cancellation Policy</h4>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      {policies.cancellationPolicy}
+                    </p>
+                  </div>
+                )}
+
+                {!policies?.minBookingNoticeHours && 
+                 !policies?.maxDaysAdvance && 
+                 !policies?.minCancellationNoticeHours && 
+                 !policies?.minRescheduleNoticeHours && 
+                 !policies?.cancellationPolicy && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No specific policies have been set by this business.
+                  </p>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </footer>
     </div>
   );
 };

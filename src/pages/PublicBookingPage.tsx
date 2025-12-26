@@ -33,6 +33,14 @@ interface Business {
   social_youtube: string | null;
 }
 
+interface PolicySettings {
+  minBookingNoticeHours: number | null;
+  maxDaysAdvance: number | null;
+  minCancellationNoticeHours: number | null;
+  minRescheduleNoticeHours: number | null;
+  cancellationPolicy: string | null;
+}
+
 interface Service {
   id: string;
   name: string;
@@ -63,6 +71,7 @@ const PublicBookingPage = () => {
   const [currency, setCurrency] = useState("GBP");
   const [error, setError] = useState<string | null>(null);
   const [hasGallery, setHasGallery] = useState(false);
+  const [policies, setPolicies] = useState<PolicySettings | undefined>(undefined);
 
   const [step, setStep] = useState<BookingStep>("landing");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -126,7 +135,7 @@ const PublicBookingPage = () => {
             .order("category", { ascending: true }),
           supabase
             .from("business_settings")
-            .select("currency")
+            .select("currency, min_booking_notice_hours, max_days_advance, min_cancellation_notice_hours, min_reschedule_notice_hours, cancellation_policy")
             .eq("business_id", businessData.id)
             .single(),
           supabase
@@ -138,6 +147,15 @@ const PublicBookingPage = () => {
 
         if (servicesResult.data) setServices(servicesResult.data);
         if (settingsResult.data?.currency) setCurrency(settingsResult.data.currency);
+        if (settingsResult.data) {
+          setPolicies({
+            minBookingNoticeHours: settingsResult.data.min_booking_notice_hours,
+            maxDaysAdvance: settingsResult.data.max_days_advance,
+            minCancellationNoticeHours: settingsResult.data.min_cancellation_notice_hours,
+            minRescheduleNoticeHours: settingsResult.data.min_reschedule_notice_hours,
+            cancellationPolicy: settingsResult.data.cancellation_policy,
+          });
+        }
         setHasGallery((galleryResult.data?.length || 0) > 0);
         setLoading(false);
       } catch (err) {
@@ -339,6 +357,7 @@ const PublicBookingPage = () => {
             phone={business.main_phone}
             website={business.website}
             hasGallery={hasGallery}
+            policies={policies}
             onMakeBooking={() => setStep("service")}
             onCancelBooking={() => setStep("lookup-cancel")}
             onRescheduleBooking={() => setStep("lookup-reschedule")}
