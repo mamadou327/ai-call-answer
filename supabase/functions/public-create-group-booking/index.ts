@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import Stripe from "https://esm.sh/stripe@14.21.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +28,28 @@ interface ItemWithCustomer {
   notes?: string;
 }
 
+interface CreatedBooking {
+  bookingCode: string;
+  bookingId: string;
+  serviceName: string;
+  staffName: string | null;
+  staffId: string | null;
+  startTime: string;
+  endTime: string;
+  depositRequired: boolean;
+  depositAmount: number | null;
+}
+
+// Helper to check if two time ranges overlap
+const doTimesOverlap = (
+  start1: Date, 
+  end1: Date, 
+  start2: Date, 
+  end2: Date
+): boolean => {
+  return start1 < end2 && end1 > start2;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -46,6 +69,7 @@ serve(async (req) => {
       customerPhone, 
       customerEmail,
       notes,
+      returnUrl,
     } = requestBody;
 
     // Determine if this is multi-person mode (itemsWithCustomers) or single-person mode (items)
@@ -80,7 +104,7 @@ serve(async (req) => {
       }
     }
 
-    // Get business
+    // Get business with all relevant settings
     const { data: business, error: businessError } = await supabase
       .from("businesses")
       .select(`
@@ -88,6 +112,8 @@ serve(async (req) => {
         business_name, 
         online_booking_enabled, 
         status, 
+        deposit_collection_timing,
+        stripe_account_id,
         sms_on_confirmation,
         twilio_enabled,
         twilio_phone_number
@@ -111,20 +137,43 @@ serve(async (req) => {
     }
 
     const businessId = business.id;
-    const createdBookings: Array<{
-      bookingCode: string;
-      bookingId: string;
-      serviceName: string;
-      staffName: string | null;
-      startTime: string;
-      endTime: string;
+    const collectDuringBooking = business.deposit_collection_timing === "during_booking";
+    const hasStripeConnected = !!business.stripe_account_id;
+
+    // Get business settings for currency
+    const { data: settings } = await supabase
+      .from("business_settings")
+      .select("currency")
+      .eq("business_id", businessId)
+      .single();
+    const currency = (settings?.currency || "GBP").toLowerCase();
+
+    const createdBookings: CreatedBooking[] = [];
+    
+    // Track bookings we're creating in this batch to avoid self-conflict
+    const batchBookings: Array<{
+      staffId: string | null;
+      startTime: Date;
+      endTime: Date;
     }> = [];
 
-    // Process each item in the cart
+    // First pass: validate all items can be booked
+    const validatedItems: Array<{
+      item: CartItem | ItemWithCustomer;
+      service: any;
+      staffName: string | null;
+      startDateTime: Date;
+      endDateTime: Date;
+      customerName: string;
+      customerPhone: string;
+      customerEmail?: string;
+      notes?: string;
+    }> = [];
+
     for (const item of bookingItems) {
       const { serviceId, staffId, startTime } = item;
       
-      // Determine customer info - from item (multi-person) or from request params (single-person)
+      // Determine customer info
       const itemCustomerName = isMultiPerson ? (item as ItemWithCustomer).customerName : customerName;
       const itemCustomerPhone = isMultiPerson ? (item as ItemWithCustomer).customerPhone : customerPhone;
       const itemCustomerEmail = isMultiPerson ? (item as ItemWithCustomer).customerEmail : customerEmail;
@@ -134,7 +183,10 @@ serve(async (req) => {
       const trimmedItemName = itemCustomerName?.trim() || "";
       if (trimmedItemName.length < 2 || /^(unknown|test|n\/a|na|none)$/i.test(trimmedItemName)) {
         logStep("Invalid customer name", { itemCustomerName });
-        continue;
+        return new Response(
+          JSON.stringify({ error: `Invalid customer name: ${itemCustomerName}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       // Get service details
@@ -147,7 +199,10 @@ serve(async (req) => {
 
       if (serviceError || !service) {
         logStep("Service not found", { serviceId });
-        continue;
+        return new Response(
+          JSON.stringify({ error: `Service not found: ${serviceId}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       // Validate staff can provide service if staff is specified
@@ -161,7 +216,10 @@ serve(async (req) => {
 
         if (!staffServiceAssignment) {
           logStep("Staff cannot provide service", { staffId, serviceId });
-          continue;
+          return new Response(
+            JSON.stringify({ error: `Staff cannot provide this service` }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         }
       }
 
@@ -169,7 +227,7 @@ serve(async (req) => {
       const startDateTime = new Date(startTime);
       const endDateTime = new Date(startDateTime.getTime() + service.duration_minutes * 60 * 1000);
 
-      // Check for conflicts
+      // Check for conflicts with existing bookings in database
       const { data: conflictingBookings } = await supabase
         .from("bookings")
         .select("id")
@@ -180,15 +238,28 @@ serve(async (req) => {
         .gt("end_time", startDateTime.toISOString());
 
       if (conflictingBookings && conflictingBookings.length > 0) {
-        logStep("Time slot conflict", { serviceId, startTime });
-        continue;
+        logStep("Time slot conflict with existing booking", { serviceId, startTime });
+        return new Response(
+          JSON.stringify({ error: `Time slot ${startTime} is no longer available for ${service.name}` }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
-      // Generate booking code
-      const { data: bookingCodeData } = await supabase.rpc("generate_booking_code", {
-        p_business_name: business.business_name,
-      });
-      const bookingCode = bookingCodeData || `BKG-${Date.now()}`;
+      // Check for conflicts with other items in this batch (same staff, overlapping times)
+      const batchConflict = batchBookings.find(b => 
+        b.staffId === staffId && doTimesOverlap(startDateTime, endDateTime, b.startTime, b.endTime)
+      );
+
+      if (batchConflict) {
+        logStep("Time slot conflict within batch", { serviceId, startTime, staffId });
+        return new Response(
+          JSON.stringify({ error: `Cannot book overlapping times for the same staff member` }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Add to batch tracking
+      batchBookings.push({ staffId, startTime: startDateTime, endTime: endDateTime });
 
       // Get staff name if staff is selected
       let staffName = null;
@@ -201,22 +272,186 @@ serve(async (req) => {
         staffName = staffData?.name || null;
       }
 
-      // Create booking
+      validatedItems.push({
+        item,
+        service,
+        staffName,
+        startDateTime,
+        endDateTime,
+        customerName: trimmedItemName,
+        customerPhone: itemCustomerPhone,
+        customerEmail: itemCustomerEmail,
+        notes: itemNotes,
+      });
+    }
+
+    // Check if any service requires a deposit
+    const anyDepositRequired = validatedItems.some(v => v.service.deposit_required && v.service.deposit_amount > 0);
+    const shouldCollectNow = anyDepositRequired && collectDuringBooking && hasStripeConnected;
+
+    logStep("Deposit check", { anyDepositRequired, collectDuringBooking, hasStripeConnected, shouldCollectNow });
+
+    // If collecting deposit during booking and Stripe is connected
+    if (shouldCollectNow) {
+      try {
+        const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+        if (!stripeSecretKey) throw new Error("Stripe not configured");
+
+        const stripe = new Stripe(stripeSecretKey, { apiVersion: "2023-10-16" });
+
+        // Create all bookings as pending first
+        for (const validated of validatedItems) {
+          const { service, staffName, startDateTime, endDateTime, customerName: custName, customerPhone: custPhone, notes: custNotes } = validated;
+          const staffId = validated.item.staffId;
+
+          const { data: bookingCodeData } = await supabase.rpc("generate_booking_code", {
+            p_business_name: business.business_name,
+          });
+          const bookingCode = bookingCodeData || `BKG-${Date.now()}`;
+
+          const depositRequired = service.deposit_required && service.deposit_amount > 0;
+
+          const { data: booking, error: bookingError } = await supabase
+            .from("bookings")
+            .insert({
+              business_id: businessId,
+              service_id: service.id,
+              staff_id: staffId,
+              customer_name: custName,
+              customer_phone: custPhone,
+              start_time: startDateTime.toISOString(),
+              end_time: endDateTime.toISOString(),
+              status: "pending",
+              payment_status: "unpaid",
+              deposit_amount: depositRequired ? service.deposit_amount : null,
+              booking_code: bookingCode,
+              notes: custNotes || null,
+              created_by: "online_booking",
+            })
+            .select()
+            .single();
+
+          if (bookingError) {
+            logStep("Failed to create pending booking", { error: bookingError });
+            continue;
+          }
+
+          createdBookings.push({
+            bookingCode,
+            bookingId: booking.id,
+            serviceName: service.name,
+            staffName,
+            staffId,
+            startTime: startDateTime.toISOString(),
+            endTime: endDateTime.toISOString(),
+            depositRequired,
+            depositAmount: depositRequired ? service.deposit_amount : null,
+          });
+        }
+
+        if (createdBookings.length === 0) {
+          throw new Error("Failed to create any bookings");
+        }
+
+        // Calculate total deposit amount
+        const totalDeposit = createdBookings.reduce((sum, b) => sum + (b.depositAmount || 0), 0);
+        const depositAmountInCents = Math.round(totalDeposit * 100);
+
+        // Create a single payment link for all deposits
+        const lineItemName = createdBookings.length === 1 
+          ? `Deposit for ${createdBookings[0].serviceName}`
+          : `Deposit for ${createdBookings.length} bookings`;
+
+        const price = await stripe.prices.create({
+          unit_amount: depositAmountInCents,
+          currency: currency,
+          product_data: {
+            name: lineItemName,
+            metadata: {
+              booking_ids: createdBookings.map(b => b.bookingId).join(","),
+              business_id: businessId,
+            },
+          },
+        }, {
+          stripeAccount: business.stripe_account_id,
+        });
+
+        const firstBookingCode = createdBookings[0].bookingCode;
+        const paymentLink = await stripe.paymentLinks.create({
+          line_items: [{ price: price.id, quantity: 1 }],
+          after_completion: {
+            type: "redirect",
+            redirect: {
+              url: `${returnUrl || req.headers.get("origin")}/book/${businessSlug}/success?code=${firstBookingCode}`,
+            },
+          },
+          metadata: {
+            booking_ids: createdBookings.map(b => b.bookingId).join(","),
+            business_id: businessId,
+            booking_codes: createdBookings.map(b => b.bookingCode).join(","),
+          },
+        }, {
+          stripeAccount: business.stripe_account_id,
+        });
+
+        // Update all bookings with payment link
+        for (const booking of createdBookings) {
+          await supabase
+            .from("bookings")
+            .update({ deposit_payment_link: paymentLink.url })
+            .eq("id", booking.bookingId);
+        }
+
+        logStep("Payment link created for group", { url: paymentLink.url, totalDeposit });
+
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            requiresPayment: true,
+            paymentUrl: paymentLink.url,
+            bookings: createdBookings,
+            totalDeposit,
+            message: "Please complete payment to confirm your bookings"
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (stripeError: any) {
+        logStep("Stripe error, falling back to confirmed booking", { error: stripeError?.message || String(stripeError) });
+        // Clean up pending bookings and fall through to create confirmed ones
+        for (const booking of createdBookings) {
+          await supabase.from("bookings").delete().eq("id", booking.bookingId);
+        }
+        createdBookings.length = 0;
+      }
+    }
+
+    // Create confirmed bookings (either no deposit, collect later, or Stripe failed)
+    for (const validated of validatedItems) {
+      const { service, staffName, startDateTime, endDateTime, customerName: custName, customerPhone: custPhone, notes: custNotes } = validated;
+      const staffId = validated.item.staffId;
+
+      const { data: bookingCodeData } = await supabase.rpc("generate_booking_code", {
+        p_business_name: business.business_name,
+      });
+      const bookingCode = bookingCodeData || `BKG-${Date.now()}`;
+
+      const depositRequired = service.deposit_required && service.deposit_amount > 0;
+
       const { data: booking, error: bookingError } = await supabase
         .from("bookings")
         .insert({
           business_id: businessId,
-          service_id: serviceId,
+          service_id: service.id,
           staff_id: staffId,
-          customer_name: trimmedItemName,
-          customer_phone: itemCustomerPhone,
+          customer_name: custName,
+          customer_phone: custPhone,
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
           status: "confirmed",
-          payment_status: "unpaid",
-          deposit_amount: service.deposit_required ? service.deposit_amount : null,
+          payment_status: depositRequired ? "unpaid" : "paid_in_full",
+          deposit_amount: depositRequired ? service.deposit_amount : null,
           booking_code: bookingCode,
-          notes: itemNotes || null,
+          notes: custNotes || null,
           created_by: "online_booking",
         })
         .select()
@@ -232,9 +467,60 @@ serve(async (req) => {
         bookingId: booking.id,
         serviceName: service.name,
         staffName,
+        staffId,
         startTime: startDateTime.toISOString(),
         endTime: endDateTime.toISOString(),
+        depositRequired,
+        depositAmount: depositRequired ? service.deposit_amount : null,
       });
+
+      // Generate deposit payment link for later collection if needed
+      if (depositRequired && hasStripeConnected) {
+        try {
+          const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+          if (stripeSecretKey) {
+            const stripe = new Stripe(stripeSecretKey, { apiVersion: "2023-10-16" });
+            const depositAmountInCents = Math.round(service.deposit_amount * 100);
+
+            const price = await stripe.prices.create({
+              unit_amount: depositAmountInCents,
+              currency: currency,
+              product_data: {
+                name: `Deposit for ${service.name}`,
+                metadata: { booking_id: booking.id, business_id: businessId },
+              },
+            }, {
+              stripeAccount: business.stripe_account_id,
+            });
+
+            const paymentLink = await stripe.paymentLinks.create({
+              line_items: [{ price: price.id, quantity: 1 }],
+              after_completion: {
+                type: "redirect",
+                redirect: {
+                  url: `${returnUrl || req.headers.get("origin")}/book/${businessSlug}/success?code=${bookingCode}&paid=true`,
+                },
+              },
+              metadata: {
+                booking_id: booking.id,
+                business_id: businessId,
+                booking_code: bookingCode,
+              },
+            }, {
+              stripeAccount: business.stripe_account_id,
+            });
+
+            await supabase
+              .from("bookings")
+              .update({ deposit_payment_link: paymentLink.url })
+              .eq("id", booking.id);
+
+            logStep("Deposit link generated for later collection", { bookingCode });
+          }
+        } catch (error: any) {
+          logStep("Failed to create deposit link", { error: error?.message || String(error) });
+        }
+      }
 
       logStep("Booking created", { bookingCode, serviceName: service.name });
     }
@@ -262,10 +548,16 @@ serve(async (req) => {
       }
     }
 
+    // Calculate total deposit if any
+    const totalDeposit = createdBookings.reduce((sum, b) => sum + (b.depositAmount || 0), 0);
+
     return new Response(
       JSON.stringify({ 
         success: true,
+        requiresPayment: false,
         bookings: createdBookings,
+        totalDeposit,
+        depositRequired: totalDeposit > 0,
         message: `${createdBookings.length} booking${createdBookings.length > 1 ? 's' : ''} confirmed!`
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

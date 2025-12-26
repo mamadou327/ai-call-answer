@@ -106,12 +106,15 @@ const PublicBookingPage = () => {
     depositRequired: boolean;
     depositAmount?: number;
     depositPaymentLink?: string;
+    totalDeposit?: number;
     groupBookings?: Array<{
       bookingCode: string;
       serviceName: string;
       staffName: string | null;
       startTime: string;
       endTime: string;
+      depositRequired?: boolean;
+      depositAmount?: number | null;
     }>;
   } | null>(null);
 
@@ -382,15 +385,23 @@ const PublicBookingPage = () => {
         body: {
           businessSlug: slug,
           itemsWithCustomers,
+          returnUrl: window.location.origin,
         },
       });
 
       if (error) throw error;
 
+      // Handle payment redirect if required
+      if (data.requiresPayment && data.paymentUrl) {
+        window.location.href = data.paymentUrl;
+        return;
+      }
+
       setBookingResult({
         bookingCode: data.bookings[0]?.bookingCode || "N/A",
         requiresPayment: false,
-        depositRequired: false,
+        depositRequired: data.depositRequired || false,
+        totalDeposit: data.totalDeposit,
         groupBookings: data.bookings,
       });
       setCartItems([]);
@@ -426,15 +437,23 @@ const PublicBookingPage = () => {
             customerPhone: customerData.phone,
             customerEmail: customerData.email,
             notes: customerData.notes,
+            returnUrl: window.location.origin,
           },
         });
 
         if (error) throw error;
 
+        // Handle payment redirect if required
+        if (data.requiresPayment && data.paymentUrl) {
+          window.location.href = data.paymentUrl;
+          return;
+        }
+
         setBookingResult({
           bookingCode: data.bookings[0]?.bookingCode || "N/A",
           requiresPayment: false,
-          depositRequired: false,
+          depositRequired: data.depositRequired || false,
+          totalDeposit: data.totalDeposit,
           groupBookings: data.bookings,
         });
         setCartItems([]);
