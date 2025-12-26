@@ -15,6 +15,8 @@ import { PublicRescheduleBooking } from "@/components/public-booking/PublicResch
 import { PublicGallery } from "@/components/public-booking/PublicGallery";
 import { PublicSocialLinks } from "@/components/public-booking/PublicSocialLinks";
 import { PublicBookingCart, CartItem } from "@/components/public-booking/PublicBookingCart";
+import { PublicGroupTypeSelector } from "@/components/public-booking/PublicGroupTypeSelector";
+import { PublicGroupCustomerForm } from "@/components/public-booking/PublicGroupCustomerForm";
 import { useToast } from "@/hooks/use-toast";
 
 interface Business {
@@ -65,7 +67,7 @@ interface Staff {
   name: string;
 }
 
-type BookingStep = "landing" | "service" | "staff" | "datetime" | "customer" | "confirmation" | "lookup-cancel" | "cancel" | "lookup-reschedule" | "reschedule" | "gallery";
+type BookingStep = "landing" | "service" | "staff" | "datetime" | "group-type" | "customer" | "group-customer" | "confirmation" | "lookup-cancel" | "cancel" | "lookup-reschedule" | "reschedule" | "gallery";
 
 const PublicBookingPage = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -92,6 +94,8 @@ const PublicBookingPage = () => {
   // Group booking cart state
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [currentCartItemId, setCurrentCartItemId] = useState<string | null>(null);
+  const [groupBookingMode, setGroupBookingMode] = useState<"single" | "multiple" | null>(null);
+  const [groupPersonCount, setGroupPersonCount] = useState(1);
   
   const [bookingResult, setBookingResult] = useState<{
     bookingCode: string;
@@ -305,12 +309,75 @@ const PublicBookingPage = () => {
 
   const handleCartContinue = () => {
     if (cartItems.length > 0 && cartItems.every((item) => item.date && item.time)) {
-      setStep("customer");
+      // If multiple services, ask who's booking
+      if (cartItems.length > 1) {
+        setStep("group-type");
+      } else {
+        setGroupBookingMode("single");
+        setStep("customer");
+      }
     }
   };
 
   const handleCartAddAnother = () => {
     setStep("service");
+  };
+
+  const handleGroupTypeSelect = (mode: "single" | "multiple", personCount?: number) => {
+    setGroupBookingMode(mode);
+    if (mode === "multiple" && personCount) {
+      setGroupPersonCount(personCount);
+      setStep("group-customer");
+    } else {
+      setStep("customer");
+    }
+  };
+
+  const handleGroupBookingSubmit = async (people: Array<{ name: string; phone: string; email: string; notes: string; assignedServiceIds: string[] }>) => {
+    if (!slug) return;
+
+    try {
+      // Build items with customer data per service
+      const itemsWithCustomers = people.flatMap((person) =>
+        person.assignedServiceIds.map((serviceItemId) => {
+          const item = cartItems.find((ci) => ci.id === serviceItemId);
+          if (!item) return null;
+          const [hours, minutes] = (item.time || "00:00").split(":").map(Number);
+          const startTime = new Date(item.date!);
+          startTime.setHours(hours, minutes, 0, 0);
+          return {
+            serviceId: item.service.id,
+            staffId: item.staff?.id || null,
+            startTime: startTime.toISOString(),
+            customerName: person.name,
+            customerPhone: person.phone,
+            customerEmail: person.email || undefined,
+            notes: person.notes || undefined,
+          };
+        })
+      ).filter(Boolean);
+
+      const { data, error } = await supabase.functions.invoke("public-create-group-booking", {
+        body: {
+          businessSlug: slug,
+          itemsWithCustomers,
+        },
+      });
+
+      if (error) throw error;
+
+      setBookingResult({
+        bookingCode: data.bookings[0]?.bookingCode || "N/A",
+        requiresPayment: false,
+        depositRequired: false,
+        groupBookings: data.bookings,
+      });
+      setCartItems([]);
+      setGroupBookingMode(null);
+      setStep("confirmation");
+    } catch (err: any) {
+      toast({ title: "Booking failed", description: err?.message || "Failed to create bookings.", variant: "destructive" });
+    }
   };
 
   const handleBookingSubmit = async (customerData: { name: string; phone: string; email?: string; notes?: string }) => {
@@ -421,7 +488,9 @@ const PublicBookingPage = () => {
       service: "landing",
       staff: cartItems.length > 0 ? "service" : "service",
       datetime: "staff",
-      customer: cartItems.length > 0 ? "service" : "datetime",
+      "group-type": "service",
+      customer: cartItems.length > 0 ? "group-type" : "datetime",
+      "group-customer": "group-type",
       "lookup-cancel": "landing",
       "lookup-reschedule": "landing",
       cancel: "lookup-cancel",
@@ -539,6 +608,13 @@ const PublicBookingPage = () => {
             onBack={handleBack} 
           />
         )}
+        {step === "group-type" && cartItems.length > 1 && (
+          <PublicGroupTypeSelector
+            serviceCount={cartItems.length}
+            onSelect={handleGroupTypeSelect}
+            onBack={handleBack}
+          />
+        )}
         {step === "customer" && (cartItems.length > 0 || (selectedService && selectedDate && selectedTime)) && slug && (
           <PublicCustomerForm
             businessSlug={slug}
@@ -560,6 +636,20 @@ const PublicBookingPage = () => {
                 setStep("datetime");
               }
             }}
+            showAddService={true}
+            onAddService={() => setStep("service")}
+          />
+        )}
+        {step === "group-customer" && cartItems.length > 0 && slug && (
+          <PublicGroupCustomerForm
+            cartItems={cartItems}
+            currency={currency}
+            personCount={groupPersonCount}
+            collectDuringBooking={business.deposit_collection_timing === "during_booking"}
+            hasStripe={!!business.stripe_account_id}
+            onSubmit={handleGroupBookingSubmit}
+            onBack={handleBack}
+            onAddService={() => setStep("service")}
           />
         )}
         {step === "confirmation" && bookingResult && (
