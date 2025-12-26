@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, ChevronDown } from "lucide-react";
+import { Clock, ChevronDown, ArrowLeft } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 interface Service {
   id: string;
@@ -17,6 +18,7 @@ interface PublicServiceSelectorProps {
   services: Service[];
   currency: string;
   onSelect: (service: Service) => void;
+  onBack: () => void;
 }
 
 const formatCurrency = (amount: number, currency: string) => {
@@ -57,6 +59,7 @@ export const PublicServiceSelector = ({
   services,
   currency,
   onSelect,
+  onBack,
 }: PublicServiceSelectorProps) => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -92,6 +95,14 @@ export const PublicServiceSelector = ({
 
   return (
     <div className="space-y-6">
+      {/* Back button when on category view */}
+      {!selectedCategory && (
+        <Button variant="ghost" onClick={onBack} className="gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Button>
+      )}
+
       <div className="text-center">
         <h2 className="text-2xl font-bold mb-2">Our Services</h2>
         <p className="text-muted-foreground">

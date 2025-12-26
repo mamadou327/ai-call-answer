@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, MapPin, Phone, Globe } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PublicLandingPage } from "@/components/public-booking/PublicLandingPage";
 import { PublicServiceSelector } from "@/components/public-booking/PublicServiceSelector";
@@ -297,28 +297,12 @@ const PublicBookingPage = () => {
     <div className="min-h-screen bg-background">
       <header className="border-b-2 border-primary bg-card">
         <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-4">
-            {business.logo_url && (
-              <img src={business.logo_url} alt={business.business_name} className="h-16 w-16 object-contain rounded-lg" />
-            )}
-            <div className="flex-1">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              {business.logo_url && (
+                <img src={business.logo_url} alt={business.business_name} className="h-16 w-16 object-contain rounded-lg" />
+              )}
               <h1 className="text-2xl font-bold">{business.business_name}</h1>
-              <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <MapPin className="h-4 w-4" />
-                  <span>{business.address}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Phone className="h-4 w-4" />
-                  <span>{business.main_phone}</span>
-                </div>
-                {business.website && (
-                  <div className="flex items-center gap-1">
-                    <Globe className="h-4 w-4" />
-                    <a href={business.website} target="_blank" rel="noopener noreferrer" className="hover:underline">Website</a>
-                  </div>
-                )}
-              </div>
             </div>
             <PublicSocialLinks socials={{
               instagram: business.social_instagram,
@@ -361,7 +345,7 @@ const PublicBookingPage = () => {
             onViewGallery={() => setStep("gallery")}
           />
         )}
-        {step === "service" && <PublicServiceSelector services={services} currency={currency} onSelect={handleServiceSelect} />}
+        {step === "service" && <PublicServiceSelector services={services} currency={currency} onSelect={handleServiceSelect} onBack={handleBack} />}
         {step === "staff" && selectedService && <PublicStaffSelector staff={staff} selectedService={selectedService} currency={currency} onSelect={handleStaffSelect} onBack={handleBack} />}
         {step === "datetime" && selectedService && slug && <PublicDateTimePicker businessSlug={slug} serviceId={selectedService.id} staffId={selectedStaff?.id} serviceDuration={selectedService.duration_minutes} onSelect={handleDateTimeSelect} onBack={handleBack} />}
         {step === "customer" && selectedService && selectedDate && selectedTime && <PublicCustomerForm selectedService={selectedService} selectedStaff={selectedStaff} selectedDate={selectedDate} selectedTime={selectedTime} currency={currency} collectDuringBooking={business.deposit_collection_timing === "during_booking"} hasStripe={!!business.stripe_account_id} onSubmit={handleBookingSubmit} onBack={handleBack} />}

@@ -54,8 +54,18 @@ export const PublicLandingPage = ({
         </div>
       </div>
 
-      {/* Business Info Bar */}
-      <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-12 py-6 border-y">
+      {/* Gallery Link */}
+      {hasGallery && (
+        <div className="text-center">
+          <Button variant="outline" size="lg" onClick={onViewGallery} className="gap-2">
+            <Image className="h-5 w-5" />
+            View Our Work
+          </Button>
+        </div>
+      )}
+
+      {/* Contact Info Footer - before More Options */}
+      <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-12 py-6 border-t">
         <div className="flex items-center gap-2 text-muted-foreground">
           <MapPin className="h-5 w-5 text-primary" />
           <span className="text-sm md:text-base">{address}</span>
@@ -83,8 +93,8 @@ export const PublicLandingPage = ({
         )}
       </div>
 
-      {/* Action Cards */}
-      <div className="pt-4">
+      {/* Action Cards - More Options */}
+      <div className="pt-4 border-t">
         <h2 className="text-xl font-semibold text-center mb-6">More Options</h2>
         
         <div className="grid gap-4 md:grid-cols-2 max-w-2xl mx-auto">
@@ -119,16 +129,6 @@ export const PublicLandingPage = ({
           </Card>
         </div>
       </div>
-
-      {/* Gallery Link */}
-      {hasGallery && (
-        <div className="text-center pt-4">
-          <Button variant="outline" size="lg" onClick={onViewGallery} className="gap-2">
-            <Image className="h-5 w-5" />
-            View Our Work
-          </Button>
-        </div>
-      )}
     </div>
   );
 };
