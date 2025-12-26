@@ -12,6 +12,12 @@ interface TimeSlot {
   availableStaff: string[];
 }
 
+interface BookedSlot {
+  staffId: string | null;
+  date: string; // yyyy-MM-dd format
+  time: string;
+}
+
 interface PublicDateTimePickerProps {
   businessSlug: string;
   serviceId: string;
@@ -19,6 +25,7 @@ interface PublicDateTimePickerProps {
   serviceDuration: number;
   onSelect: (date: Date, time: string) => void;
   onBack: () => void;
+  bookedSlots?: BookedSlot[]; // Already booked slots from cart to exclude
 }
 
 export const PublicDateTimePicker = ({
@@ -28,6 +35,7 @@ export const PublicDateTimePicker = ({
   serviceDuration,
   onSelect,
   onBack,
+  bookedSlots = [],
 }: PublicDateTimePickerProps) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
@@ -75,7 +83,30 @@ export const PublicDateTimePicker = ({
     fetchSlots();
   }, [selectedDate, businessSlug, serviceId, staffId]);
 
-  const availableSlots = timeSlots.filter((slot) => slot.available);
+  // Filter out slots that are already booked in the cart for the same staff
+  const availableSlots = timeSlots.filter((slot) => {
+    if (!slot.available) return false;
+    if (!selectedDate) return true;
+    
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    
+    // Check if this slot conflicts with any booked slot in cart
+    const isBooked = bookedSlots.some((booked) => {
+      // If same date and time
+      if (booked.date === dateStr && booked.time === slot.time) {
+        // If specific staff selected, only block if same staff
+        if (staffId && booked.staffId) {
+          return booked.staffId === staffId;
+        }
+        // If no specific staff selected but booked slot has staff, check if that staff would be available
+        // For simplicity, block if same time regardless (user hasn't chosen specific staff)
+        return true;
+      }
+      return false;
+    });
+    
+    return !isBooked;
+  });
 
   const handleTimeSelect = (time: string) => {
     if (selectedDate) {
