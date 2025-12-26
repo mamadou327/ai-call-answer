@@ -34,6 +34,9 @@ interface StreamSession {
   // Audio playback tracking to prevent cutoff
   isAISpeaking: boolean;
   lastAudioSentAt: number | null;
+  // Track when AI response is actively being generated (prevents mid-sentence cutoff)
+  responseInProgress: boolean;
+  lastResponseStartedAt: number | null;
 }
 
 interface BusinessSettings {
@@ -328,6 +331,9 @@ Deno.serve(async (req) => {
     // Audio playback tracking to prevent cutoff
     isAISpeaking: false,
     lastAudioSentAt: null,
+    // Response generation tracking
+    responseInProgress: false,
+    lastResponseStartedAt: null,
   };
 
   twilioWs.onopen = () => {
@@ -472,6 +478,14 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           break;
 
         case "response.audio.delta":
+          // Mark that AI is actively speaking and track timing
+          if (!session.responseInProgress) {
+            session.responseInProgress = true;
+            session.lastResponseStartedAt = Date.now();
+            console.log("[MediaStream] AI response started - audio streaming begins");
+          }
+          session.lastAudioSentAt = Date.now();
+          
           // Forward audio to Twilio
           if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
             const audioMessage = {
@@ -507,18 +521,32 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           break;
 
         case "input_audio_buffer.speech_started":
-          // Prevent interruption if AI just started speaking (prevents audio cutoff)
+          // Calculate time since last audio was sent and since response started
           const timeSinceAudioSent = session.lastAudioSentAt 
             ? Date.now() - session.lastAudioSentAt 
             : 1000;
+          const timeSinceResponseStarted = session.lastResponseStartedAt
+            ? Date.now() - session.lastResponseStartedAt
+            : 1000;
           
-          if (timeSinceAudioSent < 600) {
-            console.log("[MediaStream] Ignoring interruption - AI just started speaking (" + timeSinceAudioSent + "ms ago)");
+          // Prevent interruption if:
+          // 1. Audio was sent very recently (850ms protection window - up from 600ms)
+          // 2. Response just started (additional 400ms startup protection)
+          const minInterruptionDelay = 850; // Increased from 600ms for better sentence completion
+          const startupProtection = 400;    // Extra protection at start of response
+          
+          const shouldIgnoreInterruption = 
+            timeSinceAudioSent < minInterruptionDelay || 
+            (session.responseInProgress && timeSinceResponseStarted < startupProtection);
+          
+          if (shouldIgnoreInterruption) {
+            console.log(`[MediaStream] Ignoring interruption - protecting AI speech (audioSent: ${timeSinceAudioSent}ms, responseStarted: ${timeSinceResponseStarted}ms, inProgress: ${session.responseInProgress})`);
             break;
           }
           
-          console.log("[MediaStream] User started speaking - interrupting AI");
+          console.log(`[MediaStream] User started speaking - allowing interruption (audioSent: ${timeSinceAudioSent}ms, responseStarted: ${timeSinceResponseStarted}ms)`);
           session.isAISpeaking = false;
+          session.responseInProgress = false;
           // Clear any pending AI audio (barge-in)
           if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
             session.twilioWs.send(JSON.stringify({
@@ -551,7 +579,12 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           break;
 
         case "response.done":
-          console.log("[MediaStream] Response complete");
+          const responseDuration = session.lastResponseStartedAt 
+            ? Date.now() - session.lastResponseStartedAt 
+            : 0;
+          console.log(`[MediaStream] Response complete (duration: ${responseDuration}ms, wasInProgress: ${session.responseInProgress})`);
+          session.responseInProgress = false;
+          
           if (data.response?.output) {
             for (const output of data.response.output) {
               if (output.content) {
@@ -761,7 +794,7 @@ function sendSessionConfig(session: StreamSession) {
       tools,
       tool_choice: "auto",
       temperature: 0.75,           // Higher for more natural variation in responses
-      max_response_output_tokens: 300, // Shorter, faster responses
+      max_response_output_tokens: 500, // Increased from 300 to prevent mid-sentence cutoffs
     },
   };
 
