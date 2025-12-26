@@ -33,6 +33,35 @@ interface PublicLandingPageProps {
   onViewGallery: () => void;
 }
 
+// Helper function to format policy text professionally
+const formatPolicyText = (rawPolicy: string): string => {
+  // Capitalize first letter and ensure proper punctuation
+  let formatted = rawPolicy.trim();
+  
+  // Capitalize first letter
+  if (formatted.length > 0) {
+    formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  }
+  
+  // Ensure it ends with a period if it doesn't have ending punctuation
+  if (formatted.length > 0 && !formatted.match(/[.!?]$/)) {
+    formatted += '.';
+  }
+  
+  // Professional replacements to make text sound more formal
+  formatted = formatted
+    .replace(/\bno refunds\b/gi, 'Please note that refunds are not available')
+    .replace(/\byou can come in\b/gi, 'you are welcome to visit us')
+    .replace(/\bspeak to someone\b/gi, 'speak with a member of our team')
+    .replace(/\byou can call\b/gi, 'you may contact us by phone')
+    .replace(/\bi can transfer you\b/gi, 'we will be happy to connect you')
+    .replace(/\bthe business owner\b/gi, 'our management team')
+    .replace(/\band I\b/gi, ', or')
+    .replace(/\bbut\b/gi, 'however,');
+  
+  return formatted;
+};
+
 export const PublicLandingPage = ({
   businessName,
   welcomeMessage,
@@ -195,9 +224,9 @@ export const PublicLandingPage = ({
                 
                 {policies?.cancellationPolicy && (
                   <div className="pt-4 mt-4 border-t">
-                    <h4 className="font-medium mb-2">Cancellation Policy</h4>
+                    <h4 className="font-medium mb-2">Policy</h4>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {policies.cancellationPolicy}
+                      {formatPolicyText(policies.cancellationPolicy)}
                     </p>
                   </div>
                 )}
