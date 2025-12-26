@@ -41,6 +41,13 @@ interface PolicySettings {
   cancellationPolicy: string | null;
 }
 
+interface OpeningHour {
+  day_of_week: number;
+  is_closed: boolean;
+  open_time: string | null;
+  close_time: string | null;
+}
+
 interface Service {
   id: string;
   name: string;
@@ -72,6 +79,7 @@ const PublicBookingPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasGallery, setHasGallery] = useState(false);
   const [policies, setPolicies] = useState<PolicySettings | undefined>(undefined);
+  const [openingHours, setOpeningHours] = useState<OpeningHour[]>([]);
 
   const [step, setStep] = useState<BookingStep>("landing");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -127,7 +135,7 @@ const PublicBookingPage = () => {
 
         setBusiness(businessData);
 
-        const [servicesResult, settingsResult, galleryResult] = await Promise.all([
+        const [servicesResult, settingsResult, galleryResult, hoursResult] = await Promise.all([
           supabase
             .from("services")
             .select("id, name, duration_minutes, price, category, description, deposit_required, deposit_amount")
@@ -143,6 +151,11 @@ const PublicBookingPage = () => {
             .select("id")
             .eq("business_id", businessData.id)
             .limit(1),
+          supabase
+            .from("opening_hours")
+            .select("day_of_week, is_closed, open_time, close_time")
+            .eq("business_id", businessData.id)
+            .order("day_of_week", { ascending: true }),
         ]);
 
         if (servicesResult.data) setServices(servicesResult.data);
@@ -157,6 +170,7 @@ const PublicBookingPage = () => {
           });
         }
         setHasGallery((galleryResult.data?.length || 0) > 0);
+        if (hoursResult.data) setOpeningHours(hoursResult.data);
         setLoading(false);
       } catch (err) {
         console.error("Error fetching business data:", err);
@@ -352,12 +366,14 @@ const PublicBookingPage = () => {
         {step === "landing" && (
           <PublicLandingPage
             businessName={business.business_name}
+            businessSlug={slug || ""}
             welcomeMessage={business.online_booking_message}
             address={business.address}
             phone={business.main_phone}
             website={business.website}
             hasGallery={hasGallery}
             policies={policies}
+            openingHours={openingHours}
             onMakeBooking={() => setStep("service")}
             onCancelBooking={() => setStep("lookup-cancel")}
             onRescheduleBooking={() => setStep("lookup-reschedule")}
