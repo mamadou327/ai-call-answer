@@ -11,6 +11,44 @@ const logStep = (step: string, details?: any) => {
   console.log(`[auto-cancel-unpaid-bookings] ${step}${detailsStr}`);
 };
 
+// Send cancellation SMS via the send-booking-sms edge function
+const sendCancellationSms = async (
+  supabaseUrl: string,
+  supabaseAnonKey: string,
+  businessId: string,
+  bookingId: string
+): Promise<boolean> => {
+  try {
+    logStep("Sending cancellation SMS", { businessId, bookingId });
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-booking-sms`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({
+        businessId,
+        bookingId,
+        type: "cancellation",
+      }),
+    });
+
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      logStep("Cancellation SMS sent successfully", { bookingId, messageId: result.messageId });
+      return true;
+    } else {
+      logStep("Cancellation SMS not sent", { bookingId, reason: result.reason || result.error });
+      return false;
+    }
+  } catch (error) {
+    logStep("Error sending cancellation SMS", { bookingId, error: String(error) });
+    return false;
+  }
+};
+
 serve(async (req) => {
   // Log immediately to confirm function is invoked
   console.log("[auto-cancel-unpaid-bookings] Function invoked at", new Date().toISOString());
@@ -22,11 +60,13 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      { auth: { persistSession: false } }
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false },
+    });
 
     const now = new Date();
     logStep("Current time", { now: now.toISOString() });
@@ -56,6 +96,7 @@ serve(async (req) => {
     logStep("Found businesses with auto-cancel", { count: settings.length });
 
     let cancelledCount = 0;
+    let smsCount = 0;
     const errors: string[] = [];
 
     for (const setting of settings) {
@@ -143,15 +184,25 @@ serve(async (req) => {
             isPastBooking
           });
           cancelledCount++;
+
+          // Send cancellation SMS notification
+          const smsSent = await sendCancellationSms(
+            supabaseUrl,
+            supabaseAnonKey,
+            setting.business_id,
+            booking.id
+          );
+          if (smsSent) smsCount++;
         }
       }
     }
 
-    logStep("Completed", { cancelled: cancelledCount, errors: errors.length });
+    logStep("Completed", { cancelled: cancelledCount, smsSent: smsCount, errors: errors.length });
 
     return new Response(JSON.stringify({ 
       success: true, 
       cancelled: cancelledCount,
+      smsSent: smsCount,
       errors: errors.length > 0 ? errors : undefined
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
