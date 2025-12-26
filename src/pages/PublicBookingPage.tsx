@@ -383,8 +383,45 @@ const PublicBookingPage = () => {
         {step === "service" && <PublicServiceSelector services={services} currency={currency} onSelect={handleServiceSelect} onBack={handleBack} />}
         {step === "staff" && selectedService && <PublicStaffSelector staff={staff} selectedService={selectedService} currency={currency} onSelect={handleStaffSelect} onBack={handleBack} />}
         {step === "datetime" && selectedService && slug && <PublicDateTimePicker businessSlug={slug} serviceId={selectedService.id} staffId={selectedStaff?.id} serviceDuration={selectedService.duration_minutes} onSelect={handleDateTimeSelect} onBack={handleBack} />}
-        {step === "customer" && selectedService && selectedDate && selectedTime && <PublicCustomerForm selectedService={selectedService} selectedStaff={selectedStaff} selectedDate={selectedDate} selectedTime={selectedTime} currency={currency} collectDuringBooking={business.deposit_collection_timing === "during_booking"} hasStripe={!!business.stripe_account_id} onSubmit={handleBookingSubmit} onBack={handleBack} />}
-        {step === "confirmation" && bookingResult && <PublicBookingConfirmation businessName={business.business_name} bookingCode={bookingResult.bookingCode} serviceName={selectedService?.name} staffName={selectedStaff?.name} date={selectedDate} time={selectedTime} depositRequired={bookingResult.depositRequired} depositAmount={bookingResult.depositAmount} depositPaymentLink={bookingResult.depositPaymentLink} currency={currency} />}
+        {step === "customer" && selectedService && selectedDate && selectedTime && slug && (
+          <PublicCustomerForm
+            businessSlug={slug}
+            selectedService={selectedService}
+            selectedStaff={selectedStaff}
+            selectedDate={selectedDate}
+            selectedTime={selectedTime}
+            currency={currency}
+            collectDuringBooking={business.deposit_collection_timing === "during_booking"}
+            hasStripe={!!business.stripe_account_id}
+            onSubmit={handleBookingSubmit}
+            onBack={handleBack}
+            onExpressRebook={(serviceId, staffId) => {
+              const service = services.find(s => s.id === serviceId);
+              if (service) {
+                setSelectedService(service);
+                const staffMember = staffId ? staff.find(s => s.id === staffId) : null;
+                setSelectedStaff(staffMember || null);
+                setStep("datetime");
+              }
+            }}
+          />
+        )}
+        {step === "confirmation" && bookingResult && (
+          <PublicBookingConfirmation
+            businessName={business.business_name}
+            businessAddress={business.address}
+            bookingCode={bookingResult.bookingCode}
+            serviceName={selectedService?.name}
+            staffName={selectedStaff?.name}
+            date={selectedDate}
+            time={selectedTime}
+            serviceDuration={selectedService?.duration_minutes}
+            depositRequired={bookingResult.depositRequired}
+            depositAmount={bookingResult.depositAmount}
+            depositPaymentLink={bookingResult.depositPaymentLink}
+            currency={currency}
+          />
+        )}
         {step === "lookup-cancel" && slug && <PublicLookupBooking businessSlug={slug} mode="cancel" onBack={handleBack} onBookingFound={(b, c) => { setSelectedBooking(b); setCurrency(c); setStep("cancel"); }} />}
         {step === "cancel" && slug && selectedBooking && <PublicCancelBooking businessSlug={slug} booking={selectedBooking} currency={currency} onBack={handleBack} onSuccess={() => setStep("landing")} />}
         {step === "lookup-reschedule" && slug && <PublicLookupBooking businessSlug={slug} mode="reschedule" onBack={handleBack} onBookingFound={(b, c) => { setSelectedBooking(b); setCurrency(c); setStep("reschedule"); }} />}

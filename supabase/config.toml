@@ -113,3 +113,6 @@ verify_jwt = false
 
 [functions.public-reschedule-booking]
 verify_jwt = false
+
+[functions.public-lookup-customer]
+verify_jwt = false

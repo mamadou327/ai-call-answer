@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Loader2, CreditCard } from "lucide-react";
+import { ArrowLeft, Loader2, CreditCard, Sparkles, RefreshCw, Calendar, Clock } from "lucide-react";
 import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Service {
   id: string;
@@ -21,7 +22,17 @@ interface Staff {
   name: string;
 }
 
+interface RecentBooking {
+  id: string;
+  booking_code: string;
+  start_time: string;
+  status: string;
+  service: { id: string; name: string; price: number } | null;
+  staff: { id: string; name: string } | null;
+}
+
 interface PublicCustomerFormProps {
+  businessSlug: string;
   selectedService: Service;
   selectedStaff: Staff | null;
   selectedDate: Date;
@@ -36,6 +47,7 @@ interface PublicCustomerFormProps {
     notes?: string;
   }) => Promise<void>;
   onBack: () => void;
+  onExpressRebook?: (serviceId: string, staffId?: string) => void;
 }
 
 const formatCurrency = (amount: number, currency: string) => {
@@ -48,6 +60,7 @@ const formatCurrency = (amount: number, currency: string) => {
 };
 
 export const PublicCustomerForm = ({
+  businessSlug,
   selectedService,
   selectedStaff,
   selectedDate,
@@ -57,6 +70,7 @@ export const PublicCustomerForm = ({
   hasStripe,
   onSubmit,
   onBack,
+  onExpressRebook,
 }: PublicCustomerFormProps) => {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -65,8 +79,53 @@ export const PublicCustomerForm = ({
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Returning customer state
+  const [lookingUpCustomer, setLookingUpCustomer] = useState(false);
+  const [returningCustomer, setReturningCustomer] = useState<{
+    name: string;
+    email: string | null;
+    totalVisits: number;
+    preferredStaffName: string | null;
+  } | null>(null);
+  const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
+  const [customerLookedUp, setCustomerLookedUp] = useState(false);
+
   const depositRequired = selectedService.deposit_required && selectedService.deposit_amount && selectedService.deposit_amount > 0;
   const willPayNow = depositRequired && collectDuringBooking && hasStripe;
+
+  // Lookup customer when phone number changes
+  const lookupCustomer = async (phoneNumber: string) => {
+    if (!phoneNumber || phoneNumber.length < 8 || customerLookedUp) return;
+
+    setLookingUpCustomer(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("public-lookup-customer", {
+        body: {
+          businessSlug,
+          phone: phoneNumber,
+        },
+      });
+
+      if (!error && data?.found) {
+        setReturningCustomer(data.customer);
+        setRecentBookings(data.recentBookings || []);
+        // Pre-fill form fields
+        if (data.customer.name && !name) setName(data.customer.name);
+        if (data.customer.email && !email) setEmail(data.customer.email);
+      }
+      setCustomerLookedUp(true);
+    } catch (err) {
+      console.error("Customer lookup failed:", err);
+    } finally {
+      setLookingUpCustomer(false);
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    if (phone.length >= 8) {
+      lookupCustomer(phone);
+    }
+  };
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -107,12 +166,71 @@ export const PublicCustomerForm = ({
     }
   };
 
+  const handleExpressRebook = (booking: RecentBooking) => {
+    if (onExpressRebook && booking.service) {
+      onExpressRebook(booking.service.id, booking.staff?.id);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Button variant="outline" onClick={onBack} className="gap-2" disabled={loading}>
         <ArrowLeft className="h-4 w-4" />
         Back to date & time
       </Button>
+
+      {/* Returning Customer Welcome */}
+      {returningCustomer && (
+        <Card className="border-2 border-primary bg-primary/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Sparkles className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-lg">Welcome back, {returningCustomer.name}!</p>
+                <p className="text-sm text-muted-foreground">
+                  You've visited us {returningCustomer.totalVisits} time{returningCustomer.totalVisits !== 1 ? "s" : ""}
+                  {returningCustomer.preferredStaffName && ` • Preferred: ${returningCustomer.preferredStaffName}`}
+                </p>
+              </div>
+            </div>
+
+            {/* Express Rebooking */}
+            {recentBookings.length > 0 && onExpressRebook && (
+              <div className="mt-4">
+                <p className="text-sm font-medium mb-2">Quick rebook your recent services:</p>
+                <div className="space-y-2">
+                  {recentBookings.slice(0, 2).map((booking) => (
+                    <div
+                      key={booking.id}
+                      className="flex items-center justify-between p-2 bg-background rounded-lg border"
+                    >
+                      <div className="flex items-center gap-3">
+                        <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="font-medium text-sm">{booking.service?.name || "Service"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {booking.staff?.name && `with ${booking.staff.name} • `}
+                            {format(new Date(booking.start_time), "MMM d")}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleExpressRebook(booking)}
+                      >
+                        Book Again
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Booking summary */}
@@ -166,6 +284,31 @@ export const PublicCustomerForm = ({
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number *</Label>
+                <div className="relative">
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      setCustomerLookedUp(false);
+                    }}
+                    onBlur={handlePhoneBlur}
+                    placeholder="+44 7123 456789"
+                    className="border-2"
+                    disabled={loading}
+                  />
+                  {lookingUpCustomer && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+                {errors.phone && (
+                  <p className="text-sm text-destructive">{errors.phone}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="name">Full Name *</Label>
                 <Input
                   id="name"
@@ -177,22 +320,6 @@ export const PublicCustomerForm = ({
                 />
                 {errors.name && (
                   <p className="text-sm text-destructive">{errors.name}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number *</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+44 7123 456789"
-                  className="border-2"
-                  disabled={loading}
-                />
-                {errors.phone && (
-                  <p className="text-sm text-destructive">{errors.phone}</p>
                 )}
               </div>
 
