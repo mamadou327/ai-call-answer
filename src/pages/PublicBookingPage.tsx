@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
@@ -15,9 +15,11 @@ import { PublicRescheduleBooking } from "@/components/public-booking/PublicResch
 import { PublicGallery } from "@/components/public-booking/PublicGallery";
 import { PublicSocialLinks } from "@/components/public-booking/PublicSocialLinks";
 import { PublicBookingCart, CartItem } from "@/components/public-booking/PublicBookingCart";
+import { PublicMiniCart } from "@/components/public-booking/PublicMiniCart";
 import { PublicGroupTypeSelector } from "@/components/public-booking/PublicGroupTypeSelector";
 import { PublicGroupCustomerForm } from "@/components/public-booking/PublicGroupCustomerForm";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
 interface Business {
   id: string;
@@ -321,6 +323,25 @@ const PublicBookingPage = () => {
 
   const handleCartAddAnother = () => {
     setStep("service");
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Navigate to service page to view cart
+  const handleViewCart = () => {
+    setStep("service");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Get booked slots from cart for filtering in DateTimePicker
+  const getBookedSlotsFromCart = () => {
+    return cartItems
+      .filter((item) => item.date && item.time)
+      .map((item) => ({
+        staffId: item.staff?.id || null,
+        date: format(item.date!, "yyyy-MM-dd"),
+        time: item.time!,
+      }));
   };
 
   const handleGroupTypeSelect = (mode: "single" | "multiple", personCount?: number) => {
@@ -534,13 +555,22 @@ const PublicBookingPage = () => {
               )}
               <h1 className="text-2xl font-bold">{business.business_name}</h1>
             </div>
-            <PublicSocialLinks socials={{
-              instagram: business.social_instagram,
-              facebook: business.social_facebook,
-              tiktok: business.social_tiktok,
-              twitter: business.social_twitter,
-              youtube: business.social_youtube,
-            }} />
+            <div className="flex items-center gap-3">
+              {cartItems.length > 0 && !["landing", "confirmation"].includes(step) && (
+                <PublicMiniCart
+                  items={cartItems}
+                  currency={currency}
+                  onViewCart={handleViewCart}
+                />
+              )}
+              <PublicSocialLinks socials={{
+                instagram: business.social_instagram,
+                facebook: business.social_facebook,
+                tiktok: business.social_tiktok,
+                twitter: business.social_twitter,
+                youtube: business.social_youtube,
+              }} />
+            </div>
           </div>
         </div>
       </header>
@@ -605,7 +635,8 @@ const PublicBookingPage = () => {
             staffId={selectedStaff?.id} 
             serviceDuration={selectedService.duration_minutes} 
             onSelect={handleDateTimeSelect} 
-            onBack={handleBack} 
+            onBack={handleBack}
+            bookedSlots={getBookedSlotsFromCart()}
           />
         )}
         {step === "group-type" && cartItems.length > 1 && (
@@ -637,7 +668,10 @@ const PublicBookingPage = () => {
               }
             }}
             showAddService={true}
-            onAddService={() => setStep("service")}
+            onAddService={() => {
+              setStep("service");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
           />
         )}
         {step === "group-customer" && cartItems.length > 0 && slug && (
@@ -649,7 +683,10 @@ const PublicBookingPage = () => {
             hasStripe={!!business.stripe_account_id}
             onSubmit={handleGroupBookingSubmit}
             onBack={handleBack}
-            onAddService={() => setStep("service")}
+            onAddService={() => {
+              setStep("service");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
           />
         )}
         {step === "confirmation" && bookingResult && (
