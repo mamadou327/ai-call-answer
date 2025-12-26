@@ -170,7 +170,7 @@ const StaffDashboard = () => {
       .eq("business_id", bizId)
       .gte("start_time", todayStart)
       .lte("start_time", todayEnd)
-      .neq("status", "cancelled")
+      .in("status", ["confirmed", "completed"])
       .order("start_time", { ascending: true });
 
     if (sId) {
@@ -191,7 +191,7 @@ const StaffDashboard = () => {
       .eq("business_id", bizId)
       .gt("start_time", todayEnd)
       .lte("start_time", weekEnd)
-      .neq("status", "cancelled")
+      .in("status", ["confirmed", "completed"])
       .order("start_time", { ascending: true })
       .limit(10);
 
@@ -213,7 +213,7 @@ const StaffDashboard = () => {
       .eq("business_id", bizId)
       .gte("start_time", monthStart)
       .lte("start_time", monthEnd)
-      .neq("status", "cancelled")
+      .in("status", ["confirmed", "completed"])
       .order("start_time", { ascending: true });
 
     if (sId) {

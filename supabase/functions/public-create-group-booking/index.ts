@@ -227,13 +227,13 @@ serve(async (req) => {
       const startDateTime = new Date(startTime);
       const endDateTime = new Date(startDateTime.getTime() + service.duration_minutes * 60 * 1000);
 
-      // Check for conflicts with existing bookings in database
+      // Check for conflicts with existing bookings in database (only confirmed/completed - pending unpaid don't block)
       const { data: conflictingBookings } = await supabase
         .from("bookings")
         .select("id")
         .eq("business_id", businessId)
         .eq("staff_id", staffId)
-        .neq("status", "cancelled")
+        .in("status", ["confirmed", "completed"])
         .lt("start_time", endDateTime.toISOString())
         .gt("end_time", startDateTime.toISOString());
 

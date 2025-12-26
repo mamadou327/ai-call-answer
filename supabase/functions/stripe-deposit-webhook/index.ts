@@ -90,8 +90,58 @@ serve(async (req) => {
       });
 
       if (session.payment_status === "paid") {
-        // Update all bookings with deposit paid AND change status from pending to confirmed
+        // Process each booking - check for conflicts before confirming
         for (const bookingId of bookingIds) {
+          // Get the booking details first
+          const { data: booking, error: bookingFetchError } = await supabaseClient
+            .from("bookings")
+            .select("staff_id, start_time, end_time, business_id, status")
+            .eq("id", bookingId)
+            .single();
+
+          if (bookingFetchError || !booking) {
+            logStep("Failed to fetch booking", { bookingId, error: bookingFetchError?.message });
+            continue;
+          }
+
+          // If already confirmed, skip
+          if (booking.status === "confirmed" || booking.status === "completed") {
+            logStep("Booking already confirmed, skipping", { bookingId });
+            continue;
+          }
+
+          // Check for conflicts with other confirmed/completed bookings (excluding this one)
+          const { data: conflictingBookings } = await supabaseClient
+            .from("bookings")
+            .select("id, customer_name, start_time, end_time")
+            .eq("business_id", booking.business_id)
+            .eq("staff_id", booking.staff_id)
+            .in("status", ["confirmed", "completed"])
+            .neq("id", bookingId)
+            .lt("start_time", booking.end_time)
+            .gt("end_time", booking.start_time);
+
+          if (conflictingBookings && conflictingBookings.length > 0) {
+            logStep("Conflict detected - another booking confirmed first", { 
+              bookingId, 
+              conflictingBookingId: conflictingBookings[0].id,
+              conflictingCustomer: conflictingBookings[0].customer_name
+            });
+            // Mark booking as cancelled due to conflict
+            await supabaseClient
+              .from("bookings")
+              .update({
+                status: "cancelled",
+                cancelled_at: new Date().toISOString(),
+                notes: `Auto-cancelled: Time slot was confirmed by another customer (${conflictingBookings[0].customer_name}) before payment completed.`
+              })
+              .eq("id", bookingId);
+            
+            // TODO: In future, trigger a refund via Stripe
+            continue;
+          }
+
+          // No conflicts - confirm the booking
           const { error: updateError } = await supabaseClient
             .from("bookings")
             .update({
@@ -109,7 +159,7 @@ serve(async (req) => {
           }
         }
 
-        // Send confirmation SMS for each booking
+        // Send confirmation SMS for each successfully confirmed booking
         for (const bookingId of bookingIds) {
           const { data: booking } = await supabaseClient
             .from("bookings")
@@ -118,10 +168,14 @@ serve(async (req) => {
               customer_name,
               booking_code,
               business_id,
+              status,
               business:business_id (business_name, twilio_enabled, twilio_phone_number, sms_on_confirmation)
             `)
             .eq("id", bookingId)
             .single();
+
+          // Only send SMS if booking is confirmed (not cancelled due to conflict)
+          if (booking?.status !== "confirmed") continue;
 
           const businessData = booking?.business as { 
             business_name?: string; 

@@ -110,12 +110,56 @@ serve(async (req) => {
 
           logStep("Found paid booking!", { bookingId, bookingCode: matchingBooking.booking_code });
 
+          // Get booking details for conflict check
+          const { data: bookingDetails } = await supabaseClient
+            .from("bookings")
+            .select("staff_id, start_time, end_time, business_id, status")
+            .eq("id", bookingId)
+            .single();
+
+          if (!bookingDetails) {
+            logStep("Booking not found", { bookingId });
+            continue;
+          }
+
+          // Skip if already confirmed
+          if (bookingDetails.status === "confirmed" || bookingDetails.status === "completed") {
+            logStep("Booking already confirmed, skipping", { bookingId });
+            continue;
+          }
+
+          // Check for conflicts with other confirmed/completed bookings
+          const { data: conflictingBookings } = await supabaseClient
+            .from("bookings")
+            .select("id")
+            .eq("business_id", bookingDetails.business_id)
+            .eq("staff_id", bookingDetails.staff_id)
+            .in("status", ["confirmed", "completed"])
+            .neq("id", bookingId)
+            .lt("start_time", bookingDetails.end_time)
+            .gt("end_time", bookingDetails.start_time);
+
+          if (conflictingBookings && conflictingBookings.length > 0) {
+            logStep("Conflict detected - another booking was confirmed first", { bookingId });
+            // Mark as cancelled
+            await supabaseClient
+              .from("bookings")
+              .update({
+                status: "cancelled",
+                cancelled_at: new Date().toISOString(),
+                notes: "Auto-cancelled: Time slot was confirmed by another customer before payment completed."
+              })
+              .eq("id", bookingId);
+            continue;
+          }
+
           const amountPaid = session.amount_total ? session.amount_total / 100 : matchingBooking.deposit_amount;
 
-          // Update the booking
+          // Update the booking - also set status to confirmed
           const { error: updateError } = await supabaseClient
             .from("bookings")
             .update({
+              status: "confirmed",
               payment_status: "deposit_paid",
               deposit_paid_at: new Date().toISOString(),
               deposit_amount: amountPaid,
