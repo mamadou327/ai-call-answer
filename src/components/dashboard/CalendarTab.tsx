@@ -169,7 +169,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
         .lte("start_time", endDate.toISOString())
     ]);
 
-    if (bookingsResult.data) setBookings(bookingsResult.data.filter(b => b.status !== "cancelled") as Booking[]);
+    if (bookingsResult.data) setBookings(bookingsResult.data.filter(b => b.status === "confirmed" || b.status === "completed") as Booking[]);
     if (timeOffResult.data) setTimeOffs(timeOffResult.data as TimeOff[]);
   };
 
@@ -215,7 +215,7 @@ export const CalendarTab = ({ businessId, currency = "GBP" }: CalendarTabProps) 
         .lte("start_time", endDate.toISOString())
     ]);
 
-    if (bookingsResult.data) setBookings(bookingsResult.data.filter(b => b.status !== "cancelled") as Booking[]);
+    if (bookingsResult.data) setBookings(bookingsResult.data.filter(b => b.status === "confirmed" || b.status === "completed") as Booking[]);
     if (timeOffResult.data) setTimeOffs(timeOffResult.data as TimeOff[]);
     setLoading(false);
   };

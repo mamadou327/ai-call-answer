@@ -125,13 +125,13 @@ serve(async (req) => {
     const startDateTime = new Date(startTime);
     const endDateTime = new Date(startDateTime.getTime() + service.duration_minutes * 60 * 1000);
 
-    // Verify slot is still available
+    // Verify slot is still available (only check confirmed/completed bookings - pending unpaid bookings don't block)
     const { data: conflictingBookings } = await supabase
       .from("bookings")
       .select("id")
       .eq("business_id", businessId)
       .eq("staff_id", staffId)
-      .neq("status", "cancelled")
+      .in("status", ["confirmed", "completed"])
       .lt("start_time", endDateTime.toISOString())
       .gt("end_time", startDateTime.toISOString());
 

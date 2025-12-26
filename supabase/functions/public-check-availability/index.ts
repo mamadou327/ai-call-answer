@@ -74,7 +74,7 @@ serve(async (req) => {
         .from("bookings")
         .select("start_time, end_time, staff_id")
         .eq("business_id", businessId)
-        .neq("status", "cancelled")
+        .in("status", ["confirmed", "completed"])
         .gte("start_time", `${date}T00:00:00`)
         .lt("start_time", `${date}T23:59:59`),
       supabase
