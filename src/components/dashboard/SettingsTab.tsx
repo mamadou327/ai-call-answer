@@ -14,7 +14,7 @@ import { EmailNotificationSettings } from "./settings/EmailNotificationSettings"
 import { TwilioSettings } from "./settings/TwilioSettings";
 import { DepositSettings } from "./settings/DepositSettings";
 import { OnlineBookingSettings } from "./settings/OnlineBookingSettings";
-import { PaymentProvidersSettings } from "./settings/PaymentProvidersSettings";
+import { StripeConnectSettings } from "./settings/StripeConnectSettings";
 import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe, CreditCard } from "lucide-react";
 
 interface SettingsTabProps {
@@ -39,7 +39,7 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
     if (["sms", "email"].includes(section)) {
       return "notifications";
     }
-    if (["stripe", "truelayer", "payments"].includes(section)) {
+    if (["stripe", "payments"].includes(section)) {
       return "payments";
     }
     return section;
@@ -108,7 +108,7 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
       </TabsContent>
 
       <TabsContent value="payments">
-        <PaymentProvidersSettings business={business} onUpdate={onUpdate} currency={currency} />
+        <StripeConnectSettings business={business} onUpdate={onUpdate} />
       </TabsContent>
 
       <TabsContent value="services">
