@@ -62,58 +62,87 @@ serve(async (req) => {
     // Handle checkout.session.completed event
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
-      const bookingId = session.metadata?.booking_id;
       
-      if (!bookingId) {
-        logStep("No booking_id in metadata, skipping");
+      // Support both single booking_id and multiple booking_ids (for group bookings)
+      const singleBookingId = session.metadata?.booking_id;
+      const multipleBookingIds = session.metadata?.booking_ids;
+      
+      // Parse booking IDs - could be a single ID or comma-separated list
+      let bookingIds: string[] = [];
+      if (multipleBookingIds) {
+        bookingIds = multipleBookingIds.split(",").map((id: string) => id.trim()).filter(Boolean);
+      } else if (singleBookingId) {
+        bookingIds = [singleBookingId];
+      }
+      
+      if (bookingIds.length === 0) {
+        logStep("No booking_id(s) in metadata, skipping");
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
         });
       }
 
-      logStep("Processing payment for booking", { 
-        bookingId, 
+      logStep("Processing payment for bookings", { 
+        bookingIds, 
+        count: bookingIds.length,
         paymentStatus: session.payment_status 
       });
 
       if (session.payment_status === "paid") {
-        // Update booking with deposit paid
-        const { error: updateError } = await supabaseClient
-          .from("bookings")
-          .update({
-            deposit_paid_at: new Date().toISOString(),
-            stripe_payment_intent_id: session.payment_intent,
-            payment_status: "deposit_paid",
-          })
-          .eq("id", bookingId);
+        // Update all bookings with deposit paid AND change status from pending to confirmed
+        for (const bookingId of bookingIds) {
+          const { error: updateError } = await supabaseClient
+            .from("bookings")
+            .update({
+              status: "confirmed",
+              deposit_paid_at: new Date().toISOString(),
+              stripe_payment_intent_id: session.payment_intent,
+              payment_status: "deposit_paid",
+            })
+            .eq("id", bookingId);
 
-        if (updateError) {
-          logStep("Failed to update booking", { error: updateError.message });
-          throw new Error(`Failed to update booking: ${updateError.message}`);
+          if (updateError) {
+            logStep("Failed to update booking", { bookingId, error: updateError.message });
+          } else {
+            logStep("Booking updated - confirmed and deposit paid", { bookingId });
+          }
         }
 
-        logStep("Booking updated with deposit paid", { bookingId });
+        // Send confirmation SMS for each booking
+        for (const bookingId of bookingIds) {
+          const { data: booking } = await supabaseClient
+            .from("bookings")
+            .select(`
+              customer_phone,
+              customer_name,
+              booking_code,
+              business_id,
+              business:business_id (business_name, twilio_enabled, twilio_phone_number, sms_on_confirmation)
+            `)
+            .eq("id", bookingId)
+            .single();
 
-        // Optionally send confirmation SMS
-        const { data: booking } = await supabaseClient
-          .from("bookings")
-          .select(`
-            customer_phone,
-            customer_name,
-            booking_code,
-            business:business_id (business_name, twilio_enabled, twilio_phone_number)
-          `)
-          .eq("id", bookingId)
-          .single();
-
-        const businessData = booking?.business as { business_name?: string; twilio_enabled?: boolean } | null;
-        if (booking?.customer_phone && businessData?.twilio_enabled) {
-          logStep("Would send deposit confirmation SMS", { 
-            phone: booking.customer_phone,
-            businessName: businessData.business_name 
-          });
-          // SMS sending would be implemented here
+          const businessData = booking?.business as { 
+            business_name?: string; 
+            twilio_enabled?: boolean;
+            sms_on_confirmation?: boolean;
+          } | null;
+          
+          if (booking && businessData?.twilio_enabled && businessData?.sms_on_confirmation) {
+            try {
+              await supabaseClient.functions.invoke("send-booking-sms", {
+                body: {
+                  businessId: booking.business_id,
+                  bookingId: bookingId,
+                  type: "confirmation",
+                },
+              });
+              logStep("Confirmation SMS sent after payment", { bookingCode: booking.booking_code });
+            } catch (smsError: any) {
+              logStep("Failed to send SMS", { bookingId, error: smsError?.message || String(smsError) });
+            }
+          }
         }
       }
     }
