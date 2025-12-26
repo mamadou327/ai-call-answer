@@ -2885,11 +2885,28 @@ Collect: ${collectFields.join(", ")}.${doNotAskFields.length > 0 ? `\nDO NOT ask
 
   // Deposit instruction - only include if some services require deposits
   const depositInstruction = hasDepositServices 
-    ? `\n## DEPOSITS:
-Some services require a deposit to secure the booking. If the service requires a deposit:
-- AFTER confirming the booking, tell the caller: "Just so you know, this service requires a deposit of [amount]. You'll get a text with a payment link shortly."
-- If they ask about the deposit: "You'll receive a text message with a secure payment link after we confirm. Just click the link to pay whenever you're ready."
-- DO NOT mention deposits for services that don't require them.`
+    ? `\n## DEPOSITS (IMPORTANT - FOLLOW THIS FLOW):
+
+**1. WHEN LISTING SERVICES or caller asks about prices:**
+Include deposit info naturally when mentioning services that require one:
+- "A haircut is £15, and there's a small £1 deposit to secure your booking"
+- "That service is £30, with a £5 deposit payable by text"
+
+**2. BEFORE CALLING create_booking (REQUIRED for deposit services):**
+If the service has [DEPOSIT: X] in its description, you MUST:
+- Say: "Just so you know, there's a [deposit amount] deposit for this service. You'll get a text with a secure payment link, and if it's not paid before your appointment, the booking may be cancelled. Is that okay with you?"
+- WAIT for the caller to confirm (yes/okay/that's fine/etc.)
+- Only THEN call create_booking
+- If they say no or hesitate, offer alternatives or ask if they have questions
+
+**3. AFTER BOOKING IS CONFIRMED:**
+Remind them about the payment:
+- "Perfect, you're all booked! You'll get a text shortly with your booking details and the payment link for the [deposit amount] deposit. Just a heads up - please pay before your appointment to keep your slot secure."
+
+**4. IF THEY ASK ABOUT DEPOSITS:**
+- "The deposit helps us secure your time slot. You'll get a text with an easy payment link - just takes a minute to pay. If it's not paid before your appointment, we may need to give your slot to someone else."
+
+**DO NOT mention deposits for services that don't have [DEPOSIT: X] in their description.**`
     : "";
 
   // Website knowledge for FAQs
