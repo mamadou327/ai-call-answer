@@ -249,7 +249,9 @@ export const PublicLookupBooking = ({
                             Cannot {mode} within {noticeHours} hours
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Your booking is in {booking.hoursUntilBooking} hours
+                            {booking.hoursUntilBooking < 0 
+                              ? "This booking is in the past" 
+                              : `Your booking is in ${booking.hoursUntilBooking} hours`}
                           </p>
                         </div>
                       )}
