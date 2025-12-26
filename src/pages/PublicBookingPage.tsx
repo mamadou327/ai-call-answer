@@ -713,20 +713,6 @@ const PublicBookingPage = () => {
         {step === "gallery" && <PublicGallery businessId={business.id} onBack={handleBack} />}
       </main>
 
-      {/* Sticky cart at bottom */}
-      {showCart && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-sm border-t">
-          <div className="max-w-4xl mx-auto">
-            <PublicBookingCart
-              items={cartItems}
-              currency={currency}
-              onRemoveItem={handleRemoveCartItem}
-              onContinue={handleCartContinue}
-              onAddAnother={handleCartAddAnother}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 };
