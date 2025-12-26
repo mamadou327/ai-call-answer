@@ -16,7 +16,6 @@ import { SettingsTab } from "@/components/dashboard/SettingsTab";
 import { AccountMenu } from "@/components/AccountMenu";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
-
 interface Business {
   id: string;
   business_name: string;
@@ -53,7 +52,6 @@ const Dashboard = () => {
   // Background polling for unpaid deposit checks every 15 seconds
   useEffect(() => {
     if (!business?.id) return;
-    
     const checkUnpaidDeposits = async () => {
       try {
         await supabase.functions.invoke('check-unpaid-deposits');
@@ -61,16 +59,14 @@ const Dashboard = () => {
         console.error('Background deposit check failed:', error);
       }
     };
-    
+
     // Initial check
     checkUnpaidDeposits();
-    
+
     // Poll every 15 seconds
     const intervalId = setInterval(checkUnpaidDeposits, 15000);
-    
     return () => clearInterval(intervalId);
   }, [business?.id]);
-
   useEffect(() => {
     const checkUser = async () => {
       const {
@@ -165,17 +161,9 @@ const Dashboard = () => {
   };
   const loadSetupChecklist = async (biz: any) => {
     const [servicesRes, staffRes, hoursRes, settingsRes] = await Promise.all([supabase.from("services").select("id").eq("business_id", biz.id), supabase.from("staff").select("id").eq("business_id", biz.id), supabase.from("opening_hours").select("id").eq("business_id", biz.id), supabase.from("business_settings").select("*").eq("business_id", biz.id).single()]);
-    
+
     // Check if any notification is enabled (email or SMS)
-    const hasNotificationsEnabled = !!(
-      biz.email_on_confirmation || 
-      biz.email_on_cancellation || 
-      biz.email_on_reminder ||
-      biz.sms_on_confirmation ||
-      biz.sms_on_cancellation ||
-      biz.sms_on_reminder
-    );
-    
+    const hasNotificationsEnabled = !!(biz.email_on_confirmation || biz.email_on_cancellation || biz.email_on_reminder || biz.sms_on_confirmation || biz.sms_on_cancellation || biz.sms_on_reminder);
     const items: ChecklistItem[] = [{
       label: "Business info complete (name, address, phone)",
       isComplete: !!(biz.business_name && biz.address && biz.main_phone),
@@ -236,7 +224,7 @@ const Dashboard = () => {
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="h-14 sm:h-16 flex items-center justify-between px-3 sm:px-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <img src={aiviaLogo} alt="Aivia" className="h-8 sm:h-12 w-auto object-fill" />
+            <img alt="Aivia" className="h-8 sm:h-12 w-auto object-fill" src="/lovable-uploads/945d3c08-7d35-443e-876c-9424185ec92e.jpg" />
             <span className="text-sm sm:text-base font-mono font-extrabold hidden xs:inline">AIVIA</span>
           </div>
           <div className="flex items-center">
@@ -317,13 +305,7 @@ const Dashboard = () => {
           </>}
 
         {/* AI Assistant Chat */}
-        {business && user && (
-          <AiviaAssistantChat
-            businessId={business.id}
-            userId={user.id}
-            role={isStaffView ? "staff" : "owner"}
-          />
-        )}
+        {business && user && <AiviaAssistantChat businessId={business.id} userId={user.id} role={isStaffView ? "staff" : "owner"} />}
       </main>
     </div>;
 };
