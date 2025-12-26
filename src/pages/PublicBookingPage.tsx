@@ -344,7 +344,27 @@ const PublicBookingPage = () => {
         staffId: item.staff?.id || null,
         date: format(item.date!, "yyyy-MM-dd"),
         time: item.time!,
+        durationMinutes: item.service.duration_minutes,
       }));
+  };
+
+  const getEdgeFunctionErrorMessage = (err: any) => {
+    const body = err?.context?.body;
+
+    if (typeof body === "string") {
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed?.error) return String(parsed.error);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (body && typeof body === "object" && (body as any).error) {
+      return String((body as any).error);
+    }
+
+    return err?.message || "Failed to create bookings.";
   };
 
   const handleGroupTypeSelect = (mode: "single" | "multiple", personCount?: number) => {
@@ -408,7 +428,7 @@ const PublicBookingPage = () => {
       setGroupBookingMode(null);
       setStep("confirmation");
     } catch (err: any) {
-      toast({ title: "Booking failed", description: err?.message || "Failed to create bookings.", variant: "destructive" });
+      toast({ title: "Booking failed", description: getEdgeFunctionErrorMessage(err), variant: "destructive" });
     }
   };
 
@@ -459,7 +479,7 @@ const PublicBookingPage = () => {
         setCartItems([]);
         setStep("confirmation");
       } catch (err: any) {
-        toast({ title: "Booking failed", description: err?.message || "Failed to create bookings.", variant: "destructive" });
+        toast({ title: "Booking failed", description: getEdgeFunctionErrorMessage(err), variant: "destructive" });
       }
       return;
     }
