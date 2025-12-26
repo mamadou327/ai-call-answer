@@ -107,7 +107,7 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
       supabase.from("bookings").select(`*, service:service_id(name, price), staff:staff_id(name)`).eq("business_id", businessId).neq("status", "cancelled").gte("start_time", startOfDay(today).toISOString()).lte("start_time", endOfDay(today).toISOString()).order("start_time", { ascending: true }),
       supabase.from("bookings").select(`*, service:service_id(name), staff:staff_id(name)`).eq("business_id", businessId).neq("status", "cancelled").gte("start_time", new Date().toISOString()).order("start_time", { ascending: true }).limit(5),
       supabase.from("bookings").select(`*, service:service_id(name), staff:staff_id(name)`).eq("business_id", businessId).eq("status", "cancelled").order("cancelled_at", { ascending: false }).limit(5),
-      supabase.from("bookings").select(`service:service_id(price)`).eq("business_id", businessId).eq("status", "confirmed").gte("start_time", start.toISOString()).lte("start_time", end.toISOString())
+      supabase.from("bookings").select(`service:service_id(price)`).eq("business_id", businessId).in("status", ["confirmed", "completed"]).gte("start_time", start.toISOString()).lte("start_time", end.toISOString())
     ]);
 
     if (bookingsResult.count !== null) setBookingsCount(bookingsResult.count);
@@ -241,7 +241,7 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
         service:service_id(price)
       `)
       .eq("business_id", businessId)
-      .eq("status", "confirmed")
+      .in("status", ["confirmed", "completed"])
       .gte("start_time", start.toISOString())
       .lte("start_time", end.toISOString());
 
@@ -303,7 +303,7 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
           .from("bookings")
           .select(`*, service:service_id(name, price), staff:staff_id(name)`)
           .eq("business_id", businessId)
-          .eq("status", "confirmed")
+          .in("status", ["confirmed", "completed"])
           .gte("start_time", start.toISOString())
           .lte("start_time", end.toISOString())
           .order("start_time", { ascending: false });
