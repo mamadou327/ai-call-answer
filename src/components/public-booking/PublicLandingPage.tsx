@@ -10,6 +10,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { PublicContactForm } from "./PublicContactForm";
+import { PublicOpeningHours } from "./PublicOpeningHours";
 
 interface PolicySettings {
   minBookingNoticeHours: number | null;
@@ -19,14 +21,23 @@ interface PolicySettings {
   cancellationPolicy: string | null;
 }
 
+interface OpeningHour {
+  day_of_week: number;
+  is_closed: boolean;
+  open_time: string | null;
+  close_time: string | null;
+}
+
 interface PublicLandingPageProps {
   businessName: string;
+  businessSlug: string;
   welcomeMessage: string | null;
   address: string;
   phone: string;
   website: string | null;
   hasGallery: boolean;
   policies?: PolicySettings;
+  openingHours?: OpeningHour[];
   onMakeBooking: () => void;
   onCancelBooking: () => void;
   onRescheduleBooking: () => void;
@@ -64,12 +75,14 @@ const formatPolicyText = (rawPolicy: string): string => {
 
 export const PublicLandingPage = ({
   businessName,
+  businessSlug,
   welcomeMessage,
   address,
   phone,
   website,
   hasGallery,
   policies,
+  openingHours,
   onMakeBooking,
   onCancelBooking,
   onRescheduleBooking,
@@ -193,56 +206,67 @@ export const PublicLandingPage = ({
             )}
           </div>
 
-          {/* Policies Button */}
-          <Dialog open={policiesOpen} onOpenChange={setPoliciesOpen}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
-                <FileText className="h-4 w-4" />
-                Policies
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Booking Policies</DialogTitle>
-                <DialogDescription>
-                  Our booking, cancellation, and rescheduling policies
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-1 mt-4">
-                {policies?.minBookingNoticeHours !== null && policies?.minBookingNoticeHours !== undefined && (
-                  formatPolicyItem("Minimum booking notice", policies.minBookingNoticeHours, "hours")
-                )}
-                {policies?.maxDaysAdvance !== null && policies?.maxDaysAdvance !== undefined && (
-                  formatPolicyItem("Book up to", policies.maxDaysAdvance, "days in advance")
-                )}
-                {policies?.minCancellationNoticeHours !== null && policies?.minCancellationNoticeHours !== undefined && (
-                  formatPolicyItem("Cancellation notice required", policies.minCancellationNoticeHours, "hours")
-                )}
-                {policies?.minRescheduleNoticeHours !== null && policies?.minRescheduleNoticeHours !== undefined && (
-                  formatPolicyItem("Reschedule notice required", policies.minRescheduleNoticeHours, "hours")
-                )}
-                
-                {policies?.cancellationPolicy && (
-                  <div className="pt-4 mt-4 border-t">
-                    <h4 className="font-medium mb-2">Policy</h4>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                      {formatPolicyText(policies.cancellationPolicy)}
-                    </p>
-                  </div>
-                )}
+          {/* Opening Hours */}
+          {openingHours && openingHours.length > 0 && (
+            <PublicOpeningHours openingHours={openingHours} />
+          )}
 
-                {!policies?.minBookingNoticeHours && 
-                 !policies?.maxDaysAdvance && 
-                 !policies?.minCancellationNoticeHours && 
-                 !policies?.minRescheduleNoticeHours && 
-                 !policies?.cancellationPolicy && (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No specific policies have been set by this business.
-                  </p>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {/* Policies Button */}
+            <Dialog open={policiesOpen} onOpenChange={setPoliciesOpen}>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+                  <FileText className="h-4 w-4" />
+                  Policies
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Booking Policies</DialogTitle>
+                  <DialogDescription>
+                    Our booking, cancellation, and rescheduling policies
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-1 mt-4">
+                  {policies?.minBookingNoticeHours !== null && policies?.minBookingNoticeHours !== undefined && (
+                    formatPolicyItem("Minimum booking notice", policies.minBookingNoticeHours, "hours")
+                  )}
+                  {policies?.maxDaysAdvance !== null && policies?.maxDaysAdvance !== undefined && (
+                    formatPolicyItem("Book up to", policies.maxDaysAdvance, "days in advance")
+                  )}
+                  {policies?.minCancellationNoticeHours !== null && policies?.minCancellationNoticeHours !== undefined && (
+                    formatPolicyItem("Cancellation notice required", policies.minCancellationNoticeHours, "hours")
+                  )}
+                  {policies?.minRescheduleNoticeHours !== null && policies?.minRescheduleNoticeHours !== undefined && (
+                    formatPolicyItem("Reschedule notice required", policies.minRescheduleNoticeHours, "hours")
+                  )}
+                  
+                  {policies?.cancellationPolicy && (
+                    <div className="pt-4 mt-4 border-t">
+                      <h4 className="font-medium mb-2">Policy</h4>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {formatPolicyText(policies.cancellationPolicy)}
+                      </p>
+                    </div>
+                  )}
+
+                  {!policies?.minBookingNoticeHours && 
+                   !policies?.maxDaysAdvance && 
+                   !policies?.minCancellationNoticeHours && 
+                   !policies?.minRescheduleNoticeHours && 
+                   !policies?.cancellationPolicy && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No specific policies have been set by this business.
+                    </p>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Contact Form */}
+            <PublicContactForm businessSlug={businessSlug} businessName={businessName} />
+          </div>
         </div>
       </footer>
     </div>
