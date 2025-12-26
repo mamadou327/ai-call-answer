@@ -97,7 +97,7 @@ export const PublicServiceSelector = ({
     <div className="space-y-6">
       {/* Back button when on category view */}
       {!selectedCategory && (
-        <Button variant="ghost" onClick={onBack} className="gap-2">
+        <Button variant="outline" onClick={onBack} className="gap-2 mb-2">
           <ArrowLeft className="h-4 w-4" />
           Back
         </Button>
