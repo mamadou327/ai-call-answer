@@ -17,6 +17,16 @@ interface CartItem {
   startTime: string;
 }
 
+interface ItemWithCustomer {
+  serviceId: string;
+  staffId: string | null;
+  startTime: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  notes?: string;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -27,32 +37,47 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    const requestBody = await req.json();
     const { 
       businessSlug, 
       items,
+      itemsWithCustomers,
       customerName, 
       customerPhone, 
       customerEmail,
       notes,
-    } = await req.json();
+    } = requestBody;
 
-    logStep("Request received", { businessSlug, itemCount: items?.length, customerName });
+    // Determine if this is multi-person mode (itemsWithCustomers) or single-person mode (items)
+    const isMultiPerson = itemsWithCustomers && Array.isArray(itemsWithCustomers) && itemsWithCustomers.length > 0;
+    const bookingItems = isMultiPerson ? itemsWithCustomers : items;
+
+    logStep("Request received", { businessSlug, itemCount: bookingItems?.length, isMultiPerson });
 
     // Validate required fields
-    if (!businessSlug || !items || !Array.isArray(items) || items.length === 0 || !customerName || !customerPhone) {
+    if (!businessSlug || !bookingItems || !Array.isArray(bookingItems) || bookingItems.length === 0) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Validate customer name
-    const trimmedName = customerName.trim();
-    if (trimmedName.length < 2 || /^(unknown|test|n\/a|na|none)$/i.test(trimmedName)) {
-      return new Response(
-        JSON.stringify({ error: "Please provide a valid customer name" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // For single-person mode, validate customer info
+    if (!isMultiPerson) {
+      if (!customerName || !customerPhone) {
+        return new Response(
+          JSON.stringify({ error: "Missing customer name or phone" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const trimmedName = customerName.trim();
+      if (trimmedName.length < 2 || /^(unknown|test|n\/a|na|none)$/i.test(trimmedName)) {
+        return new Response(
+          JSON.stringify({ error: "Please provide a valid customer name" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Get business
@@ -96,8 +121,21 @@ serve(async (req) => {
     }> = [];
 
     // Process each item in the cart
-    for (const item of items as CartItem[]) {
+    for (const item of bookingItems) {
       const { serviceId, staffId, startTime } = item;
+      
+      // Determine customer info - from item (multi-person) or from request params (single-person)
+      const itemCustomerName = isMultiPerson ? (item as ItemWithCustomer).customerName : customerName;
+      const itemCustomerPhone = isMultiPerson ? (item as ItemWithCustomer).customerPhone : customerPhone;
+      const itemCustomerEmail = isMultiPerson ? (item as ItemWithCustomer).customerEmail : customerEmail;
+      const itemNotes = isMultiPerson ? (item as ItemWithCustomer).notes : notes;
+
+      // Validate customer name for this item
+      const trimmedItemName = itemCustomerName?.trim() || "";
+      if (trimmedItemName.length < 2 || /^(unknown|test|n\/a|na|none)$/i.test(trimmedItemName)) {
+        logStep("Invalid customer name", { itemCustomerName });
+        continue;
+      }
 
       // Get service details
       const { data: service, error: serviceError } = await supabase
@@ -170,15 +208,15 @@ serve(async (req) => {
           business_id: businessId,
           service_id: serviceId,
           staff_id: staffId,
-          customer_name: trimmedName,
-          customer_phone: customerPhone,
+          customer_name: trimmedItemName,
+          customer_phone: itemCustomerPhone,
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
           status: "confirmed",
           payment_status: "unpaid",
           deposit_amount: service.deposit_required ? service.deposit_amount : null,
           booking_code: bookingCode,
-          notes: notes || null,
+          notes: itemNotes || null,
           created_by: "online_booking",
         })
         .select()

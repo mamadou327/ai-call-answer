@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Loader2, CreditCard, Sparkles, RefreshCw, Calendar, Clock } from "lucide-react";
+import { ArrowLeft, Loader2, CreditCard, Sparkles, RefreshCw, Calendar, Clock, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -48,6 +48,8 @@ interface PublicCustomerFormProps {
   }) => Promise<void>;
   onBack: () => void;
   onExpressRebook?: (serviceId: string, staffId?: string) => void;
+  onAddService?: () => void;
+  showAddService?: boolean;
 }
 
 const formatCurrency = (amount: number, currency: string) => {
@@ -71,6 +73,8 @@ export const PublicCustomerForm = ({
   onSubmit,
   onBack,
   onExpressRebook,
+  onAddService,
+  showAddService = false,
 }: PublicCustomerFormProps) => {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -236,7 +240,15 @@ export const PublicCustomerForm = ({
         {/* Booking summary */}
         <Card className="border-2 border-primary shadow-sm bg-secondary">
           <CardHeader>
-            <CardTitle className="text-lg">Booking Summary</CardTitle>
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span>Booking Summary</span>
+              {showAddService && onAddService && (
+                <Button variant="ghost" size="sm" onClick={onAddService} className="gap-1 text-xs">
+                  <Plus className="h-3 w-3" />
+                  Add Service
+                </Button>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between">
