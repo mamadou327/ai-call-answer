@@ -69,9 +69,18 @@ serve(async (req) => {
         );
       }
 
+      // Determine if this is a sandbox client (sandbox client IDs often contain specific patterns)
+      // TrueLayer sandbox uses different endpoints
+      const isSandbox = clientId.includes("sandbox") || clientId.includes("ede904") || !clientId.startsWith("live-");
+      const authUrl = isSandbox 
+        ? "https://auth.truelayer-sandbox.com/connect/token"
+        : "https://auth.truelayer.com/connect/token";
+
+      logStep("Validating credentials", { isSandbox, authUrl });
+
       // Validate credentials by making a test request to TrueLayer
       try {
-        const tokenResponse = await fetch("https://auth.truelayer.com/connect/token", {
+        const tokenResponse = await fetch(authUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
@@ -84,11 +93,27 @@ serve(async (req) => {
           }),
         });
 
+        const responseText = await tokenResponse.text();
+        logStep("TrueLayer auth response", { status: tokenResponse.status, response: responseText });
+
         if (!tokenResponse.ok) {
-          const errorData = await tokenResponse.text();
-          logStep("TrueLayer auth failed", { status: tokenResponse.status, error: errorData });
+          let errorMessage = "Invalid TrueLayer credentials. Please check your Client ID and Secret.";
+          
+          try {
+            const errorData = JSON.parse(responseText);
+            if (errorData.error === "invalid_client") {
+              errorMessage = "Invalid Client ID or Secret. Make sure you're using the correct credentials from your TrueLayer Console.";
+            } else if (errorData.error === "invalid_scope") {
+              errorMessage = "Your TrueLayer application doesn't have payment permissions. Please check your TrueLayer Console settings.";
+            } else if (errorData.error_description) {
+              errorMessage = errorData.error_description;
+            }
+          } catch {
+            // Use default error message
+          }
+          
           return new Response(
-            JSON.stringify({ error: "Invalid TrueLayer credentials. Please check your Client ID and Secret." }),
+            JSON.stringify({ error: errorMessage }),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
