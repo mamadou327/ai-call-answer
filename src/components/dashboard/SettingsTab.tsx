@@ -12,10 +12,10 @@ import { AISettingsTab } from "./settings/AISettingsTab";
 import { PoliciesTab } from "./settings/PoliciesTab";
 import { EmailNotificationSettings } from "./settings/EmailNotificationSettings";
 import { TwilioSettings } from "./settings/TwilioSettings";
-import { StripeConnectSettings } from "./settings/StripeConnectSettings";
 import { DepositSettings } from "./settings/DepositSettings";
 import { OnlineBookingSettings } from "./settings/OnlineBookingSettings";
-import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe } from "lucide-react";
+import { PaymentProvidersSettings } from "./settings/PaymentProvidersSettings";
+import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe, CreditCard } from "lucide-react";
 
 interface SettingsTabProps {
   businessId: string;
@@ -38,6 +38,9 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
     }
     if (["sms", "email"].includes(section)) {
       return "notifications";
+    }
+    if (["stripe", "truelayer", "payments"].includes(section)) {
+      return "payments";
     }
     return section;
   };
@@ -81,6 +84,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
           <UserCircle className="w-4 h-4" />
           <span className="hidden sm:inline">Customers</span>
         </TabsTrigger>
+        <TabsTrigger value="payments" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <CreditCard className="w-4 h-4" />
+          <span className="hidden sm:inline">Payments</span>
+        </TabsTrigger>
         <TabsTrigger value="notifications" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
           <Bell className="w-4 h-4" />
           <span className="hidden sm:inline">Notifications</span>
@@ -97,8 +104,11 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
 
       <TabsContent value="policies" className="space-y-6">
         <PoliciesTab businessId={businessId} onUpdate={onUpdate} />
-        <StripeConnectSettings business={business} onUpdate={onUpdate} />
         <DepositSettings businessId={businessId} onUpdate={onUpdate} />
+      </TabsContent>
+
+      <TabsContent value="payments">
+        <PaymentProvidersSettings business={business} onUpdate={onUpdate} currency={currency} />
       </TabsContent>
 
       <TabsContent value="services">

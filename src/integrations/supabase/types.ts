@@ -383,6 +383,7 @@ export type Database = {
           plan_tier: string | null
           porting_instructions: string | null
           porting_status: string | null
+          preferred_payment_provider: string | null
           secondary_phone: string | null
           sms_on_cancellation: boolean
           sms_on_confirmation: boolean
@@ -398,6 +399,9 @@ export type Database = {
           status: Database["public"]["Enums"]["business_status"]
           stripe_account_id: string | null
           stripe_connected_at: string | null
+          truelayer_client_id: string | null
+          truelayer_client_secret: string | null
+          truelayer_connected_at: string | null
           twilio_enabled: boolean | null
           twilio_phone_number: string | null
           twilio_webhook_token: string | null
@@ -430,6 +434,7 @@ export type Database = {
           plan_tier?: string | null
           porting_instructions?: string | null
           porting_status?: string | null
+          preferred_payment_provider?: string | null
           secondary_phone?: string | null
           sms_on_cancellation?: boolean
           sms_on_confirmation?: boolean
@@ -445,6 +450,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["business_status"]
           stripe_account_id?: string | null
           stripe_connected_at?: string | null
+          truelayer_client_id?: string | null
+          truelayer_client_secret?: string | null
+          truelayer_connected_at?: string | null
           twilio_enabled?: boolean | null
           twilio_phone_number?: string | null
           twilio_webhook_token?: string | null
@@ -477,6 +485,7 @@ export type Database = {
           plan_tier?: string | null
           porting_instructions?: string | null
           porting_status?: string | null
+          preferred_payment_provider?: string | null
           secondary_phone?: string | null
           sms_on_cancellation?: boolean
           sms_on_confirmation?: boolean
@@ -492,6 +501,9 @@ export type Database = {
           status?: Database["public"]["Enums"]["business_status"]
           stripe_account_id?: string | null
           stripe_connected_at?: string | null
+          truelayer_client_id?: string | null
+          truelayer_client_secret?: string | null
+          truelayer_connected_at?: string | null
           twilio_enabled?: boolean | null
           twilio_phone_number?: string | null
           twilio_webhook_token?: string | null
