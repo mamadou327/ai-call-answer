@@ -25,7 +25,22 @@ interface Staff {
   title?: string;
   ai_enabled?: boolean;
   is_business_owner?: boolean;
+  chair?: string;
 }
+
+const ROLE_OPTIONS = [
+  "Barber",
+  "Stylist", 
+  "Braider",
+  "Colorist",
+  "Assistant",
+  "Manager",
+  "Receptionist",
+  "Therapist",
+  "Technician",
+];
+
+const CHAIR_OPTIONS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 
 interface Service {
   id: string;
@@ -49,7 +64,10 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
     color: "#3B82F6",
     ai_enabled: true,
     is_business_owner: false,
+    chair: "",
   });
+  const [customRole, setCustomRole] = useState("");
+  const [customChair, setCustomChair] = useState("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
   const sendWelcomeEmail = async (staffEmail: string, staffName: string) => {
@@ -180,16 +198,22 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
 
   const handleEdit = async (member: Staff) => {
     setSelectedStaff(member);
+    const isCustomRole = member.role && !ROLE_OPTIONS.includes(member.role);
+    const isCustomChair = member.chair && !CHAIR_OPTIONS.includes(member.chair);
+    
     setFormData({
       title: member.title || "",
       name: member.name,
-      role: member.role,
+      role: isCustomRole ? "custom" : member.role,
       email: member.email || "",
       phone: member.phone || "",
       color: member.color || "#3B82F6",
       ai_enabled: member.ai_enabled !== false,
       is_business_owner: member.is_business_owner || false,
+      chair: isCustomChair ? "custom" : (member.chair || ""),
     });
+    setCustomRole(isCustomRole ? member.role : "");
+    setCustomChair(isCustomChair ? (member.chair || "") : "");
     await loadStaffServices(member.id);
     setDialogOpen(true);
   };
@@ -198,12 +222,21 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
     e.preventDefault();
     setLoading(true);
 
+    // Resolve actual role and chair values
+    const actualRole = formData.role === "custom" ? customRole : formData.role;
+    const actualChair = formData.chair === "custom" ? customChair : formData.chair;
+    const dataToSave = {
+      ...formData,
+      role: actualRole,
+      chair: actualChair || null,
+    };
+
     try {
       if (selectedStaff) {
         // Update existing staff
         const { error: staffError } = await supabase
           .from("staff")
-          .update({ ...formData })
+          .update(dataToSave)
           .eq("id", selectedStaff.id);
 
         if (staffError) throw staffError;
@@ -233,7 +266,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
         // Create new staff
         const { data: newStaff, error: staffError } = await supabase
           .from("staff")
-          .insert([{ ...formData, business_id: businessId }])
+          .insert([{ ...dataToSave, business_id: businessId }])
           .select()
           .single();
 
@@ -270,7 +303,9 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
 
       setDialogOpen(false);
       setSelectedStaff(null);
-      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false });
+      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false, chair: "" });
+      setCustomRole("");
+      setCustomChair("");
       setSelectedServices([]);
       loadStaff();
       onUpdate();
@@ -326,7 +361,9 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
           setDialogOpen(open);
           if (!open) {
             setSelectedStaff(null);
-            setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false });
+            setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false, chair: "" });
+            setCustomRole("");
+            setCustomChair("");
             setSelectedServices([]);
           }
         }}>
@@ -372,15 +409,59 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="role">Role *</Label>
-                <Input
-                  id="role"
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  placeholder="e.g., Stylist, Therapist, Dentist"
-                  required
-                />
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role *</Label>
+                  <select
+                    id="role"
+                    value={formData.role}
+                    onChange={(e) => {
+                      setFormData({ ...formData, role: e.target.value });
+                      if (e.target.value !== "custom") setCustomRole("");
+                    }}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    required
+                  >
+                    <option value="">Select role...</option>
+                    {ROLE_OPTIONS.map((role) => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                    <option value="custom">Custom...</option>
+                  </select>
+                  {formData.role === "custom" && (
+                    <Input
+                      value={customRole}
+                      onChange={(e) => setCustomRole(e.target.value)}
+                      placeholder="Enter custom role"
+                      required
+                    />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="chair">Chair/Station</Label>
+                  <select
+                    id="chair"
+                    value={formData.chair}
+                    onChange={(e) => {
+                      setFormData({ ...formData, chair: e.target.value });
+                      if (e.target.value !== "custom") setCustomChair("");
+                    }}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value="">None</option>
+                    {CHAIR_OPTIONS.map((chair) => (
+                      <option key={chair} value={chair}>{chair}</option>
+                    ))}
+                    <option value="custom">Custom...</option>
+                  </select>
+                  {formData.chair === "custom" && (
+                    <Input
+                      value={customChair}
+                      onChange={(e) => setCustomChair(e.target.value)}
+                      placeholder="Enter chair number"
+                    />
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email (optional)</Label>
@@ -526,7 +607,10 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                         </span>
                       )}
                     </h4>
-                    <p className="text-sm text-muted-foreground">{member.role}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {member.role}
+                      {member.chair && <span className="ml-2">• Chair {member.chair}</span>}
+                    </p>
                     {member.email && <p className="text-xs text-muted-foreground mt-1">{member.email}</p>}
                     {member.phone && <p className="text-xs text-muted-foreground">{member.phone}</p>}
                   </div>

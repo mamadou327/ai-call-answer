@@ -1000,6 +1000,7 @@ export type Database = {
         Row: {
           ai_enabled: boolean
           business_id: string
+          chair: string | null
           color: string | null
           created_at: string | null
           email: string | null
@@ -1015,6 +1016,7 @@ export type Database = {
         Insert: {
           ai_enabled?: boolean
           business_id: string
+          chair?: string | null
           color?: string | null
           created_at?: string | null
           email?: string | null
@@ -1030,6 +1032,7 @@ export type Database = {
         Update: {
           ai_enabled?: boolean
           business_id?: string
+          chair?: string | null
           color?: string | null
           created_at?: string | null
           email?: string | null
