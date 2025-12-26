@@ -116,3 +116,21 @@ verify_jwt = false
 
 [functions.public-lookup-customer]
 verify_jwt = false
+
+[functions.public-create-group-booking]
+verify_jwt = false
+
+[functions.public-send-inquiry]
+verify_jwt = false
+
+[functions.send-booking-email]
+verify_jwt = true
+
+[functions.check-deposit-payment]
+verify_jwt = false
+
+[functions.check-unpaid-deposits]
+verify_jwt = false
+
+[functions.generate-polly-preview]
+verify_jwt = true

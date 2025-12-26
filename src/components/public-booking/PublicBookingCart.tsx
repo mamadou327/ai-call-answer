@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { X, ShoppingBag, Clock, User, Calendar } from "lucide-react";
 import { format } from "date-fns";
 
-interface CartItem {
+export interface CartItem {
   id: string;
   service: {
     id: string;
@@ -52,13 +52,14 @@ export const PublicBookingCart = ({
 
   // Check if all items are complete (have date/time)
   const allComplete = items.every((item) => item.date && item.time);
+  const pendingItems = items.filter((item) => !item.date || !item.time);
 
   if (items.length === 0) {
     return null;
   }
 
   return (
-    <Card className="border-2 border-primary shadow-lg sticky bottom-4 bg-card">
+    <Card className="border-2 border-primary shadow-lg bg-card">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg flex items-center gap-2">
           <ShoppingBag className="h-5 w-5" />
@@ -66,42 +67,46 @@ export const PublicBookingCart = ({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {items.map((item) => (
-          <div key={item.id} className="flex items-start justify-between gap-2 pb-2 border-b last:border-0">
-            <div className="flex-1 min-w-0">
-              <p className="font-medium truncate">{item.service.name}</p>
-              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground mt-1">
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {item.service.duration_minutes} min
-                </span>
-                {item.staff && (
+        <div className="max-h-40 overflow-y-auto space-y-2">
+          {items.map((item) => (
+            <div key={item.id} className="flex items-start justify-between gap-2 pb-2 border-b last:border-0">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate">{item.service.name}</p>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground mt-1">
                   <span className="flex items-center gap-1">
-                    <User className="h-3 w-3" />
-                    {item.staff.name}
+                    <Clock className="h-3 w-3" />
+                    {item.service.duration_minutes} min
                   </span>
-                )}
-                {item.date && item.time && (
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {format(item.date, "MMM d")} at {item.time}
-                  </span>
-                )}
+                  {item.staff && (
+                    <span className="flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      {item.staff.name}
+                    </span>
+                  )}
+                  {item.date && item.time ? (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {format(item.date, "MMM d")} at {item.time}
+                    </span>
+                  ) : (
+                    <span className="text-amber-600 dark:text-amber-400">Pending time selection</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm">{formatCurrency(item.service.price, currency)}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => onRemoveItem(item.id)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm">{formatCurrency(item.service.price, currency)}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => onRemoveItem(item.id)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
 
         <div className="border-t pt-3 space-y-1">
           <div className="flex justify-between text-sm">
@@ -124,8 +129,12 @@ export const PublicBookingCart = ({
           <Button variant="outline" className="flex-1" onClick={onAddAnother}>
             Add Another
           </Button>
-          <Button className="flex-1" onClick={onContinue} disabled={!allComplete && items.length > 0}>
-            {allComplete ? "Continue" : "Complete All"}
+          <Button 
+            className="flex-1" 
+            onClick={onContinue} 
+            disabled={!allComplete}
+          >
+            {allComplete ? "Continue to Details" : `Complete ${pendingItems.length} item${pendingItems.length > 1 ? 's' : ''}`}
           </Button>
         </div>
       </CardContent>

@@ -1,7 +1,8 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, ChevronDown, ArrowLeft } from "lucide-react";
+import { Clock, ChevronDown, ArrowLeft, Plus, ShoppingBag } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface Service {
   id: string;
@@ -18,7 +19,10 @@ interface PublicServiceSelectorProps {
   services: Service[];
   currency: string;
   onSelect: (service: Service) => void;
+  onAddToCart?: (service: Service) => void;
   onBack: () => void;
+  showAddToCart?: boolean;
+  cartItemCount?: number;
 }
 
 const formatCurrency = (amount: number, currency: string) => {
@@ -59,7 +63,10 @@ export const PublicServiceSelector = ({
   services,
   currency,
   onSelect,
+  onAddToCart,
   onBack,
+  showAddToCart = false,
+  cartItemCount = 0,
 }: PublicServiceSelectorProps) => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -97,10 +104,18 @@ export const PublicServiceSelector = ({
     <div className="space-y-6">
       {/* Back button when on category view */}
       {!selectedCategory && (
-        <Button variant="outline" onClick={onBack} className="gap-2 mb-2">
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Button>
+        <div className="flex items-center justify-between">
+          <Button variant="outline" onClick={onBack} className="gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+          {cartItemCount > 0 && (
+            <Badge variant="secondary" className="gap-1">
+              <ShoppingBag className="h-3 w-3" />
+              {cartItemCount} in cart
+            </Badge>
+          )}
+        </div>
       )}
 
       <div className="text-center">
@@ -108,6 +123,11 @@ export const PublicServiceSelector = ({
         <p className="text-muted-foreground">
           {selectedCategory ? "Choose a service" : "Select a category to view services"}
         </p>
+        {showAddToCart && cartItemCount === 0 && (
+          <p className="text-sm text-muted-foreground mt-2">
+            Tip: You can add multiple services to book together
+          </p>
+        )}
       </div>
 
       {/* Category Cards - shown when no category selected */}
@@ -156,12 +176,11 @@ export const PublicServiceSelector = ({
             {servicesByCategory[selectedCategory].map((service) => (
               <Card
                 key={service.id}
-                className="border-2 border-muted hover:border-primary cursor-pointer hover:shadow-md transition-all"
-                onClick={() => onSelect(service)}
+                className="border-2 border-muted hover:border-primary hover:shadow-md transition-all"
               >
                 <CardContent className="p-4">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 cursor-pointer" onClick={() => onSelect(service)}>
                       <h4 className="font-semibold text-lg">{service.name}</h4>
                       {service.description && (
                         <p className="text-sm text-muted-foreground mt-1">
@@ -175,14 +194,30 @@ export const PublicServiceSelector = ({
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-bold text-xl">
-                        {formatCurrency(service.price, currency)}
-                      </div>
-                      {service.deposit_required && service.deposit_amount && (
-                        <div className="text-xs text-muted-foreground">
-                          {formatCurrency(service.deposit_amount, currency)} deposit
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="text-right">
+                        <div className="font-bold text-xl">
+                          {formatCurrency(service.price, currency)}
                         </div>
+                        {service.deposit_required && service.deposit_amount && (
+                          <div className="text-xs text-muted-foreground">
+                            {formatCurrency(service.deposit_amount, currency)} deposit
+                          </div>
+                        )}
+                      </div>
+                      {showAddToCart && onAddToCart && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddToCart(service);
+                          }}
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add
+                        </Button>
                       )}
                     </div>
                   </div>

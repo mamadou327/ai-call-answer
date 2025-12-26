@@ -14,6 +14,7 @@ import { PublicCancelBooking } from "@/components/public-booking/PublicCancelBoo
 import { PublicRescheduleBooking } from "@/components/public-booking/PublicRescheduleBooking";
 import { PublicGallery } from "@/components/public-booking/PublicGallery";
 import { PublicSocialLinks } from "@/components/public-booking/PublicSocialLinks";
+import { PublicBookingCart, CartItem } from "@/components/public-booking/PublicBookingCart";
 import { useToast } from "@/hooks/use-toast";
 
 interface Business {
@@ -87,6 +88,11 @@ const PublicBookingPage = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  
+  // Group booking cart state
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [currentCartItemId, setCurrentCartItemId] = useState<string | null>(null);
+  
   const [bookingResult, setBookingResult] = useState<{
     bookingCode: string;
     requiresPayment: boolean;
@@ -94,6 +100,13 @@ const PublicBookingPage = () => {
     depositRequired: boolean;
     depositAmount?: number;
     depositPaymentLink?: string;
+    groupBookings?: Array<{
+      bookingCode: string;
+      serviceName: string;
+      staffName: string | null;
+      startTime: string;
+      endTime: string;
+    }>;
   } | null>(null);
 
   useEffect(() => {
@@ -186,7 +199,6 @@ const PublicBookingPage = () => {
     const fetchStaff = async () => {
       if (!business || !selectedService) return;
 
-      // Get staff assigned to this service
       const { data: staffServiceData, error: ssError } = await supabase
         .from("staff_services")
         .select("staff_id")
@@ -200,13 +212,11 @@ const PublicBookingPage = () => {
 
       const assignedStaffIds = (staffServiceData ?? []).map((ss) => ss.staff_id);
 
-      // If no staff are assigned to this service, show none (except No Preference option)
       if (assignedStaffIds.length === 0) {
         setStaff([]);
         return;
       }
 
-      // Fetch staff details for only those assigned to this service
       const { data: staffData, error: staffError } = await supabase
         .from("staff")
         .select("id, name")
@@ -234,6 +244,30 @@ const PublicBookingPage = () => {
     setStep("staff");
   };
 
+  const handleAddToCart = (service: Service) => {
+    const newItem: CartItem = {
+      id: crypto.randomUUID(),
+      service: {
+        id: service.id,
+        name: service.name,
+        price: service.price,
+        duration_minutes: service.duration_minutes,
+        deposit_required: service.deposit_required,
+        deposit_amount: service.deposit_amount,
+      },
+      staff: null,
+      date: null,
+      time: null,
+    };
+    setCartItems((prev) => [...prev, newItem]);
+    setCurrentCartItemId(newItem.id);
+    setSelectedService(service);
+    setSelectedStaff(null);
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setStep("staff");
+  };
+
   const handleStaffSelect = (staffMember: Staff | null) => {
     setSelectedStaff(staffMember);
     setSelectedDate(null);
@@ -244,11 +278,87 @@ const PublicBookingPage = () => {
   const handleDateTimeSelect = (date: Date, time: string) => {
     setSelectedDate(date);
     setSelectedTime(time);
-    setStep("customer");
+    
+    // If we have a current cart item, update it and stay on service selection
+    if (currentCartItemId) {
+      setCartItems((prev) =>
+        prev.map((item) =>
+          item.id === currentCartItemId
+            ? { ...item, staff: selectedStaff, date, time }
+            : item
+        )
+      );
+      setCurrentCartItemId(null);
+      setSelectedService(null);
+      setSelectedStaff(null);
+      setSelectedDate(null);
+      setSelectedTime(null);
+      setStep("service");
+    } else {
+      setStep("customer");
+    }
+  };
+
+  const handleRemoveCartItem = (itemId: string) => {
+    setCartItems((prev) => prev.filter((item) => item.id !== itemId));
+  };
+
+  const handleCartContinue = () => {
+    if (cartItems.length > 0 && cartItems.every((item) => item.date && item.time)) {
+      setStep("customer");
+    }
+  };
+
+  const handleCartAddAnother = () => {
+    setStep("service");
   };
 
   const handleBookingSubmit = async (customerData: { name: string; phone: string; email?: string; notes?: string }) => {
-    if (!slug || !selectedService || !selectedDate || !selectedTime) return;
+    if (!slug) return;
+
+    // Group booking flow
+    if (cartItems.length > 0) {
+      try {
+        const items = cartItems.map((item) => {
+          const [hours, minutes] = (item.time || "00:00").split(":").map(Number);
+          const startTime = new Date(item.date!);
+          startTime.setHours(hours, minutes, 0, 0);
+          return {
+            serviceId: item.service.id,
+            staffId: item.staff?.id || null,
+            startTime: startTime.toISOString(),
+          };
+        });
+
+        const { data, error } = await supabase.functions.invoke("public-create-group-booking", {
+          body: {
+            businessSlug: slug,
+            items,
+            customerName: customerData.name,
+            customerPhone: customerData.phone,
+            customerEmail: customerData.email,
+            notes: customerData.notes,
+          },
+        });
+
+        if (error) throw error;
+
+        setBookingResult({
+          bookingCode: data.bookings[0]?.bookingCode || "N/A",
+          requiresPayment: false,
+          depositRequired: false,
+          groupBookings: data.bookings,
+        });
+        setCartItems([]);
+        setStep("confirmation");
+      } catch (err: any) {
+        toast({ title: "Booking failed", description: err?.message || "Failed to create bookings.", variant: "destructive" });
+      }
+      return;
+    }
+
+    // Single booking flow
+    if (!selectedService || !selectedDate || !selectedTime) return;
 
     try {
       const [hours, minutes] = selectedTime.split(":").map(Number);
@@ -290,11 +400,28 @@ const PublicBookingPage = () => {
   };
 
   const handleBack = () => {
+    // If we're in cart mode and going back from datetime, cancel current item selection
+    if (currentCartItemId && step === "datetime") {
+      setCartItems((prev) => prev.filter((item) => item.id !== currentCartItemId));
+      setCurrentCartItemId(null);
+      setSelectedService(null);
+      setStep("service");
+      return;
+    }
+    
+    if (currentCartItemId && step === "staff") {
+      setCartItems((prev) => prev.filter((item) => item.id !== currentCartItemId));
+      setCurrentCartItemId(null);
+      setSelectedService(null);
+      setStep("service");
+      return;
+    }
+
     const backMap: Record<string, BookingStep> = {
       service: "landing",
-      staff: "service",
+      staff: cartItems.length > 0 ? "service" : "service",
       datetime: "staff",
-      customer: "datetime",
+      customer: cartItems.length > 0 ? "service" : "datetime",
       "lookup-cancel": "landing",
       "lookup-reschedule": "landing",
       cancel: "lookup-cancel",
@@ -324,6 +451,8 @@ const PublicBookingPage = () => {
       </div>
     );
   }
+
+  const showCart = step === "service" && cartItems.length > 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -362,7 +491,7 @@ const PublicBookingPage = () => {
         </div>
       )}
 
-      <main className="max-w-4xl mx-auto px-4 py-6">
+      <main className="max-w-4xl mx-auto px-4 py-6 pb-32">
         {step === "landing" && (
           <PublicLandingPage
             businessName={business.business_name}
@@ -380,16 +509,43 @@ const PublicBookingPage = () => {
             onViewGallery={() => setStep("gallery")}
           />
         )}
-        {step === "service" && <PublicServiceSelector services={services} currency={currency} onSelect={handleServiceSelect} onBack={handleBack} />}
-        {step === "staff" && selectedService && <PublicStaffSelector staff={staff} selectedService={selectedService} currency={currency} onSelect={handleStaffSelect} onBack={handleBack} />}
-        {step === "datetime" && selectedService && slug && <PublicDateTimePicker businessSlug={slug} serviceId={selectedService.id} staffId={selectedStaff?.id} serviceDuration={selectedService.duration_minutes} onSelect={handleDateTimeSelect} onBack={handleBack} />}
-        {step === "customer" && selectedService && selectedDate && selectedTime && slug && (
+        {step === "service" && (
+          <PublicServiceSelector 
+            services={services} 
+            currency={currency} 
+            onSelect={cartItems.length > 0 ? handleAddToCart : handleServiceSelect}
+            onAddToCart={handleAddToCart}
+            onBack={handleBack}
+            showAddToCart={true}
+            cartItemCount={cartItems.length}
+          />
+        )}
+        {step === "staff" && selectedService && (
+          <PublicStaffSelector 
+            staff={staff} 
+            selectedService={selectedService} 
+            currency={currency} 
+            onSelect={handleStaffSelect} 
+            onBack={handleBack} 
+          />
+        )}
+        {step === "datetime" && selectedService && slug && (
+          <PublicDateTimePicker 
+            businessSlug={slug} 
+            serviceId={selectedService.id} 
+            staffId={selectedStaff?.id} 
+            serviceDuration={selectedService.duration_minutes} 
+            onSelect={handleDateTimeSelect} 
+            onBack={handleBack} 
+          />
+        )}
+        {step === "customer" && (cartItems.length > 0 || (selectedService && selectedDate && selectedTime)) && slug && (
           <PublicCustomerForm
             businessSlug={slug}
-            selectedService={selectedService}
-            selectedStaff={selectedStaff}
-            selectedDate={selectedDate}
-            selectedTime={selectedTime}
+            selectedService={cartItems.length > 0 ? cartItems[0].service as any : selectedService}
+            selectedStaff={cartItems.length > 0 ? cartItems[0].staff : selectedStaff}
+            selectedDate={cartItems.length > 0 ? cartItems[0].date : selectedDate}
+            selectedTime={cartItems.length > 0 ? cartItems[0].time : selectedTime}
             currency={currency}
             collectDuringBooking={business.deposit_collection_timing === "during_booking"}
             hasStripe={!!business.stripe_account_id}
@@ -420,6 +576,7 @@ const PublicBookingPage = () => {
             depositAmount={bookingResult.depositAmount}
             depositPaymentLink={bookingResult.depositPaymentLink}
             currency={currency}
+            groupBookings={bookingResult.groupBookings}
           />
         )}
         {step === "lookup-cancel" && slug && <PublicLookupBooking businessSlug={slug} mode="cancel" onBack={handleBack} onBookingFound={(b, c) => { setSelectedBooking(b); setCurrency(c); setStep("cancel"); }} />}
@@ -428,6 +585,21 @@ const PublicBookingPage = () => {
         {step === "reschedule" && slug && selectedBooking && <PublicRescheduleBooking businessSlug={slug} booking={selectedBooking} currency={currency} onBack={handleBack} onSuccess={() => setStep("landing")} />}
         {step === "gallery" && <PublicGallery businessId={business.id} onBack={handleBack} />}
       </main>
+
+      {/* Sticky cart at bottom */}
+      {showCart && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-sm border-t">
+          <div className="max-w-4xl mx-auto">
+            <PublicBookingCart
+              items={cartItems}
+              currency={currency}
+              onRemoveItem={handleRemoveCartItem}
+              onContinue={handleCartContinue}
+              onAddAnother={handleCartAddAnother}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
