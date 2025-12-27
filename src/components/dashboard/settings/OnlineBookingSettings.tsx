@@ -6,14 +6,13 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Globe, Loader2, CheckCircle, XCircle, Clock, AlertCircle, RefreshCw } from "lucide-react";
+import { Copy, ExternalLink, Globe, Loader2 } from "lucide-react";
 import { LogoUpload } from "./LogoUpload";
 import { SocialMediaSettings } from "./SocialMediaSettings";
 import { GalleryManagement } from "./GalleryManagement";
+import { CustomDomainWizard } from "./CustomDomainWizard";
 
 interface OnlineBookingSettingsProps {
   businessId: string;
@@ -36,6 +35,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
     verified: business?.custom_domain_verified || false,
     statusMessage: business?.custom_domain_status_message || "",
     lastChecked: business?.custom_domain_last_checked_at || null,
+    addedToHosting: business?.custom_domain_added_to_hosting || false,
   });
 
   useEffect(() => {
@@ -51,6 +51,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
         verified: business.custom_domain_verified || false,
         statusMessage: business.custom_domain_status_message || "",
         lastChecked: business.custom_domain_last_checked_at || null,
+        addedToHosting: business.custom_domain_added_to_hosting || false,
       });
     }
   }, [business]);
@@ -58,7 +59,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
   const handleSave = async () => {
     setLoading(true);
     try {
-      // Normalize domain input
       let normalizedDomain = settings.custom_booking_domain
         .toLowerCase()
         .trim()
@@ -74,7 +74,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
           custom_booking_domain: normalizedDomain || null,
           online_booking_message: settings.online_booking_message || null,
           deposit_collection_timing: settings.deposit_collection_timing,
-          // Reset verification if domain changed
           ...(normalizedDomain !== business?.custom_booking_domain && {
             custom_domain_verified: false,
             custom_domain_status_message: normalizedDomain ? "Domain saved. Click 'Verify Domain' to check your DNS configuration." : null,
@@ -125,12 +124,13 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
         verified: data.verified,
         statusMessage: data.status_message,
         lastChecked: new Date().toISOString(),
+        addedToHosting: domainVerification.addedToHosting,
       });
 
       if (data.verified) {
         toast({
           title: "Domain verified!",
-          description: "Your custom domain is now active.",
+          description: "Our team has been notified and will set up SSL within 24 hours.",
         });
       } else {
         toast({
@@ -152,11 +152,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
     }
   };
 
-  // Use production URL for display
   const aiviaBookingUrl = `https://aiviaapp.co.uk/book/${settings.booking_slug}`;
-  const customBookingUrl = settings.custom_booking_domain 
-    ? `https://${settings.custom_booking_domain}`
-    : null;
 
   const copyLink = (url: string) => {
     navigator.clipboard.writeText(url);
@@ -164,44 +160,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
       title: "Link copied",
       description: "Booking link has been copied to clipboard.",
     });
-  };
-
-  // Validate domain input (no protocols or paths)
-  const validateDomainInput = (value: string) => {
-    // Remove protocol and path on input
-    return value
-      .replace(/^https?:\/\//, "")
-      .replace(/\/.*$/, "")
-      .toLowerCase();
-  };
-
-  const getVerificationBadge = () => {
-    if (!settings.custom_booking_domain) return null;
-
-    if (domainVerification.verified) {
-      return (
-        <Badge variant="default" className="bg-green-500 hover:bg-green-600">
-          <CheckCircle className="h-3 w-3 mr-1" />
-          Active
-        </Badge>
-      );
-    }
-
-    if (domainVerification.statusMessage) {
-      return (
-        <Badge variant="destructive">
-          <XCircle className="h-3 w-3 mr-1" />
-          Not Verified
-        </Badge>
-      );
-    }
-
-    return (
-      <Badge variant="secondary">
-        <Clock className="h-3 w-3 mr-1" />
-        Pending
-      </Badge>
-    );
   };
 
   return (
@@ -217,7 +175,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Enable Toggle */}
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label>Enable Online Booking</Label>
@@ -233,7 +190,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
             />
           </div>
 
-          {/* Booking URL */}
           <div className="space-y-2">
             <Label>Booking URL Slug</Label>
             <div className="flex gap-2">
@@ -270,112 +226,18 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
             )}
           </div>
 
-          {/* Custom Domain Section */}
-          <div className="space-y-4 pt-4 border-t">
-            <div className="flex items-center justify-between">
-              <Label className="text-base font-semibold">Custom Domain (Optional)</Label>
-              {getVerificationBadge()}
-            </div>
-            
-            <div className="space-y-2">
-              <Input
-                value={settings.custom_booking_domain}
-                onChange={(e) =>
-                  setSettings({ ...settings, custom_booking_domain: validateDomainInput(e.target.value) })
-                }
-                placeholder="booking.yourdomain.com"
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter the subdomain you want to use for your booking page (e.g., booking.yourbusiness.com)
-              </p>
-            </div>
+          <CustomDomainWizard
+            domain={settings.custom_booking_domain}
+            onDomainChange={(domain) => setSettings({ ...settings, custom_booking_domain: domain })}
+            verified={domainVerification.verified}
+            statusMessage={domainVerification.statusMessage}
+            lastChecked={domainVerification.lastChecked}
+            addedToHosting={domainVerification.addedToHosting}
+            onVerify={handleVerifyDomain}
+            verifying={verifying}
+            onCopyUrl={copyLink}
+          />
 
-            {settings.custom_booking_domain && (
-              <>
-                {/* DNS Instructions */}
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <div className="space-y-2">
-                      <p className="font-medium">DNS Configuration Required</p>
-                      <p className="text-sm">To use your custom domain, add this DNS record at your domain provider:</p>
-                      <div className="bg-muted p-3 rounded-md font-mono text-sm space-y-1">
-                        <div><span className="text-muted-foreground">Type:</span> A</div>
-                        <div><span className="text-muted-foreground">Host/Name:</span> {settings.custom_booking_domain.split('.')[0]} <span className="text-xs text-muted-foreground">(or @ for root domain)</span></div>
-                        <div><span className="text-muted-foreground">Value/Points to:</span> 185.158.133.1</div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        DNS changes can take up to 24-48 hours to propagate. After adding the record, click "Verify Domain" to check.
-                      </p>
-                    </div>
-                  </AlertDescription>
-                </Alert>
-
-                {/* Verify Button */}
-                <Button 
-                  variant="outline" 
-                  onClick={handleVerifyDomain}
-                  disabled={verifying}
-                  className="w-full"
-                >
-                  {verifying ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Verifying...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Verify Domain
-                    </>
-                  )}
-                </Button>
-
-                {/* Verification Status */}
-                {domainVerification.statusMessage && (
-                  <Alert variant={domainVerification.verified ? "default" : "destructive"}>
-                    {domainVerification.verified ? (
-                      <CheckCircle className="h-4 w-4" />
-                    ) : (
-                      <XCircle className="h-4 w-4" />
-                    )}
-                    <AlertDescription>
-                      {domainVerification.statusMessage}
-                      {domainVerification.lastChecked && (
-                        <p className="text-xs mt-1 opacity-70">
-                          Last checked: {new Date(domainVerification.lastChecked).toLocaleString()}
-                        </p>
-                      )}
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Custom Domain URL (when verified) */}
-                {domainVerification.verified && customBookingUrl && (
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Your custom booking link:</Label>
-                    <div className="flex items-center gap-2">
-                      <code className="text-xs bg-green-500/10 text-green-700 dark:text-green-400 px-2 py-1 rounded flex-1 truncate border border-green-500/20">
-                        {customBookingUrl}
-                      </code>
-                      <Button variant="outline" size="sm" onClick={() => copyLink(customBookingUrl)}>
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => window.open(customBookingUrl, "_blank")}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Deposit Collection Timing */}
           <div className="space-y-2">
             <Label>Deposit Collection</Label>
             <Select
@@ -398,7 +260,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
             </Select>
           </div>
 
-          {/* Welcome Message */}
           <div className="space-y-2">
             <Label>Welcome Message (Optional)</Label>
             <Textarea
@@ -424,13 +285,10 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
         </CardContent>
       </Card>
 
-      {/* Logo Upload */}
       <Card>
         <CardHeader>
           <CardTitle>Branding</CardTitle>
-          <CardDescription>
-            Customize your booking page appearance
-          </CardDescription>
+          <CardDescription>Customize your booking page appearance</CardDescription>
         </CardHeader>
         <CardContent>
           <LogoUpload
@@ -441,7 +299,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
         </CardContent>
       </Card>
 
-      {/* Social Media */}
       <Card>
         <CardContent className="pt-6">
           <SocialMediaSettings
@@ -452,7 +309,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
         </CardContent>
       </Card>
 
-      {/* Gallery */}
       <Card>
         <CardContent className="pt-6">
           <GalleryManagement

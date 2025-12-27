@@ -366,6 +366,8 @@ export type Database = {
           business_name: string
           created_at: string | null
           custom_booking_domain: string | null
+          custom_domain_added_at: string | null
+          custom_domain_added_to_hosting: boolean | null
           custom_domain_last_checked_at: string | null
           custom_domain_status_message: string | null
           custom_domain_verified: boolean | null
@@ -416,6 +418,8 @@ export type Database = {
           business_name: string
           created_at?: string | null
           custom_booking_domain?: string | null
+          custom_domain_added_at?: string | null
+          custom_domain_added_to_hosting?: boolean | null
           custom_domain_last_checked_at?: string | null
           custom_domain_status_message?: string | null
           custom_domain_verified?: boolean | null
@@ -466,6 +470,8 @@ export type Database = {
           business_name?: string
           created_at?: string | null
           custom_booking_domain?: string | null
+          custom_domain_added_at?: string | null
+          custom_domain_added_to_hosting?: boolean | null
           custom_domain_last_checked_at?: string | null
           custom_domain_status_message?: string | null
           custom_domain_verified?: boolean | null
