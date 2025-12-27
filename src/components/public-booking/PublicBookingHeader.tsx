@@ -117,19 +117,7 @@ export const PublicBookingHeader = ({
 
           {/* Right side: CTA, Cart, Social, Mobile Menu */}
           <div className="flex items-center gap-2">
-            {/* Book Now CTA - Desktop */}
-            {currentStep !== "service" && (
-              <Button
-                size="sm"
-                onClick={() => handleNavClick("service")}
-                className="hidden md:flex gap-2"
-              >
-                <Calendar className="h-4 w-4" />
-                Book Now
-              </Button>
-            )}
-
-            {/* Mini Cart */}
+          {/* Mini Cart */}
             {showCart && (
               <PublicMiniCart
                 items={cartItems}
@@ -192,17 +180,6 @@ export const PublicBookingHeader = ({
                       Contact
                     </Button>
                   </nav>
-
-                  {/* Book Now CTA - Mobile */}
-                  <div className="pt-4 border-t">
-                    <Button
-                      className="w-full gap-2 h-12"
-                      onClick={() => handleNavClick("service")}
-                    >
-                      <Calendar className="h-5 w-5" />
-                      Book Now
-                    </Button>
-                  </div>
 
                   {/* Social Links - Mobile */}
                   <div className="mt-auto pt-6 border-t">
