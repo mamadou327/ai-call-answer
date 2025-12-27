@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import aiviaLogo from "@/assets/aivia-logo.png";
+import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { Loader2, CheckCircle } from "lucide-react";
 
 const ResetPassword = () => {

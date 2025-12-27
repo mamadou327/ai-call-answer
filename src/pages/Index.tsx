@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import aiviaLogo from "@/assets/aivia-logo.png";
+import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { Phone, Calendar, MessageSquare, BarChart, CheckCircle2 } from "lucide-react";
 import HowItWorksDialog from "@/components/HowItWorksDialog";
 
