@@ -301,7 +301,7 @@ serve(async (req) => {
 
         // Create all bookings as pending first
         for (const validated of validatedItems) {
-          const { service, staffName, startDateTime, endDateTime, customerName: custName, customerPhone: custPhone, notes: custNotes } = validated;
+          const { service, staffName, startDateTime, endDateTime, customerName: custName, customerPhone: custPhone, customerEmail: custEmail, notes: custNotes } = validated;
           const staffId = validated.item.staffId;
 
           const { data: bookingCodeData } = await supabase.rpc("generate_booking_code", {
@@ -319,6 +319,7 @@ serve(async (req) => {
               staff_id: staffId,
               customer_name: custName,
               customer_phone: custPhone,
+              customer_email: custEmail || null,
               start_time: startDateTime.toISOString(),
               end_time: endDateTime.toISOString(),
               status: "pending",
@@ -427,7 +428,7 @@ serve(async (req) => {
 
     // Create confirmed bookings (either no deposit, collect later, or Stripe failed)
     for (const validated of validatedItems) {
-      const { service, staffName, startDateTime, endDateTime, customerName: custName, customerPhone: custPhone, notes: custNotes } = validated;
+      const { service, staffName, startDateTime, endDateTime, customerName: custName, customerPhone: custPhone, customerEmail: custEmail, notes: custNotes } = validated;
       const staffId = validated.item.staffId;
 
       const { data: bookingCodeData } = await supabase.rpc("generate_booking_code", {
@@ -445,6 +446,7 @@ serve(async (req) => {
           staff_id: staffId,
           customer_name: custName,
           customer_phone: custPhone,
+          customer_email: custEmail || null,
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
           status: "confirmed",
