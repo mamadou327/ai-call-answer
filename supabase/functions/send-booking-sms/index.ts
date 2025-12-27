@@ -225,9 +225,9 @@ serve(async (req: Request): Promise<Response> => {
     // Build SMS message based on type
     let message = "";
 
-    // Format website URL cleanly (remove https:// and http://)
+    // Format website URL cleanly (remove https://, http://, and www.)
     const cleanWebsite = business.website 
-      ? business.website.replace(/^https?:\/\//, "").replace(/\/$/, "")
+      ? business.website.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "")
       : null;
 
     // Build deposit section for SMS - use Stripe link directly
