@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PublicLandingPage } from "@/components/public-booking/PublicLandingPage";
 import { PublicServiceSelector } from "@/components/public-booking/PublicServiceSelector";
 import { PublicStaffSelector } from "@/components/public-booking/PublicStaffSelector";
@@ -13,11 +13,11 @@ import { PublicLookupBooking } from "@/components/public-booking/PublicLookupBoo
 import { PublicCancelBooking } from "@/components/public-booking/PublicCancelBooking";
 import { PublicRescheduleBooking } from "@/components/public-booking/PublicRescheduleBooking";
 import { PublicGallery } from "@/components/public-booking/PublicGallery";
-import { PublicSocialLinks } from "@/components/public-booking/PublicSocialLinks";
 import { PublicBookingCart, CartItem } from "@/components/public-booking/PublicBookingCart";
-import { PublicMiniCart } from "@/components/public-booking/PublicMiniCart";
 import { PublicGroupTypeSelector } from "@/components/public-booking/PublicGroupTypeSelector";
 import { PublicGroupCustomerForm } from "@/components/public-booking/PublicGroupCustomerForm";
+import { PublicBookingHeader } from "@/components/public-booking/PublicBookingHeader";
+import { PublicContactForm } from "@/components/public-booking/PublicContactForm";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -99,6 +99,9 @@ const PublicBookingPage = () => {
   const [currentCartItemId, setCurrentCartItemId] = useState<string | null>(null);
   const [groupBookingMode, setGroupBookingMode] = useState<"single" | "multiple" | null>(null);
   const [groupPersonCount, setGroupPersonCount] = useState(1);
+  
+  // Contact dialog state
+  const [contactDialogOpen, setContactDialogOpen] = useState(false);
   
   const [bookingResult, setBookingResult] = useState<{
     bookingCode: string;
@@ -702,40 +705,42 @@ const PublicBookingPage = () => {
     );
   }
 
-  const showCart = step === "service" && cartItems.length > 0;
+  const handleHeaderNavigate = (navStep: "landing" | "service" | "gallery") => {
+    setStep(navStep);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b-2 border-primary bg-card">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              {business.logo_url && (
-                <img src={business.logo_url} alt={business.business_name} className="h-16 w-16 object-contain rounded-lg" />
-              )}
-              <h1 className="text-2xl font-bold">{business.business_name}</h1>
-            </div>
-            <div className="flex items-center gap-3">
-              {cartItems.length > 0 && !["landing", "confirmation"].includes(step) && (
-                <PublicMiniCart
-                  items={cartItems}
-                  currency={currency}
-                  onRemoveItem={handleRemoveCartItem}
-                  onContinue={handleCartContinue}
-                  onAddAnother={handleCartAddAnother}
-                />
-              )}
-              <PublicSocialLinks socials={{
-                instagram: business.social_instagram,
-                facebook: business.social_facebook,
-                tiktok: business.social_tiktok,
-                twitter: business.social_twitter,
-                youtube: business.social_youtube,
-              }} />
-            </div>
-          </div>
-        </div>
-      </header>
+      <PublicBookingHeader
+        businessName={business.business_name}
+        logoUrl={business.logo_url}
+        socials={{
+          instagram: business.social_instagram,
+          facebook: business.social_facebook,
+          tiktok: business.social_tiktok,
+          twitter: business.social_twitter,
+          youtube: business.social_youtube,
+        }}
+        hasGallery={hasGallery}
+        currentStep={step}
+        cartItems={cartItems}
+        currency={currency}
+        onNavigate={handleHeaderNavigate}
+        onOpenContact={() => setContactDialogOpen(true)}
+        onRemoveCartItem={handleRemoveCartItem}
+        onCartContinue={handleCartContinue}
+        onCartAddAnother={handleCartAddAnother}
+      />
+
+      {/* Contact Dialog - controlled mode */}
+      <PublicContactForm 
+        businessSlug={slug || ""} 
+        businessName={business.business_name} 
+        open={contactDialogOpen}
+        onOpenChange={setContactDialogOpen}
+        showTrigger={false}
+      />
 
       {!["landing", "confirmation", "lookup-cancel", "lookup-reschedule", "cancel", "reschedule", "gallery"].includes(step) && (
         <div className="max-w-4xl mx-auto px-4 py-4">

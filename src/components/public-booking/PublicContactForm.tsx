@@ -26,11 +26,22 @@ const contactSchema = z.object({
 interface PublicContactFormProps {
   businessSlug: string;
   businessName: string;
+  /** For controlled mode from header navigation */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Show as trigger button (default) or just dialog */
+  showTrigger?: boolean;
 }
 
-export const PublicContactForm = ({ businessSlug, businessName }: PublicContactFormProps) => {
+export const PublicContactForm = ({ 
+  businessSlug, 
+  businessName, 
+  open: controlledOpen, 
+  onOpenChange,
+  showTrigger = true,
+}: PublicContactFormProps) => {
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -39,6 +50,10 @@ export const PublicContactForm = ({ businessSlug, businessName }: PublicContactF
     message: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Support both controlled and uncontrolled modes
+  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setIsOpen = onOpenChange || setInternalOpen;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +92,7 @@ export const PublicContactForm = ({ businessSlug, businessName }: PublicContactF
       });
 
       setFormData({ name: "", email: "", phone: "", message: "" });
-      setOpen(false);
+      setIsOpen(false);
     } catch (err: any) {
       toast({
         title: "Failed to send message",
@@ -89,8 +104,89 @@ export const PublicContactForm = ({ businessSlug, businessName }: PublicContactF
     }
   };
 
+  // If controlled mode without trigger, just render dialog
+  if (!showTrigger && controlledOpen !== undefined) {
+    return (
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Contact {businessName}</DialogTitle>
+            <DialogDescription>
+              Send us a message and we'll get back to you as soon as possible.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="contact-name">Name *</Label>
+              <Input
+                id="contact-name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Your name"
+                disabled={loading}
+              />
+              {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="contact-email">Email *</Label>
+              <Input
+                id="contact-email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="your@email.com"
+                disabled={loading}
+              />
+              {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="contact-phone">Phone (optional)</Label>
+              <Input
+                id="contact-phone"
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="Your phone number"
+                disabled={loading}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="contact-message">Message *</Label>
+              <Textarea
+                id="contact-message"
+                value={formData.message}
+                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                placeholder="How can we help you?"
+                rows={4}
+                disabled={loading}
+              />
+              {errors.message && <p className="text-sm text-destructive">{errors.message}</p>}
+            </div>
+
+            <Button type="submit" className="w-full gap-2" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  Send Message
+                </>
+              )}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
           <MessageSquare className="h-4 w-4" />
