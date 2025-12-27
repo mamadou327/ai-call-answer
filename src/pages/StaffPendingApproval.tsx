@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import aiviaLogo from "@/assets/aivia-logo.png";
+import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { Clock, XCircle, RefreshCw } from "lucide-react";
 
 interface MembershipStatus {

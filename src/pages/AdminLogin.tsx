@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import aiviaLogo from "@/assets/aivia-logo.png";
+import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { Loader2 } from "lucide-react";
 import { adminLoginSchema } from "@/lib/validation";
 

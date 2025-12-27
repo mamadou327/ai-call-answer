@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import aiviaLogo from "@/assets/aivia-logo.png";
+import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { LogOut, Clock, CheckCircle2, XCircle, Eye, ChevronRight, ChevronLeft, Phone, Copy, Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";

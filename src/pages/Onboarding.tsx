@@ -7,7 +7,7 @@ import OnboardingStep2 from "@/components/onboarding/OnboardingStep2";
 import OnboardingStep3 from "@/components/onboarding/OnboardingStep3";
 import OnboardingStep4 from "@/components/onboarding/OnboardingStep4";
 import OnboardingStep5 from "@/components/onboarding/OnboardingStep5";
-import aiviaLogo from "@/assets/aivia-logo.png";
+import aiviaLogo from "@/assets/aivia-logo-new.png";
 
 const Onboarding = () => {
   const navigate = useNavigate();
