@@ -85,6 +85,7 @@ const PublicBookingPage = () => {
   const [hasGallery, setHasGallery] = useState(false);
   const [policies, setPolicies] = useState<PolicySettings | undefined>(undefined);
   const [openingHours, setOpeningHours] = useState<OpeningHour[]>([]);
+  const [resolvedSlug, setResolvedSlug] = useState<string | null>(null);
 
   const [step, setStep] = useState<BookingStep>("landing");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -117,6 +118,69 @@ const PublicBookingPage = () => {
       depositAmount?: number | null;
     }>;
   } | null>(null);
+
+  // Check if we're on a custom domain and resolve the business
+  useEffect(() => {
+    const checkCustomDomain = async () => {
+      const hostname = window.location.hostname.toLowerCase();
+      
+      // List of main app domains
+      const mainDomains = ["localhost", "127.0.0.1", "aiviaapp.co.uk", "www.aiviaapp.co.uk"];
+      const isMainDomain = mainDomains.some(d => 
+        hostname === d || 
+        hostname.endsWith(`.${d}`) || 
+        hostname.includes("lovable")
+      );
+
+      // If we have a slug from URL params, use it (standard route)
+      if (slug) {
+        setResolvedSlug(slug);
+        return;
+      }
+
+      // If we're on a custom domain, look up the business
+      if (!isMainDomain) {
+        try {
+          const { data, error } = await supabase
+            .from("businesses")
+            .select("booking_slug, custom_domain_verified")
+            .eq("custom_booking_domain", hostname)
+            .eq("custom_domain_verified", true)
+            .eq("online_booking_enabled", true)
+            .eq("status", "approved")
+            .single();
+
+          if (data && !error) {
+            setResolvedSlug(data.booking_slug);
+          } else {
+            // Check if there's an unverified business
+            const { data: unverified } = await supabase
+              .from("businesses")
+              .select("business_name, custom_domain_verified")
+              .eq("custom_booking_domain", hostname)
+              .single();
+
+            if (unverified && !unverified.custom_domain_verified) {
+              setError("This domain is connected but not yet verified. Please contact the business owner.");
+            } else {
+              setError("This domain hasn't been connected to Aivia. Please contact the business owner.");
+            }
+            setLoading(false);
+          }
+        } catch (err) {
+          console.error("Error looking up custom domain:", err);
+          setError("Failed to load booking page");
+          setLoading(false);
+        }
+      } else if (!slug) {
+        // No slug and on main domain - this shouldn't happen normally
+        setError("Booking page not found");
+        setLoading(false);
+      }
+    };
+
+    checkCustomDomain();
+  }, [slug]);
 
   useEffect(() => {
     const fetchBookingsFromPayment = async () => {
@@ -189,7 +253,7 @@ const PublicBookingPage = () => {
 
   useEffect(() => {
     const fetchBusinessData = async () => {
-      if (!slug) return;
+      if (!resolvedSlug) return;
 
       try {
         const { data: businessData, error: businessError } = await supabase
@@ -199,7 +263,7 @@ const PublicBookingPage = () => {
             online_booking_message, deposit_collection_timing, stripe_account_id,
             logo_url, social_instagram, social_facebook, social_tiktok, social_twitter, social_youtube
           `)
-          .eq("booking_slug", slug)
+          .eq("booking_slug", resolvedSlug)
           .eq("online_booking_enabled", true)
           .eq("status", "approved")
           .single();
@@ -257,7 +321,7 @@ const PublicBookingPage = () => {
     };
 
     fetchBusinessData();
-  }, [slug]);
+  }, [resolvedSlug]);
 
   useEffect(() => {
     const fetchStaff = async () => {
@@ -488,8 +552,10 @@ const PublicBookingPage = () => {
   };
 
   const handleBookingSubmit = async (customerData: { name: string; phone: string; email?: string; notes?: string }) => {
-    if (!slug) return;
-
+    // Use resolvedSlug for API calls instead of slug
+    const effectiveSlug = resolvedSlug || slug;
+    if (!effectiveSlug) return;
+    
     // Group booking flow
     if (cartItems.length > 0) {
       try {
@@ -506,7 +572,7 @@ const PublicBookingPage = () => {
 
         const { data, error } = await supabase.functions.invoke("public-create-group-booking", {
           body: {
-            businessSlug: slug,
+            businessSlug: effectiveSlug,
             items,
             customerName: customerData.name,
             customerPhone: customerData.phone,
@@ -549,7 +615,7 @@ const PublicBookingPage = () => {
 
       const { data, error } = await supabase.functions.invoke("public-create-booking", {
         body: {
-          businessSlug: slug,
+          businessSlug: effectiveSlug,
           serviceId: selectedService.id,
           staffId: selectedStaff?.id,
           startTime: startTime.toISOString(),
