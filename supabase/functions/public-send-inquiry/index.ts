@@ -85,6 +85,27 @@ serve(async (req) => {
       );
     }
 
+    // Insert inquiry into messages table so it appears in dashboard
+    const messageContent = `[Online Booking Inquiry]\n\nFrom: ${customerName}\nEmail: ${customerEmail}${customerPhone ? `\nPhone: ${customerPhone}` : ""}\n\nMessage:\n${message}`;
+    
+    const { error: messageError } = await supabase
+      .from("messages")
+      .insert({
+        business_id: business.id,
+        caller_name: customerName,
+        caller_phone: customerEmail, // Using email as identifier since phone is optional
+        content: messageContent,
+        recipient_type: "all",
+        is_urgent: false,
+        is_read: false,
+      });
+
+    if (messageError) {
+      console.error("Error inserting message:", messageError);
+    } else {
+      console.log("Message inserted into messages table for business:", business.id);
+    }
+
     // Send email if Resend is configured
     if (resendApiKey) {
       const resend = new Resend(resendApiKey);
