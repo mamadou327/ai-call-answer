@@ -198,22 +198,22 @@ serve(async (req: Request): Promise<Response> => {
 
     // Format booking details
     const startTime = new Date(booking.start_time);
-    const dateStr = startTime.toLocaleDateString("en-GB", {
+    const formattedDate = `${startTime.toLocaleDateString("en-GB", {
       weekday: "long",
       day: "numeric",
       month: "long",
       year: "numeric",
-    });
-    const timeStr = startTime.toLocaleTimeString("en-GB", {
+    })} at ${startTime.toLocaleTimeString("en-GB", {
       hour: "2-digit",
       minute: "2-digit",
-    });
+    })}`;
 
     const serviceName = booking.services?.name || "Service";
     const duration = booking.services?.duration_minutes || 0;
     const price = booking.services?.price || 0;
     const staffName = booking.staff?.name || "A member of our team";
     const bookingCode = booking.booking_code || "";
+    const customerName = booking.customer_name?.toLowerCase() || "there";
 
     // Check if deposit is required and not yet paid
     const depositRequired = booking.services?.deposit_required || false;
@@ -234,55 +234,47 @@ serve(async (req: Request): Promise<Response> => {
     let depositSection = "";
     if (needsDeposit && depositPaymentLink) {
       depositSection = `
-
 💳 DEPOSIT: ${currencySymbol}${depositAmount.toFixed(2)}
 Pay securely: ${depositPaymentLink}`;
     } else if (needsDeposit) {
       depositSection = `
-
 💳 DEPOSIT: ${currencySymbol}${depositAmount.toFixed(2)}
 Please contact us to arrange payment.`;
     }
 
-    // Build website section for confirmation, reminder, and reschedule
-    const websiteSection = cleanWebsite ? `\n\n🌐 ${cleanWebsite}` : "";
+    // Build website section
+    const websiteSection = cleanWebsite ? `\nOr visit our website 🌐 ${cleanWebsite}` : "";
 
     if (type === "confirmation") {
       message = `✅ Booking Confirmed
 
-Hi ${booking.customer_name},
+Hi ${customerName},
 
-Your appointment at ${business.business_name} is confirmed!
-
-📅 ${dateStr}
-⏰ ${timeStr}
-💇 ${serviceName} (${duration} mins)
-👤 With: ${staffName}
+📅 ${formattedDate}
+💇 ${serviceName}
+👤 ${staffName}
+🔖 Reference: ${bookingCode}
+${depositSection}
 📍 ${business.address}
 
-Booking ref: ${bookingCode}${depositSection}
-
-To cancel or reschedule, please call us on ${business.main_phone}.
+To cancel or reschedule, please call us on ${business.main_phone}.${websiteSection}
 
 See you soon!
-${business.business_name}${websiteSection}
+${business.business_name}
 
 Reply POLICIES for booking terms.`;
     } else if (type === "cancellation") {
       message = `❌ Booking Cancelled
 
-Hi ${booking.customer_name},
+Hi ${customerName},
 
-Your appointment at ${business.business_name} has been cancelled.
-
-Original booking:
-📅 ${dateStr}
-⏰ ${timeStr}
+📅 ${formattedDate}
 💇 ${serviceName}
+🔖 Reference: ${bookingCode}
 
-Booking ref: ${bookingCode}
+Your appointment has been cancelled.
 
-To rebook, please call us on ${business.main_phone} or visit our website.
+To rebook, please call us on ${business.main_phone}.${websiteSection}
 
 ${business.business_name}`;
     } else if (type === "reminder") {
@@ -303,42 +295,35 @@ Please contact us urgently to arrange payment.`;
 
       message = `⏰ Appointment Reminder
 
-Hi ${booking.customer_name},
+Hi ${customerName},
 
-Just a reminder about your upcoming appointment at ${business.business_name}!
-
-📅 ${dateStr}
-⏰ ${timeStr}
-💇 ${serviceName} (${duration} mins)
-👤 With: ${staffName}
+📅 ${formattedDate}
+💇 ${serviceName}
+👤 ${staffName}
+🔖 Reference: ${bookingCode}
+${reminderDepositSection}
 📍 ${business.address}
 
-Booking ref: ${bookingCode}${reminderDepositSection}
-
-If you need to cancel or reschedule, please call us on ${business.main_phone}.
+To cancel or reschedule, please call us on ${business.main_phone}.${websiteSection}
 
 See you soon!
-${business.business_name}${websiteSection}`;
+${business.business_name}`;
     } else if (type === "reschedule") {
       message = `📅 Booking Rescheduled
 
-Hi ${booking.customer_name},
+Hi ${customerName},
 
-Your appointment at ${business.business_name} has been rescheduled!
-
-NEW DATE & TIME:
-📅 ${dateStr}
-⏰ ${timeStr}
-💇 ${serviceName} (${duration} mins)
-👤 With: ${staffName}
+📅 ${formattedDate}
+💇 ${serviceName}
+👤 ${staffName}
+🔖 Reference: ${bookingCode}
+${depositSection}
 📍 ${business.address}
 
-Booking ref: ${bookingCode}${depositSection}
-
-To cancel or reschedule again, please call us on ${business.main_phone}.
+To cancel or reschedule, please call us on ${business.main_phone}.${websiteSection}
 
 See you soon!
-${business.business_name}${websiteSection}`;
+${business.business_name}`;
     }
 
     // Send SMS via Twilio
