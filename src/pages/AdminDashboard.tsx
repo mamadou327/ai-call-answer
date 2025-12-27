@@ -54,6 +54,10 @@ interface Business {
   sms_on_confirmation: boolean;
   sms_on_cancellation: boolean;
   sms_on_reminder: boolean;
+  // Online booking fields
+  custom_booking_domain: string | null;
+  booking_slug: string | null;
+  online_booking_enabled: boolean;
 }
 
 interface Profile {
@@ -787,6 +791,7 @@ const AdminDashboard = () => {
                       <TableHead>Owner</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Aivia Number</TableHead>
+                      <TableHead>Custom Domain</TableHead>
                       <TableHead>Notifications</TableHead>
                       <TableHead>Approved</TableHead>
                       <TableHead></TableHead>
@@ -805,6 +810,15 @@ const AdminDashboard = () => {
                           </TableCell>
                           <TableCell>{business.main_phone}</TableCell>
                           <TableCell>{business.assigned_aivia_number || "—"}</TableCell>
+                          <TableCell>
+                            {business.custom_booking_domain ? (
+                              <Badge variant="outline" className="text-xs font-mono">
+                                {business.custom_booking_domain}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <div className="flex gap-1">
                               {hasSmsEnabled && (
