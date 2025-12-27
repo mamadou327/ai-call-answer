@@ -23,20 +23,12 @@ interface OnlineBookingSettingsProps {
 export const OnlineBookingSettings = ({ businessId, business, onUpdate }: OnlineBookingSettingsProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [verifying, setVerifying] = useState(false);
   const [settings, setSettings] = useState({
     online_booking_enabled: business?.online_booking_enabled || false,
     booking_slug: business?.booking_slug || "",
     custom_booking_domain: business?.custom_booking_domain || "",
     online_booking_message: business?.online_booking_message || "",
     deposit_collection_timing: business?.deposit_collection_timing || "after_booking",
-  });
-  const [domainVerification, setDomainVerification] = useState({
-    verified: business?.custom_domain_verified || false,
-    statusMessage: business?.custom_domain_status_message || "",
-    lastChecked: business?.custom_domain_last_checked_at || null,
-    addedToHosting: business?.custom_domain_added_to_hosting || false,
-    txtValue: business?.custom_domain_txt_value || null,
   });
 
   useEffect(() => {
@@ -47,13 +39,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
         custom_booking_domain: business.custom_booking_domain || "",
         online_booking_message: business.online_booking_message || "",
         deposit_collection_timing: business.deposit_collection_timing || "after_booking",
-      });
-      setDomainVerification({
-        verified: business.custom_domain_verified || false,
-        statusMessage: business.custom_domain_status_message || "",
-        lastChecked: business.custom_domain_last_checked_at || null,
-        addedToHosting: business.custom_domain_added_to_hosting || false,
-        txtValue: business.custom_domain_txt_value || null,
       });
     }
   }, [business]);
@@ -76,10 +61,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
           custom_booking_domain: normalizedDomain || null,
           online_booking_message: settings.online_booking_message || null,
           deposit_collection_timing: settings.deposit_collection_timing,
-          ...(normalizedDomain !== business?.custom_booking_domain && {
-            custom_domain_verified: false,
-            custom_domain_status_message: normalizedDomain ? "Domain saved. Click 'Verify Domain' to check your DNS configuration." : null,
-          }),
         })
         .eq("id", businessId);
 
@@ -98,60 +79,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleVerifyDomain = async () => {
-    if (!settings.custom_booking_domain) {
-      toast({
-        title: "No domain",
-        description: "Please enter a custom domain first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setVerifying(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("verify-custom-domain", {
-        body: {
-          business_id: businessId,
-          custom_domain: settings.custom_booking_domain,
-        },
-      });
-
-      if (error) throw error;
-
-      setDomainVerification({
-        verified: data.verified,
-        statusMessage: data.status_message,
-        lastChecked: new Date().toISOString(),
-        addedToHosting: domainVerification.addedToHosting,
-        txtValue: domainVerification.txtValue,
-      });
-
-      if (data.verified) {
-        toast({
-          title: "Domain verified!",
-          description: "Our team has been notified and will set up SSL within 24 hours.",
-        });
-      } else {
-        toast({
-          title: "Verification pending",
-          description: data.status_message,
-          variant: "destructive",
-        });
-      }
-
-      onUpdate();
-    } catch (error: any) {
-      toast({
-        title: "Verification failed",
-        description: error.message || "Failed to verify domain",
-        variant: "destructive",
-      });
-    } finally {
-      setVerifying(false);
     }
   };
 
@@ -232,13 +159,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
           <CustomDomainWizard
             domain={settings.custom_booking_domain}
             onDomainChange={(domain) => setSettings({ ...settings, custom_booking_domain: domain })}
-            verified={domainVerification.verified}
-            statusMessage={domainVerification.statusMessage}
-            lastChecked={domainVerification.lastChecked}
-            addedToHosting={domainVerification.addedToHosting}
-            txtValue={domainVerification.txtValue}
-            onVerify={handleVerifyDomain}
-            verifying={verifying}
+            bookingUrl={aiviaBookingUrl}
             onCopyUrl={copyLink}
           />
 
