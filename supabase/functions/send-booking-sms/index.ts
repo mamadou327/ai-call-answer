@@ -225,6 +225,11 @@ serve(async (req: Request): Promise<Response> => {
     // Build SMS message based on type
     let message = "";
 
+    // Format website URL cleanly (remove https:// and http://)
+    const cleanWebsite = business.website 
+      ? business.website.replace(/^https?:\/\//, "").replace(/\/$/, "")
+      : null;
+
     // Build deposit section for SMS - use Stripe link directly
     let depositSection = "";
     if (needsDeposit && depositPaymentLink) {
@@ -239,6 +244,8 @@ Pay securely: ${depositPaymentLink}`;
 Please contact us to arrange payment.`;
     }
 
+    // Build website section for confirmation, reminder, and reschedule
+    const websiteSection = cleanWebsite ? `\n\n🌐 ${cleanWebsite}` : "";
 
     if (type === "confirmation") {
       message = `✅ Booking Confirmed
@@ -258,7 +265,7 @@ Booking ref: ${bookingCode}${depositSection}
 To cancel or reschedule, please call us on ${business.main_phone}.
 
 See you soon!
-${business.business_name}
+${business.business_name}${websiteSection}
 
 Reply POLICIES for booking terms.`;
     } else if (type === "cancellation") {
@@ -311,7 +318,7 @@ Booking ref: ${bookingCode}${reminderDepositSection}
 If you need to cancel or reschedule, please call us on ${business.main_phone}.
 
 See you soon!
-${business.business_name}`;
+${business.business_name}${websiteSection}`;
     } else if (type === "reschedule") {
       message = `📅 Booking Rescheduled
 
@@ -331,7 +338,7 @@ Booking ref: ${bookingCode}${depositSection}
 To cancel or reschedule again, please call us on ${business.main_phone}.
 
 See you soon!
-${business.business_name}`;
+${business.business_name}${websiteSection}`;
     }
 
     // Send SMS via Twilio
