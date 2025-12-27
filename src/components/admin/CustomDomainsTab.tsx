@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -17,7 +19,9 @@ import {
   ExternalLink,
   Loader2,
   Search,
-  RefreshCw
+  RefreshCw,
+  Send,
+  FileText
 } from "lucide-react";
 
 interface BusinessWithDomain {
@@ -29,6 +33,7 @@ interface BusinessWithDomain {
   custom_domain_added_at: string | null;
   custom_domain_status_message: string | null;
   custom_domain_last_checked_at: string | null;
+  custom_domain_txt_value: string | null;
 }
 
 export const CustomDomainsTab = () => {
@@ -36,9 +41,14 @@ export const CustomDomainsTab = () => {
   const [businesses, setBusinesses] = useState<BusinessWithDomain[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedDomain, setCopiedDomain] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "pending" | "verified" | "live">("all");
+  const [filter, setFilter] = useState<"all" | "pending" | "verified" | "awaiting_txt" | "live">("all");
   const [search, setSearch] = useState("");
   const [updating, setUpdating] = useState<string | null>(null);
+  const [txtDialogOpen, setTxtDialogOpen] = useState(false);
+  const [selectedBusiness, setSelectedBusiness] = useState<BusinessWithDomain | null>(null);
+  const [txtValue, setTxtValue] = useState("");
+  const [savingTxt, setSavingTxt] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   useEffect(() => {
     loadBusinesses();
@@ -49,7 +59,7 @@ export const CustomDomainsTab = () => {
     try {
       const { data, error } = await supabase
         .from("businesses")
-        .select("id, business_name, custom_booking_domain, custom_domain_verified, custom_domain_added_to_hosting, custom_domain_added_at, custom_domain_status_message, custom_domain_last_checked_at")
+        .select("id, business_name, custom_booking_domain, custom_domain_verified, custom_domain_added_to_hosting, custom_domain_added_at, custom_domain_status_message, custom_domain_last_checked_at, custom_domain_txt_value")
         .not("custom_booking_domain", "is", null)
         .order("custom_domain_last_checked_at", { ascending: false, nullsFirst: false });
 
@@ -105,11 +115,82 @@ export const CustomDomainsTab = () => {
     }
   };
 
+  const openTxtDialog = (business: BusinessWithDomain) => {
+    setSelectedBusiness(business);
+    setTxtValue(business.custom_domain_txt_value || "");
+    setTxtDialogOpen(true);
+  };
+
+  const saveTxtValue = async () => {
+    if (!selectedBusiness) return;
+    
+    setSavingTxt(true);
+    try {
+      const { error } = await supabase
+        .from("businesses")
+        .update({
+          custom_domain_txt_value: txtValue || null,
+        })
+        .eq("id", selectedBusiness.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Saved",
+        description: "TXT record value saved successfully",
+      });
+      setTxtDialogOpen(false);
+      loadBusinesses();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTxt(false);
+    }
+  };
+
+  const sendTxtInstructions = async () => {
+    if (!selectedBusiness || !txtValue) return;
+    
+    setSendingEmail(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-txt-record-instructions", {
+        body: {
+          business_id: selectedBusiness.id,
+          txt_value: txtValue,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Email Sent",
+        description: "TXT record instructions sent to business owner",
+      });
+      setTxtDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send email",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   const getStatus = (business: BusinessWithDomain) => {
     if (business.custom_domain_added_to_hosting) {
       return "live";
     }
     if (business.custom_domain_verified) {
+      // If verified but has TXT value set, awaiting TXT
+      if (business.custom_domain_txt_value) {
+        return "awaiting_txt";
+      }
       return "verified";
     }
     return "pending";
@@ -124,6 +205,13 @@ export const CustomDomainsTab = () => {
           <Badge className="bg-green-500 hover:bg-green-600">
             <CheckCircle className="h-3 w-3 mr-1" />
             Live
+          </Badge>
+        );
+      case "awaiting_txt":
+        return (
+          <Badge className="bg-amber-500 hover:bg-amber-600">
+            <FileText className="h-3 w-3 mr-1" />
+            Awaiting TXT
           </Badge>
         );
       case "verified":
@@ -154,6 +242,7 @@ export const CustomDomainsTab = () => {
 
   const pendingCount = businesses.filter(b => getStatus(b) === "pending").length;
   const verifiedCount = businesses.filter(b => getStatus(b) === "verified").length;
+  const awaitingTxtCount = businesses.filter(b => getStatus(b) === "awaiting_txt").length;
   const liveCount = businesses.filter(b => getStatus(b) === "live").length;
 
   return (
@@ -177,7 +266,7 @@ export const CustomDomainsTab = () => {
       </CardHeader>
       <CardContent>
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-4 gap-4 mb-6">
           <div className="p-4 bg-muted/50 rounded-lg text-center">
             <div className="text-2xl font-bold text-muted-foreground">{pendingCount}</div>
             <div className="text-sm text-muted-foreground">Pending DNS</div>
@@ -185,6 +274,10 @@ export const CustomDomainsTab = () => {
           <div className="p-4 bg-blue-500/10 rounded-lg text-center">
             <div className="text-2xl font-bold text-blue-600">{verifiedCount}</div>
             <div className="text-sm text-blue-600">Ready for Hosting</div>
+          </div>
+          <div className="p-4 bg-amber-500/10 rounded-lg text-center">
+            <div className="text-2xl font-bold text-amber-600">{awaitingTxtCount}</div>
+            <div className="text-sm text-amber-600">Awaiting TXT</div>
           </div>
           <div className="p-4 bg-green-500/10 rounded-lg text-center">
             <div className="text-2xl font-bold text-green-600">{liveCount}</div>
@@ -211,6 +304,7 @@ export const CustomDomainsTab = () => {
               <SelectItem value="all">All Domains</SelectItem>
               <SelectItem value="pending">Pending DNS</SelectItem>
               <SelectItem value="verified">Ready for Hosting</SelectItem>
+              <SelectItem value="awaiting_txt">Awaiting TXT</SelectItem>
               <SelectItem value="live">Live</SelectItem>
             </SelectContent>
           </Select>
@@ -234,6 +328,7 @@ export const CustomDomainsTab = () => {
                 <TableHead>Business</TableHead>
                 <TableHead>Domain</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>TXT Record</TableHead>
                 <TableHead>Last Checked</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -264,6 +359,15 @@ export const CustomDomainsTab = () => {
                     </div>
                   </TableCell>
                   <TableCell>{getStatusBadge(business)}</TableCell>
+                  <TableCell>
+                    {business.custom_domain_txt_value ? (
+                      <code className="text-xs bg-muted px-2 py-1 rounded truncate max-w-[150px] block">
+                        {business.custom_domain_txt_value.slice(0, 20)}...
+                      </code>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">Not set</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {business.custom_domain_last_checked_at
                       ? new Date(business.custom_domain_last_checked_at).toLocaleString()
@@ -272,7 +376,20 @@ export const CustomDomainsTab = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      {getStatus(business) === "verified" && (
+                      {/* TXT Record Button - show for verified domains */}
+                      {business.custom_domain_verified && !business.custom_domain_added_to_hosting && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openTxtDialog(business)}
+                        >
+                          <FileText className="h-4 w-4 mr-1" />
+                          TXT
+                        </Button>
+                      )}
+                      
+                      {/* Mark as Added - show for verified domains with TXT set */}
+                      {(getStatus(business) === "verified" || getStatus(business) === "awaiting_txt") && (
                         <Button
                           size="sm"
                           onClick={() => markAsAddedToHosting(business.id)}
@@ -283,11 +400,12 @@ export const CustomDomainsTab = () => {
                           ) : (
                             <>
                               <Check className="h-4 w-4 mr-1" />
-                              Mark as Added
+                              Mark Live
                             </>
                           )}
                         </Button>
                       )}
+                      
                       {getStatus(business) === "live" && (
                         <Button
                           variant="outline"
@@ -310,6 +428,60 @@ export const CustomDomainsTab = () => {
             </TableBody>
           </Table>
         )}
+
+        {/* TXT Record Dialog */}
+        <Dialog open={txtDialogOpen} onOpenChange={setTxtDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>TXT Record for {selectedBusiness?.business_name}</DialogTitle>
+              <DialogDescription>
+                Enter the TXT record value from Lovable's domain verification. This will be shown to the business owner.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Domain</Label>
+                <code className="block mt-1 text-sm bg-muted px-3 py-2 rounded">
+                  {selectedBusiness?.custom_booking_domain}
+                </code>
+              </div>
+              <div>
+                <Label htmlFor="txtValue">TXT Record Value</Label>
+                <Input
+                  id="txtValue"
+                  value={txtValue}
+                  onChange={(e) => setTxtValue(e.target.value)}
+                  placeholder="lovable_verify=abc123..."
+                  className="mt-1 font-mono"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Get this from Lovable → Project Settings → Domains → Manual Setup
+                </p>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setTxtDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={saveTxtValue} disabled={savingTxt}>
+                  {savingTxt ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
+                  Save
+                </Button>
+                {txtValue && (
+                  <Button onClick={sendTxtInstructions} disabled={sendingEmail || !txtValue}>
+                    {sendingEmail ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-2" />
+                    )}
+                    Save & Email Owner
+                  </Button>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

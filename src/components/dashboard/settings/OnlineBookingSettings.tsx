@@ -36,6 +36,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
     statusMessage: business?.custom_domain_status_message || "",
     lastChecked: business?.custom_domain_last_checked_at || null,
     addedToHosting: business?.custom_domain_added_to_hosting || false,
+    txtValue: business?.custom_domain_txt_value || null,
   });
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
         statusMessage: business.custom_domain_status_message || "",
         lastChecked: business.custom_domain_last_checked_at || null,
         addedToHosting: business.custom_domain_added_to_hosting || false,
+        txtValue: business.custom_domain_txt_value || null,
       });
     }
   }, [business]);
@@ -125,6 +127,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
         statusMessage: data.status_message,
         lastChecked: new Date().toISOString(),
         addedToHosting: domainVerification.addedToHosting,
+        txtValue: domainVerification.txtValue,
       });
 
       if (data.verified) {
@@ -233,6 +236,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
             statusMessage={domainVerification.statusMessage}
             lastChecked={domainVerification.lastChecked}
             addedToHosting={domainVerification.addedToHosting}
+            txtValue={domainVerification.txtValue}
             onVerify={handleVerifyDomain}
             verifying={verifying}
             onCopyUrl={copyLink}

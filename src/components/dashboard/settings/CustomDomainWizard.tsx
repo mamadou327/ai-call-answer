@@ -14,7 +14,8 @@ import {
   Copy,
   ExternalLink,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  FileText
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -25,6 +26,7 @@ interface CustomDomainWizardProps {
   statusMessage: string;
   lastChecked: string | null;
   addedToHosting: boolean;
+  txtValue: string | null;
   onVerify: () => void;
   verifying: boolean;
   onCopyUrl: (url: string) => void;
@@ -37,11 +39,13 @@ export const CustomDomainWizard = ({
   statusMessage,
   lastChecked,
   addedToHosting,
+  txtValue,
   onVerify,
   verifying,
   onCopyUrl,
 }: CustomDomainWizardProps) => {
   const [showProviderInstructions, setShowProviderInstructions] = useState(false);
+  const [copiedTxt, setCopiedTxt] = useState(false);
 
   const validateDomainInput = (value: string) => {
     return value
@@ -50,10 +54,19 @@ export const CustomDomainWizard = ({
       .toLowerCase();
   };
 
+  const copyTxtValue = () => {
+    if (txtValue) {
+      navigator.clipboard.writeText(txtValue);
+      setCopiedTxt(true);
+      setTimeout(() => setCopiedTxt(false), 2000);
+    }
+  };
+
   const getStep = () => {
     if (!domain) return 1;
     if (!verified) return 2;
-    if (!addedToHosting) return 3;
+    if (txtValue && !addedToHosting) return 3; // Awaiting TXT record
+    if (!addedToHosting) return 3.5; // Awaiting admin setup
     return 4;
   };
 
@@ -68,6 +81,15 @@ export const CustomDomainWizard = ({
         <Badge className="bg-green-500 hover:bg-green-600">
           <CheckCircle className="h-3 w-3 mr-1" />
           Live
+        </Badge>
+      );
+    }
+
+    if (txtValue && verified) {
+      return (
+        <Badge className="bg-amber-500 hover:bg-amber-600">
+          <FileText className="h-3 w-3 mr-1" />
+          Add TXT Record
         </Badge>
       );
     }
@@ -128,7 +150,7 @@ export const CustomDomainWizard = ({
         </div>
       </div>
 
-      {/* Step 2: Configure DNS */}
+      {/* Step 2: Configure DNS - A Record */}
       {domain && (
         <div className={`p-4 rounded-lg border ${currentStep === 2 ? "border-primary bg-primary/5" : "border-border"}`}>
           <div className="flex items-center gap-2 mb-2">
@@ -137,7 +159,7 @@ export const CustomDomainWizard = ({
             }`}>
               {currentStep > 2 ? <CheckCircle className="h-4 w-4" /> : "2"}
             </div>
-            <span className="font-medium">Add DNS record at your domain provider</span>
+            <span className="font-medium">Add A record at your domain provider</span>
           </div>
           <div className="ml-8 space-y-3">
             <div className="bg-muted p-3 rounded-md font-mono text-sm space-y-1">
@@ -226,9 +248,62 @@ export const CustomDomainWizard = ({
         </div>
       )}
 
-      {/* Step 3: Awaiting Setup */}
-      {domain && verified && !addedToHosting && (
-        <div className={`p-4 rounded-lg border ${currentStep === 3 ? "border-primary bg-primary/5" : "border-border"}`}>
+      {/* Step 3: TXT Record (when admin has provided it) */}
+      {domain && verified && txtValue && !addedToHosting && (
+        <div className={`p-4 rounded-lg border border-amber-500 bg-amber-500/5`}>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium bg-amber-500 text-white">
+              <FileText className="h-4 w-4" />
+            </div>
+            <span className="font-medium">Add TXT record for verification</span>
+          </div>
+          <div className="ml-8 space-y-3">
+            <Alert className="border-amber-500/50 bg-amber-500/10">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-700 dark:text-amber-400">
+                <p className="font-medium">Action Required!</p>
+                <p className="text-sm mt-1">
+                  To complete setup, add this TXT record at your domain provider. This proves you own the domain.
+                </p>
+              </AlertDescription>
+            </Alert>
+
+            <div className="bg-muted p-3 rounded-md font-mono text-sm space-y-1">
+              <div className="flex items-center justify-between">
+                <span><span className="text-muted-foreground">Type:</span> TXT</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span><span className="text-muted-foreground">Name:</span> _lovable</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate flex-1">
+                  <span className="text-muted-foreground">Value:</span> {txtValue}
+                </span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 px-2 shrink-0"
+                  onClick={copyTxtValue}
+                >
+                  {copiedTxt ? (
+                    <CheckCircle className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              After adding the TXT record, wait 5-10 minutes for propagation. Our team will complete the SSL setup once verified.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3.5: Awaiting Setup (no TXT yet) */}
+      {domain && verified && !txtValue && !addedToHosting && (
+        <div className={`p-4 rounded-lg border border-blue-500 bg-blue-500/5`}>
           <div className="flex items-center gap-2 mb-2">
             <div className="w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium bg-blue-500 text-white">
               <Clock className="h-4 w-4" />
@@ -239,10 +314,10 @@ export const CustomDomainWizard = ({
             <Alert>
               <CheckCircle className="h-4 w-4 text-green-500" />
               <AlertDescription>
-                <p className="font-medium text-green-700 dark:text-green-400">DNS verified successfully!</p>
+                <p className="font-medium text-green-700 dark:text-green-400">A record verified successfully!</p>
                 <p className="text-sm mt-1">
-                  Your domain is correctly configured. Our team has been notified and will set up SSL within 24 hours. 
-                  You'll receive an email once your custom domain is live.
+                  Your domain is correctly pointing to our servers. Our team has been notified and will set up SSL within 24 hours. 
+                  You may receive an email with additional instructions to add a TXT record for verification.
                 </p>
               </AlertDescription>
             </Alert>

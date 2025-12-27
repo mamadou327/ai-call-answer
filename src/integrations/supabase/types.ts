@@ -370,6 +370,7 @@ export type Database = {
           custom_domain_added_to_hosting: boolean | null
           custom_domain_last_checked_at: string | null
           custom_domain_status_message: string | null
+          custom_domain_txt_value: string | null
           custom_domain_verified: boolean | null
           deposit_collection_timing: string
           email_on_cancellation: boolean
@@ -422,6 +423,7 @@ export type Database = {
           custom_domain_added_to_hosting?: boolean | null
           custom_domain_last_checked_at?: string | null
           custom_domain_status_message?: string | null
+          custom_domain_txt_value?: string | null
           custom_domain_verified?: boolean | null
           deposit_collection_timing?: string
           email_on_cancellation?: boolean
@@ -474,6 +476,7 @@ export type Database = {
           custom_domain_added_to_hosting?: boolean | null
           custom_domain_last_checked_at?: string | null
           custom_domain_status_message?: string | null
+          custom_domain_txt_value?: string | null
           custom_domain_verified?: boolean | null
           deposit_collection_timing?: string
           email_on_cancellation?: boolean
