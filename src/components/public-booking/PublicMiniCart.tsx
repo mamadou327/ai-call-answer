@@ -34,11 +34,11 @@ export const PublicMiniCart = ({
   const allComplete = items.every((item) => item.date && item.time);
   const pendingItems = items.filter((item) => !item.date || !item.time);
 
-  // Empty cart state
+  // Empty cart state - show black icon
   if (items.length === 0) {
     return (
-      <Button variant="ghost" size="icon" className="relative" disabled>
-        <ShoppingBag className="h-5 w-5 text-muted-foreground" />
+      <Button variant="ghost" size="icon" className="relative">
+        <ShoppingBag className="h-5 w-5 text-foreground" />
       </Button>
     );
   }
