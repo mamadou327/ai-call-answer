@@ -10,7 +10,9 @@ import {
   Calendar, 
   Users,
   Clock,
-  CreditCard
+  CreditCard,
+  Link,
+  ExternalLink
 } from "lucide-react";
 
 interface BusinessDetails {
@@ -28,6 +30,10 @@ interface BusinessDetails {
   plan_tier?: string | null;
   aivia_active: boolean;
   assigned_aivia_number?: string | null;
+  // Online booking fields
+  custom_booking_domain?: string | null;
+  booking_slug?: string | null;
+  online_booking_enabled?: boolean;
 }
 
 interface BusinessDetailsDialogProps {
@@ -111,6 +117,42 @@ export const BusinessDetailsDialog = ({ business, open, onOpenChange }: Business
             <InfoRow icon={MapPin} label="Address" value={business.address} />
             {business.website && (
               <InfoRow icon={Globe} label="Website" value={business.website} />
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Online Booking Info */}
+          <div>
+            <h4 className="text-sm font-semibold mb-2 text-muted-foreground">Online Booking</h4>
+            <div className="flex items-start gap-3 py-2">
+              <Globe className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">Online Booking</p>
+                <p className="text-sm font-medium">
+                  {business.online_booking_enabled ? (
+                    <Badge className="bg-green-500/10 text-green-500">Enabled</Badge>
+                  ) : (
+                    <Badge variant="secondary">Disabled</Badge>
+                  )}
+                </p>
+              </div>
+            </div>
+            {business.booking_slug && (
+              <InfoRow 
+                icon={Link} 
+                label="Booking URL" 
+                value={`aiviaapp.co.uk/book/${business.booking_slug}`} 
+              />
+            )}
+            {business.custom_booking_domain && (
+              <div className="flex items-start gap-3 py-2">
+                <ExternalLink className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground">Custom Domain</p>
+                  <p className="text-sm font-medium text-primary break-words">{business.custom_booking_domain}</p>
+                </div>
+              </div>
             )}
           </div>
 
