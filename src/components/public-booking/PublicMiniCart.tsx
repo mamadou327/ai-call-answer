@@ -29,19 +29,25 @@ export const PublicMiniCart = ({
   onContinue,
   onAddAnother
 }: PublicMiniCartProps) => {
-  if (items.length === 0) return null;
-
   const totalPrice = items.reduce((sum, item) => sum + item.service.price, 0);
   const totalDuration = items.reduce((sum, item) => sum + item.service.duration_minutes, 0);
   const allComplete = items.every((item) => item.date && item.time);
   const pendingItems = items.filter((item) => !item.date || !item.time);
 
+  // Empty cart state
+  if (items.length === 0) {
+    return (
+      <Button variant="ghost" size="icon" className="relative" disabled>
+        <ShoppingBag className="h-5 w-5 text-muted-foreground" />
+      </Button>
+    );
+  }
+
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 relative">
-          <ShoppingBag className="h-4 w-4" />
-          <span className="hidden sm:inline">Cart</span>
+        <Button variant="outline" size="icon" className="relative">
+          <ShoppingBag className="h-5 w-5" />
           <Badge 
             variant="default" 
             className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs"

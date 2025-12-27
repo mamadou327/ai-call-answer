@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Menu, X, Home, Scissors, ImageIcon, MessageSquare, Calendar } from "lucide-react";
+import { Menu, Home, Scissors, ImageIcon, MessageSquare, ShoppingBag } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { PublicSocialLinks } from "./PublicSocialLinks";
@@ -115,18 +116,16 @@ export const PublicBookingHeader = ({
             </Button>
           </nav>
 
-          {/* Right side: CTA, Cart, Social, Mobile Menu */}
+          {/* Right side: Cart, Social, Mobile Menu */}
           <div className="flex items-center gap-2">
-          {/* Mini Cart */}
-            {showCart && (
-              <PublicMiniCart
-                items={cartItems}
-                currency={currency}
-                onRemoveItem={onRemoveCartItem}
-                onContinue={onCartContinue}
-                onAddAnother={onCartAddAnother}
-              />
-            )}
+            {/* Cart - Always visible */}
+            <PublicMiniCart
+              items={cartItems}
+              currency={currency}
+              onRemoveItem={onRemoveCartItem}
+              onContinue={onCartContinue}
+              onAddAnother={onCartAddAnother}
+            />
 
             {/* Social Links - Desktop */}
             <div className="hidden md:block">
