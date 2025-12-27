@@ -41,6 +41,19 @@ serve(async (req: Request) => {
 
     console.log(`Verifying domain: ${normalizedDomain} for business: ${business_id}`);
 
+    // Get business info for notification
+    const { data: businessData, error: businessError } = await supabase
+      .from("businesses")
+      .select("business_name, custom_booking_domain")
+      .eq("id", business_id)
+      .single();
+
+    if (businessError) {
+      console.error("Error fetching business:", businessError);
+    }
+
+    const previousDomain = businessData?.custom_booking_domain;
+
     // Update the business with the normalized domain
     const { error: updateDomainError } = await supabase
       .from("businesses")
@@ -85,7 +98,7 @@ serve(async (req: Request) => {
       // If we get any response (even 404), the domain is pointing somewhere and SSL is working
       if (response.ok || response.status === 404 || response.status === 301 || response.status === 302) {
         verified = true;
-        statusMessage = "Domain verified and active.";
+        statusMessage = "Domain verified! Your booking page will be live within 24 hours once our team adds it to hosting.";
       } else {
         verified = false;
         statusMessage = `Domain responded with status ${response.status}. Please check your DNS settings.`;
@@ -96,13 +109,16 @@ serve(async (req: Request) => {
       if (fetchError.name === "AbortError") {
         statusMessage = "Connection timed out. Please verify your DNS records point to 185.158.133.1.";
       } else if (fetchError.message?.includes("ssl") || fetchError.message?.includes("certificate")) {
-        statusMessage = "SSL certificate not yet provisioned. DNS is correctly pointed, but certificates may take up to 24 hours to activate.";
-        // Domain is pointed correctly, just waiting for SSL
-        verified = false;
+        statusMessage = "DNS is correctly pointed. SSL certificate will be provisioned once our team adds the domain to hosting (within 24 hours).";
+        // Domain is pointed correctly, just waiting for SSL - mark as verified
+        verified = true;
       } else {
         statusMessage = "Could not reach your domain. Please add an A record pointing to 185.158.133.1. DNS changes can take up to 24-48 hours to propagate.";
       }
-      verified = false;
+      
+      if (!fetchError.message?.includes("ssl") && !fetchError.message?.includes("certificate")) {
+        verified = false;
+      }
     }
 
     // Update verification status
@@ -112,6 +128,11 @@ serve(async (req: Request) => {
         custom_domain_verified: verified,
         custom_domain_status_message: statusMessage,
         custom_domain_last_checked_at: new Date().toISOString(),
+        // Reset hosting status if domain changed
+        ...(previousDomain !== normalizedDomain && {
+          custom_domain_added_to_hosting: false,
+          custom_domain_added_at: null,
+        }),
       })
       .eq("id", business_id);
 
@@ -120,6 +141,67 @@ serve(async (req: Request) => {
     }
 
     console.log(`Verification complete: verified=${verified}, message=${statusMessage}`);
+
+    // Send admin notification if domain is verified
+    if (verified && businessData?.business_name) {
+      try {
+        console.log("Sending admin notification for verified domain");
+        
+        const resendApiKey = Deno.env.get("RESEND_API_KEY");
+        const adminEmail = "mlaye915@gmail.com"; // Admin email
+        
+        if (resendApiKey) {
+          const emailResponse = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${resendApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: Deno.env.get("RESEND_FROM_EMAIL") || "Aivia <notifications@aiviaapp.co.uk>",
+              to: [adminEmail],
+              subject: `🌐 New Custom Domain Verified: ${normalizedDomain}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <h2 style="color: #333;">New Custom Domain Ready for Hosting</h2>
+                  
+                  <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <p style="margin: 0 0 10px 0;"><strong>Business:</strong> ${businessData.business_name}</p>
+                    <p style="margin: 0 0 10px 0;"><strong>Domain:</strong> <code style="background: #e0e0e0; padding: 2px 6px; border-radius: 4px;">${normalizedDomain}</code></p>
+                    <p style="margin: 0;"><strong>Status:</strong> DNS Verified ✅</p>
+                  </div>
+                  
+                  <h3 style="color: #333;">Action Required</h3>
+                  <p>Please add this domain to Lovable project settings for SSL provisioning:</p>
+                  
+                  <ol style="line-height: 1.8;">
+                    <li>Go to <a href="https://lovable.dev/projects" style="color: #2563eb;">Lovable Dashboard</a></li>
+                    <li>Open project settings → Domains</li>
+                    <li>Add domain: <code style="background: #e0e0e0; padding: 2px 6px; border-radius: 4px;">${normalizedDomain}</code></li>
+                    <li>Mark as processed in Admin Dashboard</li>
+                  </ol>
+                  
+                  <p style="color: #666; font-size: 14px; margin-top: 30px;">
+                    This is an automated notification from Aivia.
+                  </p>
+                </div>
+              `,
+            }),
+          });
+          
+          if (!emailResponse.ok) {
+            const errorText = await emailResponse.text();
+            console.error("Failed to send admin notification email:", errorText);
+          } else {
+            console.log("Admin notification email sent successfully");
+          }
+        } else {
+          console.log("RESEND_API_KEY not configured, skipping admin notification");
+        }
+      } catch (emailError) {
+        console.error("Error sending admin notification:", emailError);
+      }
+    }
 
     return new Response(
       JSON.stringify({
