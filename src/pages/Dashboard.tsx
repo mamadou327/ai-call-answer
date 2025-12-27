@@ -224,7 +224,7 @@ const Dashboard = () => {
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="h-14 sm:h-16 flex items-center justify-between px-3 sm:px-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <img alt="Aivia" className="h-8 sm:h-12 w-auto object-fill" src="/lovable-uploads/945d3c08-7d35-443e-876c-9424185ec92e.jpg" />
+            <img alt="Aivia" className="h-8 sm:h-12 w-auto object-fill" src="/lovable-uploads/46fe3693-5209-4fc3-ae63-c34586186b41.png" />
             <span className="text-sm sm:text-base font-mono font-extrabold hidden xs:inline">AIVIA</span>
           </div>
           <div className="flex items-center">
