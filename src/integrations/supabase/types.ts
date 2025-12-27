@@ -97,6 +97,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           created_by_user_id: string | null
+          customer_email: string | null
           customer_name: string
           customer_phone: string
           deposit_amount: number | null
@@ -123,6 +124,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           created_by_user_id?: string | null
+          customer_email?: string | null
           customer_name: string
           customer_phone: string
           deposit_amount?: number | null
@@ -149,6 +151,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           created_by_user_id?: string | null
+          customer_email?: string | null
           customer_name?: string
           customer_phone?: string
           deposit_amount?: number | null
