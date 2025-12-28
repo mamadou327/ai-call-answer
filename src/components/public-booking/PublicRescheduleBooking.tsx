@@ -15,10 +15,18 @@ interface Booking {
   staff: { id: string; name: string } | null;
 }
 
+interface OpeningHour {
+  day_of_week: number;
+  is_closed: boolean;
+  open_time: string | null;
+  close_time: string | null;
+}
+
 interface PublicRescheduleBookingProps {
   businessSlug: string;
   booking: Booking;
   currency: string;
+  openingHours?: OpeningHour[];
   onBack: () => void;
   onSuccess: () => void;
 }
@@ -27,6 +35,7 @@ export const PublicRescheduleBooking = ({
   businessSlug,
   booking,
   currency,
+  openingHours = [],
   onBack,
   onSuccess,
 }: PublicRescheduleBookingProps) => {
@@ -142,6 +151,7 @@ export const PublicRescheduleBooking = ({
           serviceDuration={booking.service.duration_minutes}
           onSelect={handleDateTimeSelect}
           onBack={() => setShowDatePicker(false)}
+          openingHours={openingHours}
         />
       </div>
     );
