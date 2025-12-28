@@ -245,14 +245,20 @@ export const PublicLookupBooking = ({
                         </Button>
                       ) : (
                         <div className="text-center">
-                          <p className="text-sm text-destructive font-medium">
-                            Cannot {mode} within {noticeHours} hours
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {booking.hoursUntilBooking < 0 
-                              ? "This booking is in the past" 
-                              : `Your booking is in ${booking.hoursUntilBooking} hours`}
-                          </p>
+                          {booking.hoursUntilBooking < 0 ? (
+                            <p className="text-sm text-destructive font-medium">
+                              This booking is in the past
+                            </p>
+                          ) : (
+                            <>
+                              <p className="text-sm text-destructive font-medium">
+                                Cannot {mode} within {noticeHours} hours
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Your booking is in {booking.hoursUntilBooking} hours
+                              </p>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
