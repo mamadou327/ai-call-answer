@@ -804,6 +804,7 @@ const PublicBookingPage = () => {
             onSelect={handleDateTimeSelect} 
             onBack={handleBack}
             bookedSlots={getBookedSlotsFromCart()}
+            openingHours={openingHours}
           />
         )}
         {step === "group-type" && cartItems.length > 1 && (

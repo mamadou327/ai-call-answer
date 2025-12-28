@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays, isBefore, startOfDay } from "date-fns";
+import { format, addDays, isBefore, startOfDay, getDay } from "date-fns";
 
 interface TimeSlot {
   time: string;
@@ -19,6 +19,13 @@ interface BookedSlot {
   durationMinutes: number;
 }
 
+interface OpeningHour {
+  day_of_week: number;
+  is_closed: boolean;
+  open_time: string | null;
+  close_time: string | null;
+}
+
 interface PublicDateTimePickerProps {
   businessSlug: string;
   serviceId: string;
@@ -27,6 +34,7 @@ interface PublicDateTimePickerProps {
   onSelect: (date: Date, time: string) => void;
   onBack: () => void;
   bookedSlots?: BookedSlot[]; // Already booked slots from cart to exclude
+  openingHours?: OpeningHour[]; // Business opening hours to disable closed days
 }
 
 export const PublicDateTimePicker = ({
@@ -37,6 +45,7 @@ export const PublicDateTimePicker = ({
   onSelect,
   onBack,
   bookedSlots = [],
+  openingHours = [],
 }: PublicDateTimePickerProps) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
@@ -45,6 +54,14 @@ export const PublicDateTimePicker = ({
 
   const today = startOfDay(new Date());
   const maxDate = addDays(today, 60); // Allow booking up to 60 days in advance
+
+  // Check if a date is a closed day based on opening hours
+  const isClosedDay = (date: Date) => {
+    if (openingHours.length === 0) return false;
+    const dayOfWeek = getDay(date); // 0 = Sunday, 1 = Monday, etc.
+    const hours = openingHours.find(h => h.day_of_week === dayOfWeek);
+    return hours?.is_closed === true;
+  };
 
   // Fetch available slots when date is selected
   useEffect(() => {
@@ -147,7 +164,7 @@ export const PublicDateTimePicker = ({
               mode="single"
               selected={selectedDate}
               onSelect={setSelectedDate}
-              disabled={(date) => isBefore(date, today) || date > maxDate}
+              disabled={(date) => isBefore(date, today) || date > maxDate || isClosedDay(date)}
               className="rounded-md"
             />
           </CardContent>
