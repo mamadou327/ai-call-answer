@@ -1092,6 +1092,24 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
 
     const requestedNorm = normalize(requestedService);
 
+    // Extract category hints from the request (e.g., "men's haircut", "kids shape-up", "women's cut")
+    const categoryHints: string[] = [];
+    const categoryPatterns = [
+      { pattern: /\b(men'?s?|man'?s?|male|gents?)\b/i, category: "men" },
+      { pattern: /\b(women'?s?|woman'?s?|female|ladies?)\b/i, category: "women" },
+      { pattern: /\b(kids?|child|children'?s?|boys?|girls?)\b/i, category: "kids" },
+      { pattern: /\b(adult'?s?)\b/i, category: "adult" },
+      { pattern: /\b(unisex)\b/i, category: "unisex" },
+    ];
+    
+    for (const { pattern, category } of categoryPatterns) {
+      if (pattern.test(requestedService)) {
+        categoryHints.push(category);
+      }
+    }
+    
+    console.log("[MediaStream] Service request:", requestedService, "Category hints:", categoryHints);
+
     // 1) Prefer exact match by normalized name
     let serviceCandidates = session.services.filter(s => normalize(s.name) === requestedNorm);
 
@@ -1102,19 +1120,71 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
         return n.includes(requestedNorm) || requestedNorm.includes(n);
       });
     }
+    
+    // 3) If still no match and we have category hints, try matching without the category word
+    if (serviceCandidates.length === 0 && categoryHints.length > 0) {
+      // Remove category words from the request and try again
+      let cleanedRequest = requestedNorm;
+      for (const { pattern } of categoryPatterns) {
+        cleanedRequest = cleanedRequest.replace(pattern, "").trim();
+      }
+      cleanedRequest = normalize(cleanedRequest);
+      
+      if (cleanedRequest) {
+        serviceCandidates = session.services.filter(s => {
+          const n = normalize(s.name);
+          return n.includes(cleanedRequest) || cleanedRequest.includes(n);
+        });
+      }
+    }
+    
+    // 4) If we have multiple candidates and category hints, filter by category
+    if (serviceCandidates.length > 1 && categoryHints.length > 0) {
+      const filteredByCategory = serviceCandidates.filter(s => {
+        const serviceCategory = normalize(s.category || "");
+        return categoryHints.some(hint => 
+          serviceCategory.includes(hint) || 
+          normalize(s.name).includes(hint)
+        );
+      });
+      
+      // Only use filtered results if we found matches
+      if (filteredByCategory.length > 0) {
+        console.log("[MediaStream] Filtered by category:", filteredByCategory.map(s => `${s.name} (${s.category})`));
+        serviceCandidates = filteredByCategory;
+      }
+    }
 
     if (serviceCandidates.length === 0) {
       return { success: false, message: `Could not find service ${requestedService}` };
     }
 
     if (serviceCandidates.length > 1) {
-      const options = serviceCandidates.slice(0, 6).map(s => s.name).join(", ");
-      const more = serviceCandidates.length > 6 ? ` (and ${serviceCandidates.length - 6} more)` : "";
-      console.log("[MediaStream] Ambiguous service name:", requestedService, "candidates:", serviceCandidates.map(s => s.name));
+      // Build descriptive options with category and price for disambiguation
+      const currency = session.businessSettings?.currency || "GBP";
+      const options = serviceCandidates.slice(0, 6).map(s => {
+        const categoryLabel = s.category ? ` for ${s.category}` : "";
+        return `${s.name}${categoryLabel} (${currency}${s.price})`;
+      });
+      
+      // Create a natural-sounding question based on the categories
+      const categories = [...new Set(serviceCandidates.map(s => s.category).filter(Boolean))];
+      let clarificationMessage: string;
+      
+      if (categories.length > 1 && categories.every(c => ["men", "women", "kids", "unisex", "adult"].includes(normalize(c || "")))) {
+        // If all categories are demographic-based, ask naturally
+        clarificationMessage = `Is that for ${categories.map(c => c?.toLowerCase()).join(", or ")}?`;
+      } else {
+        // Otherwise list the full options with prices
+        const more = serviceCandidates.length > 6 ? ` (and ${serviceCandidates.length - 6} more)` : "";
+        clarificationMessage = `Just to confirm, which one: ${options.join(", ")}${more}?`;
+      }
+      
+      console.log("[MediaStream] Ambiguous service name:", requestedService, "candidates:", serviceCandidates.map(s => `${s.name} (${s.category})`));
       return {
         success: false,
         needs_clarification: true,
-        message: `Just to confirm, which one do you mean: ${options}${more}?`,
+        message: clarificationMessage,
       };
     }
 
@@ -2654,6 +2724,18 @@ async function buildFullSystemPrompt(
   // Check if any service requires deposit
   const hasDepositServices = services.some(s => s.deposit_required && s.deposit_amount && s.deposit_amount > 0);
   
+  // Identify duplicate service names across categories
+  const serviceNameCounts: Record<string, number> = {};
+  services.forEach(s => {
+    const normalizedName = s.name.toLowerCase().trim();
+    serviceNameCounts[normalizedName] = (serviceNameCounts[normalizedName] || 0) + 1;
+  });
+  const duplicateServiceNames = new Set(
+    Object.entries(serviceNameCounts)
+      .filter(([_, count]) => count > 1)
+      .map(([name]) => name)
+  );
+  
   const servicesList = services.length > 0
     ? Object.entries(servicesByCategory).map(([cat, svcs]) => 
         `${cat}:\n${svcs.map(s => {
@@ -2672,10 +2754,21 @@ async function buildFullSystemPrompt(
             ? ` [DEPOSIT: ${currency}${s.deposit_amount}]`
             : "";
           
-          return `  - ${s.name}: ${s.duration_minutes}min, ${currency}${s.price}${availabilityNote}${depositNote}`;
+          // For duplicate service names, show disambiguated name with category
+          const normalizedName = s.name.toLowerCase().trim();
+          const isDuplicate = duplicateServiceNames.has(normalizedName);
+          const displayName = isDuplicate ? `${s.name} (${cat})` : s.name;
+          const duplicateWarning = isDuplicate ? ` ⚠️ SAME NAME EXISTS IN OTHER CATEGORIES - ALWAYS CLARIFY!` : "";
+          
+          return `  - ${displayName}: ${s.duration_minutes}min, ${currency}${s.price}${availabilityNote}${depositNote}${duplicateWarning}`;
         }).join("\n")}`
       ).join("\n")
     : "Services available upon request";
+  
+  // Generate a warning about duplicate service names if any exist
+  const duplicateServicesWarning = duplicateServiceNames.size > 0
+    ? `\n⚠️ DUPLICATE SERVICE NAME ALERT: The following service names appear in MULTIPLE categories: ${[...duplicateServiceNames].join(", ")}. ALWAYS ask the customer which category (men/women/kids/etc.) before booking!`
+    : "";
 
   // Format hours compactly
   const dayAbbr = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -2999,6 +3092,8 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
 - NEVER assume which service type the customer wants (e.g., Kids Haircut vs Adult Haircut vs Women Haircut).
 - ALWAYS ask "Is that for an adult, a child, or a woman?" BEFORE booking if there are multiple similar services.
 - Use the EXACT service name when booking (e.g., "Kids Haircut" not just "haircut").
+- ⚠️ Some services have the SAME NAME but different categories/prices (e.g., "Shape-up" for men vs kids). If the customer asks for a service that exists in multiple categories, you MUST ask which one they mean BEFORE attempting to book.
+- When clarifying, include the category AND price to help the customer choose: "Is that the Shape-up for men at £15 or for kids at £10?"${duplicateServicesWarning}
 
 ## PHONE NUMBER HANDLING:
 - Use the caller's phone number (the number they're calling from) by default for the booking.
