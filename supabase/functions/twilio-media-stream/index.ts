@@ -1160,23 +1160,23 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
     }
 
     if (serviceCandidates.length > 1) {
-      // Build descriptive options with category and price for disambiguation
-      const currency = session.businessSettings?.currency || "GBP";
-      const options = serviceCandidates.slice(0, 6).map(s => {
-        const categoryLabel = s.category ? ` for ${s.category}` : "";
-        return `${s.name}${categoryLabel} (${currency}${s.price})`;
-      });
-      
-      // Create a natural-sounding question based on the categories
+      // Create a natural-sounding question based on the categories - WITHOUT prices (only mention price if customer asks)
       const categories = [...new Set(serviceCandidates.map(s => s.category).filter(Boolean))];
       let clarificationMessage: string;
       
       if (categories.length > 1 && categories.every(c => ["men", "women", "kids", "unisex", "adult"].includes(normalize(c || "")))) {
         // If all categories are demographic-based, ask naturally
         clarificationMessage = `Is that for ${categories.map(c => c?.toLowerCase()).join(", or ")}?`;
+      } else if (categories.length > 1) {
+        // Different categories but not all demographic - still ask by category
+        clarificationMessage = `Just to confirm, is that for ${categories.map(c => c?.toLowerCase()).join(" or ")}?`;
       } else {
-        // Otherwise list the full options with prices
-        const more = serviceCandidates.length > 6 ? ` (and ${serviceCandidates.length - 6} more)` : "";
+        // Same category or no categories - list service names with any distinguishing info (but not price)
+        const options = serviceCandidates.slice(0, 4).map(s => {
+          const categoryLabel = s.category ? ` (${s.category})` : "";
+          return `${s.name}${categoryLabel}`;
+        });
+        const more = serviceCandidates.length > 4 ? ` (and ${serviceCandidates.length - 4} more)` : "";
         clarificationMessage = `Just to confirm, which one: ${options.join(", ")}${more}?`;
       }
       
@@ -3093,7 +3093,8 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
 - ALWAYS ask "Is that for an adult, a child, or a woman?" BEFORE booking if there are multiple similar services.
 - Use the EXACT service name when booking (e.g., "Kids Haircut" not just "haircut").
 - ⚠️ Some services have the SAME NAME but different categories/prices (e.g., "Shape-up" for men vs kids). If the customer asks for a service that exists in multiple categories, you MUST ask which one they mean BEFORE attempting to book.
-- When clarifying, include the category AND price to help the customer choose: "Is that the Shape-up for men at £15 or for kids at £10?"${duplicateServicesWarning}
+- When clarifying duplicate services, ask about the CATEGORY only - do NOT mention prices unless the customer specifically asks: "Is that the Shape-up for men or for kids?"
+- Only mention prices when the customer asks "how much?" or "what's the price?"${duplicateServicesWarning}
 
 ## PHONE NUMBER HANDLING:
 - Use the caller's phone number (the number they're calling from) by default for the booking.
