@@ -23,7 +23,8 @@ import { BusinessNotificationServicesDialog } from "@/components/admin/BusinessN
 import { ServiceRequestsTab } from "@/components/admin/ServiceRequestsTab";
 import { AdminMessagesTab } from "@/components/admin/AdminMessagesTab";
 import { AdminCallsTab } from "@/components/admin/AdminCallsTab";
-import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare, Mail } from "lucide-react";
+import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare, Mail, Sparkles } from "lucide-react";
+import { AiviaSalesKitTab } from "@/components/admin/AiviaSalesKitTab";
 
 // Super admin emails that cannot be deactivated
 const PROTECTED_ADMIN_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
@@ -104,7 +105,7 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "messages" | "calls">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "messages" | "calls" | "aivia">("analytics");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
     can_manage_business_numbers: false,
@@ -705,6 +706,14 @@ const AdminDashboard = () => {
               Calls
             </Button>
           )}
+          <Button
+            variant={activeTab === "aivia" ? "default" : "outline"}
+            onClick={() => setActiveTab("aivia")}
+            className="bg-gradient-to-r from-primary/90 to-primary hover:from-primary hover:to-primary/90"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            AIVIA
+          </Button>
         </div>
 
         {activeTab === "analytics" && (
@@ -882,6 +891,10 @@ const AdminDashboard = () => {
 
         {activeTab === "calls" && (isSuperAdmin || userPermissions.can_view_calls_messages) && (
           <AdminCallsTab />
+        )}
+
+        {activeTab === "aivia" && (
+          <AiviaSalesKitTab />
         )}
 
       </div>
