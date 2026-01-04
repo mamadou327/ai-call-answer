@@ -82,9 +82,9 @@ export const HowItWorksDocument = () => {
     doc.setTextColor(60, 60, 60);
     
     const techStack = [
-      ["Phone System:", "Twilio - Enterprise-grade telephony infrastructure"],
-      ["Voice AI:", "OpenAI GPT-4 - Understands context, remembers conversations"],
-      ["Voice Synthesis:", "ElevenLabs - Natural, human-sounding AI voices"],
+      ["Phone System:", "Twilio Media Streams - Real-time audio bridge"],
+      ["Voice AI:", "OpenAI Realtime API - True zero-latency conversations"],
+      ["Voice Output:", "OpenAI Native Voices - Natural, instant speech"],
       ["Database:", "Secure cloud storage for customer data and bookings"],
       ["Notifications:", "Automated SMS and email confirmations"],
     ];
@@ -226,10 +226,10 @@ export const HowItWorksDocument = () => {
             <div className="space-y-3">
               <h2 className="text-lg font-bold">Technology Stack</h2>
               <div className="grid gap-2">
-                {[
-                  { label: "Phone System", value: "Twilio - Enterprise-grade telephony" },
-                  { label: "Voice AI", value: "OpenAI GPT-4 - Context-aware conversations" },
-                  { label: "Voice Synthesis", value: "ElevenLabs - Natural human voices" },
+              {[
+                  { label: "Phone System", value: "Twilio Media Streams - Real-time audio bridge" },
+                  { label: "Voice AI", value: "OpenAI Realtime API - Zero-latency conversations" },
+                  { label: "Voice Output", value: "OpenAI Native Voices - Instant natural speech" },
                   { label: "Database", value: "Secure cloud storage" },
                   { label: "Notifications", value: "Automated SMS & email" },
                 ].map((item, i) => (

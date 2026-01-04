@@ -112,6 +112,7 @@ export const FeatureComparisonDocument = () => {
     doc.setTextColor(60, 60, 60);
     
     const differentiators = [
+      "✓ Zero-latency AI - Real-time conversations with no awkward pauses",
       "✓ Never calls in sick, never takes holidays, never needs a break",
       "✓ Remembers every customer interaction and preference",
       "✓ Scales instantly - handles 1 or 100 calls simultaneously",
@@ -249,6 +250,10 @@ export const FeatureComparisonDocument = () => {
             <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
               <h3 className="font-semibold mb-3">Key AIVIA Differentiators</h3>
               <ul className="space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-primary" />
+                  Zero-latency AI - Real-time conversations, no awkward pauses
+                </li>
                 <li className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-primary" />
                   Never calls in sick, never takes holidays
