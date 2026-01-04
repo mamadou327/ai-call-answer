@@ -65,7 +65,7 @@ export const SalesPitchDocument = () => {
     doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
     const solutions = [
-      "✓ Answers every call instantly - no hold music, no waiting",
+      "✓ Answers every call instantly - zero-latency real-time AI",
       "✓ Books appointments directly into your calendar",
       "✓ Remembers returning customers and their preferences",
       "✓ Handles group bookings (families, couples, etc.)",
@@ -217,7 +217,7 @@ export const SalesPitchDocument = () => {
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-start gap-2">
                     <span className="text-primary">✓</span>
-                    Answers every call instantly
+                    Zero-latency real-time AI responses
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-primary">✓</span>
