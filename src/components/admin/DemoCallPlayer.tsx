@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Play, Square, Calendar, RefreshCw, X, Phone, ChevronDown, ChevronUp, AlertCircle, Loader2 } from "lucide-react";
+import { Play, Square, Calendar, RefreshCw, X, Phone, ChevronDown, ChevronUp, AlertCircle, Loader2, CheckCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface DemoLine {
   index: number;
@@ -156,14 +157,22 @@ export const DemoCallPlayer = ({ scenario, title, description, icon, manifest }:
   return (
     <Card className="border-2 border-foreground">
       <CardHeader className="pb-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-foreground text-background">
-            {icon}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-foreground text-background">
+              {icon}
+            </div>
+            <div>
+              <CardTitle className="text-lg font-bold">{title}</CardTitle>
+              <CardDescription>{description}</CardDescription>
+            </div>
           </div>
-          <div>
-            <CardTitle className="text-lg font-bold">{title}</CardTitle>
-            <CardDescription>{description}</CardDescription>
-          </div>
+          {hasAudio && (
+            <Badge variant="outline" className="gap-1 border-green-600 text-green-600 bg-green-50">
+              <CheckCircle className="h-3 w-3" />
+              Audio Ready
+            </Badge>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

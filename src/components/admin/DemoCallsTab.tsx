@@ -178,85 +178,79 @@ export const DemoCallsTab = () => {
         </CardHeader>
       </Card>
 
-      {/* Audio Generation Section */}
-      <Card className="border-2 border-foreground">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-bold">Demo Audio Files</CardTitle>
-          <CardDescription>
-            Generate once, play instantly forever. Each line is a separate high-quality audio file.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Status list */}
-          <div className="space-y-2">
-            {SCENARIOS.map(scenario => {
-              const status = audioStatus[scenario.id];
-              const manifest = manifests[scenario.id];
-              
-              return (
-                <div 
-                  key={scenario.id}
-                  className="flex items-center justify-between p-3 border-2 border-foreground/20 rounded"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-foreground/10">
-                      {DemoIcons[scenario.id]}
+      {/* Audio Generation Section - Only show if demos need to be generated */}
+      {!allGenerated && (
+        <Card className="border-2 border-foreground">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-bold">Generate Demo Audio</CardTitle>
+            <CardDescription>
+              Generate audio files once. They're stored permanently and play instantly forever.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Status list */}
+            <div className="space-y-2">
+              {SCENARIOS.map(scenario => {
+                const status = audioStatus[scenario.id];
+                const manifest = manifests[scenario.id];
+                
+                return (
+                  <div 
+                    key={scenario.id}
+                    className="flex items-center justify-between p-3 border-2 border-foreground/20 rounded"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-1.5 bg-foreground/10">
+                        {DemoIcons[scenario.id]}
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm">{scenario.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {manifest 
+                            ? `${manifest.linesCount} audio files ready`
+                            : scenario.description
+                          }
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-sm">{scenario.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {manifest 
-                          ? `${manifest.linesCount} audio files ready`
-                          : scenario.description
-                        }
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {status.generating ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Generating...</span>
-                      </div>
-                    ) : status.error ? (
-                      <div className="flex items-center gap-2 text-sm text-destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <span>Error</span>
-                      </div>
-                    ) : status.exists ? (
-                      <div className="flex items-center gap-2 text-sm text-green-600">
-                        <Check className="h-4 w-4" />
-                        <span>Ready</span>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Not generated</span>
-                    )}
                     
-                    <Button
-                      size="sm"
-                      variant={status.exists ? "outline" : "default"}
-                      onClick={() => generateAudio(scenario.id)}
-                      disabled={status.generating || anyGenerating}
-                      className={status.exists ? "border-foreground" : "bg-foreground text-background"}
-                    >
-                      {status.exists ? (
-                        <>
-                          <RefreshCw className="h-3 w-3 mr-1" />
-                          Regenerate
-                        </>
+                    <div className="flex items-center gap-2">
+                      {status.generating ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Generating...</span>
+                        </div>
+                      ) : status.error ? (
+                        <div className="flex items-center gap-2 text-sm text-destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <span>Error</span>
+                        </div>
+                      ) : status.exists ? (
+                        <div className="flex items-center gap-2 text-sm text-green-600">
+                          <Check className="h-4 w-4" />
+                          <span>Ready</span>
+                        </div>
                       ) : (
-                        "Generate"
+                        <span className="text-sm text-muted-foreground">Not generated</span>
                       )}
-                    </Button>
+                      
+                      {!status.exists && (
+                        <Button
+                          size="sm"
+                          onClick={() => generateAudio(scenario.id)}
+                          disabled={status.generating || anyGenerating}
+                          className="bg-foreground text-background"
+                        >
+                          Generate
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
 
-          {/* Generate All button */}
-          {!allGenerated && (
+            {/* Generate All button */}
             <Button
               onClick={generateAllAudios}
               disabled={anyGenerating}
@@ -271,9 +265,9 @@ export const DemoCallsTab = () => {
                 "Generate All Missing Demos"
               )}
             </Button>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tips */}
       <Card className="border-2 border-foreground bg-muted/30">
