@@ -35,12 +35,12 @@ export const HowItWorksDocument = () => {
     doc.setFillColor(0, 0, 0);
     doc.rect(0, 0, pageWidth, 18, "F");
     
-    // Add logo
+    // Add logo (with fallback)
     try {
       const logoData = await loadImageAsBase64(aiviaLogo);
       doc.addImage(logoData, "PNG", 8, 2, 14, 14);
     } catch (e) {
-      console.error("Failed to load logo:", e);
+      // Continue without logo
     }
     
     doc.setTextColor(255, 255, 255);
@@ -54,68 +54,73 @@ export const HowItWorksDocument = () => {
     doc.setFont("helvetica", "normal");
     doc.text("A complete AI-powered phone receptionist that integrates with your business", pageWidth / 2, 28, { align: "center" });
     
+    let yPos = 42;
+    
     // Call Flow Section
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("THE CALL FLOW", 20, 42);
+    doc.text("THE CALL FLOW", 20, yPos);
     doc.setLineWidth(0.5);
-    doc.line(20, 44, 55, 44);
+    doc.line(20, yPos + 2, 55, yPos + 2);
     
     // Step boxes - clean white with thin borders
     const steps = [
       { num: "1", title: "CUSTOMER CALLS", desc: "Customer dials your number" },
       { num: "2", title: "AI ANSWERS", desc: "Greets them instantly" },
       { num: "3", title: "UNDERSTANDS", desc: "Processes intent" },
-      { num: "4", title: "BOOKS SLOT", desc: "Checks & books appointment" },
-      { num: "5", title: "CONFIRMS", desc: "Sends SMS confirmation" },
+      { num: "4", title: "BOOKS SLOT", desc: "Checks & books" },
+      { num: "5", title: "CONFIRMS", desc: "Sends SMS" },
     ];
     
     let xPos = 15;
     const stepBoxWidth = 35;
     const stepBoxHeight = 32;
+    const stepY = yPos + 8;
     
     steps.forEach((step) => {
       // White box with thin border
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.5);
       doc.setFillColor(255, 255, 255);
-      doc.rect(xPos, 50, stepBoxWidth, stepBoxHeight, "FD");
+      doc.rect(xPos, stepY, stepBoxWidth, stepBoxHeight, "FD");
       
       // Number badge
       doc.setFillColor(0, 0, 0);
-      doc.circle(xPos + stepBoxWidth / 2, 56, 4, "F");
+      doc.circle(xPos + stepBoxWidth / 2, stepY + 6, 4, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
-      doc.text(step.num, xPos + stepBoxWidth / 2, 57.5, { align: "center" });
+      doc.text(step.num, xPos + stepBoxWidth / 2, stepY + 7.5, { align: "center" });
       
       // Title and desc
       doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(6);
-      doc.text(step.title, xPos + stepBoxWidth / 2, 65, { align: "center" });
+      doc.text(step.title, xPos + stepBoxWidth / 2, stepY + 15, { align: "center" });
       doc.setFont("helvetica", "normal");
       doc.setFontSize(5.5);
       doc.setTextColor(80, 80, 80);
       const lines = doc.splitTextToSize(step.desc, stepBoxWidth - 4);
-      doc.text(lines, xPos + stepBoxWidth / 2, 70, { align: "center" });
+      doc.text(lines, xPos + stepBoxWidth / 2, stepY + 21, { align: "center" });
       
       xPos += stepBoxWidth + 3;
     });
     
     // Technology Section
+    yPos = stepY + stepBoxHeight + 12;
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("TECHNOLOGY STACK", 20, 95);
+    doc.text("TECHNOLOGY STACK", 20, yPos);
     doc.setLineWidth(0.5);
-    doc.line(20, 97, 65, 97);
+    doc.line(20, yPos + 2, 65, yPos + 2);
     
     // Tech stack in white bordered box
+    const techBoxY = yPos + 6;
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.5);
-    doc.rect(15, 102, pageWidth - 30, 42, "S");
+    doc.rect(15, techBoxY, pageWidth - 30, 42, "S");
     
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
@@ -129,51 +134,53 @@ export const HowItWorksDocument = () => {
       ["Notifications:", "Automated SMS and email confirmations"],
     ];
     
-    let yPos = 112;
+    let techY = techBoxY + 10;
     techStack.forEach(([label, desc]) => {
       doc.setFont("helvetica", "bold");
-      doc.text(label, 20, yPos);
+      doc.text(label, 20, techY);
       doc.setFont("helvetica", "normal");
-      doc.text(desc, 52, yPos);
-      yPos += 7;
+      doc.text(desc, 52, techY);
+      techY += 7;
     });
     
     // Dashboard Features
+    yPos = techBoxY + 52;
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("YOUR DASHBOARD", 20, 158);
+    doc.text("YOUR DASHBOARD", 20, yPos);
     doc.setLineWidth(0.5);
-    doc.line(20, 160, 58, 160);
+    doc.line(20, yPos + 2, 58, yPos + 2);
     
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(50, 50, 50);
     
     const dashboardFeatures = [
-      "•  Live call transcripts - See exactly what was said",
-      "•  Booking calendar - All appointments in one view",
-      "•  Customer database - Full history and preferences",
-      "•  Analytics - Call volume, booking rates, peak times",
-      "•  Message inbox - Voicemails and customer inquiries",
-      "•  Staff management - Assign services to team members",
+      "  - Live call transcripts - See exactly what was said",
+      "  - Booking calendar - All appointments in one view",
+      "  - Customer database - Full history and preferences",
+      "  - Analytics - Call volume, booking rates, peak times",
+      "  - Message inbox - Voicemails and customer inquiries",
+      "  - Staff management - Assign services to team members",
     ];
     
-    yPos = 170;
+    yPos += 10;
     dashboardFeatures.forEach(feature => {
       doc.text(feature, 20, yPos);
       yPos += 7;
     });
     
     // Integration Box - white with border, black title badge
-    const integrationY = 218;
+    yPos += 8;
+    const integrationY = yPos;
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.5);
     doc.rect(15, integrationY, pageWidth - 30, 22, "S");
     
     // Small black title badge
     doc.setFillColor(0, 0, 0);
-    doc.rect(20, integrationY + 3, 60, 7, "F");
+    doc.rect(20, integrationY + 3, 65, 7, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(7);
     doc.setFont("helvetica", "bold");

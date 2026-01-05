@@ -35,12 +35,12 @@ export const ROICalculatorDocument = () => {
     doc.setFillColor(0, 0, 0);
     doc.rect(0, 0, pageWidth, 18, "F");
     
-    // Add logo
+    // Add logo (with fallback)
     try {
       const logoData = await loadImageAsBase64(aiviaLogo);
       doc.addImage(logoData, "PNG", 8, 2, 14, 14);
     } catch (e) {
-      console.error("Failed to load logo:", e);
+      // Continue without logo
     }
     
     doc.setTextColor(255, 255, 255);
@@ -54,39 +54,42 @@ export const ROICalculatorDocument = () => {
     doc.setFont("helvetica", "normal");
     doc.text("See how AIVIA pays for itself", pageWidth / 2, 28, { align: "center" });
     
+    let yPos = 42;
+    
     // The Problem Section
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("THE COST OF MISSED CALLS", 20, 42);
+    doc.text("THE COST OF MISSED CALLS", 20, yPos);
     doc.setLineWidth(0.5);
-    doc.line(20, 44, 80, 44);
+    doc.line(20, yPos + 2, 80, yPos + 2);
     
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(50, 50, 50);
     
     const problems = [
-      "•  Average missed calls per week: 5-10",
-      "•  Average booking value: £35",
-      "•  Customers who call competitors after voicemail: 80%",
+      "  - Average missed calls per week: 5-10",
+      "  - Average booking value: £35",
+      "  - Customers who call competitors after voicemail: 80%",
     ];
     
-    let yPos = 54;
+    yPos += 10;
     problems.forEach(p => {
       doc.text(p, 20, yPos);
       yPos += 7;
     });
     
     // Lost Revenue Box - white with border, black title badge
-    const lostY = 80;
+    yPos += 8;
+    const lostY = yPos;
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.5);
     doc.rect(15, lostY, pageWidth - 30, 42, "S");
     
     // Black title badge
     doc.setFillColor(0, 0, 0);
-    doc.rect(20, lostY + 4, 65, 8, "F");
+    doc.rect(20, lostY + 4, 70, 8, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
@@ -109,14 +112,15 @@ export const ROICalculatorDocument = () => {
     });
     
     // AIVIA Investment Box
-    const investY = lostY + 52;
+    yPos = lostY + 52;
+    const investY = yPos;
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.5);
     doc.rect(15, investY, pageWidth - 30, 42, "S");
     
     // Black title badge
     doc.setFillColor(0, 0, 0);
-    doc.rect(20, investY + 4, 50, 8, "F");
+    doc.rect(20, investY + 4, 55, 8, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
@@ -139,7 +143,8 @@ export const ROICalculatorDocument = () => {
     });
     
     // ROI Summary Box - white with border and bold text
-    const roiY = investY + 55;
+    yPos = investY + 55;
+    const roiY = yPos;
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(1);
     doc.rect(15, roiY, pageWidth - 30, 45, "S");
