@@ -31,159 +31,156 @@ export const SalesPitchDocument = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Load and add logo
-    try {
-      const logoData = await loadImageAsBase64(aiviaLogo);
-      doc.addImage(logoData, "PNG", 15, 8, 24, 24);
-    } catch (e) {
-      console.error("Failed to load logo:", e);
-    }
-    
     // Header - Black neobrutalist style
     doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageWidth, 40, "F");
+    doc.rect(0, 0, pageWidth, 45, "F");
     
-    // Re-add logo on top of black header (white version would be ideal, but we'll use what we have)
+    // Add logo
     try {
       const logoData = await loadImageAsBase64(aiviaLogo);
-      doc.addImage(logoData, "PNG", 15, 8, 24, 24);
+      doc.addImage(logoData, "PNG", 15, 10, 28, 28);
     } catch (e) {
       console.error("Failed to load logo:", e);
     }
     
     // Title - positioned to the right of logo
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(28);
+    doc.setFontSize(32);
     doc.setFont("helvetica", "bold");
-    doc.text("AIVIA", pageWidth / 2 + 10, 20, { align: "center" });
-    doc.setFontSize(14);
+    doc.text("AIVIA", pageWidth / 2 + 10, 24, { align: "center" });
+    doc.setFontSize(13);
     doc.setFont("helvetica", "normal");
-    doc.text("AI Voice Assistant for Businesses", pageWidth / 2 + 10, 30, { align: "center" });
+    doc.text("AI Voice Assistant for Businesses", pageWidth / 2 + 10, 36, { align: "center" });
     
     // Main headline
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(24);
+    doc.setFontSize(22);
     doc.setFont("helvetica", "bold");
-    doc.text("NEVER MISS ANOTHER BOOKING", pageWidth / 2, 60, { align: "center" });
+    doc.text("NEVER MISS ANOTHER BOOKING", pageWidth / 2, 62, { align: "center" });
     
     // Subheadline
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(60, 60, 60);
-    doc.text("Your AI receptionist answers calls 24/7, books appointments, and remembers customers", pageWidth / 2, 70, { align: "center" });
+    doc.setTextColor(80, 80, 80);
+    doc.text("Your AI receptionist answers calls 24/7, books appointments, and remembers customers", pageWidth / 2, 72, { align: "center" });
     
-    // Pain Points Section with black border box
+    // Pain Points Section - Left box
+    const boxWidth = (pageWidth - 40) / 2;
+    const boxHeight = 60;
+    const leftX = 15;
+    const rightX = leftX + boxWidth + 10;
+    const boxY = 82;
+    
     doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(2);
-    doc.rect(15, 80, (pageWidth - 35) / 2, 55, "S");
+    doc.setLineWidth(1.5);
+    doc.rect(leftX, boxY, boxWidth, boxHeight, "S");
     
-    doc.setFontSize(14);
+    doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("THE PROBLEM", 20, 92);
+    doc.text("THE PROBLEM", leftX + 8, boxY + 14);
     
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     const painPoints = [
-      "✗ Missing calls = Missing money",
-      "✗ 80% won't leave voicemail",
-      "✗ Receptionist costs £20,000+/yr",
-      "✗ Too busy with clients to answer"
+      "✗  Missing calls = Missing money",
+      "✗  80% won't leave voicemail",
+      "✗  Receptionist costs £20,000+/yr",
+      "✗  Too busy with clients to answer"
     ];
-    let yPos = 102;
+    let yPos = boxY + 26;
     painPoints.forEach(point => {
-      doc.text(point, 20, yPos);
-      yPos += 8;
+      doc.text(point, leftX + 8, yPos);
+      yPos += 9;
     });
     
-    // Solution Section with filled black header
-    const solutionX = 20 + (pageWidth - 35) / 2;
-    doc.rect(solutionX, 80, (pageWidth - 35) / 2, 55, "S");
+    // Solution Section - Right box with black header
+    doc.rect(rightX, boxY, boxWidth, boxHeight, "S");
     
     doc.setFillColor(0, 0, 0);
-    doc.rect(solutionX, 80, (pageWidth - 35) / 2, 12, "F");
+    doc.rect(rightX, boxY, boxWidth, 16, "F");
     doc.setTextColor(255, 255, 255);
+    doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
-    doc.text("THE SOLUTION", solutionX + 5, 88);
+    doc.text("THE SOLUTION", rightX + 8, boxY + 11);
     
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     const solutions = [
-      "✓ Zero-latency real-time AI",
-      "✓ Books directly into calendar",
-      "✓ Remembers returning customers",
-      "✓ Works 24/7/365"
+      "✓  Zero-latency real-time AI",
+      "✓  Books directly into calendar",
+      "✓  Remembers returning customers",
+      "✓  Works 24/7/365"
     ];
-    yPos = 102;
+    yPos = boxY + 30;
     solutions.forEach(solution => {
-      doc.text(solution, solutionX + 5, yPos);
-      yPos += 8;
+      doc.text(solution, rightX + 8, yPos);
+      yPos += 9;
     });
     
     // Features Box - black filled
+    const featuresY = boxY + boxHeight + 12;
     doc.setFillColor(0, 0, 0);
-    doc.rect(15, 145, pageWidth - 30, 35, "F");
+    doc.rect(15, featuresY, pageWidth - 30, 32, "F");
     
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
+    doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
-    doc.text("WHAT YOU GET", pageWidth / 2, 157, { align: "center" });
+    doc.text("WHAT YOU GET", pageWidth / 2, featuresY + 12, { align: "center" });
     
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    const features = [
-      "AI Voice Receptionist  •  Online Booking Page  •  Customer Database",
-      "SMS Notifications  •  Dashboard & Analytics  •  Deposit Collection"
-    ];
-    doc.text(features[0], pageWidth / 2, 168, { align: "center" });
-    doc.text(features[1], pageWidth / 2, 176, { align: "center" });
+    doc.text("AI Voice Receptionist   •   Online Booking Page   •   Customer Database", pageWidth / 2, featuresY + 22, { align: "center" });
+    doc.text("SMS Notifications   •   Dashboard & Analytics   •   Deposit Collection", pageWidth / 2, featuresY + 29, { align: "center" });
     
     // Pricing section with border
+    const pricingY = featuresY + 44;
     doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(2);
-    doc.rect(15, 190, pageWidth - 30, 40, "S");
+    doc.setLineWidth(1.5);
+    doc.rect(15, pricingY, pageWidth - 30, 36, "S");
     
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(24);
+    doc.setFontSize(22);
     doc.setFont("helvetica", "bold");
-    doc.text("LESS THAN £3 PER DAY", pageWidth / 2, 210, { align: "center" });
+    doc.text("LESS THAN £3 PER DAY", pageWidth / 2, pricingY + 16, { align: "center" });
     
     doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(60, 60, 60);
-    doc.text("Pays for itself with just 2-3 bookings per month", pageWidth / 2, 222, { align: "center" });
+    doc.setTextColor(80, 80, 80);
+    doc.text("Pays for itself with just 2-3 bookings per month", pageWidth / 2, pricingY + 28, { align: "center" });
     
     // How it works section
-    doc.setFontSize(14);
+    const howY = pricingY + 48;
+    doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("HOW IT WORKS", 20, 245);
+    doc.text("HOW IT WORKS", 20, howY);
     
-    doc.setLineWidth(2);
-    doc.line(20, 248, 80, 248);
+    doc.setLineWidth(1.5);
+    doc.line(20, howY + 3, 70, howY + 3);
     
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     const steps = [
-      "1. Customer calls your number",
-      "2. AI answers instantly (zero latency)",
-      "3. Books appointment in real-time",
-      "4. Sends SMS confirmation",
-      "5. Updates your dashboard"
+      "1.  Customer calls your number",
+      "2.  AI answers instantly (zero wait time)",
+      "3.  Books appointment in real-time",
+      "4.  Sends SMS confirmation to customer",
+      "5.  Updates your dashboard automatically"
     ];
-    yPos = 256;
+    yPos = howY + 14;
     steps.forEach(step => {
       doc.text(step, 20, yPos);
-      yPos += 6;
+      yPos += 8;
     });
     
     // Footer - black bar
     doc.setFillColor(0, 0, 0);
-    doc.rect(0, 285, pageWidth, 20, "F");
+    doc.rect(0, 282, pageWidth, 20, "F");
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(10);
-    doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk  |  Book a demo today", pageWidth / 2, 295, { align: "center" });
+    doc.setFontSize(11);
+    doc.text("www.aiviaapp.co.uk   |   hello@aiviaapp.co.uk   |   Book a demo today", pageWidth / 2, 293, { align: "center" });
     
     doc.save("AIVIA-Sales-Pitch.pdf");
   };
