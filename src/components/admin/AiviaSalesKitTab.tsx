@@ -9,6 +9,7 @@ import { HowItWorksDocument } from "./sales-kit/HowItWorksDocument";
 import { FeatureComparisonDocument } from "./sales-kit/FeatureComparisonDocument";
 import { ROICalculatorDocument } from "./sales-kit/ROICalculatorDocument";
 import { DemoScriptDocument } from "./sales-kit/DemoScriptDocument";
+import { ExpendituresDocument, generateExpendituresPdf } from "./sales-kit/ExpendituresDocument";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
@@ -542,6 +543,136 @@ const generateCombinedPdf = async () => {
 
   addPageFooter(doc);
 
+  // === PAGE 6: Expenditures ===
+  doc.addPage();
+  await addPageHeader(doc, "AIVIA RUNNING COSTS", logoData);
+  
+  doc.setTextColor(80, 80, 80);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text("Complete breakdown of costs to run AIVIA for your customers", pageWidth / 2, 28, { align: "center" });
+
+  yPos = 40;
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text("CORE INFRASTRUCTURE", 20, yPos);
+  doc.setLineWidth(0.5);
+  doc.line(20, yPos + 2, 70, yPos + 2);
+
+  autoTable(doc, {
+    startY: yPos + 6,
+    head: [["Service", "Cost", "Notes"]],
+    body: [
+      ["Lovable Subscription", "~£20-80/month", "Includes cloud hosting"],
+      ["Custom Domain", "~£10-15/year", "Optional"],
+    ],
+    headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 9, fontStyle: "bold" },
+    bodyStyles: { fontSize: 9, textColor: [40, 40, 40] },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    styles: { cellPadding: 3 },
+    margin: { left: 15, right: 15 },
+  });
+
+  yPos = (doc as any).lastAutoTable?.finalY + 8 || 75;
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text("PHONE SYSTEM (TWILIO)", 20, yPos);
+  doc.setLineWidth(0.5);
+  doc.line(20, yPos + 2, 70, yPos + 2);
+
+  autoTable(doc, {
+    startY: yPos + 6,
+    head: [["Service", "Cost", "Notes"]],
+    body: [
+      ["Phone Number", "~£1-3/month", "Per number"],
+      ["Voice Minutes", "~£0.015-0.02/min", "Inbound + Outbound"],
+      ["SMS Messages", "~£0.04/SMS", "Confirmations"],
+    ],
+    headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 9, fontStyle: "bold" },
+    bodyStyles: { fontSize: 9, textColor: [40, 40, 40] },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    styles: { cellPadding: 3 },
+    margin: { left: 15, right: 15 },
+  });
+
+  yPos = (doc as any).lastAutoTable?.finalY + 8 || 120;
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text("AI & OPTIONAL SERVICES", 20, yPos);
+  doc.setLineWidth(0.5);
+  doc.line(20, yPos + 2, 70, yPos + 2);
+
+  autoTable(doc, {
+    startY: yPos + 6,
+    head: [["Service", "Cost", "Notes"]],
+    body: [
+      ["OpenAI Realtime API", "~$0.002-0.06/1K tokens", "AI conversations"],
+      ["Resend (Email)", "Free / ~$20/month", "Free: 3K/month"],
+      ["Stripe (Payments)", "1.5% + 20p/transaction", "Deposits"],
+    ],
+    headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 9, fontStyle: "bold" },
+    bodyStyles: { fontSize: 9, textColor: [40, 40, 40] },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
+    styles: { cellPadding: 3 },
+    margin: { left: 15, right: 15 },
+  });
+
+  // Example Calculation
+  yPos = (doc as any).lastAutoTable?.finalY + 10 || 175;
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(1);
+  doc.rect(15, yPos, pageWidth - 30, 55, "S");
+  
+  doc.setFillColor(0, 0, 0);
+  doc.rect(20, yPos + 4, 90, 8, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.text("EXAMPLE: TYPICAL SALON (PER MONTH)", 23, yPos + 9);
+
+  doc.setTextColor(50, 50, 50);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  
+  const costItems = [
+    ["Lovable Subscription", "~£30"],
+    ["Twilio (Number + 200min + 50 SMS)", "~£8"],
+    ["OpenAI (~500K tokens)", "~£3"],
+    ["Resend (Free tier)", "£0"],
+  ];
+  
+  let calcY = yPos + 20;
+  costItems.forEach(([item, cost]) => {
+    doc.text(item, 25, calcY);
+    doc.text(cost, pageWidth - 40, calcY, { align: "right" });
+    calcY += 6;
+  });
+
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5);
+  doc.line(25, calcY + 2, pageWidth - 25, calcY + 2);
+  calcY += 8;
+  
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text("TOTAL RUNNING COST", 25, calcY);
+  doc.text("~£41/month", pageWidth - 40, calcY, { align: "right" });
+
+  // Profit Box
+  yPos = yPos + 62;
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5);
+  doc.rect(15, yPos, pageWidth - 30, 18, "S");
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.text("PROFIT: Customer pays £85/month - Your cost ~£41/month = ~£44/month per customer", pageWidth / 2, yPos + 11, { align: "center" });
+
+  addPageFooter(doc);
+
   doc.save("AIVIA-Complete-Sales-Kit.pdf");
 };
 
@@ -628,6 +759,7 @@ export const AiviaSalesKitTab = () => {
           <FeatureComparisonDocument />
           <ROICalculatorDocument />
           <DemoScriptDocument />
+          <ExpendituresDocument />
         </div>
       </TabsContent>
 
