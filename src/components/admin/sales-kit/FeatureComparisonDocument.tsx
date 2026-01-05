@@ -13,21 +13,21 @@ export const FeatureComparisonDocument = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Header
-    doc.setFillColor(139, 92, 246);
+    // Header - Black neobrutalist style
+    doc.setFillColor(0, 0, 0);
     doc.rect(0, 0, pageWidth, 35, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(24);
     doc.setFont("helvetica", "bold");
-    doc.text("Feature Comparison", pageWidth / 2, 22, { align: "center" });
+    doc.text("FEATURE COMPARISON", pageWidth / 2, 22, { align: "center" });
     
     // Intro
-    doc.setTextColor(60, 60, 60);
+    doc.setTextColor(30, 30, 30);
     doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
     doc.text("See how AIVIA compares to traditional alternatives", pageWidth / 2, 48, { align: "center" });
     
-    // Main comparison table
+    // Main comparison table with black headers
     autoTable(doc, {
       startY: 55,
       head: [["Feature", "AIVIA", "Receptionist", "Voicemail"]],
@@ -44,13 +44,15 @@ export const FeatureComparisonDocument = () => {
         ["Call Transcripts", "✓ (Every call)", "Manual notes", "✗"],
       ],
       headStyles: {
-        fillColor: [139, 92, 246],
+        fillColor: [0, 0, 0],
         textColor: [255, 255, 255],
         fontSize: 10,
         fontStyle: "bold",
       },
       bodyStyles: {
         fontSize: 9,
+        lineColor: [0, 0, 0],
+        lineWidth: 0.5,
       },
       columnStyles: {
         0: { cellWidth: 55 },
@@ -59,8 +61,10 @@ export const FeatureComparisonDocument = () => {
         3: { cellWidth: 40, halign: "center" },
       },
       alternateRowStyles: {
-        fillColor: [250, 250, 255],
+        fillColor: [245, 245, 245],
       },
+      tableLineColor: [0, 0, 0],
+      tableLineWidth: 0.5,
     });
     
     // Cost comparison section
@@ -68,11 +72,16 @@ export const FeatureComparisonDocument = () => {
     
     doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(30, 30, 30);
-    doc.text("Cost Comparison (Annual)", 20, finalY);
+    doc.setTextColor(0, 0, 0);
+    doc.text("COST COMPARISON (ANNUAL)", 20, finalY);
+    
+    // Underline
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(2);
+    doc.line(20, finalY + 2, 120, finalY + 2);
     
     autoTable(doc, {
-      startY: finalY + 5,
+      startY: finalY + 8,
       head: [["Option", "Annual Cost", "Hidden Costs"]],
       body: [
         ["AIVIA", "~£1,000/year", "None"],
@@ -81,35 +90,39 @@ export const FeatureComparisonDocument = () => {
         ["Missed Calls (doing nothing)", "£0", "Lost bookings: £5,000-20,000+"],
       ],
       headStyles: {
-        fillColor: [139, 92, 246],
+        fillColor: [0, 0, 0],
         textColor: [255, 255, 255],
         fontSize: 10,
         fontStyle: "bold",
       },
       bodyStyles: {
         fontSize: 9,
+        lineColor: [0, 0, 0],
+        lineWidth: 0.5,
       },
       alternateRowStyles: {
-        fillColor: [250, 250, 255],
+        fillColor: [245, 245, 245],
       },
+      tableLineColor: [0, 0, 0],
+      tableLineWidth: 0.5,
     });
     
-    // Key differentiators
+    // Key differentiators - black bordered box
     const costTableY = (doc as any).lastAutoTable.finalY + 15;
     
-    doc.setFillColor(245, 245, 255);
-    doc.rect(15, costTableY, pageWidth - 30, 35, "F");
-    doc.setDrawColor(139, 92, 246);
-    doc.rect(15, costTableY, pageWidth - 30, 35, "S");
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(2);
+    doc.rect(15, costTableY, pageWidth - 30, 40, "FD");
     
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(139, 92, 246);
-    doc.text("Key AIVIA Differentiators", 20, costTableY + 10);
+    doc.setTextColor(0, 0, 0);
+    doc.text("KEY AIVIA DIFFERENTIATORS", 20, costTableY + 10);
     
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(60, 60, 60);
+    doc.setTextColor(30, 30, 30);
     
     const differentiators = [
       "✓ Zero-latency AI - Real-time conversations with no awkward pauses",
@@ -124,8 +137,8 @@ export const FeatureComparisonDocument = () => {
       yPos += 7;
     });
     
-    // Footer
-    doc.setFillColor(30, 30, 30);
+    // Footer - black bar
+    doc.setFillColor(0, 0, 0);
     doc.rect(0, 285, pageWidth, 20, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
@@ -150,37 +163,37 @@ export const FeatureComparisonDocument = () => {
   ];
 
   const renderIcon = (value: boolean | string) => {
-    if (value === true) return <Check className="h-4 w-4 text-green-500" />;
-    if (value === false) return <X className="h-4 w-4 text-red-500" />;
-    return <Minus className="h-4 w-4 text-yellow-500" />;
+    if (value === true) return <Check className="h-4 w-4 text-foreground" />;
+    if (value === false) return <X className="h-4 w-4 text-muted-foreground" />;
+    return <Minus className="h-4 w-4 text-muted-foreground" />;
   };
 
   return (
     <>
-      <Card className="hover:shadow-lg transition-shadow">
+      <Card className="border-2 border-foreground shadow-[4px_4px_0px_0px_hsl(var(--foreground))] hover:shadow-[6px_6px_0px_0px_hsl(var(--foreground))] transition-shadow">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-lg">Feature Comparison</CardTitle>
+              <CardTitle className="text-lg font-bold">Feature Comparison</CardTitle>
               <CardDescription>AIVIA vs alternatives side-by-side</CardDescription>
             </div>
             <div className="flex gap-2">
-              <Button variant="ghost" size="icon" onClick={() => setPreviewOpen(true)}>
+              <Button variant="outline" size="icon" className="border-2 border-foreground" onClick={() => setPreviewOpen(true)}>
                 <Eye className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={handlePrint}>
+              <Button variant="outline" size="icon" className="border-2 border-foreground" onClick={handlePrint}>
                 <Printer className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={generatePDF}>
+              <Button variant="outline" size="icon" className="border-2 border-foreground" onClick={generatePDF}>
                 <Download className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="bg-gradient-to-br from-green-500/10 to-green-500/5 rounded-lg p-4 space-y-3">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Check className="h-4 w-4 text-green-500" />
+          <div className="bg-muted border-2 border-foreground p-4 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-bold">
+              <Check className="h-4 w-4" />
               Visual Comparison Tables
             </div>
             <div className="text-xs text-muted-foreground space-y-1">
@@ -196,33 +209,33 @@ export const FeatureComparisonDocument = () => {
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Feature Comparison - Preview</DialogTitle>
+            <DialogTitle className="font-bold">Feature Comparison - Preview</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 p-4 bg-background border rounded-lg">
+          <div className="space-y-6 p-4 bg-background border-2 border-foreground">
             {/* Header */}
-            <div className="bg-primary text-primary-foreground rounded-lg p-6 text-center">
-              <h1 className="text-2xl font-bold">Feature Comparison</h1>
+            <div className="bg-foreground text-background p-6 text-center">
+              <h1 className="text-2xl font-bold tracking-tight">FEATURE COMPARISON</h1>
               <p className="text-sm opacity-90 mt-1">See how AIVIA compares</p>
             </div>
             
             {/* Comparison Table */}
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
+              <table className="w-full border-collapse border-2 border-foreground">
                 <thead>
-                  <tr className="bg-primary text-primary-foreground">
-                    <th className="p-3 text-left">Feature</th>
-                    <th className="p-3 text-center">AIVIA</th>
-                    <th className="p-3 text-center">Receptionist</th>
-                    <th className="p-3 text-center">Voicemail</th>
+                  <tr className="bg-foreground text-background">
+                    <th className="p-3 text-left font-bold border-2 border-foreground">Feature</th>
+                    <th className="p-3 text-center font-bold border-2 border-foreground">AIVIA</th>
+                    <th className="p-3 text-center font-bold border-2 border-foreground">Receptionist</th>
+                    <th className="p-3 text-center font-bold border-2 border-foreground">Voicemail</th>
                   </tr>
                 </thead>
                 <tbody>
                   {comparisonData.map((row, i) => (
-                    <tr key={i} className={i % 2 === 0 ? "bg-muted/30" : ""}>
-                      <td className="p-3 font-medium">{row.feature}</td>
-                      <td className="p-3 text-center">{renderIcon(row.aivia)}</td>
-                      <td className="p-3 text-center">{renderIcon(row.receptionist)}</td>
-                      <td className="p-3 text-center">{renderIcon(row.voicemail)}</td>
+                    <tr key={i} className={i % 2 === 0 ? "bg-muted" : "bg-background"}>
+                      <td className="p-3 font-medium border-2 border-foreground">{row.feature}</td>
+                      <td className="p-3 text-center border-2 border-foreground">{renderIcon(row.aivia)}</td>
+                      <td className="p-3 text-center border-2 border-foreground">{renderIcon(row.receptionist)}</td>
+                      <td className="p-3 text-center border-2 border-foreground">{renderIcon(row.voicemail)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -231,14 +244,14 @@ export const FeatureComparisonDocument = () => {
             
             {/* Cost Comparison */}
             <div className="space-y-3">
-              <h2 className="text-lg font-bold">Annual Cost Comparison</h2>
+              <h2 className="text-lg font-bold border-b-2 border-foreground pb-2">ANNUAL COST COMPARISON</h2>
               <div className="grid md:grid-cols-2 gap-3">
-                <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
-                  <p className="font-bold text-primary">AIVIA</p>
+                <div className="p-4 bg-foreground text-background border-2 border-foreground">
+                  <p className="font-bold">AIVIA</p>
                   <p className="text-2xl font-bold">~£1,000/year</p>
-                  <p className="text-xs text-muted-foreground">No hidden costs</p>
+                  <p className="text-xs opacity-80">No hidden costs</p>
                 </div>
-                <div className="p-4 bg-muted rounded-lg">
+                <div className="p-4 bg-muted border-2 border-foreground">
                   <p className="font-bold">Full-time Receptionist</p>
                   <p className="text-2xl font-bold">£20,000+/year</p>
                   <p className="text-xs text-muted-foreground">Plus NI, training, sick pay</p>
@@ -247,23 +260,23 @@ export const FeatureComparisonDocument = () => {
             </div>
             
             {/* Key Differentiators */}
-            <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-              <h3 className="font-semibold mb-3">Key AIVIA Differentiators</h3>
+            <div className="bg-background border-2 border-foreground p-4">
+              <h3 className="font-bold mb-3">KEY AIVIA DIFFERENTIATORS</h3>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-primary" />
+                  <Check className="h-4 w-4" />
                   Zero-latency AI - Real-time conversations, no awkward pauses
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-primary" />
+                  <Check className="h-4 w-4" />
                   Never calls in sick, never takes holidays
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-primary" />
+                  <Check className="h-4 w-4" />
                   Remembers every customer interaction
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-primary" />
+                  <Check className="h-4 w-4" />
                   Scales instantly - handles unlimited calls
                 </li>
               </ul>
@@ -271,11 +284,11 @@ export const FeatureComparisonDocument = () => {
           </div>
           
           <div className="flex gap-2 justify-end mt-4">
-            <Button variant="outline" onClick={handlePrint}>
+            <Button variant="outline" className="border-2 border-foreground" onClick={handlePrint}>
               <Printer className="h-4 w-4 mr-2" />
               Print
             </Button>
-            <Button onClick={generatePDF}>
+            <Button className="bg-foreground text-background hover:bg-foreground/90" onClick={generatePDF}>
               <Download className="h-4 w-4 mr-2" />
               Download PDF
             </Button>
