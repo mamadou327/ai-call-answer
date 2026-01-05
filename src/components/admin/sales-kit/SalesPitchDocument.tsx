@@ -203,7 +203,7 @@ export const generateSalesPitchPdf = async () => {
   doc.setTextColor(100, 100, 100);
   doc.setFontSize(9);
   doc.text(
-    "www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk  |  Book a demo today",
+    "www.aiviaapp.co.uk  |  Mo@aiviaapp.co.uk  |  Book a demo today",
     pageWidth / 2,
     288,
     { align: "center" }

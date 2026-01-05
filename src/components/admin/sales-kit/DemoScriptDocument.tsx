@@ -111,7 +111,7 @@ export const generateDemoScriptPdf = async () => {
   const momentsY = yPos;
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.5);
-  doc.rect(15, momentsY, pageWidth - 30, 38, "S");
+  doc.rect(15, momentsY, pageWidth - 30, 45, "S");
 
   // Black title badge
   doc.setFillColor(0, 0, 0);
@@ -126,20 +126,20 @@ export const generateDemoScriptPdf = async () => {
   doc.setTextColor(50, 50, 50);
 
   const moments = [
-    "  - It recognizes returning customers and greets them by name",
-    "  - It can book a family of 4 with different services in one call",
-    "  - Every call is transcribed - see exactly what was said",
-    "  - Works 24/7 including bank holidays - no sick days",
+    "- It recognizes returning customers and greets them by name",
+    "- It can book a family of 4 with different services in one call",
+    "- Every call is transcribed - see exactly what was said",
+    "- Works 24/7 including bank holidays - no sick days",
   ];
 
-  yPos = momentsY + 20;
+  yPos = momentsY + 18;
   moments.forEach((m) => {
     doc.text(m, 20, yPos);
-    yPos += 7;
+    yPos += 6;
   });
 
   // Objection Handlers
-  yPos += 14;
+  yPos += 8;
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
@@ -181,7 +181,7 @@ export const generateDemoScriptPdf = async () => {
   // Clean footer
   doc.setTextColor(100, 100, 100);
   doc.setFontSize(9);
-  doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
+  doc.text("www.aiviaapp.co.uk  |  Mo@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
 
   doc.save("AIVIA-Demo-Script.pdf");
 };

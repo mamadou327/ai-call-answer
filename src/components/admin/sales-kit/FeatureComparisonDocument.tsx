@@ -184,7 +184,7 @@ export const generateFeatureComparisonPdf = async () => {
   // Clean footer - just text, no black bar
   doc.setTextColor(100, 100, 100);
   doc.setFontSize(9);
-  doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
+  doc.text("www.aiviaapp.co.uk  |  Mo@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
 
   doc.save("AIVIA-Feature-Comparison.pdf");
 };
