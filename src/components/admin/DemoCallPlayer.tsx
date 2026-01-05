@@ -16,10 +16,12 @@ interface DemoCallPlayerProps {
   icon: React.ReactNode;
 }
 
+const VOICE_NAME = "Coral";
+
 // Pre-defined scripts for instant playback
 const DEMO_SCRIPTS: Record<string, TranscriptLine[]> = {
   booking: [
-    { speaker: "aivia", text: "Hi, thanks for calling Bella's Beauty Salon! I'm AIVIA, your AI assistant. How can I help you today?" },
+    { speaker: "aivia", text: `Hi, thanks for calling Bella's Beauty Salon! I'm ${VOICE_NAME}, your AI assistant. How can I help you today?` },
     { speaker: "customer", text: "Hi, I'd like to book a haircut please." },
     { speaker: "aivia", text: "Of course! I'd be happy to help you book a haircut. When would you like to come in?" },
     { speaker: "customer", text: "Tomorrow afternoon if possible?" },
@@ -32,7 +34,7 @@ const DEMO_SCRIPTS: Record<string, TranscriptLine[]> = {
     { speaker: "aivia", text: "You're welcome! We look forward to seeing you tomorrow. Have a lovely day!" },
   ],
   reschedule: [
-    { speaker: "aivia", text: "Hi, thanks for calling Bella's Beauty Salon! I'm AIVIA. How can I help you today?" },
+    { speaker: "aivia", text: `Hi, thanks for calling Bella's Beauty Salon! I'm ${VOICE_NAME}. How can I help you today?` },
     { speaker: "customer", text: "Hi, I have an appointment booked but I need to change it." },
     { speaker: "aivia", text: "No problem at all! Can I take your name or booking reference?" },
     { speaker: "customer", text: "It's Sarah. I'm booked for tomorrow at 2pm." },
@@ -43,7 +45,7 @@ const DEMO_SCRIPTS: Record<string, TranscriptLine[]> = {
     { speaker: "aivia", text: "You're welcome, Sarah! We'll see you Friday at 11am. Have a lovely day!" },
   ],
   cancel: [
-    { speaker: "aivia", text: "Hi, thanks for calling Bella's Beauty Salon! I'm AIVIA. How can I help you today?" },
+    { speaker: "aivia", text: `Hi, thanks for calling Bella's Beauty Salon! I'm ${VOICE_NAME}. How can I help you today?` },
     { speaker: "customer", text: "Hi, I need to cancel my appointment please." },
     { speaker: "aivia", text: "I'm sorry to hear that. Can I take your name or booking reference?" },
     { speaker: "customer", text: "It's Sarah. I'm booked for Friday at 11am." },
@@ -62,6 +64,7 @@ export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallP
   const transcriptRef = useRef<HTMLDivElement>(null);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const stoppedRef = useRef(false);
 
   const transcript = DEMO_SCRIPTS[scenario] || [];
 
@@ -114,10 +117,7 @@ export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallP
     });
   };
 
-  const startPlayback = async () => {
-    setIsPlaying(true);
-    setCurrentLineIndex(0);
-    
+  const playAllLines = async () => {
     // Ensure voices are loaded
     if (window.speechSynthesis.getVoices().length === 0) {
       await new Promise<void>(resolve => {
@@ -128,12 +128,13 @@ export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallP
 
     // Play each line sequentially
     for (let i = 0; i < transcript.length; i++) {
-      if (!isPlaying && i > 0) break; // Check if stopped (but allow first iteration)
+      // Check if we should stop
+      if (stoppedRef.current) break;
       
       setCurrentLineIndex(i);
       
       // Auto-scroll transcript if visible
-      if (transcriptRef.current && showTranscript) {
+      if (transcriptRef.current) {
         const lineElement = transcriptRef.current.children[i] as HTMLElement;
         if (lineElement) {
           lineElement.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -143,14 +144,26 @@ export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallP
       await speakLine(transcript[i].text, transcript[i].speaker === "aivia");
       
       // Small pause between lines
-      await new Promise(resolve => setTimeout(resolve, 300));
+      if (!stoppedRef.current) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
     }
 
-    setIsPlaying(false);
-    setCurrentLineIndex(-1);
+    if (!stoppedRef.current) {
+      setIsPlaying(false);
+      setCurrentLineIndex(-1);
+    }
+  };
+
+  const startPlayback = () => {
+    stoppedRef.current = false;
+    setIsPlaying(true);
+    setCurrentLineIndex(0);
+    playAllLines();
   };
 
   const stopPlayback = () => {
+    stoppedRef.current = true;
     window.speechSynthesis.cancel();
     timeoutRefs.current.forEach(clearTimeout);
     timeoutRefs.current = [];
@@ -229,7 +242,7 @@ export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallP
                   <span className={`font-bold text-xs uppercase min-w-[70px] ${
                     line.speaker === "aivia" ? "" : "text-muted-foreground"
                   }`}>
-                    {line.speaker === "aivia" ? "🤖 AIVIA" : "👤 Customer"}
+                    {line.speaker === "aivia" ? `🤖 ${VOICE_NAME}` : "👤 Customer"}
                   </span>
                   <span className="text-sm">{line.text}</span>
                 </div>
