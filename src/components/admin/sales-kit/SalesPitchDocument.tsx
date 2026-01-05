@@ -4,26 +4,61 @@ import { Button } from "@/components/ui/button";
 import { Download, Printer, Eye, X, CheckCircle2, Phone, Clock, Users, Calendar, MessageSquare } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import jsPDF from "jspdf";
+import aiviaLogo from "@/assets/aivia-logo-new.png";
+
+// Helper to load image as base64
+const loadImageAsBase64 = (src: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx?.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+};
 
 export const SalesPitchDocument = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const generatePDF = () => {
+  const generatePDF = async () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Load and add logo
+    try {
+      const logoData = await loadImageAsBase64(aiviaLogo);
+      doc.addImage(logoData, "PNG", 15, 8, 24, 24);
+    } catch (e) {
+      console.error("Failed to load logo:", e);
+    }
     
     // Header - Black neobrutalist style
     doc.setFillColor(0, 0, 0);
     doc.rect(0, 0, pageWidth, 40, "F");
     
-    // Title
+    // Re-add logo on top of black header (white version would be ideal, but we'll use what we have)
+    try {
+      const logoData = await loadImageAsBase64(aiviaLogo);
+      doc.addImage(logoData, "PNG", 15, 8, 24, 24);
+    } catch (e) {
+      console.error("Failed to load logo:", e);
+    }
+    
+    // Title - positioned to the right of logo
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(28);
     doc.setFont("helvetica", "bold");
-    doc.text("AIVIA", pageWidth / 2, 20, { align: "center" });
+    doc.text("AIVIA", pageWidth / 2 + 10, 20, { align: "center" });
     doc.setFontSize(14);
     doc.setFont("helvetica", "normal");
-    doc.text("AI Voice Assistant for Businesses", pageWidth / 2, 30, { align: "center" });
+    doc.text("AI Voice Assistant for Businesses", pageWidth / 2 + 10, 30, { align: "center" });
     
     // Main headline
     doc.setTextColor(0, 0, 0);
