@@ -4,21 +4,49 @@ import { Button } from "@/components/ui/button";
 import { Download, Printer, Eye, Calculator, TrendingUp, PoundSterling } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import jsPDF from "jspdf";
+import aiviaLogo from "@/assets/aivia-logo-new.png";
+
+// Helper to load image as base64
+const loadImageAsBase64 = (src: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx?.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+};
 
 export const ROICalculatorDocument = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const generatePDF = () => {
+  const generatePDF = async () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
     // Header - Black neobrutalist style
     doc.setFillColor(0, 0, 0);
     doc.rect(0, 0, pageWidth, 35, "F");
+    
+    // Add logo
+    try {
+      const logoData = await loadImageAsBase64(aiviaLogo);
+      doc.addImage(logoData, "PNG", 10, 5, 25, 25);
+    } catch (e) {
+      console.error("Failed to load logo:", e);
+    }
+    
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(24);
     doc.setFont("helvetica", "bold");
-    doc.text("ROI CALCULATOR", pageWidth / 2, 22, { align: "center" });
+    doc.text("ROI CALCULATOR", pageWidth / 2 + 10, 22, { align: "center" });
     
     // Intro
     doc.setTextColor(30, 30, 30);
