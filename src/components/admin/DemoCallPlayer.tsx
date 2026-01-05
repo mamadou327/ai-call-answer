@@ -1,9 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Play, Square, Loader2, Volume2, Calendar, RefreshCw, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { Play, Square, Volume2, Calendar, RefreshCw, X, Phone } from "lucide-react";
 
 interface TranscriptLine {
   speaker: "aivia" | "customer";
@@ -17,145 +15,109 @@ interface DemoCallPlayerProps {
   icon: React.ReactNode;
 }
 
-export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallPlayerProps) => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
-  const [currentLineIndex, setCurrentLineIndex] = useState(-1);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const transcriptRef = useRef<HTMLDivElement>(null);
+// Pre-defined scripts for instant playback
+const DEMO_SCRIPTS: Record<string, TranscriptLine[]> = {
+  booking: [
+    { speaker: "aivia", text: "Hi, thanks for calling Bella's Beauty Salon! I'm AIVIA, your AI assistant. How can I help you today?" },
+    { speaker: "customer", text: "Hi, I'd like to book a haircut please." },
+    { speaker: "aivia", text: "Of course! I'd be happy to help you book a haircut. When would you like to come in?" },
+    { speaker: "customer", text: "Tomorrow afternoon if possible?" },
+    { speaker: "aivia", text: "Let me check... I have availability tomorrow at 2pm or 3:30pm. Which works better for you?" },
+    { speaker: "customer", text: "2pm would be perfect." },
+    { speaker: "aivia", text: "Excellent! Can I take your name please?" },
+    { speaker: "customer", text: "It's Sarah." },
+    { speaker: "aivia", text: "Perfect, Sarah! Your haircut is confirmed for tomorrow at 2pm. We'll send you a confirmation text shortly. Is there anything else I can help you with?" },
+    { speaker: "customer", text: "No, that's everything. Thank you!" },
+    { speaker: "aivia", text: "You're welcome! We look forward to seeing you tomorrow. Have a lovely day!" },
+  ],
+  reschedule: [
+    { speaker: "aivia", text: "Hi, thanks for calling Bella's Beauty Salon! I'm AIVIA. How can I help you today?" },
+    { speaker: "customer", text: "Hi, I have an appointment booked but I need to change it." },
+    { speaker: "aivia", text: "No problem at all! Can I take your name or booking reference?" },
+    { speaker: "customer", text: "It's Sarah. I'm booked for tomorrow at 2pm." },
+    { speaker: "aivia", text: "I found your haircut booking for tomorrow at 2pm. When would you like to reschedule to?" },
+    { speaker: "customer", text: "Can I move it to Friday at 11am?" },
+    { speaker: "aivia", text: "Let me check... Yes, Friday at 11am is available! I've moved your appointment. You'll receive a new confirmation text." },
+    { speaker: "customer", text: "That's great, thank you so much!" },
+    { speaker: "aivia", text: "You're welcome, Sarah! We'll see you Friday at 11am. Have a lovely day!" },
+  ],
+  cancel: [
+    { speaker: "aivia", text: "Hi, thanks for calling Bella's Beauty Salon! I'm AIVIA. How can I help you today?" },
+    { speaker: "customer", text: "Hi, I need to cancel my appointment please." },
+    { speaker: "aivia", text: "I'm sorry to hear that. Can I take your name or booking reference?" },
+    { speaker: "customer", text: "It's Sarah. I'm booked for Friday at 11am." },
+    { speaker: "aivia", text: "I found your haircut booking for Friday at 11am. Are you sure you'd like to cancel?" },
+    { speaker: "customer", text: "Yes please." },
+    { speaker: "aivia", text: "No problem, I've cancelled that for you. Would you like to rebook for another time?" },
+    { speaker: "customer", text: "Not right now, but I'll call back." },
+    { speaker: "aivia", text: "Of course! We'd love to see you soon. Have a lovely day, Sarah!" },
+  ],
+};
 
-  // Cleanup audio on unmount
+export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallPlayerProps) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentLineIndex, setCurrentLineIndex] = useState(-1);
+  const transcriptRef = useRef<HTMLDivElement>(null);
+  const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
+
+  const transcript = DEMO_SCRIPTS[scenario] || [];
+
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
+      timeoutRefs.current.forEach(clearTimeout);
     };
   }, []);
 
-  // Calculate approximate timing for each line based on text length
+  // Calculate timing for each line based on text length
   const getLineDuration = (text: string) => {
     // Approximate: 150 words per minute = 2.5 words per second
     // Average word length ~5 chars, so ~12.5 chars per second
-    // Add some padding for natural pauses
-    const baseDuration = (text.length / 12) * 1000; // ms
+    const baseDuration = (text.length / 12) * 1000;
     return Math.max(baseDuration, 1500); // minimum 1.5 seconds per line
   };
 
-  const generateAndPlay = async () => {
-    setIsLoading(true);
-    setCurrentLineIndex(-1);
+  const startPlayback = () => {
+    setIsPlaying(true);
+    setCurrentLineIndex(0);
     
-    try {
-      // Check if we have cached audio
-      const cacheKey = `demo_call_${scenario}`;
-      const cached = localStorage.getItem(cacheKey);
-      
-      let audio: string;
-      let transcriptData: TranscriptLine[];
-      
-      if (cached) {
-        const parsedCache = JSON.parse(cached);
-        audio = parsedCache.audioUrl;
-        transcriptData = parsedCache.transcript;
-        console.log("Using cached demo audio");
-      } else {
-        // Generate new audio
-        const { data, error } = await supabase.functions.invoke("generate-demo-call", {
-          body: { scenario },
-        });
+    // Clear any existing timeouts
+    timeoutRefs.current.forEach(clearTimeout);
+    timeoutRefs.current = [];
 
-        if (error) throw error;
-        if (!data.audioUrl) throw new Error("No audio generated");
+    let cumulativeTime = getLineDuration(transcript[0].text);
 
-        audio = data.audioUrl;
-        transcriptData = data.transcript;
-        
-        // Cache for future use
-        localStorage.setItem(cacheKey, JSON.stringify({ audioUrl: audio, transcript: transcriptData }));
-      }
-
-      setAudioUrl(audio);
-      setTranscript(transcriptData);
-      
-      // Play audio
-      playAudio(audio, transcriptData);
-      
-    } catch (error) {
-      console.error("Demo generation error:", error);
-      toast.error("Failed to generate demo. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const playAudio = (url: string, transcriptData: TranscriptLine[]) => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-
-    const audio = new Audio(url);
-    audioRef.current = audio;
-    
-    audio.onplay = () => {
-      setIsPlaying(true);
-      // Start transcript animation
-      animateTranscript(transcriptData);
-    };
-    
-    audio.onended = () => {
-      setIsPlaying(false);
-      setCurrentLineIndex(-1);
-    };
-    
-    audio.onerror = () => {
-      setIsPlaying(false);
-      toast.error("Failed to play audio");
-    };
-
-    audio.play().catch((err) => {
-      console.error("Playback error:", err);
-      toast.error("Failed to play audio. Please try again.");
-    });
-  };
-
-  const animateTranscript = (transcriptData: TranscriptLine[]) => {
-    let cumulativeTime = 0;
-    
-    transcriptData.forEach((line, index) => {
-      setTimeout(() => {
-        setCurrentLineIndex(index);
+    // Schedule each line transition
+    transcript.slice(1).forEach((line, index) => {
+      const timeout = setTimeout(() => {
+        setCurrentLineIndex(index + 1);
         // Auto-scroll to current line
         if (transcriptRef.current) {
-          const lineElement = transcriptRef.current.children[index] as HTMLElement;
+          const lineElement = transcriptRef.current.children[index + 1] as HTMLElement;
           if (lineElement) {
             lineElement.scrollIntoView({ behavior: "smooth", block: "center" });
           }
         }
       }, cumulativeTime);
       
+      timeoutRefs.current.push(timeout);
       cumulativeTime += getLineDuration(line.text);
     });
+
+    // Schedule end of playback
+    const endTimeout = setTimeout(() => {
+      setIsPlaying(false);
+      setCurrentLineIndex(-1);
+    }, cumulativeTime);
+    
+    timeoutRefs.current.push(endTimeout);
   };
 
   const stopPlayback = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
+    timeoutRefs.current.forEach(clearTimeout);
+    timeoutRefs.current = [];
     setIsPlaying(false);
     setCurrentLineIndex(-1);
-  };
-
-  const replayFromCache = () => {
-    if (audioUrl && transcript.length > 0) {
-      playAudio(audioUrl, transcript);
-    } else {
-      generateAndPlay();
-    }
   };
 
   return (
@@ -176,21 +138,11 @@ export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallP
         <div className="flex gap-2">
           {!isPlaying ? (
             <Button
-              onClick={audioUrl ? replayFromCache : generateAndPlay}
-              disabled={isLoading}
+              onClick={startPlayback}
               className="gap-2 bg-foreground text-background hover:bg-foreground/90"
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  {audioUrl ? "Play Again" : "Play Demo"}
-                </>
-              )}
+              <Play className="h-4 w-4" />
+              Play Demo
             </Button>
           ) : (
             <Button
@@ -205,38 +157,36 @@ export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallP
         </div>
 
         {/* Transcript Display */}
-        {transcript.length > 0 && (
-          <div 
-            ref={transcriptRef}
-            className="max-h-48 overflow-y-auto border-2 border-foreground p-3 space-y-2 bg-muted/50"
-          >
-            {transcript.map((line, index) => (
-              <div
-                key={index}
-                className={`flex gap-2 p-2 rounded transition-all duration-300 ${
-                  index === currentLineIndex 
-                    ? "bg-foreground text-background" 
-                    : index < currentLineIndex 
-                      ? "opacity-50" 
-                      : ""
-                }`}
-              >
-                <span className={`font-bold text-xs uppercase min-w-[70px] ${
-                  line.speaker === "aivia" ? "" : "text-muted-foreground"
-                }`}>
-                  {line.speaker === "aivia" ? "🤖 AIVIA" : "👤 Customer"}
-                </span>
-                <span className="text-sm">{line.text}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <div 
+          ref={transcriptRef}
+          className="max-h-48 overflow-y-auto border-2 border-foreground p-3 space-y-2 bg-muted/50"
+        >
+          {transcript.map((line, index) => (
+            <div
+              key={index}
+              className={`flex gap-2 p-2 rounded transition-all duration-300 ${
+                index === currentLineIndex 
+                  ? "bg-foreground text-background" 
+                  : index < currentLineIndex 
+                    ? "opacity-50" 
+                    : "opacity-30"
+              }`}
+            >
+              <span className={`font-bold text-xs uppercase min-w-[70px] ${
+                line.speaker === "aivia" ? "" : "text-muted-foreground"
+              }`}>
+                {line.speaker === "aivia" ? "🤖 AIVIA" : "👤 Customer"}
+              </span>
+              <span className="text-sm">{line.text}</span>
+            </div>
+          ))}
+        </div>
 
         {/* Playing indicator */}
         {isPlaying && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Volume2 className="h-4 w-4 animate-pulse" />
-            <span>Playing demo call...</span>
+            <Phone className="h-4 w-4 animate-pulse" />
+            <span>Simulating call...</span>
           </div>
         )}
       </CardContent>
