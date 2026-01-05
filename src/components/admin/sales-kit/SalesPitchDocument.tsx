@@ -31,137 +31,143 @@ export const SalesPitchDocument = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Header - Black neobrutalist style
+    // Slim header strip
     doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageWidth, 45, "F");
+    doc.rect(0, 0, pageWidth, 20, "F");
     
     // Add logo
     try {
       const logoData = await loadImageAsBase64(aiviaLogo);
-      doc.addImage(logoData, "PNG", 15, 10, 28, 28);
+      doc.addImage(logoData, "PNG", 8, 3, 14, 14);
     } catch (e) {
       console.error("Failed to load logo:", e);
     }
     
-    // Title - positioned to the right of logo
+    // Title in header
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(32);
+    doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
-    doc.text("AIVIA", pageWidth / 2 + 10, 24, { align: "center" });
-    doc.setFontSize(13);
+    doc.text("AIVIA", 28, 11);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text("AI Voice Assistant for Businesses", pageWidth / 2 + 10, 36, { align: "center" });
+    doc.text("AI Voice Assistant", 28, 16);
     
     // Main headline
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(22);
     doc.setFont("helvetica", "bold");
-    doc.text("NEVER MISS ANOTHER BOOKING", pageWidth / 2, 62, { align: "center" });
+    doc.text("NEVER MISS ANOTHER BOOKING", pageWidth / 2, 38, { align: "center" });
     
     // Subheadline
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(80, 80, 80);
-    doc.text("Your AI receptionist answers calls 24/7, books appointments, and remembers customers", pageWidth / 2, 72, { align: "center" });
+    doc.text("Your AI receptionist answers calls 24/7, books appointments, and remembers customers", pageWidth / 2, 46, { align: "center" });
     
-    // Pain Points Section - Left box
-    const boxWidth = (pageWidth - 40) / 2;
-    const boxHeight = 60;
+    // Two column layout
+    const boxWidth = (pageWidth - 45) / 2;
     const leftX = 15;
-    const rightX = leftX + boxWidth + 10;
-    const boxY = 82;
+    const rightX = leftX + boxWidth + 15;
+    const boxY = 55;
+    const boxHeight = 52;
     
+    // Left box - The Problem (white with border)
     doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(1.5);
+    doc.setLineWidth(0.5);
     doc.rect(leftX, boxY, boxWidth, boxHeight, "S");
     
-    doc.setFontSize(13);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("THE PROBLEM", leftX + 8, boxY + 14);
+    doc.text("THE PROBLEM", leftX + 6, boxY + 10);
     
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(50, 50, 50);
     const painPoints = [
-      "✗  Missing calls = Missing money",
-      "✗  80% won't leave voicemail",
-      "✗  Receptionist costs £20,000+/yr",
-      "✗  Too busy with clients to answer"
+      "X  Missing calls = Missing money",
+      "X  80% won't leave voicemail",
+      "X  Receptionist costs £20,000+/yr",
+      "X  Too busy with clients to answer"
     ];
-    let yPos = boxY + 26;
+    let yPos = boxY + 20;
     painPoints.forEach(point => {
-      doc.text(point, leftX + 8, yPos);
-      yPos += 9;
+      doc.text(point, leftX + 6, yPos);
+      yPos += 8;
     });
     
-    // Solution Section - Right box with black header
+    // Right box - The Solution (white with border, black title badge)
     doc.rect(rightX, boxY, boxWidth, boxHeight, "S");
     
+    // Small black title badge
     doc.setFillColor(0, 0, 0);
-    doc.rect(rightX, boxY, boxWidth, 16, "F");
+    doc.rect(rightX + 4, boxY + 4, 55, 8, "F");
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(13);
+    doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
-    doc.text("THE SOLUTION", rightX + 8, boxY + 11);
+    doc.text("THE SOLUTION", rightX + 8, boxY + 9);
     
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
+    doc.setTextColor(50, 50, 50);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     const solutions = [
-      "✓  Zero-latency real-time AI",
-      "✓  Books directly into calendar",
-      "✓  Remembers returning customers",
-      "✓  Works 24/7/365"
+      "•  Zero-latency real-time AI",
+      "•  Books directly into calendar",
+      "•  Remembers returning customers",
+      "•  Works 24/7/365"
     ];
-    yPos = boxY + 30;
+    yPos = boxY + 22;
     solutions.forEach(solution => {
-      doc.text(solution, rightX + 8, yPos);
-      yPos += 9;
+      doc.text(solution, rightX + 6, yPos);
+      yPos += 8;
     });
     
-    // Features Box - black filled
-    const featuresY = boxY + boxHeight + 12;
-    doc.setFillColor(0, 0, 0);
-    doc.rect(15, featuresY, pageWidth - 30, 32, "F");
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(13);
-    doc.setFont("helvetica", "bold");
-    doc.text("WHAT YOU GET", pageWidth / 2, featuresY + 12, { align: "center" });
-    
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("AI Voice Receptionist   •   Online Booking Page   •   Customer Database", pageWidth / 2, featuresY + 22, { align: "center" });
-    doc.text("SMS Notifications   •   Dashboard & Analytics   •   Deposit Collection", pageWidth / 2, featuresY + 29, { align: "center" });
-    
-    // Pricing section with border
-    const pricingY = featuresY + 44;
+    // Features section - white box with border
+    const featuresY = boxY + boxHeight + 10;
     doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(1.5);
-    doc.rect(15, pricingY, pageWidth - 30, 36, "S");
+    doc.setLineWidth(0.5);
+    doc.rect(15, featuresY, pageWidth - 30, 28, "S");
     
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(22);
+    doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
-    doc.text("LESS THAN £3 PER DAY", pageWidth / 2, pricingY + 16, { align: "center" });
+    doc.text("WHAT YOU GET", pageWidth / 2, featuresY + 8, { align: "center" });
     
-    doc.setFontSize(11);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
+    doc.text("AI Voice Receptionist  •  Online Booking Page  •  Customer Database", pageWidth / 2, featuresY + 17, { align: "center" });
+    doc.text("SMS Notifications  •  Dashboard & Analytics  •  Deposit Collection", pageWidth / 2, featuresY + 24, { align: "center" });
+    
+    // Pricing section - clean with border
+    const pricingY = featuresY + 38;
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.rect(15, pricingY, pageWidth - 30, 28, "S");
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("LESS THAN £3 PER DAY", pageWidth / 2, pricingY + 12, { align: "center" });
+    
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(80, 80, 80);
-    doc.text("Pays for itself with just 2-3 bookings per month", pageWidth / 2, pricingY + 28, { align: "center" });
+    doc.text("Pays for itself with just 2-3 bookings per month", pageWidth / 2, pricingY + 22, { align: "center" });
     
     // How it works section
-    const howY = pricingY + 48;
-    doc.setFontSize(13);
+    const howY = pricingY + 40;
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
     doc.text("HOW IT WORKS", 20, howY);
     
-    doc.setLineWidth(1.5);
-    doc.line(20, howY + 3, 70, howY + 3);
+    doc.setLineWidth(0.5);
+    doc.line(20, howY + 2, 60, howY + 2);
     
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
+    doc.setTextColor(50, 50, 50);
     const steps = [
       "1.  Customer calls your number",
       "2.  AI answers instantly (zero wait time)",
@@ -169,18 +175,16 @@ export const SalesPitchDocument = () => {
       "4.  Sends SMS confirmation to customer",
       "5.  Updates your dashboard automatically"
     ];
-    yPos = howY + 14;
+    yPos = howY + 12;
     steps.forEach(step => {
       doc.text(step, 20, yPos);
-      yPos += 8;
+      yPos += 7;
     });
     
-    // Footer - black bar
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 282, pageWidth, 20, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(11);
-    doc.text("www.aiviaapp.co.uk   |   hello@aiviaapp.co.uk   |   Book a demo today", pageWidth / 2, 293, { align: "center" });
+    // Clean footer - just text
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(9);
+    doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk  |  Book a demo today", pageWidth / 2, 288, { align: "center" });
     
     doc.save("AIVIA-Sales-Pitch.pdf");
   };
@@ -232,70 +236,66 @@ export const SalesPitchDocument = () => {
           <DialogHeader>
             <DialogTitle className="font-bold">Sales Pitch One-Pager Preview</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 p-4 bg-background border-2 border-foreground">
+          <div className="space-y-6 p-4 bg-background border border-foreground/20">
             {/* Header */}
-            <div className="bg-foreground text-background p-6 text-center">
-              <h1 className="text-3xl font-bold tracking-tight">AIVIA</h1>
-              <p className="text-sm opacity-90">AI Voice Assistant for Businesses</p>
+            <div className="border-b border-foreground pb-3">
+              <h1 className="text-2xl font-bold tracking-tight">AIVIA</h1>
+              <p className="text-sm text-muted-foreground">AI Voice Assistant for Businesses</p>
             </div>
             
             {/* Main Headline */}
             <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold tracking-tight">NEVER MISS ANOTHER BOOKING</h2>
-              <p className="text-muted-foreground">Your AI receptionist answers calls 24/7, books appointments, and remembers customers</p>
+              <h2 className="text-xl font-bold tracking-tight">NEVER MISS ANOTHER BOOKING</h2>
+              <p className="text-muted-foreground text-sm">Your AI receptionist answers calls 24/7, books appointments, and remembers customers</p>
             </div>
             
             {/* Two Column Layout */}
             <div className="grid md:grid-cols-2 gap-4">
               {/* Pain Points */}
-              <div className="border-2 border-foreground p-4 space-y-3">
+              <div className="border border-foreground/30 p-4 space-y-3">
                 <h3 className="font-bold text-lg flex items-center gap-2">
-                  <X className="h-5 w-5" />
                   THE PROBLEM
                 </h3>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-start gap-2">
-                    <span>✗</span>
+                    <X className="h-4 w-4 mt-0.5 text-muted-foreground" />
                     Missing calls = Missing money
                   </li>
                   <li className="flex items-start gap-2">
-                    <span>✗</span>
+                    <X className="h-4 w-4 mt-0.5 text-muted-foreground" />
                     80% of customers won't leave voicemail
                   </li>
                   <li className="flex items-start gap-2">
-                    <span>✗</span>
+                    <X className="h-4 w-4 mt-0.5 text-muted-foreground" />
                     Receptionist costs £20,000+/year
                   </li>
                   <li className="flex items-start gap-2">
-                    <span>✗</span>
+                    <X className="h-4 w-4 mt-0.5 text-muted-foreground" />
                     Too busy with clients to answer
                   </li>
                 </ul>
               </div>
               
               {/* Solutions */}
-              <div className="border-2 border-foreground p-4 space-y-3">
-                <div className="bg-foreground text-background -mx-4 -mt-4 px-4 py-2 mb-3">
-                  <h3 className="font-bold text-lg flex items-center gap-2">
-                    <CheckCircle2 className="h-5 w-5" />
-                    THE SOLUTION
-                  </h3>
+              <div className="border border-foreground/30 p-4 space-y-3">
+                <div className="inline-block bg-foreground text-background px-2 py-1 text-sm font-bold mb-2">
+                  THE SOLUTION
                 </div>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-start gap-2">
-                    <span>✓</span>
+                    <span>•</span>
                     Zero-latency real-time AI responses
                   </li>
                   <li className="flex items-start gap-2">
-                    <span>✓</span>
+                    <span>•</span>
                     Books directly into your calendar
                   </li>
                   <li className="flex items-start gap-2">
-                    <span>✓</span>
+                    <span>•</span>
                     Remembers returning customers
                   </li>
                   <li className="flex items-start gap-2">
-                    <span>✓</span>
+                    <span>•</span>
                     Works 24/7/365
                   </li>
                 </ul>
@@ -303,9 +303,9 @@ export const SalesPitchDocument = () => {
             </div>
             
             {/* Features */}
-            <div className="bg-foreground text-background p-4">
+            <div className="border border-foreground/30 p-4">
               <h3 className="font-bold text-center mb-3">WHAT YOU GET</h3>
-              <div className="flex flex-wrap justify-center gap-4 text-sm">
+              <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1"><Phone className="h-4 w-4" /> AI Voice</div>
                 <div className="flex items-center gap-1"><Calendar className="h-4 w-4" /> Online Booking</div>
                 <div className="flex items-center gap-1"><Users className="h-4 w-4" /> Customer DB</div>
@@ -315,8 +315,8 @@ export const SalesPitchDocument = () => {
             </div>
             
             {/* Pricing */}
-            <div className="border-2 border-foreground p-6 text-center">
-              <p className="text-2xl font-bold">LESS THAN £3 PER DAY</p>
+            <div className="border border-foreground/30 p-6 text-center">
+              <p className="text-xl font-bold">LESS THAN £3 PER DAY</p>
               <p className="text-muted-foreground text-sm">Pays for itself with just 2-3 bookings per month</p>
             </div>
           </div>

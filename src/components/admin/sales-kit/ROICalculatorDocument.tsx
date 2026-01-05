@@ -31,99 +31,100 @@ export const ROICalculatorDocument = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Header - Black neobrutalist style
+    // Slim header strip
     doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageWidth, 35, "F");
+    doc.rect(0, 0, pageWidth, 18, "F");
     
     // Add logo
     try {
       const logoData = await loadImageAsBase64(aiviaLogo);
-      doc.addImage(logoData, "PNG", 10, 5, 25, 25);
+      doc.addImage(logoData, "PNG", 8, 2, 14, 14);
     } catch (e) {
       console.error("Failed to load logo:", e);
     }
     
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
+    doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text("ROI CALCULATOR", pageWidth / 2 + 10, 22, { align: "center" });
+    doc.text("ROI CALCULATOR", pageWidth / 2 + 5, 12, { align: "center" });
     
-    // Intro
-    doc.setTextColor(30, 30, 30);
-    doc.setFontSize(12);
+    // Subtitle
+    doc.setTextColor(80, 80, 80);
+    doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("See how AIVIA pays for itself", pageWidth / 2, 48, { align: "center" });
+    doc.text("See how AIVIA pays for itself", pageWidth / 2, 28, { align: "center" });
     
-    // The Problem
-    doc.setFontSize(16);
+    // The Problem Section
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("THE COST OF MISSED CALLS", 20, 65);
-    doc.setLineWidth(2);
-    doc.line(20, 68, 100, 68);
+    doc.text("THE COST OF MISSED CALLS", 20, 42);
+    doc.setLineWidth(0.5);
+    doc.line(20, 44, 80, 44);
     
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(30, 30, 30);
+    doc.setTextColor(50, 50, 50);
     
     const problems = [
-      "• Average missed calls per week: 5-10",
-      "• Average booking value: £35",
-      "• Customers who call competitors after voicemail: 80%",
+      "•  Average missed calls per week: 5-10",
+      "•  Average booking value: £35",
+      "•  Customers who call competitors after voicemail: 80%",
     ];
     
-    let yPos = 78;
+    let yPos = 54;
     problems.forEach(p => {
       doc.text(p, 20, yPos);
-      yPos += 8;
+      yPos += 7;
     });
     
-    // Lost Revenue Box - black bordered
+    // Lost Revenue Box - white with border, black title badge
+    const lostY = 80;
     doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(2);
-    doc.setFillColor(255, 255, 255);
-    doc.rect(15, 100, pageWidth - 30, 50, "FD");
+    doc.setLineWidth(0.5);
+    doc.rect(15, lostY, pageWidth - 30, 42, "S");
     
-    // Black header inside box
+    // Black title badge
     doc.setFillColor(0, 0, 0);
-    doc.rect(15, 100, pageWidth - 30, 12, "F");
+    doc.rect(20, lostY + 4, 65, 8, "F");
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(12);
+    doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
-    doc.text("POTENTIAL LOST REVENUE", 20, 108);
+    doc.text("POTENTIAL LOST REVENUE", 23, lostY + 9);
     
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(30, 30, 30);
+    doc.setTextColor(50, 50, 50);
     
     const lostCalc = [
-      "5 missed calls/week × £35 avg booking = £175/week lost",
-      "£175/week × 52 weeks = £9,100/year in lost bookings",
+      "5 missed calls/week x £35 avg booking = £175/week lost",
+      "£175/week x 52 weeks = £9,100/year in lost bookings",
       "Even at just 2 missed calls/week = £3,640/year lost",
     ];
     
-    yPos = 122;
+    yPos = lostY + 22;
     lostCalc.forEach(calc => {
       doc.text(calc, 20, yPos);
-      yPos += 10;
+      yPos += 8;
     });
     
-    // AIVIA Investment Box - black filled header
+    // AIVIA Investment Box
+    const investY = lostY + 52;
     doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(2);
-    doc.setFillColor(255, 255, 255);
-    doc.rect(15, 160, pageWidth - 30, 50, "FD");
+    doc.setLineWidth(0.5);
+    doc.rect(15, investY, pageWidth - 30, 42, "S");
     
+    // Black title badge
     doc.setFillColor(0, 0, 0);
-    doc.rect(15, 160, pageWidth - 30, 12, "F");
+    doc.rect(20, investY + 4, 50, 8, "F");
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(12);
+    doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
-    doc.text("AIVIA INVESTMENT", 20, 168);
+    doc.text("AIVIA INVESTMENT", 23, investY + 9);
     
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(30, 30, 30);
+    doc.setTextColor(50, 50, 50);
     
     const investment = [
       "AIVIA monthly cost: ~£85/month",
@@ -131,36 +132,38 @@ export const ROICalculatorDocument = () => {
       "Break-even: Just 2-3 recovered bookings per month",
     ];
     
-    yPos = 182;
+    yPos = investY + 22;
     investment.forEach(inv => {
       doc.text(inv, 20, yPos);
-      yPos += 10;
+      yPos += 8;
     });
     
-    // ROI Summary - fully black box
-    doc.setFillColor(0, 0, 0);
-    doc.rect(15, 220, pageWidth - 30, 50, "F");
+    // ROI Summary Box - white with border and bold text
+    const roiY = investY + 55;
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(1);
+    doc.rect(15, roiY, pageWidth - 30, 45, "S");
     
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.text("YOUR POTENTIAL ROI", pageWidth / 2, 235, { align: "center" });
-    
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "normal");
-    doc.text("Recovered revenue: £9,100 (capturing 5 calls/week)", pageWidth / 2, 248, { align: "center" });
-    doc.text("AIVIA cost: £1,000", pageWidth / 2, 256, { align: "center" });
-    
+    doc.setTextColor(0, 0, 0);
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text("NET GAIN: £8,100/YEAR (810% ROI)", pageWidth / 2, 268, { align: "center" });
+    doc.text("YOUR POTENTIAL ROI", pageWidth / 2, roiY + 12, { align: "center" });
     
-    // Footer
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 285, pageWidth, 20, "F");
-    doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
-    doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 295, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
+    doc.text("Recovered revenue: £9,100 (capturing 5 calls/week)", pageWidth / 2, roiY + 22, { align: "center" });
+    doc.text("AIVIA cost: £1,000", pageWidth / 2, roiY + 29, { align: "center" });
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.text("NET GAIN: £8,100/YEAR (810% ROI)", pageWidth / 2, roiY + 40, { align: "center" });
+    
+    // Clean footer
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(9);
+    doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
     
     doc.save("AIVIA-ROI-Calculator.pdf");
   };
@@ -212,16 +215,16 @@ export const ROICalculatorDocument = () => {
           <DialogHeader>
             <DialogTitle className="font-bold">ROI Calculator - Preview</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 p-4 bg-background border-2 border-foreground">
+          <div className="space-y-6 p-4 bg-background border border-foreground/20">
             {/* Header */}
-            <div className="bg-foreground text-background p-6 text-center">
-              <h1 className="text-2xl font-bold tracking-tight">ROI CALCULATOR</h1>
-              <p className="text-sm opacity-90 mt-1">See how AIVIA pays for itself</p>
+            <div className="border-b border-foreground pb-3">
+              <h1 className="text-xl font-bold tracking-tight">ROI CALCULATOR</h1>
+              <p className="text-sm text-muted-foreground mt-1">See how AIVIA pays for itself</p>
             </div>
             
             {/* Problem */}
             <div className="space-y-3">
-              <h2 className="text-lg font-bold border-b-2 border-foreground pb-2">THE COST OF MISSED CALLS</h2>
+              <h2 className="text-lg font-bold border-b border-foreground/30 pb-2">THE COST OF MISSED CALLS</h2>
               <div className="space-y-2 text-sm">
                 <p>• Average missed calls per week: <strong>5-10</strong></p>
                 <p>• Average booking value: <strong>£35</strong></p>
@@ -230,14 +233,11 @@ export const ROICalculatorDocument = () => {
             </div>
             
             {/* Lost Revenue */}
-            <div className="border-2 border-foreground">
-              <div className="bg-foreground text-background p-3">
-                <h3 className="font-bold flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 rotate-180" />
-                  POTENTIAL LOST REVENUE
-                </h3>
+            <div className="border border-foreground/30">
+              <div className="inline-block bg-foreground text-background px-2 py-1 text-xs font-bold m-3 mb-0">
+                POTENTIAL LOST REVENUE
               </div>
-              <div className="p-4 space-y-2 text-sm">
+              <div className="p-4 pt-2 space-y-2 text-sm">
                 <p>5 missed calls/week × £35 = <strong>£175/week</strong></p>
                 <p>£175 × 52 weeks = <strong>£9,100/year lost</strong></p>
                 <p className="text-muted-foreground">Even at 2 calls/week = £3,640/year</p>
@@ -245,14 +245,11 @@ export const ROICalculatorDocument = () => {
             </div>
             
             {/* AIVIA Investment */}
-            <div className="border-2 border-foreground">
-              <div className="bg-foreground text-background p-3">
-                <h3 className="font-bold flex items-center gap-2">
-                  <PoundSterling className="h-5 w-5" />
-                  AIVIA INVESTMENT
-                </h3>
+            <div className="border border-foreground/30">
+              <div className="inline-block bg-foreground text-background px-2 py-1 text-xs font-bold m-3 mb-0">
+                AIVIA INVESTMENT
               </div>
-              <div className="p-4 space-y-2 text-sm">
+              <div className="p-4 pt-2 space-y-2 text-sm">
                 <p>Monthly cost: <strong>~£85/month</strong></p>
                 <p>Annual cost: <strong>~£1,000/year</strong></p>
                 <p className="font-bold">Break-even: Just 2-3 recovered bookings/month</p>
@@ -260,7 +257,7 @@ export const ROICalculatorDocument = () => {
             </div>
             
             {/* ROI Summary */}
-            <div className="bg-foreground text-background p-6 text-center">
+            <div className="border-2 border-foreground p-6 text-center">
               <h3 className="font-bold text-lg">YOUR POTENTIAL ROI</h3>
               <div className="mt-4 space-y-2">
                 <p className="text-sm">Recovered revenue: £9,100</p>

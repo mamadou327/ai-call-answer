@@ -32,145 +32,154 @@ export const FeatureComparisonDocument = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Header - Black neobrutalist style
+    // Slim header strip
     doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageWidth, 35, "F");
+    doc.rect(0, 0, pageWidth, 18, "F");
     
     // Add logo
     try {
       const logoData = await loadImageAsBase64(aiviaLogo);
-      doc.addImage(logoData, "PNG", 10, 5, 25, 25);
+      doc.addImage(logoData, "PNG", 8, 2, 14, 14);
     } catch (e) {
       console.error("Failed to load logo:", e);
     }
     
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
+    doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text("FEATURE COMPARISON", pageWidth / 2 + 10, 22, { align: "center" });
+    doc.text("FEATURE COMPARISON", pageWidth / 2 + 5, 12, { align: "center" });
     
-    // Intro
-    doc.setTextColor(30, 30, 30);
-    doc.setFontSize(11);
+    // Subtitle
+    doc.setTextColor(80, 80, 80);
+    doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("See how AIVIA compares to traditional alternatives", pageWidth / 2, 48, { align: "center" });
+    doc.text("See how AIVIA compares to traditional alternatives", pageWidth / 2, 28, { align: "center" });
     
-    // Main comparison table with black headers
+    // Main comparison table - clean design with YES/NO text
     autoTable(doc, {
-      startY: 55,
+      startY: 35,
       head: [["Feature", "AIVIA", "Receptionist", "Voicemail"]],
       body: [
-        ["24/7 Availability", "✓", "✗ (9-5 only)", "✓"],
-        ["Books Appointments", "✓ (Instant)", "✓ (Manual)", "✗"],
-        ["Remembers Customers", "✓", "Sometimes", "✗"],
-        ["Handles Group Bookings", "✓", "✓", "✗"],
-        ["SMS Confirmations", "✓ (Automatic)", "Manual", "✗"],
-        ["Multiple Languages", "✓", "Limited", "✗"],
+        ["24/7 Availability", "YES", "NO (9-5 only)", "YES"],
+        ["Books Appointments", "YES (Instant)", "YES (Manual)", "NO"],
+        ["Remembers Customers", "YES", "Sometimes", "NO"],
+        ["Handles Group Bookings", "YES", "YES", "NO"],
+        ["SMS Confirmations", "YES (Auto)", "Manual", "NO"],
+        ["Multiple Languages", "YES", "Limited", "NO"],
         ["Sick Days / Holidays", "None", "Yes", "N/A"],
         ["Training Required", "None", "Weeks", "N/A"],
-        ["Scales with Business", "✓ Unlimited", "Limited", "N/A"],
-        ["Call Transcripts", "✓ (Every call)", "Manual notes", "✗"],
+        ["Scales with Business", "Unlimited", "Limited", "N/A"],
+        ["Call Transcripts", "YES (Every call)", "Manual notes", "NO"],
       ],
       headStyles: {
-        fillColor: [0, 0, 0],
-        textColor: [255, 255, 255],
-        fontSize: 10,
+        fillColor: [255, 255, 255],
+        textColor: [0, 0, 0],
+        fontSize: 9,
         fontStyle: "bold",
+        lineWidth: 0.5,
+        lineColor: [0, 0, 0],
       },
       bodyStyles: {
-        fontSize: 9,
-        lineColor: [0, 0, 0],
-        lineWidth: 0.5,
+        fontSize: 8,
+        lineColor: [180, 180, 180],
+        lineWidth: 0.3,
+        textColor: [40, 40, 40],
       },
       columnStyles: {
-        0: { cellWidth: 55 },
-        1: { cellWidth: 40, halign: "center" },
-        2: { cellWidth: 45, halign: "center" },
-        3: { cellWidth: 40, halign: "center" },
+        0: { cellWidth: 50, fontStyle: "bold" },
+        1: { cellWidth: 35, halign: "center" },
+        2: { cellWidth: 40, halign: "center" },
+        3: { cellWidth: 35, halign: "center" },
       },
       alternateRowStyles: {
-        fillColor: [245, 245, 245],
+        fillColor: [250, 250, 250],
       },
-      tableLineColor: [0, 0, 0],
-      tableLineWidth: 0.5,
+      tableLineColor: [180, 180, 180],
+      tableLineWidth: 0.3,
+      styles: {
+        cellPadding: 3,
+      },
     });
     
     // Cost comparison section
-    const finalY = (doc as any).lastAutoTable.finalY + 15;
-    
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("COST COMPARISON (ANNUAL)", 20, finalY);
-    
-    // Underline
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(2);
-    doc.line(20, finalY + 2, 120, finalY + 2);
-    
-    autoTable(doc, {
-      startY: finalY + 8,
-      head: [["Option", "Annual Cost", "Hidden Costs"]],
-      body: [
-        ["AIVIA", "~£1,000/year", "None"],
-        ["Part-time Receptionist", "£10,000+/year", "NI, training, cover"],
-        ["Full-time Receptionist", "£20,000+/year", "NI, training, cover, sick pay"],
-        ["Missed Calls (doing nothing)", "£0", "Lost bookings: £5,000-20,000+"],
-      ],
-      headStyles: {
-        fillColor: [0, 0, 0],
-        textColor: [255, 255, 255],
-        fontSize: 10,
-        fontStyle: "bold",
-      },
-      bodyStyles: {
-        fontSize: 9,
-        lineColor: [0, 0, 0],
-        lineWidth: 0.5,
-      },
-      alternateRowStyles: {
-        fillColor: [245, 245, 245],
-      },
-      tableLineColor: [0, 0, 0],
-      tableLineWidth: 0.5,
-    });
-    
-    // Key differentiators - black bordered box
-    const costTableY = (doc as any).lastAutoTable.finalY + 15;
-    
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(2);
-    doc.rect(15, costTableY, pageWidth - 30, 40, "FD");
+    const finalY = (doc as any).lastAutoTable.finalY + 12;
     
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("KEY AIVIA DIFFERENTIATORS", 20, costTableY + 10);
+    doc.text("ANNUAL COST COMPARISON", 20, finalY);
+    
+    // Simple underline
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.line(20, finalY + 2, 90, finalY + 2);
+    
+    autoTable(doc, {
+      startY: finalY + 6,
+      head: [["Option", "Annual Cost", "Hidden Costs"]],
+      body: [
+        ["AIVIA", "~£1,000/year", "None"],
+        ["Part-time Receptionist", "£10,000+/year", "NI, training, cover"],
+        ["Full-time Receptionist", "£20,000+/year", "NI, training, sick pay"],
+        ["Missed Calls (doing nothing)", "£0", "Lost: £5,000-20,000+"],
+      ],
+      headStyles: {
+        fillColor: [255, 255, 255],
+        textColor: [0, 0, 0],
+        fontSize: 9,
+        fontStyle: "bold",
+        lineWidth: 0.5,
+        lineColor: [0, 0, 0],
+      },
+      bodyStyles: {
+        fontSize: 8,
+        lineColor: [180, 180, 180],
+        lineWidth: 0.3,
+        textColor: [40, 40, 40],
+      },
+      alternateRowStyles: {
+        fillColor: [250, 250, 250],
+      },
+      tableLineColor: [180, 180, 180],
+      tableLineWidth: 0.3,
+      styles: {
+        cellPadding: 3,
+      },
+    });
+    
+    // Key differentiators - white box with thin border
+    const costTableY = (doc as any).lastAutoTable.finalY + 10;
+    
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.rect(15, costTableY, pageWidth - 30, 38, "S");
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.text("KEY AIVIA DIFFERENTIATORS", 20, costTableY + 8);
     
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(30, 30, 30);
+    doc.setTextColor(50, 50, 50);
     
     const differentiators = [
-      "✓ Zero-latency AI - Real-time conversations with no awkward pauses",
-      "✓ Never calls in sick, never takes holidays, never needs a break",
-      "✓ Remembers every customer interaction and preference",
-      "✓ Scales instantly - handles 1 or 100 calls simultaneously",
+      "•  Zero-latency AI - Real-time conversations with no awkward pauses",
+      "•  Never calls in sick, never takes holidays, never needs a break",
+      "•  Remembers every customer interaction and preference",
+      "•  Scales instantly - handles 1 or 100 calls simultaneously",
     ];
     
-    let yPos = costTableY + 18;
+    let yPos = costTableY + 16;
     differentiators.forEach(diff => {
       doc.text(diff, 20, yPos);
-      yPos += 7;
+      yPos += 6;
     });
     
-    // Footer - black bar
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 285, pageWidth, 20, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(10);
-    doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 295, { align: "center" });
+    // Clean footer - just text, no black bar
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(9);
+    doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
     
     doc.save("AIVIA-Feature-Comparison.pdf");
   };
@@ -239,31 +248,31 @@ export const FeatureComparisonDocument = () => {
           <DialogHeader>
             <DialogTitle className="font-bold">Feature Comparison - Preview</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 p-4 bg-background border-2 border-foreground">
+          <div className="space-y-6 p-4 bg-background border border-foreground/20">
             {/* Header */}
-            <div className="bg-foreground text-background p-6 text-center">
-              <h1 className="text-2xl font-bold tracking-tight">FEATURE COMPARISON</h1>
-              <p className="text-sm opacity-90 mt-1">See how AIVIA compares</p>
+            <div className="border-b border-foreground pb-3">
+              <h1 className="text-xl font-bold tracking-tight">FEATURE COMPARISON</h1>
+              <p className="text-sm text-muted-foreground mt-1">See how AIVIA compares</p>
             </div>
             
             {/* Comparison Table */}
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse border-2 border-foreground">
+              <table className="w-full border-collapse border border-foreground/30">
                 <thead>
-                  <tr className="bg-foreground text-background">
-                    <th className="p-3 text-left font-bold border-2 border-foreground">Feature</th>
-                    <th className="p-3 text-center font-bold border-2 border-foreground">AIVIA</th>
-                    <th className="p-3 text-center font-bold border-2 border-foreground">Receptionist</th>
-                    <th className="p-3 text-center font-bold border-2 border-foreground">Voicemail</th>
+                  <tr className="bg-muted">
+                    <th className="p-3 text-left font-bold border border-foreground/30">Feature</th>
+                    <th className="p-3 text-center font-bold border border-foreground/30">AIVIA</th>
+                    <th className="p-3 text-center font-bold border border-foreground/30">Receptionist</th>
+                    <th className="p-3 text-center font-bold border border-foreground/30">Voicemail</th>
                   </tr>
                 </thead>
                 <tbody>
                   {comparisonData.map((row, i) => (
-                    <tr key={i} className={i % 2 === 0 ? "bg-muted" : "bg-background"}>
-                      <td className="p-3 font-medium border-2 border-foreground">{row.feature}</td>
-                      <td className="p-3 text-center border-2 border-foreground">{renderIcon(row.aivia)}</td>
-                      <td className="p-3 text-center border-2 border-foreground">{renderIcon(row.receptionist)}</td>
-                      <td className="p-3 text-center border-2 border-foreground">{renderIcon(row.voicemail)}</td>
+                    <tr key={i} className={i % 2 === 0 ? "bg-background" : "bg-muted/50"}>
+                      <td className="p-3 font-medium border border-foreground/30">{row.feature}</td>
+                      <td className="p-3 text-center border border-foreground/30">{renderIcon(row.aivia)}</td>
+                      <td className="p-3 text-center border border-foreground/30">{renderIcon(row.receptionist)}</td>
+                      <td className="p-3 text-center border border-foreground/30">{renderIcon(row.voicemail)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -272,14 +281,14 @@ export const FeatureComparisonDocument = () => {
             
             {/* Cost Comparison */}
             <div className="space-y-3">
-              <h2 className="text-lg font-bold border-b-2 border-foreground pb-2">ANNUAL COST COMPARISON</h2>
+              <h2 className="text-lg font-bold border-b border-foreground/30 pb-2">ANNUAL COST COMPARISON</h2>
               <div className="grid md:grid-cols-2 gap-3">
-                <div className="p-4 bg-foreground text-background border-2 border-foreground">
+                <div className="p-4 border border-foreground/30 bg-muted/30">
                   <p className="font-bold">AIVIA</p>
                   <p className="text-2xl font-bold">~£1,000/year</p>
-                  <p className="text-xs opacity-80">No hidden costs</p>
+                  <p className="text-xs text-muted-foreground">No hidden costs</p>
                 </div>
-                <div className="p-4 bg-muted border-2 border-foreground">
+                <div className="p-4 border border-foreground/30">
                   <p className="font-bold">Full-time Receptionist</p>
                   <p className="text-2xl font-bold">£20,000+/year</p>
                   <p className="text-xs text-muted-foreground">Plus NI, training, sick pay</p>
@@ -288,23 +297,23 @@ export const FeatureComparisonDocument = () => {
             </div>
             
             {/* Key Differentiators */}
-            <div className="bg-background border-2 border-foreground p-4">
+            <div className="border border-foreground/30 p-4">
               <h3 className="font-bold mb-3">KEY AIVIA DIFFERENTIATORS</h3>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4" />
+                  <span className="text-foreground">•</span>
                   Zero-latency AI - Real-time conversations, no awkward pauses
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4" />
+                  <span className="text-foreground">•</span>
                   Never calls in sick, never takes holidays
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4" />
+                  <span className="text-foreground">•</span>
                   Remembers every customer interaction
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className="h-4 w-4" />
+                  <span className="text-foreground">•</span>
                   Scales instantly - handles unlimited calls
                 </li>
               </ul>

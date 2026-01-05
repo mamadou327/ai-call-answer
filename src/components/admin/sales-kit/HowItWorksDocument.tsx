@@ -31,156 +31,163 @@ export const HowItWorksDocument = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Header - Black neobrutalist style
+    // Slim header strip
     doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageWidth, 35, "F");
+    doc.rect(0, 0, pageWidth, 18, "F");
     
     // Add logo
     try {
       const logoData = await loadImageAsBase64(aiviaLogo);
-      doc.addImage(logoData, "PNG", 10, 5, 25, 25);
+      doc.addImage(logoData, "PNG", 8, 2, 14, 14);
     } catch (e) {
       console.error("Failed to load logo:", e);
     }
     
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
+    doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text("HOW AIVIA WORKS", pageWidth / 2 + 10, 22, { align: "center" });
+    doc.text("HOW AIVIA WORKS", pageWidth / 2 + 5, 12, { align: "center" });
     
     // Intro
-    doc.setTextColor(30, 30, 30);
-    doc.setFontSize(11);
+    doc.setTextColor(80, 80, 80);
+    doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("AIVIA is a complete AI-powered phone receptionist that integrates with your business.", 20, 50);
+    doc.text("A complete AI-powered phone receptionist that integrates with your business", pageWidth / 2, 28, { align: "center" });
     
     // Call Flow Section
-    doc.setFontSize(16);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("THE CALL FLOW", 20, 65);
-    doc.setLineWidth(2);
-    doc.line(20, 68, 70, 68);
+    doc.text("THE CALL FLOW", 20, 42);
+    doc.setLineWidth(0.5);
+    doc.line(20, 44, 55, 44);
     
-    // Step boxes - black bordered neobrutalist style
+    // Step boxes - clean white with thin borders
     const steps = [
-      { num: "1", title: "CUSTOMER CALLS", desc: "Customer dials your AIVIA number" },
-      { num: "2", title: "AI ANSWERS", desc: "AI greets them instantly (zero latency)" },
-      { num: "3", title: "UNDERSTANDS", desc: "AI processes intent in real-time" },
-      { num: "4", title: "BOOKS SLOT", desc: "Checks availability, books appointment" },
-      { num: "5", title: "CONFIRMS", desc: "Customer gets instant SMS confirmation" },
+      { num: "1", title: "CUSTOMER CALLS", desc: "Customer dials your number" },
+      { num: "2", title: "AI ANSWERS", desc: "Greets them instantly" },
+      { num: "3", title: "UNDERSTANDS", desc: "Processes intent" },
+      { num: "4", title: "BOOKS SLOT", desc: "Checks & books appointment" },
+      { num: "5", title: "CONFIRMS", desc: "Sends SMS confirmation" },
     ];
     
     let xPos = 15;
-    doc.setFontSize(9);
-    steps.forEach((step, i) => {
-      // Box with thick black border
+    const stepBoxWidth = 35;
+    const stepBoxHeight = 32;
+    
+    steps.forEach((step) => {
+      // White box with thin border
       doc.setDrawColor(0, 0, 0);
-      doc.setLineWidth(2);
+      doc.setLineWidth(0.5);
       doc.setFillColor(255, 255, 255);
-      doc.rect(xPos, 75, 35, 38, "FD");
+      doc.rect(xPos, 50, stepBoxWidth, stepBoxHeight, "FD");
       
-      // Number in black circle
+      // Number badge
       doc.setFillColor(0, 0, 0);
-      doc.circle(xPos + 17.5, 82, 5, "F");
+      doc.circle(xPos + stepBoxWidth / 2, 56, 4, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.text(step.num, xPos + 17.5, 84, { align: "center" });
+      doc.setFontSize(8);
+      doc.text(step.num, xPos + stepBoxWidth / 2, 57.5, { align: "center" });
       
       // Title and desc
       doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(7);
-      doc.text(step.title, xPos + 17.5, 93, { align: "center" });
-      doc.setFont("helvetica", "normal");
       doc.setFontSize(6);
-      doc.setTextColor(60, 60, 60);
-      const lines = doc.splitTextToSize(step.desc, 30);
-      doc.text(lines, xPos + 17.5, 99, { align: "center" });
+      doc.text(step.title, xPos + stepBoxWidth / 2, 65, { align: "center" });
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(5.5);
+      doc.setTextColor(80, 80, 80);
+      const lines = doc.splitTextToSize(step.desc, stepBoxWidth - 4);
+      doc.text(lines, xPos + stepBoxWidth / 2, 70, { align: "center" });
       
-      xPos += 38;
+      xPos += stepBoxWidth + 3;
     });
     
     // Technology Section
-    doc.setFontSize(16);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("TECHNOLOGY STACK", 20, 130);
-    doc.setLineWidth(2);
-    doc.line(20, 133, 85, 133);
+    doc.text("TECHNOLOGY STACK", 20, 95);
+    doc.setLineWidth(0.5);
+    doc.line(20, 97, 65, 97);
     
-    // Tech stack in black bordered box
+    // Tech stack in white bordered box
     doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(2);
-    doc.rect(15, 138, pageWidth - 30, 45, "S");
+    doc.setLineWidth(0.5);
+    doc.rect(15, 102, pageWidth - 30, 42, "S");
     
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(30, 30, 30);
+    doc.setTextColor(50, 50, 50);
     
     const techStack = [
       ["Phone System:", "Twilio Media Streams - Real-time audio bridge"],
-      ["Voice AI:", "OpenAI Realtime API - True zero-latency conversations"],
+      ["Voice AI:", "OpenAI Realtime API - Zero-latency conversations"],
       ["Voice Output:", "OpenAI Native Voices - Natural, instant speech"],
       ["Database:", "Secure cloud storage for customer data and bookings"],
       ["Notifications:", "Automated SMS and email confirmations"],
     ];
     
-    let yPos = 148;
+    let yPos = 112;
     techStack.forEach(([label, desc]) => {
       doc.setFont("helvetica", "bold");
       doc.text(label, 20, yPos);
       doc.setFont("helvetica", "normal");
-      doc.text(desc, 58, yPos);
-      yPos += 8;
+      doc.text(desc, 52, yPos);
+      yPos += 7;
     });
     
-    // What Business Owners See
-    doc.setFontSize(16);
+    // Dashboard Features
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(0, 0, 0);
-    doc.text("YOUR DASHBOARD", 20, 200);
-    doc.setLineWidth(2);
-    doc.line(20, 203, 75, 203);
+    doc.text("YOUR DASHBOARD", 20, 158);
+    doc.setLineWidth(0.5);
+    doc.line(20, 160, 58, 160);
     
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(30, 30, 30);
+    doc.setTextColor(50, 50, 50);
     
     const dashboardFeatures = [
-      "• Live call transcripts - See exactly what was said",
-      "• Booking calendar - All appointments in one view",
-      "• Customer database - Full history and preferences",
-      "• Analytics - Call volume, booking rates, peak times",
-      "• Message inbox - Voicemails and customer inquiries",
-      "• Staff management - Assign services to team members",
+      "•  Live call transcripts - See exactly what was said",
+      "•  Booking calendar - All appointments in one view",
+      "•  Customer database - Full history and preferences",
+      "•  Analytics - Call volume, booking rates, peak times",
+      "•  Message inbox - Voicemails and customer inquiries",
+      "•  Staff management - Assign services to team members",
     ];
     
-    yPos = 213;
+    yPos = 170;
     dashboardFeatures.forEach(feature => {
       doc.text(feature, 20, yPos);
       yPos += 7;
     });
     
-    // Integration Box - black filled
-    doc.setFillColor(0, 0, 0);
-    doc.rect(15, 260, pageWidth - 30, 20, "F");
+    // Integration Box - white with border, black title badge
+    const integrationY = 218;
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.rect(15, integrationY, pageWidth - 30, 22, "S");
     
+    // Small black title badge
+    doc.setFillColor(0, 0, 0);
+    doc.rect(20, integrationY + 3, 60, 7, "F");
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(12);
+    doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
-    doc.text("SEAMLESS INTEGRATION", pageWidth / 2, 270, { align: "center" });
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text("Port your existing number or get a new one - we handle everything", pageWidth / 2, 278, { align: "center" });
+    doc.text("SEAMLESS INTEGRATION", 23, integrationY + 7.5);
     
-    // Footer
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 285, pageWidth, 20, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(10);
-    doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 295, { align: "center" });
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text("Port your existing number or get a new one - we handle everything", 20, integrationY + 17);
+    
+    // Clean footer
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(9);
+    doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
     
     doc.save("AIVIA-How-It-Works.pdf");
   };
@@ -232,16 +239,16 @@ export const HowItWorksDocument = () => {
           <DialogHeader>
             <DialogTitle className="font-bold">How AIVIA Works - Preview</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 p-4 bg-background border-2 border-foreground">
+          <div className="space-y-6 p-4 bg-background border border-foreground/20">
             {/* Header */}
-            <div className="bg-foreground text-background p-6 text-center">
-              <h1 className="text-2xl font-bold tracking-tight">HOW AIVIA WORKS</h1>
-              <p className="text-sm opacity-90 mt-1">Complete AI-powered phone receptionist system</p>
+            <div className="border-b border-foreground pb-3">
+              <h1 className="text-xl font-bold tracking-tight">HOW AIVIA WORKS</h1>
+              <p className="text-sm text-muted-foreground mt-1">Complete AI-powered phone receptionist system</p>
             </div>
             
             {/* Call Flow */}
             <div className="space-y-4">
-              <h2 className="text-lg font-bold border-b-2 border-foreground pb-2">THE CALL FLOW</h2>
+              <h2 className="text-lg font-bold border-b border-foreground/30 pb-2">THE CALL FLOW</h2>
               <div className="flex flex-wrap gap-2 justify-between">
                 {[
                   { icon: Phone, label: "1. CUSTOMER CALLS", desc: "Dials your number" },
@@ -250,7 +257,7 @@ export const HowItWorksDocument = () => {
                   { icon: MessageSquare, label: "4. CONFIRMS", desc: "Sends SMS" },
                   { icon: BarChart3, label: "5. LOGS CALL", desc: "Updates dashboard" },
                 ].map((step, i) => (
-                  <div key={i} className="flex flex-col items-center text-center p-3 bg-background border-2 border-foreground w-[18%] min-w-[100px]">
+                  <div key={i} className="flex flex-col items-center text-center p-3 bg-background border border-foreground/30 w-[18%] min-w-[100px]">
                     <step.icon className="h-6 w-6 mb-2" />
                     <span className="text-xs font-bold">{step.label}</span>
                     <span className="text-xs text-muted-foreground">{step.desc}</span>
@@ -261,8 +268,8 @@ export const HowItWorksDocument = () => {
             
             {/* Technology Stack */}
             <div className="space-y-3">
-              <h2 className="text-lg font-bold border-b-2 border-foreground pb-2">TECHNOLOGY STACK</h2>
-              <div className="border-2 border-foreground divide-y-2 divide-foreground">
+              <h2 className="text-lg font-bold border-b border-foreground/30 pb-2">TECHNOLOGY STACK</h2>
+              <div className="border border-foreground/30 divide-y divide-foreground/20">
                 {[
                   { label: "Phone System", value: "Twilio Media Streams - Real-time audio bridge" },
                   { label: "Voice AI", value: "OpenAI Realtime API - Zero-latency conversations" },
@@ -280,7 +287,7 @@ export const HowItWorksDocument = () => {
             
             {/* Dashboard Features */}
             <div className="space-y-3">
-              <h2 className="text-lg font-bold border-b-2 border-foreground pb-2">DASHBOARD FEATURES</h2>
+              <h2 className="text-lg font-bold border-b border-foreground/30 pb-2">DASHBOARD FEATURES</h2>
               <div className="grid md:grid-cols-2 gap-2">
                 {[
                   "Live call transcripts",
@@ -290,7 +297,7 @@ export const HowItWorksDocument = () => {
                   "Message inbox",
                   "Staff management",
                 ].map((feature, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm border-2 border-foreground p-2">
+                  <div key={i} className="flex items-center gap-2 text-sm border border-foreground/30 p-2">
                     <ArrowRight className="h-4 w-4" />
                     {feature}
                   </div>
@@ -299,9 +306,11 @@ export const HowItWorksDocument = () => {
             </div>
             
             {/* Integration */}
-            <div className="bg-foreground text-background p-4 text-center">
-              <h3 className="font-bold mb-2">SEAMLESS INTEGRATION</h3>
-              <p className="text-sm opacity-90">
+            <div className="border border-foreground/30 p-4">
+              <div className="inline-block bg-foreground text-background px-2 py-1 text-xs font-bold mb-2">
+                SEAMLESS INTEGRATION
+              </div>
+              <p className="text-sm text-muted-foreground">
                 Port your existing number or get a new one - we handle everything
               </p>
             </div>
