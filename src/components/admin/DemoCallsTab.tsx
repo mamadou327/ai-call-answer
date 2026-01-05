@@ -8,9 +8,23 @@ import { toast } from "sonner";
 
 type Scenario = "booking" | "reschedule" | "cancel";
 
+interface DemoLine {
+  index: number;
+  speaker: string;
+  text: string;
+  audioUrl: string;
+}
+
+interface DemoManifest {
+  scenario: string;
+  version: number;
+  linesCount: number;
+  pauseBetweenLinesMs: number;
+  lines: DemoLine[];
+}
+
 interface AudioStatus {
   exists: boolean;
-  url: string | null;
   generating: boolean;
   error: string | null;
 }
@@ -23,11 +37,11 @@ const SCENARIOS: { id: Scenario; title: string; description: string }[] = [
 
 export const DemoCallsTab = () => {
   const [audioStatus, setAudioStatus] = useState<Record<Scenario, AudioStatus>>({
-    booking: { exists: false, url: null, generating: false, error: null },
-    reschedule: { exists: false, url: null, generating: false, error: null },
-    cancel: { exists: false, url: null, generating: false, error: null },
+    booking: { exists: false, generating: false, error: null },
+    reschedule: { exists: false, generating: false, error: null },
+    cancel: { exists: false, generating: false, error: null },
   });
-  const [timingData, setTimingData] = useState<Record<Scenario, any[] | null>>({
+  const [manifests, setManifests] = useState<Record<Scenario, DemoManifest | null>>({
     booking: null,
     reschedule: null,
     cancel: null,
@@ -43,45 +57,45 @@ export const DemoCallsTab = () => {
     
     for (const scenario of scenarios) {
       try {
-        // Check if audio file exists
-        const { data } = supabase.storage
+        // Check if manifest exists
+        const { data: manifestUrl } = supabase.storage
           .from("demo-audio")
-          .getPublicUrl(`demo-${scenario}.mp3`);
+          .getPublicUrl(`demo-${scenario}-manifest.json`);
         
-        // Try to fetch the file to see if it exists
-        const response = await fetch(data.publicUrl, { method: "HEAD" });
-        const exists = response.ok;
+        const response = await fetch(manifestUrl.publicUrl);
         
-        setAudioStatus(prev => ({
-          ...prev,
-          [scenario]: {
-            ...prev[scenario],
-            exists,
-            url: exists ? data.publicUrl : null,
-          }
-        }));
-
-        // If exists, try to fetch timing data
-        if (exists) {
-          try {
-            const { data: timingUrl } = supabase.storage
-              .from("demo-audio")
-              .getPublicUrl(`demo-${scenario}-timing.json`);
+        if (response.ok) {
+          const manifest = await response.json() as DemoManifest;
+          
+          // Verify at least the first audio file exists
+          if (manifest.lines && manifest.lines.length > 0) {
+            const testResponse = await fetch(manifest.lines[0].audioUrl, { method: "HEAD" });
             
-            const timingResponse = await fetch(timingUrl.publicUrl);
-            if (timingResponse.ok) {
-              const timing = await timingResponse.json();
-              setTimingData(prev => ({
+            if (testResponse.ok) {
+              setAudioStatus(prev => ({
                 ...prev,
-                [scenario]: timing.lines || null,
+                [scenario]: { exists: true, generating: false, error: null }
               }));
+              setManifests(prev => ({
+                ...prev,
+                [scenario]: manifest,
+              }));
+              continue;
             }
-          } catch (e) {
-            console.log(`No timing data for ${scenario}`);
           }
         }
+        
+        // Not found or invalid
+        setAudioStatus(prev => ({
+          ...prev,
+          [scenario]: { exists: false, generating: false, error: null }
+        }));
       } catch (error) {
         console.error(`Error checking ${scenario}:`, error);
+        setAudioStatus(prev => ({
+          ...prev,
+          [scenario]: { exists: false, generating: false, error: null }
+        }));
       }
     }
   };
@@ -99,35 +113,27 @@ export const DemoCallsTab = () => {
 
       if (error) throw error;
 
-      toast.success(`${scenario} demo audio generated successfully!`);
+      toast.success(`${scenario} demo generated! (${data.linesCount} audio files)`);
+      
+      // Fetch the new manifest
+      const { data: manifestUrl } = supabase.storage
+        .from("demo-audio")
+        .getPublicUrl(`demo-${scenario}-manifest.json`);
+      
+      // Add cache-busting timestamp
+      const response = await fetch(`${manifestUrl.publicUrl}?t=${Date.now()}`);
+      if (response.ok) {
+        const manifest = await response.json() as DemoManifest;
+        setManifests(prev => ({
+          ...prev,
+          [scenario]: manifest,
+        }));
+      }
       
       setAudioStatus(prev => ({
         ...prev,
-        [scenario]: {
-          exists: true,
-          url: data.audioUrl,
-          generating: false,
-          error: null,
-        }
+        [scenario]: { exists: true, generating: false, error: null }
       }));
-
-      // Fetch timing data
-      try {
-        const { data: timingUrl } = supabase.storage
-          .from("demo-audio")
-          .getPublicUrl(`demo-${scenario}-timing.json`);
-        
-        const timingResponse = await fetch(timingUrl.publicUrl);
-        if (timingResponse.ok) {
-          const timing = await timingResponse.json();
-          setTimingData(prev => ({
-            ...prev,
-            [scenario]: timing.lines || null,
-          }));
-        }
-      } catch (e) {
-        console.log("Could not fetch timing data");
-      }
 
     } catch (error) {
       console.error(`Error generating ${scenario}:`, error);
@@ -135,11 +141,7 @@ export const DemoCallsTab = () => {
       
       setAudioStatus(prev => ({
         ...prev,
-        [scenario]: {
-          ...prev[scenario],
-          generating: false,
-          error: errorMessage,
-        }
+        [scenario]: { exists: false, generating: false, error: errorMessage }
       }));
       
       toast.error(`Failed to generate ${scenario} demo: ${errorMessage}`);
@@ -169,7 +171,7 @@ export const DemoCallsTab = () => {
             <div>
               <CardTitle className="text-2xl font-bold tracking-tight">DEMO CALLS</CardTitle>
               <CardDescription>
-                Play realistic call demos to show clients how AIVIA handles different scenarios
+                Play realistic AI-generated call demos to show clients how AIVIA handles bookings
               </CardDescription>
             </div>
           </div>
@@ -181,7 +183,7 @@ export const DemoCallsTab = () => {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg font-bold">Demo Audio Files</CardTitle>
           <CardDescription>
-            Generate high-quality AI voices using ElevenLabs for human-like demos
+            Generate once, play instantly forever. Each line is a separate high-quality audio file.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -189,6 +191,8 @@ export const DemoCallsTab = () => {
           <div className="space-y-2">
             {SCENARIOS.map(scenario => {
               const status = audioStatus[scenario.id];
+              const manifest = manifests[scenario.id];
+              
               return (
                 <div 
                   key={scenario.id}
@@ -200,7 +204,12 @@ export const DemoCallsTab = () => {
                     </div>
                     <div>
                       <p className="font-bold text-sm">{scenario.title}</p>
-                      <p className="text-xs text-muted-foreground">{scenario.description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {manifest 
+                          ? `${manifest.linesCount} audio files ready`
+                          : scenario.description
+                        }
+                      </p>
                     </div>
                   </div>
                   
@@ -276,7 +285,7 @@ export const DemoCallsTab = () => {
               <p className="text-muted-foreground">
                 Play the booking demo first to showcase AIVIA's capabilities. 
                 Then use rescheduling and cancellation demos to show how AIVIA handles 
-                the full customer journey. The transcripts appear as the audio plays!
+                the full customer journey. Audio plays instantly - no waiting!
               </p>
             </div>
           </div>
@@ -292,8 +301,7 @@ export const DemoCallsTab = () => {
             title={scenario.title}
             description={scenario.description}
             icon={DemoIcons[scenario.id]}
-            audioUrl={audioStatus[scenario.id].url}
-            timingData={timingData[scenario.id]}
+            manifest={manifests[scenario.id]}
           />
         ))}
       </div>
