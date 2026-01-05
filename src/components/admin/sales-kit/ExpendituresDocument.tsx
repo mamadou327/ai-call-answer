@@ -148,20 +148,27 @@ export const generateExpendituresPdf = async () => {
   });
 
   // Example Calculation Box
-  yPos = (doc as any).lastAutoTable?.finalY + 12 || 210;
+  yPos = (doc as any).lastAutoTable?.finalY + 10 || 200;
+  
+  // Check if we need to add a new page
+  if (yPos > 220) {
+    doc.addPage();
+    yPos = 20;
+  }
+  
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(1);
-  doc.rect(15, yPos, pageWidth - 30, 58, "S");
+  doc.rect(15, yPos, pageWidth - 30, 52, "S");
   
   doc.setFillColor(0, 0, 0);
-  doc.rect(20, yPos + 4, 90, 8, "F");
+  doc.rect(20, yPos + 4, 90, 7, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.text("EXAMPLE: TYPICAL SALON (PER MONTH)", 23, yPos + 9);
 
   doc.setTextColor(50, 50, 50);
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   
   const exampleCalc = [
@@ -173,42 +180,45 @@ export const generateExpendituresPdf = async () => {
     ["Resend (Free tier)", "£0"],
   ];
   
-  let calcY = yPos + 20;
+  let calcY = yPos + 17;
   exampleCalc.forEach(([item, cost]) => {
     doc.text(item, 25, calcY);
     doc.text(cost, pageWidth - 40, calcY, { align: "right" });
-    calcY += 6;
+    calcY += 5;
   });
 
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.5);
   doc.line(25, calcY, pageWidth - 25, calcY);
-  calcY += 6;
+  calcY += 5;
   
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
   doc.text("TOTAL RUNNING COST", 25, calcY);
   doc.text("~£41/month", pageWidth - 40, calcY, { align: "right" });
 
-  // Profit Margin Box
-  yPos = yPos + 68;
+  // Profit Margin Box - positioned right after example calculation
+  const profitBoxY = yPos + 58;
   doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.5);
-  doc.rect(15, yPos, pageWidth - 30, 22, "S");
+  doc.setLineWidth(1);
+  doc.rect(15, profitBoxY, pageWidth - 30, 20, "S");
   
-  doc.setTextColor(0, 0, 0);
+  doc.setFillColor(34, 197, 94); // Green background
+  doc.rect(15, profitBoxY, pageWidth - 30, 20, "F");
+  doc.setDrawColor(0, 0, 0);
+  doc.rect(15, profitBoxY, pageWidth - 30, 20, "S");
+  
+  doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
-  doc.text("PROFIT MARGIN", pageWidth / 2, yPos + 8, { align: "center" });
+  doc.text("PROFIT MARGIN", pageWidth / 2, profitBoxY + 8, { align: "center" });
   doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(60, 60, 60);
-  doc.text("Customer pays: £85/month  |  Your cost: ~£41/month  |  Profit: ~£44/month per customer", pageWidth / 2, yPos + 16, { align: "center" });
+  doc.text("Customer pays: £85/month  |  Your cost: ~£41/month  |  Profit: ~£44/month per customer", pageWidth / 2, profitBoxY + 15, { align: "center" });
 
   // Footer
   doc.setTextColor(100, 100, 100);
-  doc.setFontSize(9);
-  doc.text("www.aiviaapp.co.uk  |  Mo@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
+  doc.setFontSize(8);
+  doc.text("www.aiviaapp.co.uk  |  Mo@aiviaapp.co.uk", pageWidth / 2, 285, { align: "center" });
 
   doc.save("AIVIA-Expenditures.pdf");
 };
