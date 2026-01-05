@@ -102,13 +102,13 @@ export const generateHowItWorksPdf = async () => {
     // Title and desc
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(6);
-    doc.text(step.title, xPos + stepBoxWidth / 2, stepY + 15, { align: "center" });
+    doc.setFontSize(8);
+    doc.text(step.title, xPos + stepBoxWidth / 2, stepY + 14, { align: "center" });
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.5);
+    doc.setFontSize(7);
     doc.setTextColor(80, 80, 80);
     const lines = doc.splitTextToSize(step.desc, stepBoxWidth - 4);
-    doc.text(lines, xPos + stepBoxWidth / 2, stepY + 21, { align: "center" });
+    doc.text(lines, xPos + stepBoxWidth / 2, stepY + 20, { align: "center" });
 
     xPos += stepBoxWidth + 3;
   });
