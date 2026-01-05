@@ -200,7 +200,7 @@ export const generateHowItWorksPdf = async () => {
   // Clean footer
   doc.setTextColor(100, 100, 100);
   doc.setFontSize(9);
-  doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
+  doc.text("www.aiviaapp.co.uk  |  Mo@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
 
   doc.save("AIVIA-How-It-Works.pdf");
 };

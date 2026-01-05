@@ -54,7 +54,7 @@ const addPageFooter = (doc: jsPDF) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   doc.setTextColor(100, 100, 100);
   doc.setFontSize(9);
-  doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
+  doc.text("www.aiviaapp.co.uk  |  Mo@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
 };
 
 // Generate combined PDF with all documents
@@ -489,7 +489,7 @@ const generateCombinedPdf = async () => {
   const momentsY = yPos;
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.5);
-  doc.rect(15, momentsY, pageWidth - 30, 38, "S");
+  doc.rect(15, momentsY, pageWidth - 30, 45, "S");
   doc.setFillColor(0, 0, 0);
   doc.rect(20, momentsY + 4, 65, 8, "F");
   doc.setTextColor(255, 255, 255);
@@ -499,11 +499,11 @@ const generateCombinedPdf = async () => {
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(50, 50, 50);
-  const moments = ["  - It recognizes returning customers and greets them by name", "  - It can book a family of 4 with different services in one call", "  - Every call is transcribed - see exactly what was said", "  - Works 24/7 including bank holidays - no sick days"];
-  yPos = momentsY + 20;
-  moments.forEach((m) => { doc.text(m, 20, yPos); yPos += 7; });
+  const moments = ["- It recognizes returning customers and greets them by name", "- It can book a family of 4 with different services in one call", "- Every call is transcribed - see exactly what was said", "- Works 24/7 including bank holidays - no sick days"];
+  yPos = momentsY + 18;
+  moments.forEach((m) => { doc.text(m, 20, yPos); yPos += 6; });
 
-  yPos += 14;
+  yPos += 8;
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
