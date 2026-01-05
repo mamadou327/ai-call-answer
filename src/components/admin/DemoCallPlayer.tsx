@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Play, Square, Volume2, Calendar, RefreshCw, X, Phone } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Play, Square, Calendar, RefreshCw, X, Phone, ChevronDown, ChevronUp } from "lucide-react";
 
 interface TranscriptLine {
   speaker: "aivia" | "customer";
@@ -57,63 +58,100 @@ const DEMO_SCRIPTS: Record<string, TranscriptLine[]> = {
 export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallPlayerProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentLineIndex, setCurrentLineIndex] = useState(-1);
+  const [showTranscript, setShowTranscript] = useState(false);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
+  const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const transcript = DEMO_SCRIPTS[scenario] || [];
 
-  // Cleanup timeouts on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       timeoutRefs.current.forEach(clearTimeout);
+      window.speechSynthesis.cancel();
     };
   }, []);
 
-  // Calculate timing for each line based on text length
-  const getLineDuration = (text: string) => {
-    // Approximate: 150 words per minute = 2.5 words per second
-    // Average word length ~5 chars, so ~12.5 chars per second
-    const baseDuration = (text.length / 12) * 1000;
-    return Math.max(baseDuration, 1500); // minimum 1.5 seconds per line
+  const speakLine = (text: string, isAivia: boolean): Promise<void> => {
+    return new Promise((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      speechSynthRef.current = utterance;
+      
+      // Get available voices
+      const voices = window.speechSynthesis.getVoices();
+      
+      // Try to find different voices for AIVIA vs Customer
+      if (isAivia) {
+        // Female voice for AIVIA
+        const femaleVoice = voices.find(v => 
+          v.name.includes("Female") || 
+          v.name.includes("Samantha") || 
+          v.name.includes("Karen") ||
+          v.name.includes("Victoria") ||
+          v.name.includes("Google UK English Female")
+        );
+        if (femaleVoice) utterance.voice = femaleVoice;
+        utterance.pitch = 1.1;
+        utterance.rate = 1.0;
+      } else {
+        // Different voice for customer
+        const maleVoice = voices.find(v => 
+          v.name.includes("Male") || 
+          v.name.includes("Daniel") || 
+          v.name.includes("Alex") ||
+          v.name.includes("Google UK English Male")
+        );
+        if (maleVoice) utterance.voice = maleVoice;
+        utterance.pitch = 0.9;
+        utterance.rate = 0.95;
+      }
+
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      
+      window.speechSynthesis.speak(utterance);
+    });
   };
 
-  const startPlayback = () => {
+  const startPlayback = async () => {
     setIsPlaying(true);
     setCurrentLineIndex(0);
     
-    // Clear any existing timeouts
-    timeoutRefs.current.forEach(clearTimeout);
-    timeoutRefs.current = [];
+    // Ensure voices are loaded
+    if (window.speechSynthesis.getVoices().length === 0) {
+      await new Promise<void>(resolve => {
+        window.speechSynthesis.onvoiceschanged = () => resolve();
+        setTimeout(resolve, 500);
+      });
+    }
 
-    let cumulativeTime = getLineDuration(transcript[0].text);
-
-    // Schedule each line transition
-    transcript.slice(1).forEach((line, index) => {
-      const timeout = setTimeout(() => {
-        setCurrentLineIndex(index + 1);
-        // Auto-scroll to current line
-        if (transcriptRef.current) {
-          const lineElement = transcriptRef.current.children[index + 1] as HTMLElement;
-          if (lineElement) {
-            lineElement.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-        }
-      }, cumulativeTime);
+    // Play each line sequentially
+    for (let i = 0; i < transcript.length; i++) {
+      if (!isPlaying && i > 0) break; // Check if stopped (but allow first iteration)
       
-      timeoutRefs.current.push(timeout);
-      cumulativeTime += getLineDuration(line.text);
-    });
+      setCurrentLineIndex(i);
+      
+      // Auto-scroll transcript if visible
+      if (transcriptRef.current && showTranscript) {
+        const lineElement = transcriptRef.current.children[i] as HTMLElement;
+        if (lineElement) {
+          lineElement.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }
+      
+      await speakLine(transcript[i].text, transcript[i].speaker === "aivia");
+      
+      // Small pause between lines
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
 
-    // Schedule end of playback
-    const endTimeout = setTimeout(() => {
-      setIsPlaying(false);
-      setCurrentLineIndex(-1);
-    }, cumulativeTime);
-    
-    timeoutRefs.current.push(endTimeout);
+    setIsPlaying(false);
+    setCurrentLineIndex(-1);
   };
 
   const stopPlayback = () => {
+    window.speechSynthesis.cancel();
     timeoutRefs.current.forEach(clearTimeout);
     timeoutRefs.current = [];
     setIsPlaying(false);
@@ -135,7 +173,7 @@ export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallP
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Controls */}
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           {!isPlaying ? (
             <Button
               onClick={startPlayback}
@@ -154,41 +192,51 @@ export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallP
               Stop
             </Button>
           )}
-        </div>
 
-        {/* Transcript Display */}
-        <div 
-          ref={transcriptRef}
-          className="max-h-48 overflow-y-auto border-2 border-foreground p-3 space-y-2 bg-muted/50"
-        >
-          {transcript.map((line, index) => (
-            <div
-              key={index}
-              className={`flex gap-2 p-2 rounded transition-all duration-300 ${
-                index === currentLineIndex 
-                  ? "bg-foreground text-background" 
-                  : index < currentLineIndex 
-                    ? "opacity-50" 
-                    : "opacity-30"
-              }`}
-            >
-              <span className={`font-bold text-xs uppercase min-w-[70px] ${
-                line.speaker === "aivia" ? "" : "text-muted-foreground"
-              }`}>
-                {line.speaker === "aivia" ? "🤖 AIVIA" : "👤 Customer"}
-              </span>
-              <span className="text-sm">{line.text}</span>
+          {/* Playing indicator */}
+          {isPlaying && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Phone className="h-4 w-4 animate-pulse" />
+              <span>Playing call...</span>
             </div>
-          ))}
+          )}
         </div>
 
-        {/* Playing indicator */}
-        {isPlaying && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Phone className="h-4 w-4 animate-pulse" />
-            <span>Simulating call...</span>
-          </div>
-        )}
+        {/* Collapsible Transcript */}
+        <Collapsible open={showTranscript} onOpenChange={setShowTranscript}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="gap-2 p-0 h-auto text-muted-foreground hover:text-foreground">
+              {showTranscript ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {showTranscript ? "Hide Transcript" : "Show Transcript"}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-3">
+            <div 
+              ref={transcriptRef}
+              className="max-h-48 overflow-y-auto border-2 border-foreground p-3 space-y-2 bg-muted/50"
+            >
+              {transcript.map((line, index) => (
+                <div
+                  key={index}
+                  className={`flex gap-2 p-2 rounded transition-all duration-300 ${
+                    index === currentLineIndex 
+                      ? "bg-foreground text-background" 
+                      : index < currentLineIndex 
+                        ? "opacity-50" 
+                        : "opacity-70"
+                  }`}
+                >
+                  <span className={`font-bold text-xs uppercase min-w-[70px] ${
+                    line.speaker === "aivia" ? "" : "text-muted-foreground"
+                  }`}>
+                    {line.speaker === "aivia" ? "🤖 AIVIA" : "👤 Customer"}
+                  </span>
+                  <span className="text-sm">{line.text}</span>
+                </div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </CardContent>
     </Card>
   );
