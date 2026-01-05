@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,80 +47,11 @@ const DEMO_SCRIPTS = {
   ],
 };
 
-// ElevenLabs voice IDs
+// ElevenLabs voice IDs - Using high-quality voices
 const ELEVENLABS_VOICES = {
   aivia: "EXAVITQu4vr4xnSDxMaL", // Sarah - warm, professional
   customer: "cgSgspJ2msm6clMCkdW9", // Jessica - natural, friendly
 };
-
-// Generate silence MP3 (simple approach - very short silent MP3 frame)
-function createSilence(durationMs: number): Uint8Array {
-  // For simplicity, we'll create multiple copies of a minimal silent MP3 frame
-  // Each frame is ~26ms at 128kbps
-  const framesNeeded = Math.ceil(durationMs / 26);
-  
-  // Minimal MP3 frame (silent, 128kbps, 44100Hz, stereo)
-  const silentFrame = new Uint8Array([
-    0xFF, 0xFB, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00
-  ]);
-  
-  const result = new Uint8Array(silentFrame.length * framesNeeded);
-  for (let i = 0; i < framesNeeded; i++) {
-    result.set(silentFrame, i * silentFrame.length);
-  }
-  return result;
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -158,20 +88,19 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const script = DEMO_SCRIPTS[scenario as keyof typeof DEMO_SCRIPTS];
-    const audioSegments: Uint8Array[] = [];
-    const timingData: { speaker: string; text: string; startMs: number; endMs: number }[] = [];
-    let currentTimeMs = 0;
+    
+    console.log(`Generating ${scenario} demo with ${script.length} lines...`);
 
-    console.log(`Generating ${scenario} demo with ${script.length} lines using ElevenLabs...`);
+    // Generate and upload each line as a separate audio file
+    const audioFiles: { index: number; speaker: string; text: string; fileName: string; url: string }[] = [];
 
-    // Generate audio for each line using ElevenLabs
     for (let i = 0; i < script.length; i++) {
       const line = script[i];
       const voiceId = line.speaker === "aivia" 
         ? ELEVENLABS_VOICES.aivia 
         : ELEVENLABS_VOICES.customer;
       
-      console.log(`[${i + 1}/${script.length}] Generating: [${line.speaker}] "${line.text.substring(0, 40)}..." with voice: ${voiceId}`);
+      console.log(`[${i + 1}/${script.length}] Generating: [${line.speaker}] "${line.text.substring(0, 40)}..."`);
 
       const response = await fetch(
         `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
@@ -183,11 +112,11 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             text: line.text,
-            model_id: "eleven_turbo_v2_5",
+            model_id: "eleven_multilingual_v2",
             voice_settings: {
               stability: 0.5,
-              similarity_boost: 0.75,
-              style: 0.3,
+              similarity_boost: 0.8,
+              style: 0.2,
               use_speaker_boost: true,
             },
           }),
@@ -196,97 +125,83 @@ serve(async (req) => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`ElevenLabs error: ${errorText}`);
+        console.error(`ElevenLabs error for line ${i}: ${errorText}`);
         throw new Error(`Failed to generate audio for line ${i + 1}: ${errorText}`);
       }
 
       const audioBuffer = await response.arrayBuffer();
       const audioData = new Uint8Array(audioBuffer);
       
-      // Estimate audio duration based on text length (rough estimate: 100ms per character for speech)
-      const estimatedDurationMs = Math.max(1000, line.text.length * 65);
+      // Upload each line as a separate file
+      const fileName = `demo-${scenario}-line-${String(i).padStart(2, '0')}.mp3`;
       
-      // Record timing
-      const startMs = currentTimeMs;
-      timingData.push({
+      const { error: uploadError } = await supabase.storage
+        .from("demo-audio")
+        .upload(fileName, audioData, {
+          contentType: "audio/mpeg",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error(`Upload error for line ${i}:`, uploadError);
+        throw new Error(`Failed to upload line ${i}: ${uploadError.message}`);
+      }
+
+      const { data: urlData } = supabase.storage
+        .from("demo-audio")
+        .getPublicUrl(fileName);
+
+      audioFiles.push({
+        index: i,
         speaker: line.speaker,
         text: line.text,
-        startMs: startMs,
-        endMs: startMs + estimatedDurationMs,
-      });
-      
-      audioSegments.push(audioData);
-      currentTimeMs += estimatedDurationMs;
-
-      // Add pause between lines (400ms)
-      if (i < script.length - 1) {
-        const silence = createSilence(400);
-        audioSegments.push(silence);
-        currentTimeMs += 400;
-      }
-    }
-
-    // Combine all audio segments
-    const totalLength = audioSegments.reduce((acc, buf) => acc + buf.length, 0);
-    const combined = new Uint8Array(totalLength);
-    let offset = 0;
-    
-    for (const segment of audioSegments) {
-      combined.set(segment, offset);
-      offset += segment.length;
-    }
-
-    console.log(`Combined audio size: ${(totalLength / 1024).toFixed(1)}KB`);
-
-    // Upload audio to storage
-    const audioFileName = `demo-${scenario}.mp3`;
-    const { error: uploadError } = await supabase.storage
-      .from("demo-audio")
-      .upload(audioFileName, combined, {
-        contentType: "audio/mpeg",
-        upsert: true,
+        fileName,
+        url: urlData.publicUrl,
       });
 
-    if (uploadError) {
-      console.error("Storage upload error:", uploadError);
-      throw new Error(`Failed to upload audio: ${uploadError.message}`);
+      console.log(`Uploaded line ${i + 1}: ${fileName}`);
     }
 
-    // Upload timing metadata
-    const timingFileName = `demo-${scenario}-timing.json`;
-    const timingJson = JSON.stringify({
+    // Create manifest with all audio files
+    const manifest = {
       scenario,
-      totalDurationMs: currentTimeMs,
-      lines: timingData,
-    }, null, 2);
-    
-    const { error: timingUploadError } = await supabase.storage
+      version: 2,
+      generatedAt: new Date().toISOString(),
+      linesCount: script.length,
+      pauseBetweenLinesMs: 500,
+      lines: audioFiles.map((f, idx) => ({
+        index: idx,
+        speaker: f.speaker,
+        text: f.text,
+        audioUrl: f.url,
+      })),
+    };
+
+    // Upload manifest
+    const manifestFileName = `demo-${scenario}-manifest.json`;
+    const { error: manifestUploadError } = await supabase.storage
       .from("demo-audio")
-      .upload(timingFileName, new TextEncoder().encode(timingJson), {
+      .upload(manifestFileName, new TextEncoder().encode(JSON.stringify(manifest, null, 2)), {
         contentType: "application/json",
         upsert: true,
       });
 
-    if (timingUploadError) {
-      console.error("Timing upload error:", timingUploadError);
-      // Non-fatal, continue
+    if (manifestUploadError) {
+      console.error("Manifest upload error:", manifestUploadError);
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
+    const { data: manifestUrlData } = supabase.storage
       .from("demo-audio")
-      .getPublicUrl(audioFileName);
+      .getPublicUrl(manifestFileName);
 
-    console.log(`Successfully generated and uploaded ${scenario} demo: ${urlData.publicUrl}`);
+    console.log(`Successfully generated ${scenario} demo with ${audioFiles.length} audio files`);
 
     return new Response(
       JSON.stringify({
         success: true,
         scenario,
-        audioUrl: urlData.publicUrl,
-        linesCount: script.length,
-        totalDurationMs: currentTimeMs,
-        sizeKb: (totalLength / 1024).toFixed(1),
+        manifestUrl: manifestUrlData.publicUrl,
+        linesCount: audioFiles.length,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
