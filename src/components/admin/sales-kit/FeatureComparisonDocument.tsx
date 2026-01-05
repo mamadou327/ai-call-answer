@@ -25,172 +25,181 @@ const loadImageAsBase64 = (src: string): Promise<string> => {
   });
 };
 
+export const generateFeatureComparisonPdf = async () => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Header: white background, black title, logo top-left
+  const headerHeight = 18;
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageWidth, headerHeight, "F");
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5);
+  doc.line(0, headerHeight, pageWidth, headerHeight);
+
+  // Add logo (with fallback)
+  try {
+    const logoData = await loadImageAsBase64(aiviaLogo);
+    doc.addImage(logoData, "PNG", 8, 2, 14, 14);
+  } catch (e) {
+    // Continue without logo if it fails
+  }
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.text("FEATURE COMPARISON", pageWidth / 2, 12, { align: "center" });
+
+  // Subtitle
+  doc.setTextColor(80, 80, 80);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text("See how AIVIA compares to traditional alternatives", pageWidth / 2, 28, { align: "center" });
+
+  // Main comparison table - using autoTable plugin
+  const tableData = [
+    ["24/7 Availability", "YES", "NO (9-5 only)", "YES"],
+    ["Books Appointments", "YES (Instant)", "YES (Manual)", "NO"],
+    ["Remembers Customers", "YES", "Sometimes", "NO"],
+    ["Handles Group Bookings", "YES", "YES", "NO"],
+    ["SMS Confirmations", "YES (Auto)", "Manual", "NO"],
+    ["Multiple Languages", "YES", "Limited", "NO"],
+    ["Sick Days / Holidays", "None", "Yes", "N/A"],
+    ["Training Required", "None", "Weeks", "N/A"],
+    ["Scales with Business", "Unlimited", "Limited", "N/A"],
+    ["Call Transcripts", "YES (Every call)", "Manual notes", "NO"],
+  ];
+
+  autoTable(doc, {
+    startY: 35,
+    head: [["Feature", "AIVIA", "Receptionist", "Voicemail"]],
+    body: tableData,
+    headStyles: {
+      fillColor: [255, 255, 255],
+      textColor: [0, 0, 0],
+      fontSize: 9,
+      fontStyle: "bold",
+      lineWidth: 0.5,
+      lineColor: [0, 0, 0],
+    },
+    bodyStyles: {
+      fontSize: 8,
+      lineColor: [180, 180, 180],
+      lineWidth: 0.3,
+      textColor: [40, 40, 40],
+    },
+    columnStyles: {
+      0: { cellWidth: 50, fontStyle: "bold" },
+      1: { cellWidth: 35, halign: "center" },
+      2: { cellWidth: 40, halign: "center" },
+      3: { cellWidth: 35, halign: "center" },
+    },
+    alternateRowStyles: {
+      fillColor: [250, 250, 250],
+    },
+    tableLineColor: [180, 180, 180],
+    tableLineWidth: 0.3,
+    styles: {
+      cellPadding: 3,
+    },
+  });
+
+  // Cost comparison section
+  const tableEndY = (doc as any).lastAutoTable?.finalY || 150;
+  const finalY = tableEndY + 12;
+
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text("ANNUAL COST COMPARISON", 20, finalY);
+
+  // Simple underline
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5);
+  doc.line(20, finalY + 2, 90, finalY + 2);
+
+  autoTable(doc, {
+    startY: finalY + 6,
+    head: [["Option", "Annual Cost", "Hidden Costs"]],
+    body: [
+      ["AIVIA", "~£1,000/year", "None"],
+      ["Part-time Receptionist", "£10,000+/year", "NI, training, cover"],
+      ["Full-time Receptionist", "£20,000+/year", "NI, training, sick pay"],
+      ["Missed Calls (doing nothing)", "£0", "Lost: £5,000-20,000+"],
+    ],
+    headStyles: {
+      fillColor: [255, 255, 255],
+      textColor: [0, 0, 0],
+      fontSize: 9,
+      fontStyle: "bold",
+      lineWidth: 0.5,
+      lineColor: [0, 0, 0],
+    },
+    bodyStyles: {
+      fontSize: 8,
+      lineColor: [180, 180, 180],
+      lineWidth: 0.3,
+      textColor: [40, 40, 40],
+    },
+    alternateRowStyles: {
+      fillColor: [250, 250, 250],
+    },
+    tableLineColor: [180, 180, 180],
+    tableLineWidth: 0.3,
+    styles: {
+      cellPadding: 3,
+    },
+  });
+
+  // Key differentiators - white box with thin border
+  const costTableEndY = (doc as any).lastAutoTable?.finalY || 200;
+  const costTableY = costTableEndY + 10;
+
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5);
+  doc.rect(15, costTableY, pageWidth - 30, 38, "S");
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text("KEY AIVIA DIFFERENTIATORS", 20, costTableY + 8);
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(50, 50, 50);
+
+  const differentiators = [
+    "  - Zero-latency AI - Real-time conversations with no awkward pauses",
+    "  - Never calls in sick, never takes holidays, never needs a break",
+    "  - Remembers every customer interaction and preference",
+    "  - Scales instantly - handles 1 or 100 calls simultaneously",
+  ];
+
+  let yPos = costTableY + 16;
+  differentiators.forEach((diff) => {
+    doc.text(diff, 20, yPos);
+    yPos += 6;
+  });
+
+  // Clean footer - just text, no black bar
+  doc.setTextColor(100, 100, 100);
+  doc.setFontSize(9);
+  doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
+
+  doc.save("AIVIA-Feature-Comparison.pdf");
+};
+
 export const FeatureComparisonDocument = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const generatePDF = async () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Slim header strip
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageWidth, 18, "F");
-    
-    // Add logo (with fallback)
-    try {
-      const logoData = await loadImageAsBase64(aiviaLogo);
-      doc.addImage(logoData, "PNG", 8, 2, 14, 14);
-    } catch (e) {
-      // Continue without logo if it fails
-    }
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("FEATURE COMPARISON", pageWidth / 2 + 5, 12, { align: "center" });
-    
-    // Subtitle
-    doc.setTextColor(80, 80, 80);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("See how AIVIA compares to traditional alternatives", pageWidth / 2, 28, { align: "center" });
-    
-    // Main comparison table - using autoTable plugin
-    const tableData = [
-      ["24/7 Availability", "YES", "NO (9-5 only)", "YES"],
-      ["Books Appointments", "YES (Instant)", "YES (Manual)", "NO"],
-      ["Remembers Customers", "YES", "Sometimes", "NO"],
-      ["Handles Group Bookings", "YES", "YES", "NO"],
-      ["SMS Confirmations", "YES (Auto)", "Manual", "NO"],
-      ["Multiple Languages", "YES", "Limited", "NO"],
-      ["Sick Days / Holidays", "None", "Yes", "N/A"],
-      ["Training Required", "None", "Weeks", "N/A"],
-      ["Scales with Business", "Unlimited", "Limited", "N/A"],
-      ["Call Transcripts", "YES (Every call)", "Manual notes", "NO"],
-    ];
-    
-    autoTable(doc, {
-      startY: 35,
-      head: [["Feature", "AIVIA", "Receptionist", "Voicemail"]],
-      body: tableData,
-      headStyles: {
-        fillColor: [255, 255, 255],
-        textColor: [0, 0, 0],
-        fontSize: 9,
-        fontStyle: "bold",
-        lineWidth: 0.5,
-        lineColor: [0, 0, 0],
-      },
-      bodyStyles: {
-        fontSize: 8,
-        lineColor: [180, 180, 180],
-        lineWidth: 0.3,
-        textColor: [40, 40, 40],
-      },
-      columnStyles: {
-        0: { cellWidth: 50, fontStyle: "bold" },
-        1: { cellWidth: 35, halign: "center" },
-        2: { cellWidth: 40, halign: "center" },
-        3: { cellWidth: 35, halign: "center" },
-      },
-      alternateRowStyles: {
-        fillColor: [250, 250, 250],
-      },
-      tableLineColor: [180, 180, 180],
-      tableLineWidth: 0.3,
-      styles: {
-        cellPadding: 3,
-      },
-    });
-    
-    // Cost comparison section
-    const tableEndY = (doc as any).lastAutoTable?.finalY || 150;
-    const finalY = tableEndY + 12;
-    
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("ANNUAL COST COMPARISON", 20, finalY);
-    
-    // Simple underline
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.5);
-    doc.line(20, finalY + 2, 90, finalY + 2);
-    
-    autoTable(doc, {
-      startY: finalY + 6,
-      head: [["Option", "Annual Cost", "Hidden Costs"]],
-      body: [
-        ["AIVIA", "~£1,000/year", "None"],
-        ["Part-time Receptionist", "£10,000+/year", "NI, training, cover"],
-        ["Full-time Receptionist", "£20,000+/year", "NI, training, sick pay"],
-        ["Missed Calls (doing nothing)", "£0", "Lost: £5,000-20,000+"],
-      ],
-      headStyles: {
-        fillColor: [255, 255, 255],
-        textColor: [0, 0, 0],
-        fontSize: 9,
-        fontStyle: "bold",
-        lineWidth: 0.5,
-        lineColor: [0, 0, 0],
-      },
-      bodyStyles: {
-        fontSize: 8,
-        lineColor: [180, 180, 180],
-        lineWidth: 0.3,
-        textColor: [40, 40, 40],
-      },
-      alternateRowStyles: {
-        fillColor: [250, 250, 250],
-      },
-      tableLineColor: [180, 180, 180],
-      tableLineWidth: 0.3,
-      styles: {
-        cellPadding: 3,
-      },
-    });
-    
-    // Key differentiators - white box with thin border
-    const costTableEndY = (doc as any).lastAutoTable?.finalY || 200;
-    const costTableY = costTableEndY + 10;
-    
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.5);
-    doc.rect(15, costTableY, pageWidth - 30, 38, "S");
-    
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("KEY AIVIA DIFFERENTIATORS", 20, costTableY + 8);
-    
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(50, 50, 50);
-    
-    const differentiators = [
-      "  - Zero-latency AI - Real-time conversations with no awkward pauses",
-      "  - Never calls in sick, never takes holidays, never needs a break",
-      "  - Remembers every customer interaction and preference",
-      "  - Scales instantly - handles 1 or 100 calls simultaneously",
-    ];
-    
-    let yPos = costTableY + 16;
-    differentiators.forEach(diff => {
-      doc.text(diff, 20, yPos);
-      yPos += 6;
-    });
-    
-    // Clean footer - just text, no black bar
-    doc.setTextColor(100, 100, 100);
-    doc.setFontSize(9);
-    doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
-    
-    doc.save("AIVIA-Feature-Comparison.pdf");
+  const generatePDF = () => {
+    void generateFeatureComparisonPdf();
   };
 
   const handlePrint = () => {
     window.print();
   };
+
 
   const comparisonData = [
     { feature: "24/7 Availability", aivia: true, receptionist: false, voicemail: true },

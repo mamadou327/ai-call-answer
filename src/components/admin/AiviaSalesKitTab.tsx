@@ -1,111 +1,20 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, Sparkles } from "lucide-react";
-import { SalesPitchDocument } from "./sales-kit/SalesPitchDocument";
-import { HowItWorksDocument } from "./sales-kit/HowItWorksDocument";
-import { FeatureComparisonDocument } from "./sales-kit/FeatureComparisonDocument";
-import { ROICalculatorDocument } from "./sales-kit/ROICalculatorDocument";
-import { DemoScriptDocument } from "./sales-kit/DemoScriptDocument";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { SalesPitchDocument, generateSalesPitchPdf } from "./sales-kit/SalesPitchDocument";
+import { HowItWorksDocument, generateHowItWorksPdf } from "./sales-kit/HowItWorksDocument";
+import { FeatureComparisonDocument, generateFeatureComparisonPdf } from "./sales-kit/FeatureComparisonDocument";
+import { ROICalculatorDocument, generateROICalculatorPdf } from "./sales-kit/ROICalculatorDocument";
+import { DemoScriptDocument, generateDemoScriptPdf } from "./sales-kit/DemoScriptDocument";
 
 export const AiviaSalesKitTab = () => {
   const downloadAllPDFs = () => {
-    // Generate all PDFs one by one
-    // Sales Pitch
-    generateSalesPitchPDF();
-    setTimeout(() => generateHowItWorksPDF(), 500);
-    setTimeout(() => generateFeatureComparisonPDF(), 1000);
-    setTimeout(() => generateROICalculatorPDF(), 1500);
-    setTimeout(() => generateDemoScriptPDF(), 2000);
-  };
-
-  const generateSalesPitchPDF = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Black header
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageWidth, 40, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(28);
-    doc.setFont("helvetica", "bold");
-    doc.text("AIVIA", pageWidth / 2, 20, { align: "center" });
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "normal");
-    doc.text("AI Voice Assistant for Businesses", pageWidth / 2, 30, { align: "center" });
-    
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.text("NEVER MISS ANOTHER BOOKING", pageWidth / 2, 60, { align: "center" });
-    
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(60, 60, 60);
-    doc.text("Your AI receptionist answers calls 24/7, books appointments, and remembers customers", pageWidth / 2, 70, { align: "center" });
-    
-    doc.save("AIVIA-Sales-Pitch.pdf");
-  };
-
-  const generateHowItWorksPDF = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Black header
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageWidth, 35, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.text("HOW AIVIA WORKS", pageWidth / 2, 22, { align: "center" });
-    
-    doc.save("AIVIA-How-It-Works.pdf");
-  };
-
-  const generateFeatureComparisonPDF = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Black header
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageWidth, 35, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.text("FEATURE COMPARISON", pageWidth / 2, 22, { align: "center" });
-    
-    doc.save("AIVIA-Feature-Comparison.pdf");
-  };
-
-  const generateROICalculatorPDF = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Black header
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageWidth, 35, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.text("ROI CALCULATOR", pageWidth / 2, 22, { align: "center" });
-    
-    doc.save("AIVIA-ROI-Calculator.pdf");
-  };
-
-  const generateDemoScriptPDF = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Black header
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageWidth, 35, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.text("DEMO SCRIPT GUIDE", pageWidth / 2, 22, { align: "center" });
-    
-    doc.save("AIVIA-Demo-Script.pdf");
+    // Note: multiple downloads may be throttled by the browser; we stagger them slightly.
+    void generateSalesPitchPdf();
+    setTimeout(() => void generateHowItWorksPdf(), 600);
+    setTimeout(() => void generateFeatureComparisonPdf(), 1200);
+    setTimeout(() => void generateROICalculatorPdf(), 1800);
+    setTimeout(() => void generateDemoScriptPdf(), 2400);
   };
 
   return (
