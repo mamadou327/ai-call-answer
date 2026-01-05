@@ -36,12 +36,12 @@ export const FeatureComparisonDocument = () => {
     doc.setFillColor(0, 0, 0);
     doc.rect(0, 0, pageWidth, 18, "F");
     
-    // Add logo
+    // Add logo (with fallback)
     try {
       const logoData = await loadImageAsBase64(aiviaLogo);
       doc.addImage(logoData, "PNG", 8, 2, 14, 14);
     } catch (e) {
-      console.error("Failed to load logo:", e);
+      // Continue without logo if it fails
     }
     
     doc.setTextColor(255, 255, 255);
@@ -55,22 +55,24 @@ export const FeatureComparisonDocument = () => {
     doc.setFont("helvetica", "normal");
     doc.text("See how AIVIA compares to traditional alternatives", pageWidth / 2, 28, { align: "center" });
     
-    // Main comparison table - clean design with YES/NO text
+    // Main comparison table - using autoTable plugin
+    const tableData = [
+      ["24/7 Availability", "YES", "NO (9-5 only)", "YES"],
+      ["Books Appointments", "YES (Instant)", "YES (Manual)", "NO"],
+      ["Remembers Customers", "YES", "Sometimes", "NO"],
+      ["Handles Group Bookings", "YES", "YES", "NO"],
+      ["SMS Confirmations", "YES (Auto)", "Manual", "NO"],
+      ["Multiple Languages", "YES", "Limited", "NO"],
+      ["Sick Days / Holidays", "None", "Yes", "N/A"],
+      ["Training Required", "None", "Weeks", "N/A"],
+      ["Scales with Business", "Unlimited", "Limited", "N/A"],
+      ["Call Transcripts", "YES (Every call)", "Manual notes", "NO"],
+    ];
+    
     autoTable(doc, {
       startY: 35,
       head: [["Feature", "AIVIA", "Receptionist", "Voicemail"]],
-      body: [
-        ["24/7 Availability", "YES", "NO (9-5 only)", "YES"],
-        ["Books Appointments", "YES (Instant)", "YES (Manual)", "NO"],
-        ["Remembers Customers", "YES", "Sometimes", "NO"],
-        ["Handles Group Bookings", "YES", "YES", "NO"],
-        ["SMS Confirmations", "YES (Auto)", "Manual", "NO"],
-        ["Multiple Languages", "YES", "Limited", "NO"],
-        ["Sick Days / Holidays", "None", "Yes", "N/A"],
-        ["Training Required", "None", "Weeks", "N/A"],
-        ["Scales with Business", "Unlimited", "Limited", "N/A"],
-        ["Call Transcripts", "YES (Every call)", "Manual notes", "NO"],
-      ],
+      body: tableData,
       headStyles: {
         fillColor: [255, 255, 255],
         textColor: [0, 0, 0],
@@ -102,7 +104,8 @@ export const FeatureComparisonDocument = () => {
     });
     
     // Cost comparison section
-    const finalY = (doc as any).lastAutoTable.finalY + 12;
+    const tableEndY = (doc as any).lastAutoTable?.finalY || 150;
+    const finalY = tableEndY + 12;
     
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
@@ -148,7 +151,8 @@ export const FeatureComparisonDocument = () => {
     });
     
     // Key differentiators - white box with thin border
-    const costTableY = (doc as any).lastAutoTable.finalY + 10;
+    const costTableEndY = (doc as any).lastAutoTable?.finalY || 200;
+    const costTableY = costTableEndY + 10;
     
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.5);
@@ -164,10 +168,10 @@ export const FeatureComparisonDocument = () => {
     doc.setTextColor(50, 50, 50);
     
     const differentiators = [
-      "•  Zero-latency AI - Real-time conversations with no awkward pauses",
-      "•  Never calls in sick, never takes holidays, never needs a break",
-      "•  Remembers every customer interaction and preference",
-      "•  Scales instantly - handles 1 or 100 calls simultaneously",
+      "  - Zero-latency AI - Real-time conversations with no awkward pauses",
+      "  - Never calls in sick, never takes holidays, never needs a break",
+      "  - Remembers every customer interaction and preference",
+      "  - Scales instantly - handles 1 or 100 calls simultaneously",
     ];
     
     let yPos = costTableY + 16;

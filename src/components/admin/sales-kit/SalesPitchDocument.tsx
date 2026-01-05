@@ -35,12 +35,12 @@ export const SalesPitchDocument = () => {
     doc.setFillColor(0, 0, 0);
     doc.rect(0, 0, pageWidth, 20, "F");
     
-    // Add logo
+    // Add logo (with fallback)
     try {
       const logoData = await loadImageAsBase64(aiviaLogo);
       doc.addImage(logoData, "PNG", 8, 3, 14, 14);
     } catch (e) {
-      console.error("Failed to load logo:", e);
+      // Continue without logo
     }
     
     // Title in header
@@ -111,10 +111,10 @@ export const SalesPitchDocument = () => {
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     const solutions = [
-      "•  Zero-latency real-time AI",
-      "•  Books directly into calendar",
-      "•  Remembers returning customers",
-      "•  Works 24/7/365"
+      "  - Zero-latency real-time AI",
+      "  - Books directly into calendar",
+      "  - Remembers returning customers",
+      "  - Works 24/7/365"
     ];
     yPos = boxY + 22;
     solutions.forEach(solution => {
@@ -136,8 +136,8 @@ export const SalesPitchDocument = () => {
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(60, 60, 60);
-    doc.text("AI Voice Receptionist  •  Online Booking Page  •  Customer Database", pageWidth / 2, featuresY + 17, { align: "center" });
-    doc.text("SMS Notifications  •  Dashboard & Analytics  •  Deposit Collection", pageWidth / 2, featuresY + 24, { align: "center" });
+    doc.text("AI Voice Receptionist  -  Online Booking Page  -  Customer Database", pageWidth / 2, featuresY + 17, { align: "center" });
+    doc.text("SMS Notifications  -  Dashboard & Analytics  -  Deposit Collection", pageWidth / 2, featuresY + 24, { align: "center" });
     
     // Pricing section - clean with border
     const pricingY = featuresY + 38;
