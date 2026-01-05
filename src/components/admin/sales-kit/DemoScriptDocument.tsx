@@ -24,169 +24,179 @@ const loadImageAsBase64 = (src: string): Promise<string> => {
   });
 };
 
+export const generateDemoScriptPdf = async () => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Header: white background, black title, logo top-left
+  const headerHeight = 18;
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageWidth, headerHeight, "F");
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5);
+  doc.line(0, headerHeight, pageWidth, headerHeight);
+
+  // Add logo (with fallback)
+  try {
+    const logoData = await loadImageAsBase64(aiviaLogo);
+    doc.addImage(logoData, "PNG", 8, 2, 14, 14);
+  } catch (e) {
+    // Continue without logo
+  }
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.text("DEMO SCRIPT GUIDE", pageWidth / 2, 12, { align: "center" });
+
+  // Subtitle
+  doc.setTextColor(80, 80, 80);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text("Use this script for your sales conversations", pageWidth / 2, 28, { align: "center" });
+
+  let yPos = 42;
+
+  // Opening Section
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text("15-SECOND OPENER", 20, yPos);
+  doc.setLineWidth(0.5);
+  doc.line(20, yPos + 2, 60, yPos + 2);
+
+  // Opener box - light gray background
+  yPos += 10;
+  doc.setFillColor(248, 248, 248);
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.3);
+  doc.rect(15, yPos, pageWidth - 30, 22, "FD");
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "italic");
+  doc.setTextColor(40, 40, 40);
+  const opener =
+    '"What would it mean for your business if you never missed another booking call? AIVIA is an AI receptionist that answers your phone 24/7, books appointments, and remembers your customers."';
+  const openerLines = doc.splitTextToSize(opener, pageWidth - 40);
+  doc.text(openerLines, 20, yPos + 8);
+
+  // Pain-Focused Questions
+  yPos += 32;
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text("PAIN-FOCUSED QUESTIONS", 20, yPos);
+  doc.setLineWidth(0.5);
+  doc.line(20, yPos + 2, 75, yPos + 2);
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(50, 50, 50);
+
+  const questions = [
+    '1. "How many calls do you miss while you\'re with clients?"',
+    '2. "What happens when someone calls after hours?"',
+    '3. "How much is a typical booking worth to you?"',
+    '4. "Have you calculated how much missed calls cost you?"',
+  ];
+
+  yPos += 10;
+  questions.forEach((q) => {
+    doc.text(q, 20, yPos);
+    yPos += 8;
+  });
+
+  // Wait Really Moments - white box with title badge
+  yPos += 8;
+  const momentsY = yPos;
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5);
+  doc.rect(15, momentsY, pageWidth - 30, 38, "S");
+
+  // Black title badge
+  doc.setFillColor(0, 0, 0);
+  doc.rect(20, momentsY + 4, 65, 8, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.text('"WAIT, REALLY?" MOMENTS', 23, momentsY + 9);
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(50, 50, 50);
+
+  const moments = [
+    "  - It recognizes returning customers and greets them by name",
+    "  - It can book a family of 4 with different services in one call",
+    "  - Every call is transcribed - see exactly what was said",
+    "  - Works 24/7 including bank holidays - no sick days",
+  ];
+
+  yPos = momentsY + 20;
+  moments.forEach((m) => {
+    doc.text(m, 20, yPos);
+    yPos += 7;
+  });
+
+  // Objection Handlers
+  yPos += 14;
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text("OBJECTION HANDLERS", 20, yPos);
+  doc.setLineWidth(0.5);
+  doc.line(20, yPos + 2, 68, yPos + 2);
+
+  doc.setFontSize(8);
+  doc.setTextColor(50, 50, 50);
+
+  const objections = [
+    ['"It\'s too expensive"', "Less than £3/day - one booking pays for the month"],
+    ['"Customers prefer humans"', "80% prefer immediate AI over waiting for callback"],
+    ['"What if it makes mistakes?"', "You see every transcript - and it learns your rules"],
+    ['"I\'m too busy to set it up"', "We handle everything - you just approve"],
+  ];
+
+  yPos += 10;
+  objections.forEach(([obj, resp]) => {
+    doc.setFont("helvetica", "bold");
+    doc.text(obj, 20, yPos);
+    doc.setFont("helvetica", "normal");
+    doc.text("  ->  " + resp, 20 + doc.getTextWidth(obj) + 2, yPos);
+    yPos += 10;
+  });
+
+  // Closing - simple bordered box
+  yPos += 8;
+  const closeY = yPos;
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5);
+  doc.rect(15, closeY, pageWidth - 30, 14, "S");
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(0, 0, 0);
+  doc.text('CLOSE: "Ready to stop losing bookings? Let me show you how it sounds..."', 20, closeY + 9);
+
+  // Clean footer
+  doc.setTextColor(100, 100, 100);
+  doc.setFontSize(9);
+  doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
+
+  doc.save("AIVIA-Demo-Script.pdf");
+};
+
 export const DemoScriptDocument = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const generatePDF = async () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Slim header strip
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageWidth, 18, "F");
-    
-    // Add logo (with fallback)
-    try {
-      const logoData = await loadImageAsBase64(aiviaLogo);
-      doc.addImage(logoData, "PNG", 8, 2, 14, 14);
-    } catch (e) {
-      // Continue without logo
-    }
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("DEMO SCRIPT GUIDE", pageWidth / 2 + 5, 12, { align: "center" });
-    
-    // Subtitle
-    doc.setTextColor(80, 80, 80);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("Use this script for your sales conversations", pageWidth / 2, 28, { align: "center" });
-    
-    let yPos = 42;
-    
-    // Opening Section
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("15-SECOND OPENER", 20, yPos);
-    doc.setLineWidth(0.5);
-    doc.line(20, yPos + 2, 60, yPos + 2);
-    
-    // Opener box - light gray background
-    yPos += 10;
-    doc.setFillColor(248, 248, 248);
-    doc.setDrawColor(180, 180, 180);
-    doc.setLineWidth(0.3);
-    doc.rect(15, yPos, pageWidth - 30, 22, "FD");
-    
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "italic");
-    doc.setTextColor(40, 40, 40);
-    const opener = "\"What would it mean for your business if you never missed another booking call? AIVIA is an AI receptionist that answers your phone 24/7, books appointments, and remembers your customers.\"";
-    const openerLines = doc.splitTextToSize(opener, pageWidth - 40);
-    doc.text(openerLines, 20, yPos + 8);
-    
-    // Pain-Focused Questions
-    yPos += 32;
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("PAIN-FOCUSED QUESTIONS", 20, yPos);
-    doc.setLineWidth(0.5);
-    doc.line(20, yPos + 2, 75, yPos + 2);
-    
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(50, 50, 50);
-    
-    const questions = [
-      "1. \"How many calls do you miss while you're with clients?\"",
-      "2. \"What happens when someone calls after hours?\"",
-      "3. \"How much is a typical booking worth to you?\"",
-      "4. \"Have you calculated how much missed calls cost you?\"",
-    ];
-    
-    yPos += 10;
-    questions.forEach((q) => {
-      doc.text(q, 20, yPos);
-      yPos += 8;
-    });
-    
-    // Wait Really Moments - white box with title badge
-    yPos += 8;
-    const momentsY = yPos;
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.5);
-    doc.rect(15, momentsY, pageWidth - 30, 38, "S");
-    
-    // Black title badge
-    doc.setFillColor(0, 0, 0);
-    doc.rect(20, momentsY + 4, 65, 8, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "bold");
-    doc.text("\"WAIT, REALLY?\" MOMENTS", 23, momentsY + 9);
-    
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(50, 50, 50);
-    
-    const moments = [
-      "  - It recognizes returning customers and greets them by name",
-      "  - It can book a family of 4 with different services in one call",
-      "  - Every call is transcribed - see exactly what was said",
-      "  - Works 24/7 including bank holidays - no sick days",
-    ];
-    
-    yPos = momentsY + 20;
-    moments.forEach(m => {
-      doc.text(m, 20, yPos);
-      yPos += 7;
-    });
-    
-    // Objection Handlers
-    yPos += 14;
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("OBJECTION HANDLERS", 20, yPos);
-    doc.setLineWidth(0.5);
-    doc.line(20, yPos + 2, 68, yPos + 2);
-    
-    doc.setFontSize(8);
-    doc.setTextColor(50, 50, 50);
-    
-    const objections = [
-      ["\"It's too expensive\"", "Less than £3/day - one booking pays for the month"],
-      ["\"Customers prefer humans\"", "80% prefer immediate AI over waiting for callback"],
-      ["\"What if it makes mistakes?\"", "You see every transcript - and it learns your rules"],
-      ["\"I'm too busy to set it up\"", "We handle everything - you just approve"],
-    ];
-    
-    yPos += 10;
-    objections.forEach(([obj, resp]) => {
-      doc.setFont("helvetica", "bold");
-      doc.text(obj, 20, yPos);
-      doc.setFont("helvetica", "normal");
-      doc.text("  ->  " + resp, 20 + doc.getTextWidth(obj) + 2, yPos);
-      yPos += 10;
-    });
-    
-    // Closing - simple bordered box
-    yPos += 8;
-    const closeY = yPos;
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.5);
-    doc.rect(15, closeY, pageWidth - 30, 14, "S");
-    
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-    doc.text("CLOSE: \"Ready to stop losing bookings? Let me show you how it sounds...\"", 20, closeY + 9);
-    
-    // Clean footer
-    doc.setTextColor(100, 100, 100);
-    doc.setFontSize(9);
-    doc.text("www.aiviaapp.co.uk  |  hello@aiviaapp.co.uk", pageWidth / 2, 288, { align: "center" });
-    
-    doc.save("AIVIA-Demo-Script.pdf");
+  const generatePDF = () => {
+    void generateDemoScriptPdf();
   };
 
   const handlePrint = () => {
     window.print();
   };
+
 
   return (
     <>
