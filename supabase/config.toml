@@ -3,6 +3,9 @@ project_id = "zyqzypyncugihrawhppg"
 [functions.generate-demo-call]
 verify_jwt = true
 
+[functions.generate-demo-audio]
+verify_jwt = true
+
 [functions.twilio-voice-webhook]
 verify_jwt = false
 

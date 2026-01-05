@@ -2,11 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Play, Square, Calendar, RefreshCw, X, Phone, ChevronDown, ChevronUp } from "lucide-react";
+import { Play, Square, Calendar, RefreshCw, X, Phone, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
 
 interface TranscriptLine {
   speaker: "aivia" | "customer";
   text: string;
+  startMs?: number;
+  endMs?: number;
 }
 
 interface DemoCallPlayerProps {
@@ -14,11 +16,13 @@ interface DemoCallPlayerProps {
   title: string;
   description: string;
   icon: React.ReactNode;
+  audioUrl?: string | null;
+  timingData?: TranscriptLine[] | null;
 }
 
 const VOICE_NAME = "Coral";
 
-// Pre-defined scripts for instant playback
+// Fallback scripts for transcript display when no timing data
 const DEMO_SCRIPTS: Record<string, TranscriptLine[]> = {
   booking: [
     { speaker: "aivia", text: `Hi, thanks for calling Bella's Beauty Salon! I'm ${VOICE_NAME}, your AI assistant. How can I help you today?` },
@@ -57,119 +61,164 @@ const DEMO_SCRIPTS: Record<string, TranscriptLine[]> = {
   ],
 };
 
-export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallPlayerProps) => {
+export const DemoCallPlayer = ({ scenario, title, description, icon, audioUrl, timingData }: DemoCallPlayerProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentLineIndex, setCurrentLineIndex] = useState(-1);
   const [showTranscript, setShowTranscript] = useState(false);
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
-  const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const stoppedRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
-  const transcript = DEMO_SCRIPTS[scenario] || [];
+  // Use timing data if available, otherwise fallback to static scripts
+  const transcript = timingData || DEMO_SCRIPTS[scenario] || [];
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      timeoutRefs.current.forEach(clearTimeout);
-      window.speechSynthesis.cancel();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
     };
   }, []);
 
-  const speakLine = (text: string, isAivia: boolean): Promise<void> => {
-    return new Promise((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(text);
-      speechSynthRef.current = utterance;
-      
-      // Get available voices
-      const voices = window.speechSynthesis.getVoices();
-      
-      // Try to find different voices for AIVIA vs Customer
-      if (isAivia) {
-        // Female voice for AIVIA
-        const femaleVoice = voices.find(v => 
-          v.name.includes("Female") || 
-          v.name.includes("Samantha") || 
-          v.name.includes("Karen") ||
-          v.name.includes("Victoria") ||
-          v.name.includes("Google UK English Female")
-        );
-        if (femaleVoice) utterance.voice = femaleVoice;
-        utterance.pitch = 1.1;
-        utterance.rate = 1.0;
-      } else {
-        // Different voice for customer
-        const maleVoice = voices.find(v => 
-          v.name.includes("Male") || 
-          v.name.includes("Daniel") || 
-          v.name.includes("Alex") ||
-          v.name.includes("Google UK English Male")
-        );
-        if (maleVoice) utterance.voice = maleVoice;
-        utterance.pitch = 0.9;
-        utterance.rate = 0.95;
+  // Sync transcript with audio playback
+  const updateTranscriptPosition = () => {
+    if (!audioRef.current || !timingData) return;
+    
+    const currentTimeMs = audioRef.current.currentTime * 1000;
+    
+    // Find which line is currently playing
+    let activeIndex = -1;
+    for (let i = 0; i < timingData.length; i++) {
+      const line = timingData[i];
+      if (line.startMs !== undefined && line.endMs !== undefined) {
+        if (currentTimeMs >= line.startMs && currentTimeMs < line.endMs) {
+          activeIndex = i;
+          break;
+        }
+        // If we're past this line but before the next one, show this line
+        if (currentTimeMs >= line.startMs && (i === timingData.length - 1 || currentTimeMs < (timingData[i + 1]?.startMs || Infinity))) {
+          activeIndex = i;
+        }
       }
-
-      utterance.onend = () => resolve();
-      utterance.onerror = () => resolve();
-      
-      window.speechSynthesis.speak(utterance);
-    });
-  };
-
-  const playAllLines = async () => {
-    // Ensure voices are loaded
-    if (window.speechSynthesis.getVoices().length === 0) {
-      await new Promise<void>(resolve => {
-        window.speechSynthesis.onvoiceschanged = () => resolve();
-        setTimeout(resolve, 500);
-      });
     }
-
-    // Play each line sequentially
-    for (let i = 0; i < transcript.length; i++) {
-      // Check if we should stop
-      if (stoppedRef.current) break;
+    
+    if (activeIndex !== currentLineIndex && activeIndex >= 0) {
+      setCurrentLineIndex(activeIndex);
       
-      setCurrentLineIndex(i);
-      
-      // Auto-scroll transcript if visible
+      // Auto-scroll transcript
       if (transcriptRef.current) {
-        const lineElement = transcriptRef.current.children[i] as HTMLElement;
+        const lineElement = transcriptRef.current.children[activeIndex] as HTMLElement;
         if (lineElement) {
           lineElement.scrollIntoView({ behavior: "smooth", block: "center" });
         }
       }
-      
-      await speakLine(transcript[i].text, transcript[i].speaker === "aivia");
-      
-      // Small pause between lines
-      if (!stoppedRef.current) {
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
     }
+    
+    // Continue updating while playing
+    if (isPlaying && audioRef.current && !audioRef.current.paused) {
+      animationFrameRef.current = requestAnimationFrame(updateTranscriptPosition);
+    }
+  };
 
-    if (!stoppedRef.current) {
-      setIsPlaying(false);
-      setCurrentLineIndex(-1);
-    }
+  // Simple fallback: estimate timing based on text length
+  const estimateLineTimings = (): TranscriptLine[] => {
+    const lines = DEMO_SCRIPTS[scenario] || [];
+    let currentTime = 0;
+    
+    return lines.map(line => {
+      const duration = Math.max(1000, line.text.length * 65); // ~65ms per character
+      const result = {
+        ...line,
+        startMs: currentTime,
+        endMs: currentTime + duration,
+      };
+      currentTime += duration + 400; // Add pause between lines
+      return result;
+    });
   };
 
   const startPlayback = () => {
-    stoppedRef.current = false;
+    if (!audioUrl) return;
+    
+    // Create audio element if not exists
+    if (!audioRef.current) {
+      audioRef.current = new Audio(audioUrl);
+    }
+    
     setIsPlaying(true);
     setCurrentLineIndex(0);
-    playAllLines();
+    
+    audioRef.current.currentTime = 0;
+    audioRef.current.play();
+    
+    // Start transcript syncing
+    if (timingData) {
+      animationFrameRef.current = requestAnimationFrame(updateTranscriptPosition);
+    } else {
+      // Fallback: estimate timings and sync manually
+      const estimatedTimings = estimateLineTimings();
+      let lineIndex = 0;
+      
+      const interval = setInterval(() => {
+        if (!audioRef.current || audioRef.current.paused) {
+          clearInterval(interval);
+          return;
+        }
+        
+        const currentTimeMs = audioRef.current.currentTime * 1000;
+        
+        for (let i = estimatedTimings.length - 1; i >= 0; i--) {
+          if (currentTimeMs >= (estimatedTimings[i].startMs || 0)) {
+            if (i !== lineIndex) {
+              lineIndex = i;
+              setCurrentLineIndex(i);
+              
+              if (transcriptRef.current) {
+                const lineElement = transcriptRef.current.children[i] as HTMLElement;
+                if (lineElement) {
+                  lineElement.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+              }
+            }
+            break;
+          }
+        }
+      }, 100);
+      
+      audioRef.current.onended = () => {
+        clearInterval(interval);
+        setIsPlaying(false);
+        setCurrentLineIndex(-1);
+      };
+    }
+    
+    audioRef.current.onended = () => {
+      setIsPlaying(false);
+      setCurrentLineIndex(-1);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
   };
 
   const stopPlayback = () => {
-    stoppedRef.current = true;
-    window.speechSynthesis.cancel();
-    timeoutRefs.current.forEach(clearTimeout);
-    timeoutRefs.current = [];
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
     setIsPlaying(false);
     setCurrentLineIndex(-1);
   };
+
+  const hasAudio = !!audioUrl;
 
   return (
     <Card className="border-2 border-foreground">
@@ -187,7 +236,12 @@ export const DemoCallPlayer = ({ scenario, title, description, icon }: DemoCallP
       <CardContent className="space-y-4">
         {/* Controls */}
         <div className="flex items-center gap-2">
-          {!isPlaying ? (
+          {!hasAudio ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <AlertCircle className="h-4 w-4" />
+              <span>Audio not generated yet. Generate below.</span>
+            </div>
+          ) : !isPlaying ? (
             <Button
               onClick={startPlayback}
               className="gap-2 bg-foreground text-background hover:bg-foreground/90"
