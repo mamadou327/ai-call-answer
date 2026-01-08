@@ -1,15 +1,12 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Scissors, UtensilsCrossed, Store, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type BusinessType = "salon" | "restaurant_pickup" | "restaurant_dine_in" | "restaurant_hybrid";
+export type BusinessType = "salon" | "restaurant_pickup" | "restaurant_dine_in" | "restaurant_hybrid";
 
 interface BusinessTypeSelectorProps {
-  value: BusinessType;
-  onChange: (value: BusinessType) => void;
-  onNext: () => void;
-  onBack: () => void;
+  selectedType: BusinessType;
+  onSelect: (value: BusinessType) => void;
 }
 
 const businessTypes: { value: BusinessType; label: string; description: string; icon: React.ReactNode }[] = [
@@ -39,7 +36,7 @@ const businessTypes: { value: BusinessType; label: string; description: string; 
   },
 ];
 
-const BusinessTypeSelector = ({ value, onChange, onNext, onBack }: BusinessTypeSelectorProps) => {
+const BusinessTypeSelector = ({ selectedType, onSelect }: BusinessTypeSelectorProps) => {
   return (
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
@@ -54,10 +51,10 @@ const BusinessTypeSelector = ({ value, onChange, onNext, onBack }: BusinessTypeS
             <button
               key={type.value}
               type="button"
-              onClick={() => onChange(type.value)}
+              onClick={() => onSelect(type.value)}
               className={cn(
                 "flex items-center gap-4 p-4 rounded-lg border-2 text-left transition-all",
-                value === type.value
+                selectedType === type.value
                   ? "border-primary bg-primary/5"
                   : "border-border hover:border-primary/50 hover:bg-muted/50"
               )}
@@ -65,7 +62,7 @@ const BusinessTypeSelector = ({ value, onChange, onNext, onBack }: BusinessTypeS
               <div
                 className={cn(
                   "p-3 rounded-lg",
-                  value === type.value ? "bg-primary text-primary-foreground" : "bg-muted"
+                  selectedType === type.value ? "bg-primary text-primary-foreground" : "bg-muted"
                 )}
               >
                 {type.icon}
@@ -76,15 +73,6 @@ const BusinessTypeSelector = ({ value, onChange, onNext, onBack }: BusinessTypeS
               </div>
             </button>
           ))}
-        </div>
-
-        <div className="flex gap-4 pt-4">
-          <Button type="button" variant="outline" onClick={onBack} className="flex-1">
-            Back
-          </Button>
-          <Button onClick={onNext} className="flex-1">
-            Continue
-          </Button>
         </div>
       </CardContent>
     </Card>

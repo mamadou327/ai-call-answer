@@ -497,3 +497,10 @@ export function getToolsForBusinessType(businessType: BusinessType): any[] {
       return commonTools;
   }
 }
+
+// Combined function that returns both prompt and tools based on business type
+export function getSystemPromptAndTools(params: PromptBuilderParams): { prompt: string; tools: any[] } {
+  const prompt = buildSystemPromptForBusinessType(params);
+  const tools = getToolsForBusinessType(params.businessType);
+  return { prompt, tools };
+}
