@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings } from "lucide-react";
+import { LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings, Package, CalendarDays } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { useTranslation } from "react-i18next";
 import { SetupChecklist, type ChecklistItem } from "@/components/SetupChecklist";
@@ -13,6 +13,8 @@ import { MessagesTab } from "@/components/dashboard/MessagesTab";
 import { BookingsTab } from "@/components/dashboard/BookingsTab";
 import { CalendarTab } from "@/components/dashboard/CalendarTab";
 import { SettingsTab } from "@/components/dashboard/SettingsTab";
+import { OrdersTab } from "@/components/dashboard/OrdersTab";
+import { ReservationsTab } from "@/components/dashboard/ReservationsTab";
 import { AccountMenu } from "@/components/AccountMenu";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
@@ -354,10 +356,51 @@ const Dashboard = () => {
                   <LayoutDashboard className="w-4 h-4 shrink-0" />
                   <span className="hidden sm:inline truncate">{t("dashboard.title")}</span>
                 </TabsTrigger>
-                <TabsTrigger value="calendar" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
-                  <Calendar className="w-4 h-4 shrink-0" />
-                  <span className="hidden sm:inline truncate">{t("dashboard.calendar")}</span>
-                </TabsTrigger>
+
+                {/* Salon: Calendar & Bookings */}
+                {business.business_type === "salon" && (
+                  <>
+                    <TabsTrigger value="calendar" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                      <Calendar className="w-4 h-4 shrink-0" />
+                      <span className="hidden sm:inline truncate">{t("dashboard.calendar")}</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="bookings" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                      <Calendar className="w-4 h-4 shrink-0" />
+                      <span className="hidden sm:inline truncate">{t("dashboard.bookings")}</span>
+                    </TabsTrigger>
+                  </>
+                )}
+
+                {/* Pickup Restaurant: Orders */}
+                {business.business_type === "restaurant_pickup" && (
+                  <TabsTrigger value="orders" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                    <Package className="w-4 h-4 shrink-0" />
+                    <span className="hidden sm:inline truncate">Orders</span>
+                  </TabsTrigger>
+                )}
+
+                {/* Dine-in Restaurant: Reservations */}
+                {business.business_type === "restaurant_dine_in" && (
+                  <TabsTrigger value="reservations" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                    <CalendarDays className="w-4 h-4 shrink-0" />
+                    <span className="hidden sm:inline truncate">Reservations</span>
+                  </TabsTrigger>
+                )}
+
+                {/* Hybrid Restaurant: Orders & Reservations */}
+                {business.business_type === "restaurant_hybrid" && (
+                  <>
+                    <TabsTrigger value="orders" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                      <Package className="w-4 h-4 shrink-0" />
+                      <span className="hidden sm:inline truncate">Orders</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="reservations" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                      <CalendarDays className="w-4 h-4 shrink-0" />
+                      <span className="hidden sm:inline truncate">Reservations</span>
+                    </TabsTrigger>
+                  </>
+                )}
+
                 {!isStaffView && <>
                     <TabsTrigger value="calls" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
                       <PhoneCall className="w-4 h-4 shrink-0" />
@@ -368,10 +411,6 @@ const Dashboard = () => {
                       <span className="hidden sm:inline truncate">{t("dashboard.messages")}</span>
                     </TabsTrigger>
                   </>}
-                <TabsTrigger value="bookings" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
-                  <Calendar className="w-4 h-4 shrink-0" />
-                  <span className="hidden sm:inline truncate">{t("dashboard.bookings")}</span>
-                </TabsTrigger>
                 {!isStaffView && <TabsTrigger value="settings" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
                     <Settings className="w-4 h-4 shrink-0" />
                     <span className="hidden sm:inline truncate">{t("dashboard.settings")}</span>
@@ -382,9 +421,31 @@ const Dashboard = () => {
                 {business && settings && <DashboardTab businessName={business.business_name} currency={settings.currency || "GBP"} businessId={business.id} />}
               </TabsContent>
 
-              <TabsContent value="calendar">
-                <CalendarTab businessId={business.id} currency={settings?.currency || "GBP"} />
-              </TabsContent>
+              {/* Salon tabs */}
+              {business.business_type === "salon" && (
+                <>
+                  <TabsContent value="calendar">
+                    <CalendarTab businessId={business.id} currency={settings?.currency || "GBP"} />
+                  </TabsContent>
+                  <TabsContent value="bookings">
+                    <BookingsTab businessId={business.id} />
+                  </TabsContent>
+                </>
+              )}
+
+              {/* Orders tab for pickup and hybrid restaurants */}
+              {(business.business_type === "restaurant_pickup" || business.business_type === "restaurant_hybrid") && (
+                <TabsContent value="orders">
+                  <OrdersTab businessId={business.id} currency={settings?.currency || "GBP"} />
+                </TabsContent>
+              )}
+
+              {/* Reservations tab for dine-in and hybrid restaurants */}
+              {(business.business_type === "restaurant_dine_in" || business.business_type === "restaurant_hybrid") && (
+                <TabsContent value="reservations">
+                  <ReservationsTab businessId={business.id} />
+                </TabsContent>
+              )}
 
               {!isStaffView && <>
                   <TabsContent value="calls">
@@ -395,10 +456,6 @@ const Dashboard = () => {
                     <MessagesTab businessId={business.id} />
                   </TabsContent>
                 </>}
-
-              <TabsContent value="bookings">
-                <BookingsTab businessId={business.id} />
-              </TabsContent>
 
               {!isStaffView && <TabsContent value="settings">
                   <SettingsTab businessId={business.id} business={business} activeSection={activeSettingsSection} onUpdate={handleSettingsUpdate} currency={settings?.currency || "GBP"} />
