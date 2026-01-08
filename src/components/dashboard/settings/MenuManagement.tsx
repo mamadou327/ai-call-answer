@@ -53,10 +53,10 @@ interface SizeVariant {
 }
 
 const SIZE_PRESETS = [
+  { label: "Small / Large", sizes: ["Small", "Large"] },
   { label: "S / M / L", sizes: ["Small", "Medium", "Large"] },
   { label: "Regular / Large", sizes: ["Regular", "Large"] },
   { label: "Single / Double", sizes: ["Single", "Double"] },
-  { label: "6\" / 12\"", sizes: ["6 inch", "12 inch"] },
 ];
 
 const dietaryOptions = ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "Kosher", "Dairy-Free", "Nut-Free"];
@@ -84,8 +84,8 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
     preparation_time_minutes: "15",
     dietary_tags: [] as string[],
     is_available: true,
-    has_sizes: true,
-    sizes: [{ name: "", price: "", is_default: true }] as { name: string; price: string; is_default: boolean }[],
+    has_sizes: false,
+    sizes: [] as { name: string; price: string; is_default: boolean }[],
   });
   const [savingItem, setSavingItem] = useState(false);
   const [sizeQuickEntry, setSizeQuickEntry] = useState("");
@@ -298,8 +298,8 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
         preparation_time_minutes: "15",
         dietary_tags: [],
         is_available: true,
-        has_sizes: true,
-        sizes: [{ name: "", price: "", is_default: true }],
+        has_sizes: false,
+        sizes: [],
       });
     }
     setSizeQuickEntry("");
@@ -662,16 +662,44 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                   />
                 </div>
                 
-                {/* Has sizes toggle */}
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div>
-                    <Label className="text-sm font-medium">Different sizes available</Label>
-                    <p className="text-xs text-muted-foreground">e.g., Small, Medium, Large with different prices</p>
+                {/* Sizes quick-add or toggle */}
+                <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-sm font-medium">Size variants</Label>
+                      <p className="text-xs text-muted-foreground">Quick add sizes or toggle on</p>
+                    </div>
+                    <Switch
+                      checked={itemForm.has_sizes}
+                      onCheckedChange={(checked) => setItemForm({ ...itemForm, has_sizes: checked, sizes: checked && itemForm.sizes.length === 0 ? [{ name: "", price: "", is_default: true }] : (checked ? itemForm.sizes : []) })}
+                    />
                   </div>
-                  <Switch
-                    checked={itemForm.has_sizes}
-                    onCheckedChange={(checked) => setItemForm({ ...itemForm, has_sizes: checked, sizes: checked ? itemForm.sizes : [] })}
-                  />
+                  {!itemForm.has_sizes && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {SIZE_PRESETS.map((preset) => (
+                        <Button
+                          key={preset.label}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            setItemForm(prev => ({
+                              ...prev,
+                              has_sizes: true,
+                              sizes: preset.sizes.map((name, idx) => ({
+                                name,
+                                price: "",
+                                is_default: idx === 0,
+                              })),
+                            }));
+                          }}
+                        >
+                          + {preset.label}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Single price OR sizes */}
@@ -700,23 +728,7 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label>Size Variants *</Label>
-                      <div className="flex gap-1">
-                        {SIZE_PRESETS.map((preset) => (
-                          <Button
-                            key={preset.label}
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-6 text-xs px-2"
-                            onClick={() => applyPreset(preset.sizes)}
-                          >
-                            {preset.label}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
+                    <Label>Size Variants *</Label>
                     
                     {/* Size entries */}
                     <div className="space-y-2">
