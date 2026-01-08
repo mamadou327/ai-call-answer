@@ -15,10 +15,13 @@ interface AdminNotificationRequest {
   website?: string;
   address?: string;
   // For staff signups
-  signupType?: "business" | "staff";
+  signupType?: "business" | "staff" | "sms_request";
   staffName?: string;
   staffEmail?: string;
   staffBusinessName?: string;
+  // For service requests
+  businessPhone?: string;
+  requestType?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -70,6 +73,26 @@ const handler = async (req: Request): Promise<Response> => {
         
         <p>Please review this in the admin dashboard if needed.</p>
         <p><a href="https://d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com/admin" style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">Go to Admin Dashboard</a></p>
+      `;
+    } else if (signupType === "sms_request") {
+      // SMS service request notification
+      const { businessName, businessPhone, requestType } = body;
+      console.log("Sending admin notification for SMS request from:", businessName);
+
+      emailSubject = `New Service Request - ${requestType} - ${businessName}`;
+      emailHtml = `
+        <h1>New Service Request</h1>
+        <p>A business has requested a new service:</p>
+        
+        <h2>Request Details</h2>
+        <ul>
+          <li><strong>Business:</strong> ${businessName}</li>
+          <li><strong>Phone:</strong> ${businessPhone || 'Not provided'}</li>
+          <li><strong>Service Requested:</strong> ${requestType}</li>
+        </ul>
+        
+        <p>Please review this request in the admin dashboard under Service Requests.</p>
+        <p><a href="https://d72d0c2b-5279-4257-bb7b-30b62c3f3c85.lovableproject.com/admin" style="display: inline-block; padding: 12px 24px; background-color: #f97316; color: white; text-decoration: none; border-radius: 6px;">Review Service Requests</a></p>
       `;
     } else {
       // Business signup notification

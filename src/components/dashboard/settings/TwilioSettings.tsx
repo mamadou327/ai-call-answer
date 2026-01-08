@@ -121,15 +121,38 @@ export const TwilioSettings = ({ business, onUpdate }: TwilioSettingsProps) => {
 
     setRequesting(true);
     try {
-      const { error } = await supabase
+      const { data: newRequest, error } = await supabase
         .from("service_requests")
         .insert({
           business_id: business.id,
           request_type: "sms",
           message: "Requesting SMS notification service to send booking confirmations, cancellations, and reminders to customers.",
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Send admin notification email
+      try {
+        const { data: businessData } = await supabase
+          .from("businesses")
+          .select("business_name, main_phone")
+          .eq("id", business.id)
+          .single();
+
+        await supabase.functions.invoke("send-admin-notification", {
+          body: {
+            signupType: "sms_request",
+            businessName: businessData?.business_name || "Unknown Business",
+            businessPhone: businessData?.main_phone || "Not provided",
+            requestType: "SMS Notifications",
+          },
+        });
+      } catch (emailError) {
+        console.error("Error sending admin notification:", emailError);
+        // Don't fail the request if email fails
+      }
 
       toast({
         title: "Request submitted",
