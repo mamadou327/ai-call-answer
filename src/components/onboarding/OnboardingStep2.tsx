@@ -16,6 +16,7 @@ interface Props {
     address: string;
     website: string;
   };
+  businessType: string;
   updateFormData: (updates: any) => void;
   onNext: () => void;
   onBack: () => void;
@@ -24,7 +25,7 @@ interface Props {
   setBusinessId: (id: string) => void;
 }
 
-const OnboardingStep2 = ({ formData, updateFormData, onNext, onBack, userId, businessId, setBusinessId }: Props) => {
+const OnboardingStep2 = ({ formData, businessType, updateFormData, onNext, onBack, userId, businessId, setBusinessId }: Props) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [showKnowledge, setShowKnowledge] = useState(false);
@@ -43,6 +44,7 @@ const OnboardingStep2 = ({ formData, updateFormData, onNext, onBack, userId, bus
         website: formData.website || null,
         website_knowledge: formData.website ? "Mock AI has learned about your services, pricing, and business hours from your website." : null,
         staff_count: 1,
+        business_type: businessType,
       };
 
       if (businessId) {

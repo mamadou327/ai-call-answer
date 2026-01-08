@@ -221,6 +221,7 @@ const Onboarding = () => {
           return (
             <OnboardingStep2
               formData={formData}
+              businessType={businessType}
               updateFormData={updateFormData}
               onNext={handleNext}
               onBack={handleBack}
@@ -278,6 +279,7 @@ const Onboarding = () => {
         return (
           <OnboardingStep2
             formData={formData}
+            businessType={businessType}
             updateFormData={updateFormData}
             onNext={handleNext}
             onBack={handleBack}
