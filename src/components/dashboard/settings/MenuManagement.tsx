@@ -432,14 +432,14 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                 <div className="space-y-2">
                   <Label>Category</Label>
                   <Select
-                    value={itemForm.category_id}
-                    onValueChange={(value) => setItemForm({ ...itemForm, category_id: value })}
+                    value={itemForm.category_id || "none"}
+                    onValueChange={(value) => setItemForm({ ...itemForm, category_id: value === "none" ? "" : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Uncategorized</SelectItem>
+                      <SelectItem value="none">Uncategorized</SelectItem>
                       {categories.map((cat) => (
                         <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                       ))}
