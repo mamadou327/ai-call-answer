@@ -15,7 +15,7 @@ import { TwilioSettings } from "./settings/TwilioSettings";
 import { DepositSettings } from "./settings/DepositSettings";
 import { OnlineBookingSettings } from "./settings/OnlineBookingSettings";
 import { PaymentProvidersSettings } from "./settings/PaymentProvidersSettings";
-import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe, CreditCard } from "lucide-react";
+import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe, CreditCard, UtensilsCrossed, Armchair } from "lucide-react";
 
 interface SettingsTabProps {
   businessId: string;
@@ -26,6 +26,11 @@ interface SettingsTabProps {
 }
 
 export const SettingsTab = ({ businessId, business, activeSection, onUpdate, currency = "GBP" }: SettingsTabProps) => {
+  const businessType = business?.business_type || "salon";
+  const isRestaurant = businessType?.startsWith("restaurant");
+  const isPickup = businessType === "restaurant_pickup" || businessType === "restaurant_hybrid";
+  const isDineIn = businessType === "restaurant_dine_in" || businessType === "restaurant_hybrid";
+
   const mapSection = (section: string) => {
     if (["localization", "accounts"].includes(section)) {
       return "business";
@@ -42,6 +47,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
     if (["stripe", "truelayer", "payments"].includes(section)) {
       return "payments";
     }
+    // Map restaurant-specific sections
+    if (section === "menu") return "menu";
+    if (section === "tables") return "tables";
+    if (section === "orders") return "orders";
     return section;
   };
 
@@ -60,25 +69,51 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
           <FileText className="w-4 h-4" />
           <span className="hidden sm:inline">Policies</span>
         </TabsTrigger>
-        <TabsTrigger value="services" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
-          <Scissors className="w-4 h-4" />
-          <span className="hidden sm:inline">Services</span>
-        </TabsTrigger>
-        <TabsTrigger value="staff" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
-          <Users className="w-4 h-4" />
-          <span className="hidden sm:inline">Staff</span>
-        </TabsTrigger>
+        
+        {/* Salon-specific tabs */}
+        {!isRestaurant && (
+          <>
+            <TabsTrigger value="services" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+              <Scissors className="w-4 h-4" />
+              <span className="hidden sm:inline">Services</span>
+            </TabsTrigger>
+            <TabsTrigger value="staff" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Staff</span>
+            </TabsTrigger>
+          </>
+        )}
+        
+        {/* Restaurant-specific tabs */}
+        {isPickup && (
+          <TabsTrigger value="menu" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+            <UtensilsCrossed className="w-4 h-4" />
+            <span className="hidden sm:inline">Menu</span>
+          </TabsTrigger>
+        )}
+        {isDineIn && (
+          <TabsTrigger value="tables" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+            <Armchair className="w-4 h-4" />
+            <span className="hidden sm:inline">Tables</span>
+          </TabsTrigger>
+        )}
+        
         <TabsTrigger value="hours" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
           <Clock className="w-4 h-4" />
           <span className="hidden sm:inline">Hours</span>
         </TabsTrigger>
-        <TabsTrigger value="timeoff" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
-          <CalendarOff className="w-4 h-4" />
-          <span className="hidden sm:inline">Time Off</span>
-        </TabsTrigger>
+        
+        {/* Time Off only for salon */}
+        {!isRestaurant && (
+          <TabsTrigger value="timeoff" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+            <CalendarOff className="w-4 h-4" />
+            <span className="hidden sm:inline">Time Off</span>
+          </TabsTrigger>
+        )}
+        
         <TabsTrigger value="booking" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
           <Globe className="w-4 h-4" />
-          <span className="hidden sm:inline">Booking</span>
+          <span className="hidden sm:inline">{isRestaurant ? "Ordering" : "Booking"}</span>
         </TabsTrigger>
         <TabsTrigger value="customers" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
           <UserCircle className="w-4 h-4" />
@@ -111,26 +146,52 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
         <PaymentProvidersSettings business={business} onUpdate={onUpdate} currency={currency} />
       </TabsContent>
 
-      <TabsContent value="services">
-        <ServicesManagement businessId={businessId} onUpdate={onUpdate} currency={currency} />
-      </TabsContent>
+      {/* Salon-specific content */}
+      {!isRestaurant && (
+        <>
+          <TabsContent value="services">
+            <ServicesManagement businessId={businessId} onUpdate={onUpdate} currency={currency} />
+          </TabsContent>
 
-      <TabsContent value="staff" className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Staff Management</h3>
-          <StaffInviteDialog businessId={businessId} businessName={business?.business_name || ""} />
-        </div>
-        <StaffManagement businessId={businessId} businessName={business?.business_name || ""} onUpdate={onUpdate} />
-        <StaffMembershipsManagement businessId={businessId} onUpdate={onUpdate} />
-        <StaffJoinCodeSection businessId={businessId} businessName={business?.business_name || ""} />
-      </TabsContent>
+          <TabsContent value="staff" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Staff Management</h3>
+              <StaffInviteDialog businessId={businessId} businessName={business?.business_name || ""} />
+            </div>
+            <StaffManagement businessId={businessId} businessName={business?.business_name || ""} onUpdate={onUpdate} />
+            <StaffMembershipsManagement businessId={businessId} onUpdate={onUpdate} />
+            <StaffJoinCodeSection businessId={businessId} businessName={business?.business_name || ""} />
+          </TabsContent>
+
+          <TabsContent value="timeoff">
+            <TimeOffManagement businessId={businessId} onUpdate={onUpdate} />
+          </TabsContent>
+        </>
+      )}
+
+      {/* Restaurant-specific content */}
+      {isPickup && (
+        <TabsContent value="menu">
+          <div className="text-center py-12 text-muted-foreground">
+            <UtensilsCrossed className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <h3 className="text-lg font-semibold mb-2">Menu Management</h3>
+            <p>Coming soon - manage your menu items and categories here</p>
+          </div>
+        </TabsContent>
+      )}
+      
+      {isDineIn && (
+        <TabsContent value="tables">
+          <div className="text-center py-12 text-muted-foreground">
+            <Armchair className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <h3 className="text-lg font-semibold mb-2">Table Management</h3>
+            <p>Coming soon - manage your restaurant tables here</p>
+          </div>
+        </TabsContent>
+      )}
 
       <TabsContent value="hours">
         <OpeningHoursForm businessId={businessId} onUpdate={onUpdate} />
-      </TabsContent>
-
-      <TabsContent value="timeoff">
-        <TimeOffManagement businessId={businessId} onUpdate={onUpdate} />
       </TabsContent>
 
       <TabsContent value="booking">
