@@ -84,8 +84,8 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
     preparation_time_minutes: "15",
     dietary_tags: [] as string[],
     is_available: true,
-    has_sizes: false,
-    sizes: [] as { name: string; price: string; is_default: boolean }[],
+    has_sizes: true,
+    sizes: [{ name: "", price: "", is_default: true }] as { name: string; price: string; is_default: boolean }[],
   });
   const [savingItem, setSavingItem] = useState(false);
   const [sizeQuickEntry, setSizeQuickEntry] = useState("");
@@ -298,8 +298,8 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
         preparation_time_minutes: "15",
         dietary_tags: [],
         is_available: true,
-        has_sizes: false,
-        sizes: [],
+        has_sizes: true,
+        sizes: [{ name: "", price: "", is_default: true }],
       });
     }
     setSizeQuickEntry("");
