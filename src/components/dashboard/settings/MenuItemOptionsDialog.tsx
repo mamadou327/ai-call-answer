@@ -4,9 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, Pencil, Loader2, GripVertical, Settings2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Trash2, Pencil, Loader2, GripVertical, ListPlus, Settings2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -39,6 +41,14 @@ interface MenuItemOptionsDialogProps {
   onUpdate?: () => void;
 }
 
+// Preset selection types for simplified UX
+const SELECTION_PRESETS = [
+  { label: "Pick exactly 1", min: 1, max: 1, required: true },
+  { label: "Pick up to 1 (optional)", min: 0, max: 1, required: false },
+  { label: "Pick up to 3", min: 0, max: 3, required: false },
+  { label: "Pick as many as they want", min: 0, max: 10, required: false },
+];
+
 export const MenuItemOptionsDialog = ({
   open,
   onOpenChange,
@@ -58,9 +68,7 @@ export const MenuItemOptionsDialog = ({
   const [groupForm, setGroupForm] = useState({
     name: "",
     description: "",
-    is_required: false,
-    min_selections: 0,
-    max_selections: 1,
+    selectionPreset: "0", // index into SELECTION_PRESETS
   });
   const [savingGroup, setSavingGroup] = useState(false);
   
@@ -75,6 +83,12 @@ export const MenuItemOptionsDialog = ({
     is_available: true,
   });
   const [savingOption, setSavingOption] = useState(false);
+
+  // Quick entry mode
+  const [quickEntryMode, setQuickEntryMode] = useState(false);
+  const [quickEntryGroupId, setQuickEntryGroupId] = useState<string | null>(null);
+  const [quickEntryText, setQuickEntryText] = useState("");
+  const [savingQuickEntry, setSavingQuickEntry] = useState(false);
 
   const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
 
@@ -120,21 +134,21 @@ export const MenuItemOptionsDialog = ({
   const handleOpenGroupDialog = (group?: OptionGroup) => {
     if (group) {
       setEditingGroup(group);
+      // Find matching preset or default to custom
+      const presetIndex = SELECTION_PRESETS.findIndex(
+        p => p.min === group.min_selections && p.max === group.max_selections && p.required === group.is_required
+      );
       setGroupForm({
         name: group.name,
         description: group.description || "",
-        is_required: group.is_required,
-        min_selections: group.min_selections,
-        max_selections: group.max_selections,
+        selectionPreset: presetIndex >= 0 ? presetIndex.toString() : "0",
       });
     } else {
       setEditingGroup(null);
       setGroupForm({
         name: "",
         description: "",
-        is_required: false,
-        min_selections: 0,
-        max_selections: 1,
+        selectionPreset: "0", // "Pick exactly 1"
       });
     }
     setGroupDialogOpen(true);
@@ -142,9 +156,11 @@ export const MenuItemOptionsDialog = ({
 
   const handleSaveGroup = async () => {
     if (!groupForm.name.trim()) {
-      toast({ title: "Error", description: "Group name is required", variant: "destructive" });
+      toast({ title: "Error", description: "Choice name is required", variant: "destructive" });
       return;
     }
+
+    const preset = SELECTION_PRESETS[parseInt(groupForm.selectionPreset)] || SELECTION_PRESETS[0];
 
     setSavingGroup(true);
     try {
@@ -154,13 +170,13 @@ export const MenuItemOptionsDialog = ({
           .update({
             name: groupForm.name.trim(),
             description: groupForm.description.trim() || null,
-            is_required: groupForm.is_required,
-            min_selections: groupForm.min_selections,
-            max_selections: groupForm.max_selections,
+            is_required: preset.required,
+            min_selections: preset.min,
+            max_selections: preset.max,
           })
           .eq("id", editingGroup.id);
         if (error) throw error;
-        toast({ title: "Option group updated" });
+        toast({ title: "Choice updated" });
       } else {
         const { error } = await supabase
           .from("menu_item_option_groups")
@@ -168,13 +184,13 @@ export const MenuItemOptionsDialog = ({
             menu_item_id: menuItemId,
             name: groupForm.name.trim(),
             description: groupForm.description.trim() || null,
-            is_required: groupForm.is_required,
-            min_selections: groupForm.min_selections,
-            max_selections: groupForm.max_selections,
+            is_required: preset.required,
+            min_selections: preset.min,
+            max_selections: preset.max,
             display_order: optionGroups.length,
           });
         if (error) throw error;
-        toast({ title: "Option group created" });
+        toast({ title: "Choice created" });
       }
       setGroupDialogOpen(false);
       loadOptionsData();
@@ -188,7 +204,7 @@ export const MenuItemOptionsDialog = ({
   };
 
   const handleDeleteGroup = async (groupId: string) => {
-    if (!confirm("Delete this option group and all its options?")) return;
+    if (!confirm("Delete this choice and all its options?")) return;
     
     try {
       const { error } = await supabase
@@ -196,12 +212,68 @@ export const MenuItemOptionsDialog = ({
         .delete()
         .eq("id", groupId);
       if (error) throw error;
-      toast({ title: "Option group deleted" });
+      toast({ title: "Choice deleted" });
       loadOptionsData();
       onUpdate?.();
     } catch (error: any) {
       console.error("Error deleting group:", error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  // Quick entry handler - parse text and create multiple options at once
+  const handleQuickEntrySave = async () => {
+    if (!quickEntryGroupId || !quickEntryText.trim()) return;
+
+    const lines = quickEntryText.trim().split('\n').filter(line => line.trim());
+    if (lines.length === 0) {
+      toast({ title: "Error", description: "Enter at least one option", variant: "destructive" });
+      return;
+    }
+
+    setSavingQuickEntry(true);
+    try {
+      const existingOptions = options.filter(o => o.option_group_id === quickEntryGroupId);
+      const optionsToInsert = lines.map((line, index) => {
+        // Parse format: "Name" or "Name, +1.50" or "Name, -0.50"
+        const parts = line.split(',').map(p => p.trim());
+        const name = parts[0];
+        let priceAdjustment = 0;
+        
+        if (parts[1]) {
+          const priceStr = parts[1].replace(/[^0-9.-]/g, '');
+          priceAdjustment = parseFloat(priceStr) || 0;
+          if (parts[1].includes('-')) {
+            priceAdjustment = -Math.abs(priceAdjustment);
+          }
+        }
+
+        return {
+          option_group_id: quickEntryGroupId,
+          name: name,
+          price_adjustment: priceAdjustment,
+          is_default: false,
+          is_available: true,
+          display_order: existingOptions.length + index,
+        };
+      });
+
+      const { error } = await supabase
+        .from("menu_item_options")
+        .insert(optionsToInsert);
+      if (error) throw error;
+
+      toast({ title: `Added ${optionsToInsert.length} options` });
+      setQuickEntryMode(false);
+      setQuickEntryText("");
+      setQuickEntryGroupId(null);
+      loadOptionsData();
+      onUpdate?.();
+    } catch (error: any) {
+      console.error("Error saving options:", error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setSavingQuickEntry(false);
     }
   };
 
@@ -319,10 +391,10 @@ export const MenuItemOptionsDialog = ({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings2 className="w-5 h-5" />
-              Options for "{menuItemName}"
+              Choices for "{menuItemName}"
             </DialogTitle>
             <DialogDescription>
-              Configure variations like sizes, sides, or add-ons for this item
+              Add customization options like sizes, sides, or add-ons
             </DialogDescription>
           </DialogHeader>
 
@@ -334,13 +406,13 @@ export const MenuItemOptionsDialog = ({
             <div className="space-y-4 py-4">
               <Button variant="outline" size="sm" onClick={() => handleOpenGroupDialog()}>
                 <Plus className="w-4 h-4 mr-2" />
-                Add Option Group
+                Add Choice
               </Button>
 
               {optionGroups.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  <p>No option groups yet.</p>
-                  <p className="text-sm">Add groups like "Size" or "Choose Your Side"</p>
+                  <p>No choices yet.</p>
+                  <p className="text-sm">Add choices like "Size" or "Choose Your Side"</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -407,15 +479,29 @@ export const MenuItemOptionsDialog = ({
                                 </div>
                               </div>
                             ))}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="w-full h-8 text-xs mt-1"
-                              onClick={() => handleOpenOptionDialog(group.id)}
-                            >
-                              <Plus className="w-3 h-3 mr-1" />
-                              Add Option
-                            </Button>
+                            <div className="flex gap-1 mt-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="flex-1 h-8 text-xs"
+                                onClick={() => handleOpenOptionDialog(group.id)}
+                              >
+                                <Plus className="w-3 h-3 mr-1" />
+                                Add One
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="flex-1 h-8 text-xs"
+                                onClick={() => {
+                                  setQuickEntryGroupId(group.id);
+                                  setQuickEntryMode(true);
+                                }}
+                              >
+                                <ListPlus className="w-3 h-3 mr-1" />
+                                Bulk Add
+                              </Button>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -436,14 +522,14 @@ export const MenuItemOptionsDialog = ({
       <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingGroup ? "Edit Option Group" : "Add Option Group"}</DialogTitle>
+            <DialogTitle>{editingGroup ? "Edit Choice" : "Add Choice"}</DialogTitle>
             <DialogDescription>
-              Groups organize related options (e.g., "Size", "Choose Your Side")
+              A choice lets customers customize their order (e.g., "Size", "Choose Your Side")
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Group Name *</Label>
+              <Label>Choice Name *</Label>
               <Input
                 value={groupForm.name}
                 onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
@@ -451,42 +537,30 @@ export const MenuItemOptionsDialog = ({
               />
             </div>
             <div className="space-y-2">
-              <Label>Description</Label>
+              <Label>Description (optional)</Label>
               <Input
                 value={groupForm.description}
                 onChange={(e) => setGroupForm({ ...groupForm, description: e.target.value })}
-                placeholder="Optional helper text"
+                placeholder="Optional helper text for customers"
               />
             </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Required Selection</Label>
-                <p className="text-xs text-muted-foreground">Customer must choose from this group</p>
-              </div>
-              <Switch
-                checked={groupForm.is_required}
-                onCheckedChange={(checked) => setGroupForm({ ...groupForm, is_required: checked })}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Min Selections</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={groupForm.min_selections}
-                  onChange={(e) => setGroupForm({ ...groupForm, min_selections: parseInt(e.target.value) || 0 })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Max Selections</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={groupForm.max_selections}
-                  onChange={(e) => setGroupForm({ ...groupForm, max_selections: parseInt(e.target.value) || 1 })}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label>How many can they pick?</Label>
+              <Select
+                value={groupForm.selectionPreset}
+                onValueChange={(value) => setGroupForm({ ...groupForm, selectionPreset: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SELECTION_PRESETS.map((preset, index) => (
+                    <SelectItem key={index} value={index.toString()}>
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -494,6 +568,43 @@ export const MenuItemOptionsDialog = ({
             <Button onClick={handleSaveGroup} disabled={savingGroup}>
               {savingGroup && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {editingGroup ? "Update" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Entry Dialog */}
+      <Dialog open={quickEntryMode} onOpenChange={setQuickEntryMode}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Add Options</DialogTitle>
+            <DialogDescription>
+              Add multiple options at once. Enter one per line.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Options (one per line)</Label>
+              <Textarea
+                value={quickEntryText}
+                onChange={(e) => setQuickEntryText(e.target.value)}
+                placeholder={`Fries\nColeslaw\nRice, +0.50\nOnion Rings, +1.00\nSmall, -1.00`}
+                rows={6}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Format: Name or Name, +price (e.g., "Large, +1.50" or "Small, -0.50")
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setQuickEntryMode(false);
+              setQuickEntryText("");
+            }}>Cancel</Button>
+            <Button onClick={handleQuickEntrySave} disabled={savingQuickEntry || !quickEntryText.trim()}>
+              {savingQuickEntry && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Add All
             </Button>
           </DialogFooter>
         </DialogContent>

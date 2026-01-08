@@ -38,6 +38,7 @@ interface MenuItem {
   dietary_tags: string[];
   display_order: number;
   hasOptions?: boolean;
+  optionsSummary?: string; // e.g., "Sizes, Sides (+2 more)"
 }
 
 const dietaryOptions = ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "Kosher", "Dairy-Free", "Nut-Free"];
@@ -71,6 +72,10 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
   // Options dialog state
   const [optionsDialogOpen, setOptionsDialogOpen] = useState(false);
   const [selectedItemForOptions, setSelectedItemForOptions] = useState<MenuItem | null>(null);
+  
+  // Post-creation options prompt
+  const [showOptionsPrompt, setShowOptionsPrompt] = useState(false);
+  const [newlyCreatedItem, setNewlyCreatedItem] = useState<MenuItem | null>(null);
 
   const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
 
@@ -97,25 +102,44 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
       if (categoriesRes.error) throw categoriesRes.error;
       if (itemsRes.error) throw itemsRes.error;
 
-      // Check which items have options configured
+      // Check which items have options configured and get summaries
       const menuItems = itemsRes.data || [];
       const itemIds = menuItems.map(i => i.id);
       
-      let itemsWithOptions: string[] = [];
+      let optionGroupsMap: Record<string, string[]> = {};
       if (itemIds.length > 0) {
         const { data: optionGroups } = await supabase
           .from("menu_item_option_groups")
-          .select("menu_item_id")
-          .in("menu_item_id", itemIds);
+          .select("menu_item_id, name")
+          .in("menu_item_id", itemIds)
+          .order("display_order");
         
-        itemsWithOptions = [...new Set(optionGroups?.map(g => g.menu_item_id) || [])];
+        // Group option names by item
+        optionGroups?.forEach(g => {
+          if (!optionGroupsMap[g.menu_item_id]) {
+            optionGroupsMap[g.menu_item_id] = [];
+          }
+          optionGroupsMap[g.menu_item_id].push(g.name);
+        });
       }
 
       setCategories(categoriesRes.data || []);
-      setItems(menuItems.map(item => ({
-        ...item,
-        hasOptions: itemsWithOptions.includes(item.id),
-      })));
+      setItems(menuItems.map(item => {
+        const groupNames = optionGroupsMap[item.id] || [];
+        let summary = "";
+        if (groupNames.length === 1) {
+          summary = groupNames[0];
+        } else if (groupNames.length === 2) {
+          summary = groupNames.join(", ");
+        } else if (groupNames.length > 2) {
+          summary = `${groupNames.slice(0, 2).join(", ")} (+${groupNames.length - 2} more)`;
+        }
+        return {
+          ...item,
+          hasOptions: groupNames.length > 0,
+          optionsSummary: summary,
+        };
+      }));
     } catch (error: any) {
       console.error("Error loading menu:", error);
       toast({
@@ -249,20 +273,36 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
           .eq("id", editingItem.id);
         if (error) throw error;
         toast({ title: "Item updated" });
+        setItemDialogOpen(false);
+        loadMenu();
+        onUpdate?.();
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("menu_items")
           .insert({
             ...itemData,
             business_id: businessId,
             display_order: items.length,
-          });
+          })
+          .select()
+          .single();
         if (error) throw error;
         toast({ title: "Item added" });
+        setItemDialogOpen(false);
+        
+        // Prompt to add options for new item
+        if (data) {
+          setNewlyCreatedItem({
+            ...data,
+            hasOptions: false,
+            optionsSummary: "",
+          });
+          setShowOptionsPrompt(true);
+        }
+        
+        loadMenu();
+        onUpdate?.();
       }
-      setItemDialogOpen(false);
-      loadMenu();
-      onUpdate?.();
     } catch (error: any) {
       console.error("Error saving item:", error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -560,22 +600,34 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-semibold">{currencySymbol}{item.price.toFixed(2)}</span>
-                        {item.hasOptions && (
-                          <Badge variant="outline" className="text-xs">Has Options</Badge>
-                        )}
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{currencySymbol}{item.price.toFixed(2)}</span>
+                        <Button 
+                          variant={item.hasOptions ? "secondary" : "outline"} 
+                          size="sm"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => handleOpenOptionsDialog(item)}
+                        >
+                          {item.hasOptions ? (
+                            <>
+                              <Settings2 className="w-3 h-3" />
+                              {item.optionsSummary}
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3 h-3" />
+                              Add Choices
+                            </>
+                          )}
+                        </Button>
                         <Switch
                           checked={item.is_available}
                           onCheckedChange={() => toggleItemAvailability(item)}
                         />
-                        <Button variant="ghost" size="icon" onClick={() => handleOpenOptionsDialog(item)} title="Configure Options">
-                          <Settings2 className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleOpenItemDialog(item)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenItemDialog(item)}>
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteItem(item.id)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteItem(item.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -615,22 +667,34 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold">{currencySymbol}{item.price.toFixed(2)}</span>
-                    {item.hasOptions && (
-                      <Badge variant="outline" className="text-xs">Has Options</Badge>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm">{currencySymbol}{item.price.toFixed(2)}</span>
+                    <Button 
+                      variant={item.hasOptions ? "secondary" : "outline"} 
+                      size="sm"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => handleOpenOptionsDialog(item)}
+                    >
+                      {item.hasOptions ? (
+                        <>
+                          <Settings2 className="w-3 h-3" />
+                          {item.optionsSummary}
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-3 h-3" />
+                          Add Choices
+                        </>
+                      )}
+                    </Button>
                     <Switch
                       checked={item.is_available}
                       onCheckedChange={() => toggleItemAvailability(item)}
                     />
-                    <Button variant="ghost" size="icon" onClick={() => handleOpenOptionsDialog(item)} title="Configure Options">
-                      <Settings2 className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleOpenItemDialog(item)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenItemDialog(item)}>
                       <Pencil className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteItem(item.id)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteItem(item.id)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -652,6 +716,44 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
           onUpdate={loadMenu}
         />
       )}
+
+      {/* Post-creation options prompt */}
+      <Dialog open={showOptionsPrompt} onOpenChange={setShowOptionsPrompt}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add choices to "{newlyCreatedItem?.name}"?</DialogTitle>
+            <DialogDescription>
+              Does this item have customizable options like sizes, sides, or add-ons?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowOptionsPrompt(false);
+                setNewlyCreatedItem(null);
+              }}
+              className="flex-1"
+            >
+              No, done
+            </Button>
+            <Button 
+              onClick={() => {
+                setShowOptionsPrompt(false);
+                if (newlyCreatedItem) {
+                  setSelectedItemForOptions(newlyCreatedItem);
+                  setOptionsDialogOpen(true);
+                }
+                setNewlyCreatedItem(null);
+              }}
+              className="flex-1"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Yes, add choices
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
