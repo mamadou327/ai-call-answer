@@ -8,9 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, UtensilsCrossed, FolderPlus, Loader2, GripVertical } from "lucide-react";
+import { Plus, Pencil, Trash2, UtensilsCrossed, FolderPlus, Loader2, GripVertical, Settings2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { MenuItemOptionsDialog } from "./MenuItemOptionsDialog";
 
 interface MenuManagementProps {
   businessId: string;
@@ -36,6 +37,7 @@ interface MenuItem {
   is_available: boolean;
   dietary_tags: string[];
   display_order: number;
+  hasOptions?: boolean;
 }
 
 const dietaryOptions = ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "Kosher", "Dairy-Free", "Nut-Free"];
@@ -65,6 +67,10 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
     is_available: true,
   });
   const [savingItem, setSavingItem] = useState(false);
+  
+  // Options dialog state
+  const [optionsDialogOpen, setOptionsDialogOpen] = useState(false);
+  const [selectedItemForOptions, setSelectedItemForOptions] = useState<MenuItem | null>(null);
 
   const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
 
@@ -91,8 +97,25 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
       if (categoriesRes.error) throw categoriesRes.error;
       if (itemsRes.error) throw itemsRes.error;
 
+      // Check which items have options configured
+      const menuItems = itemsRes.data || [];
+      const itemIds = menuItems.map(i => i.id);
+      
+      let itemsWithOptions: string[] = [];
+      if (itemIds.length > 0) {
+        const { data: optionGroups } = await supabase
+          .from("menu_item_option_groups")
+          .select("menu_item_id")
+          .in("menu_item_id", itemIds);
+        
+        itemsWithOptions = [...new Set(optionGroups?.map(g => g.menu_item_id) || [])];
+      }
+
       setCategories(categoriesRes.data || []);
-      setItems(itemsRes.data || []);
+      setItems(menuItems.map(item => ({
+        ...item,
+        hasOptions: itemsWithOptions.includes(item.id),
+      })));
     } catch (error: any) {
       console.error("Error loading menu:", error);
       toast({
@@ -275,6 +298,11 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
       console.error("Error toggling availability:", error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
+  };
+
+  const handleOpenOptionsDialog = (item: MenuItem) => {
+    setSelectedItemForOptions(item);
+    setOptionsDialogOpen(true);
   };
 
   const toggleDietaryTag = (tag: string) => {
@@ -534,10 +562,16 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-semibold">{currencySymbol}{item.price.toFixed(2)}</span>
+                        {item.hasOptions && (
+                          <Badge variant="outline" className="text-xs">Has Options</Badge>
+                        )}
                         <Switch
                           checked={item.is_available}
                           onCheckedChange={() => toggleItemAvailability(item)}
                         />
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenOptionsDialog(item)} title="Configure Options">
+                          <Settings2 className="w-4 h-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleOpenItemDialog(item)}>
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -583,10 +617,16 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="font-semibold">{currencySymbol}{item.price.toFixed(2)}</span>
+                    {item.hasOptions && (
+                      <Badge variant="outline" className="text-xs">Has Options</Badge>
+                    )}
                     <Switch
                       checked={item.is_available}
                       onCheckedChange={() => toggleItemAvailability(item)}
                     />
+                    <Button variant="ghost" size="icon" onClick={() => handleOpenOptionsDialog(item)} title="Configure Options">
+                      <Settings2 className="w-4 h-4" />
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => handleOpenItemDialog(item)}>
                       <Pencil className="w-4 h-4" />
                     </Button>
@@ -599,6 +639,18 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Options Dialog */}
+      {selectedItemForOptions && (
+        <MenuItemOptionsDialog
+          open={optionsDialogOpen}
+          onOpenChange={setOptionsDialogOpen}
+          menuItemId={selectedItemForOptions.id}
+          menuItemName={selectedItemForOptions.name}
+          currency={currency}
+          onUpdate={loadMenu}
+        />
       )}
     </div>
   );
