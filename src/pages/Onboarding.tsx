@@ -7,14 +7,18 @@ import OnboardingStep2 from "@/components/onboarding/OnboardingStep2";
 import OnboardingStep3 from "@/components/onboarding/OnboardingStep3";
 import OnboardingStep4 from "@/components/onboarding/OnboardingStep4";
 import OnboardingStep5 from "@/components/onboarding/OnboardingStep5";
-import BusinessTypeSelector, { BusinessType } from "@/components/onboarding/BusinessTypeSelector";
+import BusinessCategorySelector, { BusinessCategory } from "@/components/onboarding/BusinessCategorySelector";
+import RestaurantTypeSelector from "@/components/onboarding/RestaurantTypeSelector";
+import { BusinessType } from "@/components/onboarding/BusinessTypeSelector";
 import RestaurantDetailsStep from "@/components/onboarding/RestaurantDetailsStep";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 
 const Onboarding = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [currentStep, setCurrentStep] = useState(0); // Start at 0 for business type selection
+  // Step flow: 0 = category, 0.5 = restaurant type (if restaurant), 1-5 = normal steps
+  const [currentStep, setCurrentStep] = useState(0);
+  const [showRestaurantTypeStep, setShowRestaurantTypeStep] = useState(false);
   const [userId, setUserId] = useState<string>("");
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [businessType, setBusinessType] = useState<BusinessType>("salon");
@@ -45,9 +49,6 @@ const Onboarding = () => {
 
   // Determine if this is a restaurant type
   const isRestaurant = businessType.startsWith("restaurant");
-
-  // Calculate total steps based on business type
-  const totalSteps = isRestaurant ? 6 : 6; // 0: type, 1-5 for salon OR 0: type, 1: info, 2: restaurant details, 3: hours, 4: number, 5: finish
 
   useEffect(() => {
     const checkUser = async () => {
@@ -148,22 +149,58 @@ const Onboarding = () => {
   };
 
   const handleBack = () => {
+    // If on step 1 and restaurant, go back to restaurant type selection
+    if (currentStep === 1 && isRestaurant) {
+      setShowRestaurantTypeStep(true);
+      setCurrentStep(0);
+      return;
+    }
+    // If on step 1 and salon, go back to category selection
+    if (currentStep === 1 && !isRestaurant) {
+      setCurrentStep(0);
+      return;
+    }
     setCurrentStep(prev => prev - 1);
   };
 
-  const handleBusinessTypeSelect = (type: BusinessType) => {
+  const handleCategorySelect = (category: BusinessCategory) => {
+    if (category === "salon") {
+      setBusinessType("salon");
+      setShowRestaurantTypeStep(false);
+      setCurrentStep(1);
+    } else {
+      // Show restaurant type selection
+      setShowRestaurantTypeStep(true);
+    }
+  };
+
+  const handleRestaurantTypeSelect = (type: BusinessType) => {
     setBusinessType(type);
-    handleNext();
+    setShowRestaurantTypeStep(false);
+    setCurrentStep(1);
+  };
+
+  const handleRestaurantTypeBack = () => {
+    setShowRestaurantTypeStep(false);
   };
 
   // Render the correct step based on current step and business type
   const renderStep = () => {
-    // Step 0: Business type selection (always first)
-    if (currentStep === 0) {
+    // Step 0: Business category selection
+    if (currentStep === 0 && !showRestaurantTypeStep) {
       return (
-        <BusinessTypeSelector
-          selectedType={businessType}
-          onSelect={handleBusinessTypeSelect}
+        <BusinessCategorySelector
+          onSelect={handleCategorySelect}
+        />
+      );
+    }
+
+    // Step 0.5: Restaurant type selection (if restaurant was selected)
+    if (currentStep === 0 && showRestaurantTypeStep) {
+      return (
+        <RestaurantTypeSelector
+          onSelect={handleRestaurantTypeSelect}
+          onBack={handleRestaurantTypeBack}
         />
       );
     }
@@ -285,9 +322,12 @@ const Onboarding = () => {
     }
   };
 
-  // Calculate display steps (1-indexed for user)
-  const displayStepCount = currentStep === 0 ? 1 : totalSteps;
-  const displayCurrentStep = currentStep === 0 ? 1 : currentStep + 1;
+  // Calculate display steps for progress indicator
+  const getDisplayStep = () => {
+    if (currentStep === 0) return 1;
+    if (showRestaurantTypeStep) return 1;
+    return currentStep + 1;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5">
@@ -308,9 +348,9 @@ const Onboarding = () => {
               <div key={step} className="flex items-center">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-                    step === displayCurrentStep
+                    step === getDisplayStep()
                       ? "bg-primary text-primary-foreground"
-                      : step < displayCurrentStep
+                      : step < getDisplayStep()
                       ? "bg-success text-white"
                       : "bg-muted text-muted-foreground"
                   }`}
@@ -320,7 +360,7 @@ const Onboarding = () => {
                 {step < 6 && (
                   <div
                     className={`h-1 w-8 md:w-16 ${
-                      step < displayCurrentStep ? "bg-success" : "bg-muted"
+                      step < getDisplayStep() ? "bg-success" : "bg-muted"
                     }`}
                   />
                 )}
