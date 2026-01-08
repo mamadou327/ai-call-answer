@@ -15,6 +15,7 @@ import { TwilioSettings } from "./settings/TwilioSettings";
 import { DepositSettings } from "./settings/DepositSettings";
 import { OnlineBookingSettings } from "./settings/OnlineBookingSettings";
 import { PaymentProvidersSettings } from "./settings/PaymentProvidersSettings";
+import { MenuManagement } from "./settings/MenuManagement";
 import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe, CreditCard, UtensilsCrossed, Armchair } from "lucide-react";
 
 interface SettingsTabProps {
@@ -172,11 +173,7 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
       {/* Restaurant-specific content */}
       {isPickup && (
         <TabsContent value="menu">
-          <div className="text-center py-12 text-muted-foreground">
-            <UtensilsCrossed className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-semibold mb-2">Menu Management</h3>
-            <p>Coming soon - manage your menu items and categories here</p>
-          </div>
+          <MenuManagement businessId={businessId} onUpdate={onUpdate} currency={currency} />
         </TabsContent>
       )}
       

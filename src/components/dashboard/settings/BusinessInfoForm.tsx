@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
-import { MapPin } from "lucide-react";
+import { MapPin, Store } from "lucide-react";
 
 interface BusinessInfoFormProps {
   businessId: string;
@@ -23,6 +23,13 @@ const languageMap: Record<string, string> = {
   "German": "de"
 };
 
+const businessTypeOptions = [
+  { value: "salon", label: "Salon / Service Business" },
+  { value: "restaurant_pickup", label: "Restaurant - Pickup/Takeaway" },
+  { value: "restaurant_dine_in", label: "Restaurant - Dine-in" },
+  { value: "restaurant_hybrid", label: "Restaurant - Both Pickup & Dine-in" },
+];
+
 export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInfoFormProps) => {
   const { toast } = useToast();
   const { t, i18n } = useTranslation();
@@ -35,6 +42,7 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
     main_phone: business?.main_phone || "",
     secondary_phone: business?.secondary_phone || "",
     website: business?.website || "",
+    business_type: business?.business_type || "salon",
   });
 
   // Localization settings
@@ -122,14 +130,40 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
             <CardDescription>{t("businessInfo.description")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="business_name">{t("businessInfo.businessName")} *</Label>
-              <Input
-                id="business_name"
-                value={formData.business_name}
-                onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
-                required
-              />
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="business_name">{t("businessInfo.businessName")} *</Label>
+                <Input
+                  id="business_name"
+                  value={formData.business_name}
+                  onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Store className="w-4 h-4" />
+                  Business Type *
+                </Label>
+                <Select
+                  value={formData.business_type}
+                  onValueChange={(value) => setFormData({ ...formData, business_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {businessTypeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Changing this will update your dashboard features
+                </p>
+              </div>
             </div>
 
             <div className="space-y-2">
