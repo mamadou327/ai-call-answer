@@ -13,6 +13,8 @@ interface RestaurantPickupPromptData {
   openingHours: any[];
   menuCategories: any[];
   menuItems: any[];
+  menuItemOptions?: any[];
+  menuItemOptionGroups?: any[];
   businessSettings: any;
   restaurantSettings: {
     cuisineType: string | null;
@@ -41,6 +43,8 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
     openingHours,
     menuCategories,
     menuItems,
+    menuItemOptions = [],
+    menuItemOptionGroups = [],
     businessSettings,
     restaurantSettings,
     callerInfo,
@@ -57,9 +61,32 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
     })
     .join("\n");
 
-  // Format menu by category
+  // Format menu by category with options
   let formattedMenu = "";
   const currency = businessSettings?.currency || "GBP";
+  const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
+  
+  // Helper to format item options
+  const formatItemOptions = (itemId: string): string => {
+    const itemGroups = menuItemOptionGroups.filter((g: any) => g.menu_item_id === itemId);
+    if (itemGroups.length === 0) return "";
+    
+    let optionsText = "";
+    for (const group of itemGroups) {
+      const groupOptions = menuItemOptions.filter((o: any) => o.option_group_id === group.id && o.is_available);
+      if (groupOptions.length === 0) continue;
+      
+      const requiredTag = group.is_required ? " (REQUIRED)" : "";
+      optionsText += `\n      ↳ ${group.name}${requiredTag}: `;
+      optionsText += groupOptions.map((opt: any) => {
+        const priceAdj = opt.price_adjustment !== 0 
+          ? ` (${opt.price_adjustment > 0 ? '+' : ''}${currencySymbol}${opt.price_adjustment.toFixed(2)})`
+          : "";
+        return `${opt.name}${priceAdj}`;
+      }).join(", ");
+    }
+    return optionsText;
+  };
   
   for (const category of menuCategories) {
     const categoryItems = menuItems.filter((item: any) => item.category_id === category.id && item.is_available);
@@ -68,10 +95,12 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
     formattedMenu += `\n${category.name}:\n`;
     for (const item of categoryItems) {
       const dietary = item.dietary_tags?.length > 0 ? ` (${item.dietary_tags.join(", ")})` : "";
-      formattedMenu += `  - ${item.name}: ${currency} ${item.price}${dietary}\n`;
+      formattedMenu += `  - ${item.name}: ${currencySymbol}${item.price}${dietary}`;
       if (item.description) {
-        formattedMenu += `    ${item.description}\n`;
+        formattedMenu += `\n    ${item.description}`;
       }
+      formattedMenu += formatItemOptions(item.id);
+      formattedMenu += "\n";
     }
   }
 
@@ -80,7 +109,9 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
     formattedMenu = "\nMenu Items:\n";
     for (const item of menuItems.filter((i: any) => i.is_available)) {
       const dietary = item.dietary_tags?.length > 0 ? ` (${item.dietary_tags.join(", ")})` : "";
-      formattedMenu += `- ${item.name}: ${currency} ${item.price}${dietary}\n`;
+      formattedMenu += `- ${item.name}: ${currencySymbol}${item.price}${dietary}`;
+      formattedMenu += formatItemOptions(item.id);
+      formattedMenu += "\n";
     }
   }
 
@@ -173,8 +204,12 @@ ${callerContext}
 ORDER TAKING FLOW:
 1. Greet the customer warmly
 2. Ask what they'd like to order
-3. For each item, confirm the name and any customizations
-4. Calculate running total as you go
+3. For each item:
+   - Confirm the item name
+   - If the item has OPTIONS (like size or sides), proactively ask: "What size would you like?" or "Which side would you like with that?"
+   - List available options if the customer is unsure
+   - Note any price adjustments for their selections
+4. Calculate running total as you go (base price + option adjustments)
 5. When they're done, read back the full order with total
 6. Ask for their name (if new customer) and phone number
 7. Suggest a pickup time based on prep time: "${restaurantSettings.averagePrepTime || 30} minutes from now, so around [TIME]?"

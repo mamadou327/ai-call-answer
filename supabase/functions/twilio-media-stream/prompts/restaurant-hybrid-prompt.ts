@@ -14,6 +14,8 @@ interface RestaurantHybridPromptData {
   tables: any[];
   menuCategories: any[];
   menuItems: any[];
+  menuItemOptions?: any[];
+  menuItemOptionGroups?: any[];
   businessSettings: any;
   restaurantSettings: {
     cuisineType: string | null;
@@ -43,6 +45,8 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
     tables,
     menuCategories,
     menuItems,
+    menuItemOptions = [],
+    menuItemOptionGroups = [],
     businessSettings,
     restaurantSettings,
     callerInfo,
@@ -59,9 +63,32 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
     })
     .join("\n");
 
-  // Format menu by category
+  // Format menu by category with options
   let formattedMenu = "";
   const currency = businessSettings?.currency || "GBP";
+  const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
+  
+  // Helper to format item options
+  const formatItemOptions = (itemId: string): string => {
+    const itemGroups = menuItemOptionGroups.filter((g: any) => g.menu_item_id === itemId);
+    if (itemGroups.length === 0) return "";
+    
+    let optionsText = "";
+    for (const group of itemGroups) {
+      const groupOptions = menuItemOptions.filter((o: any) => o.option_group_id === group.id && o.is_available);
+      if (groupOptions.length === 0) continue;
+      
+      const requiredTag = group.is_required ? " (REQUIRED)" : "";
+      optionsText += `\n      ↳ ${group.name}${requiredTag}: `;
+      optionsText += groupOptions.map((opt: any) => {
+        const priceAdj = opt.price_adjustment !== 0 
+          ? ` (${opt.price_adjustment > 0 ? '+' : ''}${currencySymbol}${opt.price_adjustment.toFixed(2)})`
+          : "";
+        return `${opt.name}${priceAdj}`;
+      }).join(", ");
+    }
+    return optionsText;
+  };
   
   for (const category of menuCategories) {
     const categoryItems = menuItems.filter((item: any) => item.category_id === category.id && item.is_available);
@@ -70,7 +97,9 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
     formattedMenu += `\n${category.name}:\n`;
     for (const item of categoryItems) {
       const dietary = item.dietary_tags?.length > 0 ? ` (${item.dietary_tags.join(", ")})` : "";
-      formattedMenu += `  - ${item.name}: ${currency} ${item.price}${dietary}\n`;
+      formattedMenu += `  - ${item.name}: ${currencySymbol}${item.price}${dietary}`;
+      formattedMenu += formatItemOptions(item.id);
+      formattedMenu += "\n";
     }
   }
 
@@ -179,11 +208,13 @@ After greeting, ask: "Are you looking to place an order for pickup, or would you
 
 IF PICKUP ORDER:
 1. Take their order item by item
-2. Confirm each item and running total
-3. Get their name and phone
-4. Suggest pickup time (prep time + current time)
-5. If prepayment required, explain payment link will be sent
-6. Confirm full order and collection time
+2. For items with options (sizes, sides), proactively ask what they'd like
+3. If they're unsure about options, list them: "You can choose from rice, chips, or beans"
+4. Confirm each item with selected options and running total
+5. Get their name and phone
+6. Suggest pickup time (prep time + current time)
+7. If prepayment required, explain payment link will be sent
+8. Confirm full order and collection time
 
 IF TABLE RESERVATION:
 1. Ask how many guests
