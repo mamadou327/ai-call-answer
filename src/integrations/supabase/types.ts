@@ -100,6 +100,8 @@ export type Database = {
           customer_email: string | null
           customer_name: string
           customer_phone: string
+          delivery_address: string | null
+          delivery_fee: number | null
           deposit_amount: number | null
           deposit_paid_at: string | null
           deposit_payment_link: string | null
@@ -107,13 +109,18 @@ export type Database = {
           id: string
           last_modified_by_user_id: string | null
           notes: string | null
+          order_total: number | null
+          order_type: string | null
+          party_size: number | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           reminder_sent_at: string | null
           service_id: string | null
+          special_requests: string | null
           staff_id: string | null
           start_time: string
           status: Database["public"]["Enums"]["booking_status"]
           stripe_payment_intent_id: string | null
+          table_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -127,6 +134,8 @@ export type Database = {
           customer_email?: string | null
           customer_name: string
           customer_phone: string
+          delivery_address?: string | null
+          delivery_fee?: number | null
           deposit_amount?: number | null
           deposit_paid_at?: string | null
           deposit_payment_link?: string | null
@@ -134,13 +143,18 @@ export type Database = {
           id?: string
           last_modified_by_user_id?: string | null
           notes?: string | null
+          order_total?: number | null
+          order_type?: string | null
+          party_size?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           reminder_sent_at?: string | null
           service_id?: string | null
+          special_requests?: string | null
           staff_id?: string | null
           start_time: string
           status?: Database["public"]["Enums"]["booking_status"]
           stripe_payment_intent_id?: string | null
+          table_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -154,6 +168,8 @@ export type Database = {
           customer_email?: string | null
           customer_name?: string
           customer_phone?: string
+          delivery_address?: string | null
+          delivery_fee?: number | null
           deposit_amount?: number | null
           deposit_paid_at?: string | null
           deposit_payment_link?: string | null
@@ -161,13 +177,18 @@ export type Database = {
           id?: string
           last_modified_by_user_id?: string | null
           notes?: string | null
+          order_total?: number | null
+          order_type?: string | null
+          party_size?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           reminder_sent_at?: string | null
           service_id?: string | null
+          special_requests?: string | null
           staff_id?: string | null
           start_time?: string
           status?: Database["public"]["Enums"]["booking_status"]
           stripe_payment_intent_id?: string | null
+          table_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -190,6 +211,13 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_tables"
             referencedColumns: ["id"]
           },
         ]
@@ -365,9 +393,12 @@ export type Database = {
           address: string
           aivia_active: boolean
           assigned_aivia_number: string | null
+          average_prep_time_minutes: number | null
           booking_slug: string | null
           business_name: string
+          business_type: string | null
           created_at: string | null
+          cuisine_type: string | null
           custom_booking_domain: string | null
           custom_domain_added_at: string | null
           custom_domain_added_to_hosting: boolean | null
@@ -375,6 +406,10 @@ export type Database = {
           custom_domain_status_message: string | null
           custom_domain_txt_value: string | null
           custom_domain_verified: boolean | null
+          delivery_enabled: boolean | null
+          delivery_fee: number | null
+          delivery_minimum_order: number | null
+          delivery_radius_miles: number | null
           deposit_collection_timing: string
           email_on_cancellation: boolean
           email_on_confirmation: boolean
@@ -382,16 +417,23 @@ export type Database = {
           id: string
           logo_url: string | null
           main_phone: string
+          menu_link: string | null
           messagebird_enabled: boolean
           messagebird_phone_number: string | null
           messagebird_token: string | null
+          minimum_order_amount: number | null
           number_notes: string | null
           online_booking_enabled: boolean
           online_booking_message: string | null
           owner_id: string
+          payment_methods: string[] | null
           plan_tier: string | null
           porting_instructions: string | null
           porting_status: string | null
+          prepayment_type: string | null
+          refund_policy: string | null
+          refund_window_hours: number | null
+          require_prepayment: boolean | null
           secondary_phone: string | null
           sms_on_cancellation: boolean
           sms_on_confirmation: boolean
@@ -418,9 +460,12 @@ export type Database = {
           address: string
           aivia_active?: boolean
           assigned_aivia_number?: string | null
+          average_prep_time_minutes?: number | null
           booking_slug?: string | null
           business_name: string
+          business_type?: string | null
           created_at?: string | null
+          cuisine_type?: string | null
           custom_booking_domain?: string | null
           custom_domain_added_at?: string | null
           custom_domain_added_to_hosting?: boolean | null
@@ -428,6 +473,10 @@ export type Database = {
           custom_domain_status_message?: string | null
           custom_domain_txt_value?: string | null
           custom_domain_verified?: boolean | null
+          delivery_enabled?: boolean | null
+          delivery_fee?: number | null
+          delivery_minimum_order?: number | null
+          delivery_radius_miles?: number | null
           deposit_collection_timing?: string
           email_on_cancellation?: boolean
           email_on_confirmation?: boolean
@@ -435,16 +484,23 @@ export type Database = {
           id?: string
           logo_url?: string | null
           main_phone: string
+          menu_link?: string | null
           messagebird_enabled?: boolean
           messagebird_phone_number?: string | null
           messagebird_token?: string | null
+          minimum_order_amount?: number | null
           number_notes?: string | null
           online_booking_enabled?: boolean
           online_booking_message?: string | null
           owner_id: string
+          payment_methods?: string[] | null
           plan_tier?: string | null
           porting_instructions?: string | null
           porting_status?: string | null
+          prepayment_type?: string | null
+          refund_policy?: string | null
+          refund_window_hours?: number | null
+          require_prepayment?: boolean | null
           secondary_phone?: string | null
           sms_on_cancellation?: boolean
           sms_on_confirmation?: boolean
@@ -471,9 +527,12 @@ export type Database = {
           address?: string
           aivia_active?: boolean
           assigned_aivia_number?: string | null
+          average_prep_time_minutes?: number | null
           booking_slug?: string | null
           business_name?: string
+          business_type?: string | null
           created_at?: string | null
+          cuisine_type?: string | null
           custom_booking_domain?: string | null
           custom_domain_added_at?: string | null
           custom_domain_added_to_hosting?: boolean | null
@@ -481,6 +540,10 @@ export type Database = {
           custom_domain_status_message?: string | null
           custom_domain_txt_value?: string | null
           custom_domain_verified?: boolean | null
+          delivery_enabled?: boolean | null
+          delivery_fee?: number | null
+          delivery_minimum_order?: number | null
+          delivery_radius_miles?: number | null
           deposit_collection_timing?: string
           email_on_cancellation?: boolean
           email_on_confirmation?: boolean
@@ -488,16 +551,23 @@ export type Database = {
           id?: string
           logo_url?: string | null
           main_phone?: string
+          menu_link?: string | null
           messagebird_enabled?: boolean
           messagebird_phone_number?: string | null
           messagebird_token?: string | null
+          minimum_order_amount?: number | null
           number_notes?: string | null
           online_booking_enabled?: boolean
           online_booking_message?: string | null
           owner_id?: string
+          payment_methods?: string[] | null
           plan_tier?: string | null
           porting_instructions?: string | null
           porting_status?: string | null
+          prepayment_type?: string | null
+          refund_policy?: string | null
+          refund_window_hours?: number | null
+          require_prepayment?: boolean | null
           secondary_phone?: string | null
           sms_on_cancellation?: boolean
           sms_on_confirmation?: boolean
@@ -776,6 +846,110 @@ export type Database = {
           },
         ]
       }
+      menu_categories: {
+        Row: {
+          business_id: string
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_categories_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_items: {
+        Row: {
+          business_id: string
+          category_id: string | null
+          created_at: string | null
+          description: string | null
+          dietary_tags: string[] | null
+          display_order: number | null
+          id: string
+          image_url: string | null
+          is_available: boolean | null
+          name: string
+          preparation_time_minutes: number | null
+          price: number
+          updated_at: string | null
+        }
+        Insert: {
+          business_id: string
+          category_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          dietary_tags?: string[] | null
+          display_order?: number | null
+          id?: string
+          image_url?: string | null
+          is_available?: boolean | null
+          name: string
+          preparation_time_minutes?: number | null
+          price: number
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string
+          category_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          dietary_tags?: string[] | null
+          display_order?: number | null
+          id?: string
+          image_url?: string | null
+          is_available?: boolean | null
+          name?: string
+          preparation_time_minutes?: number | null
+          price?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_items_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "menu_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           business_id: string
@@ -878,6 +1052,54 @@ export type Database = {
           },
         ]
       }
+      order_items: {
+        Row: {
+          booking_id: string
+          created_at: string | null
+          id: string
+          item_name: string
+          menu_item_id: string | null
+          notes: string | null
+          quantity: number
+          unit_price: number
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string | null
+          id?: string
+          item_name: string
+          menu_item_id?: string | null
+          notes?: string | null
+          quantity?: number
+          unit_price: number
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string | null
+          id?: string
+          item_name?: string
+          menu_item_id?: string | null
+          notes?: string | null
+          quantity?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           admin_request_note: string | null
@@ -916,6 +1138,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      restaurant_tables: {
+        Row: {
+          business_id: string
+          capacity: number
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          location: string | null
+          table_number: string
+          updated_at: string | null
+        }
+        Insert: {
+          business_id: string
+          capacity?: number
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          location?: string | null
+          table_number: string
+          updated_at?: string | null
+        }
+        Update: {
+          business_id?: string
+          capacity?: number
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          location?: string | null
+          table_number?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_tables_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       service_requests: {
         Row: {
