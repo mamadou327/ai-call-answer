@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { buildSystemPromptForBusinessType, getToolsForBusinessType, type BusinessType } from "./prompts/index.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -11,6 +12,7 @@ const OPENAI_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimm
 interface StreamSession {
   businessId: string;
   businessName: string;
+  businessType: BusinessType;
   twilioPhoneNumber: string | null;
   callSid: string;
   callerPhone: string;
@@ -28,6 +30,11 @@ interface StreamSession {
   staffServices: StaffService[];
   staff: StaffMember[];
   services: Service[];
+  // Restaurant-specific cached data
+  tables: any[];
+  menuCategories: any[];
+  menuItems: any[];
+  restaurantSettings: any;
   // Call stability tracking
   interactionCount: number;
   callStartTime: number;
@@ -269,10 +276,14 @@ Deno.serve(async (req) => {
   // Initialize Supabase
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  // Find business by token
+  // Find business by token - include business_type and restaurant settings
   const { data: business, error: businessError } = await supabase
     .from("businesses")
-    .select("id, business_name, address, twilio_enabled, aivia_active, twilio_phone_number, website_knowledge")
+    .select(`
+      id, business_name, address, twilio_enabled, aivia_active, twilio_phone_number, website_knowledge,
+      business_type, cuisine_type, menu_link, payment_methods, require_prepayment, prepayment_type,
+      minimum_order_amount, refund_policy, refund_window_hours, average_prep_time_minutes
+    `)
     .eq("twilio_webhook_token", token)
     .maybeSingle();
 
@@ -302,9 +313,12 @@ Deno.serve(async (req) => {
   // Upgrade to WebSocket
   const { socket: twilioWs, response } = Deno.upgradeWebSocket(req);
 
+  const businessType = (business.business_type || "salon") as BusinessType;
+
   const session: StreamSession = {
     businessId: business.id,
     businessName: business.business_name,
+    businessType,
     twilioPhoneNumber: business.twilio_phone_number || null,
     callSid: "",
     callerPhone: "",
@@ -322,6 +336,21 @@ Deno.serve(async (req) => {
     staffServices: [],
     staff: [],
     services: [],
+    // Restaurant-specific cached data
+    tables: [],
+    menuCategories: [],
+    menuItems: [],
+    restaurantSettings: {
+      cuisineType: business.cuisine_type,
+      menuLink: business.menu_link,
+      paymentMethods: business.payment_methods || ["card"],
+      requirePrepayment: business.require_prepayment || false,
+      prepaymentType: business.prepayment_type || "none",
+      minimumOrderAmount: business.minimum_order_amount,
+      refundPolicy: business.refund_policy || "full_refund",
+      refundWindowHours: business.refund_window_hours || 2,
+      averagePrepTime: business.average_prep_time_minutes || 30,
+    },
     // Call stability tracking
     interactionCount: 0,
     callStartTime: Date.now(),
