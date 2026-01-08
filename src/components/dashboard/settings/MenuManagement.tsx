@@ -38,8 +38,26 @@ interface MenuItem {
   dietary_tags: string[];
   display_order: number;
   hasOptions?: boolean;
-  optionsSummary?: string; // e.g., "Sizes, Sides (+2 more)"
+  optionsSummary?: string;
+  has_sizes?: boolean;
+  sizes?: SizeVariant[];
 }
+
+interface SizeVariant {
+  id: string;
+  name: string;
+  price: number;
+  is_default: boolean;
+  is_available: boolean;
+  display_order: number;
+}
+
+const SIZE_PRESETS = [
+  { label: "S / M / L", sizes: ["Small", "Medium", "Large"] },
+  { label: "Regular / Large", sizes: ["Regular", "Large"] },
+  { label: "Single / Double", sizes: ["Single", "Double"] },
+  { label: "6\" / 12\"", sizes: ["6 inch", "12 inch"] },
+];
 
 const dietaryOptions = ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "Kosher", "Dairy-Free", "Nut-Free"];
 
@@ -66,8 +84,11 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
     preparation_time_minutes: "15",
     dietary_tags: [] as string[],
     is_available: true,
+    has_sizes: false,
+    sizes: [] as { name: string; price: string; is_default: boolean }[],
   });
   const [savingItem, setSavingItem] = useState(false);
+  const [sizeQuickEntry, setSizeQuickEntry] = useState("");
   
   // Options dialog state
   const [optionsDialogOpen, setOptionsDialogOpen] = useState(false);
@@ -102,30 +123,55 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
       if (categoriesRes.error) throw categoriesRes.error;
       if (itemsRes.error) throw itemsRes.error;
 
-      // Check which items have options configured and get summaries
       const menuItems = itemsRes.data || [];
       const itemIds = menuItems.map(i => i.id);
       
+      // Fetch option groups and sizes in parallel
       let optionGroupsMap: Record<string, string[]> = {};
+      let sizesMap: Record<string, SizeVariant[]> = {};
+      
       if (itemIds.length > 0) {
-        const { data: optionGroups } = await supabase
-          .from("menu_item_option_groups")
-          .select("menu_item_id, name")
-          .in("menu_item_id", itemIds)
-          .order("display_order");
+        const [optionGroupsRes, sizesRes] = await Promise.all([
+          supabase
+            .from("menu_item_option_groups")
+            .select("menu_item_id, name")
+            .in("menu_item_id", itemIds)
+            .order("display_order"),
+          supabase
+            .from("menu_item_sizes")
+            .select("*")
+            .in("menu_item_id", itemIds)
+            .order("display_order"),
+        ]);
         
         // Group option names by item
-        optionGroups?.forEach(g => {
+        optionGroupsRes.data?.forEach(g => {
           if (!optionGroupsMap[g.menu_item_id]) {
             optionGroupsMap[g.menu_item_id] = [];
           }
           optionGroupsMap[g.menu_item_id].push(g.name);
+        });
+        
+        // Group sizes by item
+        sizesRes.data?.forEach(s => {
+          if (!sizesMap[s.menu_item_id]) {
+            sizesMap[s.menu_item_id] = [];
+          }
+          sizesMap[s.menu_item_id].push({
+            id: s.id,
+            name: s.name,
+            price: Number(s.price),
+            is_default: s.is_default ?? false,
+            is_available: s.is_available ?? true,
+            display_order: s.display_order ?? 0,
+          });
         });
       }
 
       setCategories(categoriesRes.data || []);
       setItems(menuItems.map(item => {
         const groupNames = optionGroupsMap[item.id] || [];
+        const sizes = sizesMap[item.id] || [];
         let summary = "";
         if (groupNames.length === 1) {
           summary = groupNames[0];
@@ -138,6 +184,8 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
           ...item,
           hasOptions: groupNames.length > 0,
           optionsSummary: summary,
+          has_sizes: item.has_sizes || false,
+          sizes,
         };
       }));
     } catch (error: any) {
@@ -224,6 +272,11 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
   const handleOpenItemDialog = (item?: MenuItem) => {
     if (item) {
       setEditingItem(item);
+      const formSizes = item.sizes?.map(s => ({
+        name: s.name,
+        price: s.price.toString(),
+        is_default: s.is_default,
+      })) || [];
       setItemForm({
         name: item.name,
         description: item.description || "",
@@ -232,6 +285,8 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
         preparation_time_minutes: item.preparation_time_minutes.toString(),
         dietary_tags: item.dietary_tags || [],
         is_available: item.is_available,
+        has_sizes: item.has_sizes || false,
+        sizes: formSizes,
       });
     } else {
       setEditingItem(null);
@@ -243,28 +298,55 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
         preparation_time_minutes: "15",
         dietary_tags: [],
         is_available: true,
+        has_sizes: false,
+        sizes: [],
       });
     }
+    setSizeQuickEntry("");
     setItemDialogOpen(true);
   };
 
   const handleSaveItem = async () => {
-    if (!itemForm.name.trim() || !itemForm.price) {
-      toast({ title: "Error", description: "Name and price are required", variant: "destructive" });
+    if (!itemForm.name.trim()) {
+      toast({ title: "Error", description: "Name is required", variant: "destructive" });
+      return;
+    }
+    
+    // Validate: if has_sizes, need at least one size; otherwise need price
+    if (itemForm.has_sizes) {
+      if (itemForm.sizes.length === 0) {
+        toast({ title: "Error", description: "Add at least one size variant", variant: "destructive" });
+        return;
+      }
+      const invalidSize = itemForm.sizes.find(s => !s.name.trim() || !s.price);
+      if (invalidSize) {
+        toast({ title: "Error", description: "All sizes need a name and price", variant: "destructive" });
+        return;
+      }
+    } else if (!itemForm.price) {
+      toast({ title: "Error", description: "Price is required", variant: "destructive" });
       return;
     }
 
     setSavingItem(true);
     try {
+      // For items with sizes, set base price to the lowest size price
+      const basePrice = itemForm.has_sizes && itemForm.sizes.length > 0
+        ? Math.min(...itemForm.sizes.map(s => parseFloat(s.price) || 0))
+        : parseFloat(itemForm.price);
+        
       const itemData = {
         name: itemForm.name.trim(),
         description: itemForm.description.trim() || null,
-        price: parseFloat(itemForm.price),
+        price: basePrice,
         category_id: itemForm.category_id || null,
         preparation_time_minutes: parseInt(itemForm.preparation_time_minutes) || 15,
         dietary_tags: itemForm.dietary_tags,
         is_available: itemForm.is_available,
+        has_sizes: itemForm.has_sizes,
       };
+
+      let savedItemId: string;
 
       if (editingItem) {
         const { error } = await supabase
@@ -272,6 +354,29 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
           .update(itemData)
           .eq("id", editingItem.id);
         if (error) throw error;
+        savedItemId = editingItem.id;
+        
+        // Handle sizes update
+        if (itemForm.has_sizes) {
+          // Delete existing sizes and re-insert
+          await supabase.from("menu_item_sizes").delete().eq("menu_item_id", savedItemId);
+          
+          if (itemForm.sizes.length > 0) {
+            const sizesToInsert = itemForm.sizes.map((s, idx) => ({
+              menu_item_id: savedItemId,
+              name: s.name.trim(),
+              price: parseFloat(s.price),
+              is_default: s.is_default || idx === 0,
+              display_order: idx,
+            }));
+            const { error: sizesError } = await supabase.from("menu_item_sizes").insert(sizesToInsert);
+            if (sizesError) throw sizesError;
+          }
+        } else {
+          // Remove any existing sizes if switching to single price
+          await supabase.from("menu_item_sizes").delete().eq("menu_item_id", savedItemId);
+        }
+        
         toast({ title: "Item updated" });
         setItemDialogOpen(false);
         loadMenu();
@@ -287,6 +392,21 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
           .select()
           .single();
         if (error) throw error;
+        savedItemId = data.id;
+        
+        // Insert sizes if has_sizes
+        if (itemForm.has_sizes && itemForm.sizes.length > 0) {
+          const sizesToInsert = itemForm.sizes.map((s, idx) => ({
+            menu_item_id: savedItemId,
+            name: s.name.trim(),
+            price: parseFloat(s.price),
+            is_default: s.is_default || idx === 0,
+            display_order: idx,
+          }));
+          const { error: sizesError } = await supabase.from("menu_item_sizes").insert(sizesToInsert);
+          if (sizesError) throw sizesError;
+        }
+        
         toast({ title: "Item added" });
         setItemDialogOpen(false);
         
@@ -309,6 +429,100 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
     } finally {
       setSavingItem(false);
     }
+  };
+
+  // Size helper functions
+  const applyPreset = (presetSizes: string[]) => {
+    setItemForm(prev => ({
+      ...prev,
+      sizes: presetSizes.map((name, idx) => ({
+        name,
+        price: "",
+        is_default: idx === 0,
+      })),
+    }));
+  };
+
+  const parseSizeQuickEntry = () => {
+    if (!sizeQuickEntry.trim()) return;
+    const lines = sizeQuickEntry.trim().split("\n");
+    const newSizes: { name: string; price: string; is_default: boolean }[] = [];
+    
+    lines.forEach((line, idx) => {
+      const parts = line.split(":").map(s => s.trim());
+      if (parts.length >= 2) {
+        const name = parts[0];
+        const price = parts[1].replace(/[^0-9.]/g, "");
+        if (name && price) {
+          newSizes.push({ name, price, is_default: idx === 0 });
+        }
+      } else if (parts[0]) {
+        newSizes.push({ name: parts[0], price: "", is_default: idx === 0 });
+      }
+    });
+    
+    if (newSizes.length > 0) {
+      setItemForm(prev => ({ ...prev, sizes: newSizes }));
+      setSizeQuickEntry("");
+    }
+  };
+
+  const updateSize = (index: number, field: "name" | "price", value: string) => {
+    setItemForm(prev => ({
+      ...prev,
+      sizes: prev.sizes.map((s, i) => i === index ? { ...s, [field]: value } : s),
+    }));
+  };
+
+  const removeSize = (index: number) => {
+    setItemForm(prev => ({
+      ...prev,
+      sizes: prev.sizes.filter((_, i) => i !== index),
+    }));
+  };
+
+  const addSize = () => {
+    setItemForm(prev => ({
+      ...prev,
+      sizes: [...prev.sizes, { name: "", price: "", is_default: prev.sizes.length === 0 }],
+    }));
+  };
+
+  // Helper to render price display for an item
+  const renderPriceDisplay = (item: MenuItem) => {
+    if (item.has_sizes && item.sizes && item.sizes.length > 0) {
+      // Show size prices inline
+      const sortedSizes = [...item.sizes].sort((a, b) => a.display_order - b.display_order);
+      if (sortedSizes.length <= 2) {
+        return (
+          <div className="flex flex-wrap gap-1 text-sm">
+            {sortedSizes.map((s, idx) => (
+              <span key={s.id} className="whitespace-nowrap">
+                <span className="text-muted-foreground">{s.name}:</span>{" "}
+                <span className="font-semibold">{currencySymbol}{s.price.toFixed(2)}</span>
+                {idx < sortedSizes.length - 1 && <span className="text-muted-foreground mx-1">|</span>}
+              </span>
+            ))}
+          </div>
+        );
+      } else {
+        // Show first two and "+N more"
+        return (
+          <div className="flex flex-wrap gap-1 text-sm">
+            {sortedSizes.slice(0, 2).map((s, idx) => (
+              <span key={s.id} className="whitespace-nowrap">
+                <span className="text-muted-foreground">{s.name}:</span>{" "}
+                <span className="font-semibold">{currencySymbol}{s.price.toFixed(2)}</span>
+                <span className="text-muted-foreground mx-1">|</span>
+              </span>
+            ))}
+            <span className="text-muted-foreground text-xs">+{sortedSizes.length - 2} more</span>
+          </div>
+        );
+      }
+    }
+    // Single price
+    return <span className="font-semibold text-sm">{currencySymbol}{item.price.toFixed(2)}</span>;
   };
 
   const handleDeleteItem = async (itemId: string) => {
@@ -447,28 +661,142 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                     rows={2}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Price ({currencySymbol}) *</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={itemForm.price}
-                      onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })}
-                      placeholder="0.00"
-                    />
+                
+                {/* Has sizes toggle */}
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div>
+                    <Label className="text-sm font-medium">Different sizes available</Label>
+                    <p className="text-xs text-muted-foreground">e.g., Small, Medium, Large with different prices</p>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Prep Time (mins)</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={itemForm.preparation_time_minutes}
-                      onChange={(e) => setItemForm({ ...itemForm, preparation_time_minutes: e.target.value })}
-                    />
-                  </div>
+                  <Switch
+                    checked={itemForm.has_sizes}
+                    onCheckedChange={(checked) => setItemForm({ ...itemForm, has_sizes: checked, sizes: checked ? itemForm.sizes : [] })}
+                  />
                 </div>
+                
+                {/* Single price OR sizes */}
+                {!itemForm.has_sizes ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Price ({currencySymbol}) *</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={itemForm.price}
+                        onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Prep Time (mins)</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={itemForm.preparation_time_minutes}
+                        onChange={(e) => setItemForm({ ...itemForm, preparation_time_minutes: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Size Variants *</Label>
+                      <div className="flex gap-1">
+                        {SIZE_PRESETS.map((preset) => (
+                          <Button
+                            key={preset.label}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 text-xs px-2"
+                            onClick={() => applyPreset(preset.sizes)}
+                          >
+                            {preset.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Size entries */}
+                    <div className="space-y-2">
+                      {itemForm.sizes.map((size, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <Input
+                            value={size.name}
+                            onChange={(e) => updateSize(idx, "name", e.target.value)}
+                            placeholder="Size name"
+                            className="flex-1"
+                          />
+                          <div className="relative w-24">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{currencySymbol}</span>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={size.price}
+                              onChange={(e) => updateSize(idx, "price", e.target.value)}
+                              placeholder="0.00"
+                              className="pl-6"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 shrink-0"
+                            onClick={() => removeSize(idx)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addSize}
+                        className="w-full"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Size
+                      </Button>
+                    </div>
+                    
+                    {/* Quick entry */}
+                    {itemForm.sizes.length === 0 && (
+                      <div className="space-y-2 pt-2 border-t">
+                        <Label className="text-xs text-muted-foreground">Or paste sizes (one per line: Name: Price)</Label>
+                        <Textarea
+                          value={sizeQuickEntry}
+                          onChange={(e) => setSizeQuickEntry(e.target.value)}
+                          placeholder={"Small: 6.99\nMedium: 8.49\nLarge: 9.99"}
+                          rows={3}
+                          className="font-mono text-sm"
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={parseSizeQuickEntry}
+                          disabled={!sizeQuickEntry.trim()}
+                        >
+                          Parse Sizes
+                        </Button>
+                      </div>
+                    )}
+                    
+                    <div className="space-y-2">
+                      <Label>Prep Time (mins)</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={itemForm.preparation_time_minutes}
+                        onChange={(e) => setItemForm({ ...itemForm, preparation_time_minutes: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Category</Label>
                   <Select
@@ -601,7 +929,7 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm">{currencySymbol}{item.price.toFixed(2)}</span>
+                        {renderPriceDisplay(item)}
                         <Button 
                           variant={item.hasOptions ? "secondary" : "outline"} 
                           size="sm"
@@ -668,7 +996,7 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm">{currencySymbol}{item.price.toFixed(2)}</span>
+                    {renderPriceDisplay(item)}
                     <Button 
                       variant={item.hasOptions ? "secondary" : "outline"} 
                       size="sm"

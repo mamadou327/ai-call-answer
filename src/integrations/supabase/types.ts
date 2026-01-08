@@ -978,6 +978,50 @@ export type Database = {
           },
         ]
       }
+      menu_item_sizes: {
+        Row: {
+          created_at: string | null
+          display_order: number | null
+          id: string
+          is_available: boolean | null
+          is_default: boolean | null
+          menu_item_id: string
+          name: string
+          price: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_available?: boolean | null
+          is_default?: boolean | null
+          menu_item_id: string
+          name: string
+          price: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_available?: boolean | null
+          is_default?: boolean | null
+          menu_item_id?: string
+          name?: string
+          price?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_sizes_menu_item_id_fkey"
+            columns: ["menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_items: {
         Row: {
           business_id: string
@@ -986,6 +1030,7 @@ export type Database = {
           description: string | null
           dietary_tags: string[] | null
           display_order: number | null
+          has_sizes: boolean | null
           id: string
           image_url: string | null
           is_available: boolean | null
@@ -1001,6 +1046,7 @@ export type Database = {
           description?: string | null
           dietary_tags?: string[] | null
           display_order?: number | null
+          has_sizes?: boolean | null
           id?: string
           image_url?: string | null
           is_available?: boolean | null
@@ -1016,6 +1062,7 @@ export type Database = {
           description?: string | null
           dietary_tags?: string[] | null
           display_order?: number | null
+          has_sizes?: boolean | null
           id?: string
           image_url?: string | null
           is_available?: boolean | null
