@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Phone, MessageSquare, DollarSign, Package, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Phone, MessageSquare, DollarSign, Package, Clock, CheckCircle, XCircle, Plus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { DateRange } from "react-day-picker";
@@ -10,6 +11,7 @@ import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, end
 import { useTranslation } from "react-i18next";
 import { StatDetailDialog } from "./StatDetailDialog";
 import { RestaurantOrderQueue } from "./RestaurantOrderQueue";
+import { ManualOrderDialog } from "./ManualOrderDialog";
 
 interface RestaurantDashboardTabProps {
   businessName: string;
@@ -34,6 +36,7 @@ export const RestaurantDashboardTab = ({ businessName, currency = "GBP", busines
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState<"orders" | "completed" | "cancelled" | "calls" | "messages" | "revenue">("orders");
   const [dialogData, setDialogData] = useState<any[]>([]);
+  const [manualOrderOpen, setManualOrderOpen] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -253,6 +256,10 @@ export const RestaurantDashboardTab = ({ businessName, currency = "GBP", busines
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <h2 className="text-xl sm:text-2xl font-bold">{t("dashboard.analytics")}</h2>
         <div className="flex gap-2 items-center flex-wrap">
+          <Button onClick={() => setManualOrderOpen(true)} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Manual Order
+          </Button>
           <Select value={dateRange} onValueChange={(value: any) => setDateRange(value)}>
             <SelectTrigger className="w-[140px] sm:w-[180px] h-9 text-sm">
               <SelectValue />
@@ -356,6 +363,15 @@ export const RestaurantDashboardTab = ({ businessName, currency = "GBP", busines
         type={dialogType === "orders" ? "bookings" : dialogType === "completed" ? "bookings" : dialogType}
         data={dialogData}
         currency={currency}
+      />
+
+      {/* Manual Order Dialog */}
+      <ManualOrderDialog
+        open={manualOrderOpen}
+        onOpenChange={setManualOrderOpen}
+        businessId={businessId}
+        currency={currency}
+        onOrderCreated={handleOrderUpdate}
       />
     </div>
   );

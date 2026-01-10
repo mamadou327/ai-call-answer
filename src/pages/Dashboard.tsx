@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings, Package, CalendarDays } from "lucide-react";
+import { LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings, Package, CalendarDays, Menu } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { useTranslation } from "react-i18next";
 import { SetupChecklist, type ChecklistItem } from "@/components/SetupChecklist";
@@ -53,6 +53,46 @@ const Dashboard = () => {
   const [activeSettingsSection, setActiveSettingsSection] = useState<string>("");
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isStaffView, setIsStaffView] = useState(false);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  // Track unread messages count
+  useEffect(() => {
+    if (!business?.id) return;
+    
+    const loadUnreadCount = async () => {
+      const { count } = await supabase
+        .from("messages")
+        .select("*", { count: "exact", head: true })
+        .eq("business_id", business.id)
+        .eq("is_read", false)
+        .eq("is_archived", false);
+      
+      setUnreadMessagesCount(count || 0);
+    };
+    
+    loadUnreadCount();
+    
+    // Subscribe to messages changes
+    const channel = supabase
+      .channel('dashboard-messages-count')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: `business_id=eq.${business.id}`
+        },
+        () => {
+          loadUnreadCount();
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [business?.id]);
+
   // Background polling for unpaid deposit checks every 15 seconds
   useEffect(() => {
     if (!business?.id) return;
@@ -402,14 +442,20 @@ const Dashboard = () => {
                   </>
                 )}
 
+                {/* Calls tab for all business types (restaurants included) */}
                 {!isStaffView && <>
                     <TabsTrigger value="calls" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
                       <PhoneCall className="w-4 h-4 shrink-0" />
                       <span className="hidden sm:inline truncate">{t("dashboard.calls")}</span>
                     </TabsTrigger>
-                    <TabsTrigger value="messages" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                    <TabsTrigger value="messages" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0 relative">
                       <MessageSquare className="w-4 h-4 shrink-0" />
                       <span className="hidden sm:inline truncate">{t("dashboard.messages")}</span>
+                      {unreadMessagesCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                          {unreadMessagesCount > 99 ? "99+" : unreadMessagesCount}
+                        </span>
+                      )}
                     </TabsTrigger>
                   </>}
                 {!isStaffView && <TabsTrigger value="settings" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
