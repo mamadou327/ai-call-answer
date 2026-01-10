@@ -30,6 +30,17 @@ interface Option {
   is_default: boolean;
   is_available: boolean;
   display_order: number;
+  has_sizes: boolean;
+}
+
+interface OptionSize {
+  id: string;
+  option_id: string;
+  name: string;
+  price: number;
+  is_default: boolean;
+  is_available: boolean;
+  display_order: number;
 }
 
 interface MenuItemOptionsDialogProps {
@@ -81,8 +92,13 @@ export const MenuItemOptionsDialog = ({
     price_adjustment: "0",
     is_default: false,
     is_available: true,
+    has_sizes: false,
   });
   const [savingOption, setSavingOption] = useState(false);
+  
+  // Option sizes state
+  const [optionSizes, setOptionSizes] = useState<OptionSize[]>([]);
+  const [optionSizesText, setOptionSizesText] = useState("");
 
   // Quick entry mode
   const [quickEntryMode, setQuickEntryMode] = useState(false);
@@ -278,7 +294,7 @@ export const MenuItemOptionsDialog = ({
   };
 
   // Option handlers
-  const handleOpenOptionDialog = (groupId: string, option?: Option) => {
+  const handleOpenOptionDialog = async (groupId: string, option?: Option) => {
     setSelectedGroupId(groupId);
     if (option) {
       setEditingOption(option);
@@ -287,7 +303,24 @@ export const MenuItemOptionsDialog = ({
         price_adjustment: option.price_adjustment.toString(),
         is_default: option.is_default,
         is_available: option.is_available,
+        has_sizes: option.has_sizes || false,
       });
+      
+      // Load existing sizes if has_sizes is true
+      if (option.has_sizes) {
+        const { data: sizes } = await supabase
+          .from("menu_item_option_sizes")
+          .select("*")
+          .eq("option_id", option.id)
+          .order("display_order");
+        setOptionSizes(sizes || []);
+        // Convert to text format for editing
+        const sizesText = (sizes || []).map(s => `${s.name}, ${s.price.toFixed(2)}`).join('\n');
+        setOptionSizesText(sizesText);
+      } else {
+        setOptionSizes([]);
+        setOptionSizesText("");
+      }
     } else {
       setEditingOption(null);
       setOptionForm({
@@ -295,7 +328,10 @@ export const MenuItemOptionsDialog = ({
         price_adjustment: "0",
         is_default: false,
         is_available: true,
+        has_sizes: false,
       });
+      setOptionSizes([]);
+      setOptionSizesText("");
     }
     setOptionDialogOpen(true);
   };
@@ -306,36 +342,86 @@ export const MenuItemOptionsDialog = ({
       return;
     }
 
+    // Validate sizes if has_sizes is enabled
+    if (optionForm.has_sizes && !optionSizesText.trim()) {
+      toast({ title: "Error", description: "Please add at least one size", variant: "destructive" });
+      return;
+    }
+
     setSavingOption(true);
     try {
       const groupOptions = options.filter(o => o.option_group_id === selectedGroupId);
+      let optionId = editingOption?.id;
       
       if (editingOption) {
         const { error } = await supabase
           .from("menu_item_options")
           .update({
             name: optionForm.name.trim(),
-            price_adjustment: parseFloat(optionForm.price_adjustment) || 0,
+            price_adjustment: optionForm.has_sizes ? 0 : (parseFloat(optionForm.price_adjustment) || 0),
             is_default: optionForm.is_default,
             is_available: optionForm.is_available,
+            has_sizes: optionForm.has_sizes,
           })
           .eq("id", editingOption.id);
         if (error) throw error;
-        toast({ title: "Option updated" });
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("menu_item_options")
           .insert({
             option_group_id: selectedGroupId,
             name: optionForm.name.trim(),
-            price_adjustment: parseFloat(optionForm.price_adjustment) || 0,
+            price_adjustment: optionForm.has_sizes ? 0 : (parseFloat(optionForm.price_adjustment) || 0),
             is_default: optionForm.is_default,
             is_available: optionForm.is_available,
+            has_sizes: optionForm.has_sizes,
             display_order: groupOptions.length,
-          });
+          })
+          .select("id")
+          .single();
         if (error) throw error;
-        toast({ title: "Option added" });
+        optionId = data.id;
       }
+
+      // Handle sizes if has_sizes is enabled
+      if (optionForm.has_sizes && optionId) {
+        // Delete existing sizes
+        await supabase
+          .from("menu_item_option_sizes")
+          .delete()
+          .eq("option_id", optionId);
+
+        // Parse and insert new sizes
+        const lines = optionSizesText.trim().split('\n').filter(line => line.trim());
+        const sizesToInsert = lines.map((line, index) => {
+          const parts = line.split(',').map(p => p.trim());
+          const name = parts[0];
+          const price = parseFloat(parts[1]?.replace(/[^0-9.-]/g, '') || '0');
+          return {
+            option_id: optionId!,
+            name,
+            price,
+            is_default: index === 0,
+            is_available: true,
+            display_order: index,
+          };
+        });
+
+        if (sizesToInsert.length > 0) {
+          const { error: sizesError } = await supabase
+            .from("menu_item_option_sizes")
+            .insert(sizesToInsert);
+          if (sizesError) throw sizesError;
+        }
+      } else if (!optionForm.has_sizes && optionId) {
+        // Remove sizes if has_sizes is disabled
+        await supabase
+          .from("menu_item_option_sizes")
+          .delete()
+          .eq("option_id", optionId);
+      }
+
+      toast({ title: editingOption ? "Option updated" : "Option added" });
       setOptionDialogOpen(false);
       loadOptionsData();
       onUpdate?.();
@@ -458,7 +544,10 @@ export const MenuItemOptionsDialog = ({
                                   {option.is_default && (
                                     <Badge variant="secondary" className="text-xs py-0">Default</Badge>
                                   )}
-                                  {option.price_adjustment !== 0 && (
+                                  {option.has_sizes && (
+                                    <Badge variant="outline" className="text-xs py-0">Has Sizes</Badge>
+                                  )}
+                                  {!option.has_sizes && option.price_adjustment !== 0 && (
                                     <span className={option.price_adjustment > 0 ? "text-amber-600 text-xs" : "text-green-600 text-xs"}>
                                       {formatPriceAdjustment(option.price_adjustment)}
                                     </span>
@@ -622,22 +711,55 @@ export const MenuItemOptionsDialog = ({
               <Input
                 value={optionForm.name}
                 onChange={(e) => setOptionForm({ ...optionForm, name: e.target.value })}
-                placeholder="e.g., Large, Rice, Extra Cheese"
+                placeholder="e.g., Rice, Chips, Extra Cheese"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Price Adjustment ({currencySymbol})</Label>
-              <Input
-                type="number"
-                step="0.01"
-                value={optionForm.price_adjustment}
-                onChange={(e) => setOptionForm({ ...optionForm, price_adjustment: e.target.value })}
-                placeholder="0 for no change, negative to reduce price"
+            
+            {/* Has Sizes Toggle */}
+            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+              <div>
+                <Label>This option has sizes</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Enable if customers can choose size (e.g., Small/Large Rice)
+                </p>
+              </div>
+              <Switch
+                checked={optionForm.has_sizes}
+                onCheckedChange={(checked) => setOptionForm({ ...optionForm, has_sizes: checked })}
               />
-              <p className="text-xs text-muted-foreground">
-                Use 0 for included options, positive for add-ons, negative for smaller sizes
-              </p>
             </div>
+
+            {/* Show price adjustment OR sizes input based on toggle */}
+            {optionForm.has_sizes ? (
+              <div className="space-y-2">
+                <Label>Sizes (one per line)</Label>
+                <Textarea
+                  value={optionSizesText}
+                  onChange={(e) => setOptionSizesText(e.target.value)}
+                  placeholder={`Small, 2.50\nMedium, 3.00\nLarge, 3.50`}
+                  rows={4}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Format: Size Name, full price (e.g., "Small, 2.50")
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Price Adjustment ({currencySymbol})</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={optionForm.price_adjustment}
+                  onChange={(e) => setOptionForm({ ...optionForm, price_adjustment: e.target.value })}
+                  placeholder="0 for no change, negative to reduce price"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use 0 for included options, positive for add-ons
+                </p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <Label>Default Option</Label>
               <Switch
