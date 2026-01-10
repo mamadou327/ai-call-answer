@@ -403,7 +403,9 @@ Deno.serve(async (req) => {
             voiceSpeed,
             session.callerPhone,
             business.twilio_phone_number,
-            business.website_knowledge
+            business.website_knowledge,
+            session.businessType,
+            session.restaurantSettings
           );
           
           session.systemPrompt = promptData.prompt;
@@ -413,6 +415,10 @@ Deno.serve(async (req) => {
           session.staffServices = promptData.staffServices;
           session.staff = promptData.staff;
           session.services = promptData.services;
+          // Restaurant-specific cached data
+          session.menuCategories = promptData.menuCategories || [];
+          session.menuItems = promptData.menuItems || [];
+          session.tables = promptData.tables || [];
           
           // Connect to OpenAI Realtime API
           await connectToOpenAI(session, supabase);
@@ -625,149 +631,24 @@ function sendSessionConfig(session: StreamSession) {
     return;
   }
 
-  const tools = [
-    {
-      type: "function",
-      name: "create_booking",
-      description: "Create a new booking/appointment. **MANDATORY PRE-CHECK**: BEFORE calling this, you MUST verify the staff member's [CAN ONLY BOOK FOR:] list includes the requested service. If NOT listed, DO NOT call this tool - instead tell customer which staff CAN do that service. Call only AFTER: 1) Confirming service type (adult/kids/women), 2) Verifying staff's [CAN ONLY BOOK FOR:] includes this service, 3) Staff is NOT marked [TRANSFER ONLY], 4) Customer confirmed all details.",
-      parameters: {
-        type: "object",
-        properties: {
-          customer_name: { type: "string", description: "Customer's name" },
-          customer_phone: { type: "string", description: "Customer's phone number" },
-          customer_email: { type: "string", description: "Customer's email address (optional)" },
-          service_name: { type: "string", description: "EXACT name of the service including category (e.g., 'Kids Haircut', 'Women Haircut', 'Adult Haircut')" },
-          staff_name: { type: "string", description: "Name of the staff member - MUST be assigned to this service (check [CAN ONLY BOOK FOR:] list)" },
-          date: { type: "string", description: "Date in YYYY-MM-DD format" },
-          time: { type: "string", description: "Time in HH:MM format (24-hour)" },
-        },
-        required: ["customer_name", "customer_phone", "service_name", "staff_name", "date", "time"],
+  // Get tools based on business type - this is CRITICAL for restaurants to work
+  let tools = getToolsForBusinessType(session.businessType);
+  
+  // Add stop_recording tool which is common to all business types
+  tools.push({
+    type: "function",
+    name: "stop_recording",
+    description: "Stop the call recording when the caller explicitly asks NOT to be recorded. Use this ONLY when the caller clearly says they don't want the call recorded.",
+    parameters: {
+      type: "object",
+      properties: {
+        reason: { type: "string", description: "Brief note about why recording was stopped, e.g., 'caller requested'" },
       },
+      required: ["reason"],
     },
-    {
-      type: "function",
-      name: "cancel_booking",
-      description: "Cancel an existing booking. Can search by: full booking code (e.g., 'PRM-2647'), last 4 digits (e.g., '2647'), or customer name. Returns multiple matches if found.",
-      parameters: {
-        type: "object",
-        properties: {
-          booking_code: { type: "string", description: "Full booking code like 'PRM-2647'" },
-          booking_code_suffix: { type: "string", description: "Last 4 digits of booking code if customer only remembers those" },
-          customer_name: { type: "string", description: "Customer's name if booking code not known" },
-        },
-      },
-    },
-    {
-      type: "function",
-      name: "reschedule_booking",
-      description: "Move an existing booking to a new date/time. Can look up booking by: full code, last 4 digits, or customer name. DOES NOT create a new booking - only moves existing one.",
-      parameters: {
-        type: "object",
-        properties: {
-          booking_code: { type: "string", description: "Full booking code like 'PRM-2647'" },
-          booking_code_suffix: { type: "string", description: "Last 4 digits of booking code" },
-          customer_name: { type: "string", description: "Customer's name if booking code not known" },
-          new_date: { type: "string", description: "New date in YYYY-MM-DD format" },
-          new_time: { type: "string", description: "New time in HH:MM format (24-hour)" },
-        },
-        required: ["new_date", "new_time"],
-      },
-    },
-    {
-      type: "function",
-      name: "check_availability",
-      description: "**MANDATORY - CALL BEFORE EVERY AVAILABILITY RESPONSE** You MUST call this tool BEFORE saying ANY time is available or unavailable. IMPORTANT: If the customer mentions a specific service (e.g., 'haircut', 'kids haircut'), include service_name (EXACT service name from SERVICES) so this tool can filter to staff who are actually assigned to that service. If you don't know the exact service variant, ask a quick clarification first.",
-      parameters: {
-        type: "object",
-        properties: {
-          date: { type: "string", description: "Date in YYYY-MM-DD format" },
-          time: { type: "string", description: "Specific time in HH:MM format (24-hour). Include this when the customer asks about a specific time (e.g. 5pm -> 17:00)." },
-          service_name: { type: "string", description: "Optional but STRONGLY RECOMMENDED. Exact service name (e.g., 'Kids Haircut', 'Adult Haircut'). When provided, availability is filtered to staff assigned to this service." },
-          staff_name: { type: "string", description: "Specific staff member (optional)" },
-          duration_minutes: { type: "number", description: "Service duration in minutes (default 30). If service_name is provided, duration will be taken from that service." },
-        },
-        required: ["date"],
-      },
-    },
-    {
-      type: "function",
-      name: "save_customer_email",
-      description: "Save a customer's email address after they spell it out. Use this AFTER successfully creating a booking when the customer provides their email for confirmation.",
-      parameters: {
-        type: "object",
-        properties: {
-          customer_phone: { type: "string", description: "Customer's phone number (to identify them)" },
-          email: { type: "string", description: "Customer's email address" },
-          booking_id: { type: "string", description: "The booking ID if available" },
-        },
-        required: ["customer_phone", "email"],
-      },
-    },
-    {
-      type: "function",
-      name: "update_customer_name",
-      description: "Update a customer's name when they say it's incorrect. Use this when a returning customer says their name is wrong, spelled incorrectly, or asks to be called something different.",
-      parameters: {
-        type: "object",
-        properties: {
-          new_name: { type: "string", description: "The correct name the customer wants to use" },
-        },
-        required: ["new_name"],
-      },
-    },
-    {
-      type: "function",
-      name: "end_call",
-      description: "End the phone call. STRICT RULES - ONLY call this when ALL conditions are met: 1) Customer EXPLICITLY said goodbye (bye, goodbye, thanks bye, have a nice day), 2) At least 2 conversation exchanges have happened, 3) You have already asked 'Is there anything else?' after any booking. NEVER end the call: 1) Within the first 30 seconds, 2) Right after confirming a booking without asking if there's more, 3) During silence or pauses - say 'Are you still there?' first, 4) When customer is mid-sentence or asking questions. Always say goodbye BEFORE calling this.",
-      parameters: {
-        type: "object",
-        properties: {
-          reason: { type: "string", description: "MUST be 'customer_said_goodbye' - no other reason is valid" },
-        },
-        required: ["reason"],
-      },
-    },
-    {
-      type: "function",
-      name: "leave_message",
-      description: "Leave a message for the business or a specific staff member.",
-      parameters: {
-        type: "object",
-        properties: {
-          message: { type: "string", description: "The message content" },
-          recipient_type: { type: "string", enum: ["all", "admin", "staff"], description: "Who should receive the message" },
-          recipient_staff_name: { type: "string", description: "Specific staff member name if recipient_type is staff" },
-          is_urgent: { type: "boolean", description: "Whether the message is urgent" },
-        },
-        required: ["message", "recipient_type"],
-      },
-    },
-    {
-      type: "function",
-      name: "transfer_call",
-      description: "Transfer the call to a staff member's phone. Use this when: 1) The caller urgently needs to speak to someone directly, 2) You cannot answer their question after trying, 3) The staff member has AI booking disabled (transfer_only=true in staff list).",
-      parameters: {
-        type: "object",
-        properties: {
-          staff_name: { type: "string", description: "Name of the staff member to transfer to" },
-          reason: { type: "string", description: "Brief reason for the transfer" },
-        },
-        required: ["staff_name"],
-      },
-    },
-    {
-      type: "function",
-      name: "stop_recording",
-      description: "Stop the call recording when the caller explicitly asks NOT to be recorded. Use this ONLY when the caller clearly says they don't want the call recorded, e.g., 'I don't want to be recorded', 'please don't record this', 'can you turn off the recording'. After stopping, confirm to the caller that recording has been stopped.",
-      parameters: {
-        type: "object",
-        properties: {
-          reason: { type: "string", description: "Brief note about why recording was stopped, e.g., 'caller requested'" },
-        },
-        required: ["reason"],
-      },
-    },
-  ];
+  });
+  
+  console.log(`[MediaStream] Using ${tools.length} tools for business type: ${session.businessType}`);
 
   const config = {
     type: "session.update",
@@ -815,6 +696,7 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
     const args = JSON.parse(argumentsJson);
 
     switch (name) {
+      // Salon tools
       case "create_booking":
         result = await executeCreateBooking(supabase, session, args);
         break;
@@ -844,6 +726,28 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
         break;
       case "stop_recording":
         result = await executeStopRecording(session, args);
+        break;
+      
+      // Restaurant pickup tools
+      case "check_pickup_availability":
+        result = await executeCheckPickupAvailability(supabase, session, args);
+        break;
+      case "create_pickup_order":
+        result = await executeCreatePickupOrder(supabase, session, args);
+        break;
+      case "cancel_order":
+        result = await executeCancelOrder(supabase, session, args);
+        break;
+      
+      // Restaurant dine-in tools
+      case "check_table_availability":
+        result = await executeCheckTableAvailability(supabase, session, args);
+        break;
+      case "create_reservation":
+        result = await executeCreateReservation(supabase, session, args);
+        break;
+      case "cancel_reservation":
+        result = await executeCancelReservation(supabase, session, args);
         break;
     }
   } catch (error) {
@@ -2482,6 +2386,508 @@ async function executeStopRecording(
   }
 }
 
+// ============================================================================
+// RESTAURANT TOOL IMPLEMENTATIONS
+// ============================================================================
+
+async function executeCheckPickupAvailability(supabase: any, session: StreamSession, params: any): Promise<any> {
+  console.log("[MediaStream] Checking pickup availability:", params);
+  
+  const pickupTime = params.pickup_time;
+  const avgPrepTime = session.restaurantSettings?.averagePrepTime || 30;
+  
+  // Parse the requested pickup time
+  const now = new Date();
+  const [hours, minutes] = pickupTime.split(":").map(Number);
+  const requestedTime = new Date(now);
+  requestedTime.setHours(hours, minutes, 0, 0);
+  
+  // If requested time is in the past, assume tomorrow
+  if (requestedTime < now) {
+    requestedTime.setDate(requestedTime.getDate() + 1);
+  }
+  
+  // Check if business is open
+  const dayOfWeek = requestedTime.getDay();
+  const businessHours = session.openingHours.find(h => h.day_of_week === dayOfWeek);
+  
+  if (!businessHours || businessHours.is_closed) {
+    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    return { 
+      success: false, 
+      available: false,
+      message: `We're closed on ${dayNames[dayOfWeek]}. When would you like to pick up instead?` 
+    };
+  }
+  
+  // Check if time is within opening hours
+  if (businessHours.open_time && pickupTime < businessHours.open_time.slice(0, 5)) {
+    return { 
+      success: true, 
+      available: false,
+      message: `That's before we open. We open at ${businessHours.open_time.slice(0, 5)}. What time works for you?` 
+    };
+  }
+  
+  if (businessHours.close_time && pickupTime >= businessHours.close_time.slice(0, 5)) {
+    return { 
+      success: true, 
+      available: false,
+      message: `That's after we close. We close at ${businessHours.close_time.slice(0, 5)}. What time works for you?` 
+    };
+  }
+  
+  // Check minimum notice (prep time)
+  const minutesUntilPickup = (requestedTime.getTime() - now.getTime()) / (1000 * 60);
+  if (minutesUntilPickup < avgPrepTime) {
+    const earliestTime = new Date(now.getTime() + avgPrepTime * 60 * 1000);
+    const earliestTimeStr = formatTime(earliestTime);
+    return { 
+      success: true, 
+      available: false,
+      message: `We need about ${avgPrepTime} minutes to prepare your order. The earliest pickup would be around ${earliestTimeStr}. Does that work?` 
+    };
+  }
+  
+  return { 
+    success: true, 
+    available: true,
+    message: `${pickupTime} works great! Your order will be ready for pickup.`,
+    estimated_ready_time: pickupTime
+  };
+}
+
+async function executeCreatePickupOrder(supabase: any, session: StreamSession, params: any): Promise<any> {
+  console.log("[MediaStream] Creating pickup order:", params);
+  
+  const { customer_name, customer_phone, items, pickup_time, special_requests } = params;
+  
+  // Validate customer name
+  if (!customer_name || customer_name.trim().toLowerCase() === "unknown") {
+    return { success: false, message: "I just need your name for the order. What name should I put it under?" };
+  }
+  
+  // Validate items
+  if (!items || items.length === 0) {
+    return { success: false, message: "What would you like to order?" };
+  }
+  
+  // Calculate order total and validate items against menu
+  let orderTotal = 0;
+  const validatedItems: any[] = [];
+  const currency = session.businessSettings?.currency || "GBP";
+  const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
+  
+  for (const item of items) {
+    // Find the menu item
+    const menuItem = session.menuItems.find((mi: any) => 
+      mi.name.toLowerCase().includes(item.name?.toLowerCase()) || 
+      item.name?.toLowerCase().includes(mi.name.toLowerCase())
+    );
+    
+    if (!menuItem) {
+      return { 
+        success: false, 
+        message: `I couldn't find "${item.name}" on the menu. Would you like something else?` 
+      };
+    }
+    
+    const quantity = item.quantity || 1;
+    let itemPrice = menuItem.price;
+    
+    // Handle size variants
+    if (menuItem.sizes && menuItem.sizes.length > 0 && item.size) {
+      const selectedSize = menuItem.sizes.find((s: any) => 
+        s.name.toLowerCase() === item.size?.toLowerCase()
+      );
+      if (selectedSize) {
+        itemPrice = selectedSize.price;
+      }
+    } else if (menuItem.sizes && menuItem.sizes.length > 0 && !item.size) {
+      // If item has sizes but no size was specified, ask
+      const sizeNames = menuItem.sizes.map((s: any) => s.name).join(" or ");
+      return {
+        success: false,
+        message: `What size would you like for the ${menuItem.name}? We have ${sizeNames}.`
+      };
+    }
+    
+    orderTotal += itemPrice * quantity;
+    validatedItems.push({
+      name: menuItem.name,
+      quantity,
+      unit_price: itemPrice,
+      notes: item.notes || null,
+      size: item.size || null,
+    });
+  }
+  
+  // Check minimum order
+  const minimumOrder = session.restaurantSettings?.minimumOrderAmount;
+  if (minimumOrder && orderTotal < minimumOrder) {
+    return {
+      success: false,
+      message: `Our minimum order is ${currencySymbol}${minimumOrder}. Your current total is ${currencySymbol}${orderTotal.toFixed(2)}. Would you like to add anything else?`
+    };
+  }
+  
+  // Normalize phone number
+  let resolvedPhone = customer_phone;
+  if (!resolvedPhone || resolvedPhone === "unknown") {
+    resolvedPhone = session.callerPhone;
+  }
+  
+  // Generate order number
+  const { data: orderNumber } = await supabase.rpc("generate_order_number", {
+    p_business_id: session.businessId
+  });
+  
+  // Calculate pickup datetime
+  const now = new Date();
+  const [hours, minutes] = pickup_time.split(":").map(Number);
+  const pickupDateTime = new Date(now);
+  pickupDateTime.setHours(hours, minutes, 0, 0);
+  if (pickupDateTime < now) {
+    pickupDateTime.setDate(pickupDateTime.getDate() + 1);
+  }
+  
+  // Create the order
+  const { data: order, error } = await supabase
+    .from("orders")
+    .insert({
+      business_id: session.businessId,
+      order_number: orderNumber || `ORD-${Date.now()}`,
+      customer_name,
+      customer_phone: resolvedPhone,
+      items: validatedItems,
+      total: orderTotal,
+      subtotal: orderTotal,
+      order_type: "pickup",
+      pickup_time: pickupDateTime.toISOString(),
+      notes: special_requests || null,
+      status: "pending",
+    })
+    .select()
+    .single();
+  
+  if (error) {
+    console.error("[MediaStream] Order creation error:", error);
+    return { success: false, message: "Sorry, there was an error creating your order. Please try again." };
+  }
+  
+  console.log("[MediaStream] Order created:", order.id);
+  
+  // Format confirmation message
+  const itemsList = validatedItems.map(i => `${i.quantity}x ${i.name}${i.size ? ` (${i.size})` : ""}`).join(", ");
+  const pickupTimeFormatted = formatTime(pickupDateTime);
+  
+  return {
+    success: true,
+    order_number: order.order_number,
+    total: orderTotal,
+    message: `Your order is confirmed! That's ${itemsList} for ${currencySymbol}${orderTotal.toFixed(2)}. Your order number is ${order.order_number}. It will be ready for pickup at ${pickupTimeFormatted}.`
+  };
+}
+
+async function executeCancelOrder(supabase: any, session: StreamSession, params: any): Promise<any> {
+  console.log("[MediaStream] Cancelling order:", params);
+  
+  const { order_code, customer_name, reason } = params;
+  
+  // Find the order
+  let query = supabase
+    .from("orders")
+    .select("*")
+    .eq("business_id", session.businessId)
+    .neq("status", "cancelled");
+  
+  if (order_code) {
+    query = query.eq("order_number", order_code);
+  } else if (customer_name) {
+    query = query.ilike("customer_name", `%${customer_name}%`);
+  } else {
+    // Try to find by caller phone
+    query = query.ilike("customer_phone", `%${session.callerPhone.slice(-10)}%`);
+  }
+  
+  const { data: orders, error } = await query.order("created_at", { ascending: false }).limit(5);
+  
+  if (error || !orders || orders.length === 0) {
+    return { success: false, message: "I couldn't find that order. Can you give me your order number or name?" };
+  }
+  
+  if (orders.length > 1) {
+    const orderList = orders.map((o: any) => `${o.order_number} (${o.customer_name})`).join(", ");
+    return { success: false, message: `I found multiple orders: ${orderList}. Which one would you like to cancel?` };
+  }
+  
+  const order = orders[0];
+  
+  // Check refund policy
+  const refundWindowHours = session.restaurantSettings?.refundWindowHours || 2;
+  const pickupTime = new Date(order.pickup_time);
+  const now = new Date();
+  const hoursUntilPickup = (pickupTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+  
+  let refundMessage = "";
+  if (hoursUntilPickup < refundWindowHours) {
+    const refundPolicy = session.restaurantSettings?.refundPolicy || "full_refund";
+    const refundPolicies: Record<string, string> = {
+      full_refund: "You'll receive a full refund",
+      partial_refund: "You'll receive a 50% refund as it's within our cancellation window",
+      store_credit: "You'll receive store credit",
+      no_refund: "Unfortunately no refund is available as it's within our cancellation window",
+    };
+    refundMessage = `. ${refundPolicies[refundPolicy]}`;
+  } else {
+    refundMessage = ". You'll receive a full refund";
+  }
+  
+  // Cancel the order
+  const { error: updateError } = await supabase
+    .from("orders")
+    .update({ 
+      status: "cancelled", 
+      cancelled_at: new Date().toISOString(),
+      notes: order.notes ? `${order.notes}\nCancellation reason: ${reason || "Customer requested"}` : `Cancellation reason: ${reason || "Customer requested"}`
+    })
+    .eq("id", order.id);
+  
+  if (updateError) {
+    console.error("[MediaStream] Order cancellation error:", updateError);
+    return { success: false, message: "Sorry, there was an error cancelling your order. Please try again." };
+  }
+  
+  return { 
+    success: true, 
+    message: `Your order ${order.order_number} has been cancelled${refundMessage}. Is there anything else I can help you with?`
+  };
+}
+
+async function executeCheckTableAvailability(supabase: any, session: StreamSession, params: any): Promise<any> {
+  console.log("[MediaStream] Checking table availability:", params);
+  
+  const { date, time, party_size, seating_preference } = params;
+  
+  // Parse date and time
+  const reservationDateTime = new Date(`${date}T${time}:00`);
+  const dayOfWeek = reservationDateTime.getDay();
+  
+  // Check if business is open
+  const businessHours = session.openingHours.find(h => h.day_of_week === dayOfWeek);
+  if (!businessHours || businessHours.is_closed) {
+    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    return { 
+      success: false, 
+      available: false,
+      message: `We're closed on ${dayNames[dayOfWeek]}. When would you like to dine instead?` 
+    };
+  }
+  
+  // Find suitable tables
+  let availableTables = session.tables.filter((t: any) => t.capacity >= party_size);
+  
+  // Filter by seating preference if specified
+  if (seating_preference && seating_preference !== "any") {
+    const preferredTables = availableTables.filter((t: any) => 
+      t.location?.toLowerCase().includes(seating_preference.toLowerCase())
+    );
+    if (preferredTables.length > 0) {
+      availableTables = preferredTables;
+    }
+  }
+  
+  if (availableTables.length === 0) {
+    return { 
+      success: true, 
+      available: false,
+      message: `We don't have a table that fits ${party_size} guests. What's the maximum you could split across tables?` 
+    };
+  }
+  
+  // Check for existing reservations at that time
+  const reservationEnd = new Date(reservationDateTime.getTime() + 90 * 60 * 1000); // Assume 90 min dining time
+  
+  const { data: existingReservations } = await supabase
+    .from("reservations")
+    .select("table_id")
+    .eq("business_id", session.businessId)
+    .neq("status", "cancelled")
+    .lt("reservation_time", reservationEnd.toISOString())
+    .gt("reservation_time", new Date(reservationDateTime.getTime() - 90 * 60 * 1000).toISOString());
+  
+  const bookedTableIds = (existingReservations || []).map((r: any) => r.table_id);
+  const freeeTables = availableTables.filter((t: any) => !bookedTableIds.includes(t.id));
+  
+  if (freeeTables.length === 0) {
+    // Suggest alternative times
+    return { 
+      success: true, 
+      available: false,
+      message: `We're fully booked at ${time} for a party of ${party_size}. Would you like to try a different time?` 
+    };
+  }
+  
+  return { 
+    success: true, 
+    available: true,
+    tables_available: freeeTables.length,
+    message: `Yes, we have a table available for ${party_size} at ${time} on ${date}. Would you like to book it?` 
+  };
+}
+
+async function executeCreateReservation(supabase: any, session: StreamSession, params: any): Promise<any> {
+  console.log("[MediaStream] Creating reservation:", params);
+  
+  const { customer_name, customer_phone, customer_email, date, time, party_size, seating_preference, special_requests, special_occasion } = params;
+  
+  // Validate customer name
+  if (!customer_name || customer_name.trim().toLowerCase() === "unknown") {
+    return { success: false, message: "I just need your name for the reservation. What name should I put it under?" };
+  }
+  
+  // Parse date and time
+  const reservationDateTime = new Date(`${date}T${time}:00`);
+  
+  // Find a suitable table
+  let availableTables = session.tables.filter((t: any) => t.capacity >= party_size);
+  
+  if (seating_preference && seating_preference !== "any") {
+    const preferredTables = availableTables.filter((t: any) => 
+      t.location?.toLowerCase().includes(seating_preference.toLowerCase())
+    );
+    if (preferredTables.length > 0) {
+      availableTables = preferredTables;
+    }
+  }
+  
+  // Check for conflicts and find a free table
+  const reservationEnd = new Date(reservationDateTime.getTime() + 90 * 60 * 1000);
+  const { data: existingReservations } = await supabase
+    .from("reservations")
+    .select("table_id")
+    .eq("business_id", session.businessId)
+    .neq("status", "cancelled")
+    .lt("reservation_time", reservationEnd.toISOString())
+    .gt("reservation_time", new Date(reservationDateTime.getTime() - 90 * 60 * 1000).toISOString());
+  
+  const bookedTableIds = (existingReservations || []).map((r: any) => r.table_id);
+  const freeeTables = availableTables.filter((t: any) => !bookedTableIds.includes(t.id));
+  
+  if (freeeTables.length === 0) {
+    return { 
+      success: false, 
+      message: `Sorry, we're fully booked at ${time} for a party of ${party_size}. Would you like to try a different time?` 
+    };
+  }
+  
+  const selectedTable = freeeTables[0];
+  
+  // Normalize phone
+  let resolvedPhone = customer_phone;
+  if (!resolvedPhone || resolvedPhone === "unknown") {
+    resolvedPhone = session.callerPhone;
+  }
+  
+  // Create reservation
+  const notes = [
+    special_requests,
+    special_occasion ? `Special occasion: ${special_occasion}` : null,
+    seating_preference ? `Seating preference: ${seating_preference}` : null,
+  ].filter(Boolean).join(". ");
+  
+  const { data: reservation, error } = await supabase
+    .from("reservations")
+    .insert({
+      business_id: session.businessId,
+      customer_name,
+      customer_phone: resolvedPhone,
+      customer_email: customer_email || null,
+      party_size,
+      reservation_time: reservationDateTime.toISOString(),
+      table_id: selectedTable.id,
+      notes: notes || null,
+      special_requests: special_requests || null,
+      status: "confirmed",
+    })
+    .select()
+    .single();
+  
+  if (error) {
+    console.error("[MediaStream] Reservation creation error:", error);
+    return { success: false, message: "Sorry, there was an error creating your reservation. Please try again." };
+  }
+  
+  console.log("[MediaStream] Reservation created:", reservation.id);
+  
+  const dateFormatted = reservationDateTime.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  const timeFormatted = formatTime(reservationDateTime);
+  
+  return {
+    success: true,
+    message: `Your table for ${party_size} is booked for ${dateFormatted} at ${timeFormatted}. We've reserved ${selectedTable.table_number}${selectedTable.location ? ` in the ${selectedTable.location} area` : ""}. See you then!`
+  };
+}
+
+async function executeCancelReservation(supabase: any, session: StreamSession, params: any): Promise<any> {
+  console.log("[MediaStream] Cancelling reservation:", params);
+  
+  const { reservation_code, customer_name, reason } = params;
+  
+  // Find the reservation
+  let query = supabase
+    .from("reservations")
+    .select("*")
+    .eq("business_id", session.businessId)
+    .neq("status", "cancelled")
+    .gte("reservation_time", new Date().toISOString());
+  
+  if (customer_name) {
+    query = query.ilike("customer_name", `%${customer_name}%`);
+  } else {
+    // Try to find by caller phone
+    query = query.ilike("customer_phone", `%${session.callerPhone.slice(-10)}%`);
+  }
+  
+  const { data: reservations, error } = await query.order("reservation_time").limit(5);
+  
+  if (error || !reservations || reservations.length === 0) {
+    return { success: false, message: "I couldn't find your reservation. Can you give me the name it's under?" };
+  }
+  
+  if (reservations.length > 1) {
+    const resList = reservations.map((r: any) => {
+      const dt = new Date(r.reservation_time);
+      return `${r.customer_name} on ${dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} at ${formatTime(dt)}`;
+    }).join(", ");
+    return { success: false, message: `I found multiple reservations: ${resList}. Which one would you like to cancel?` };
+  }
+  
+  const reservation = reservations[0];
+  
+  // Cancel the reservation
+  const { error: updateError } = await supabase
+    .from("reservations")
+    .update({ 
+      status: "cancelled", 
+      cancelled_at: new Date().toISOString(),
+      notes: reservation.notes ? `${reservation.notes}\nCancellation reason: ${reason || "Customer requested"}` : `Cancellation reason: ${reason || "Customer requested"}`
+    })
+    .eq("id", reservation.id);
+  
+  if (updateError) {
+    console.error("[MediaStream] Reservation cancellation error:", updateError);
+    return { success: false, message: "Sorry, there was an error cancelling your reservation. Please try again." };
+  }
+  
+  const resDateTime = new Date(reservation.reservation_time);
+  
+  return { 
+    success: true, 
+    message: `Your reservation for ${reservation.party_size} on ${resDateTime.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} at ${formatTime(resDateTime)} has been cancelled. Is there anything else I can help you with?`
+  };
+}
+
 function escapeXml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -2560,6 +2966,10 @@ interface PromptData {
   staffServices: StaffService[];
   staff: StaffMember[];
   services: Service[];
+  // Restaurant-specific data
+  menuCategories: any[];
+  menuItems: any[];
+  tables: any[];
 }
 
 async function buildFullSystemPrompt(
@@ -2572,10 +2982,14 @@ async function buildFullSystemPrompt(
   voiceSpeed: string,
   callerPhone: string,
   twilioPhoneNumber: string | null,
-  websiteKnowledge: string | null
+  websiteKnowledge: string | null,
+  businessType: BusinessType,
+  restaurantSettings: any
 ): Promise<PromptData> {
-  // Fetch all business data in parallel
-  const [staffResult, servicesResult, hoursResult, settingsResult, timeOffResult, bookingsResult, customerSettingsResult] = await Promise.all([
+  const isRestaurant = businessType.startsWith("restaurant_");
+  
+  // Fetch all business data in parallel - include restaurant data if applicable
+  const baseQueries = [
     supabase.from("staff").select("id, name, role, title, phone, ai_enabled, is_business_owner, working_hours").eq("business_id", businessId),
     supabase.from("services").select("id, name, duration_minutes, price, category, description, deposit_required, deposit_amount").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
@@ -2594,7 +3008,58 @@ async function buildFullSystemPrompt(
       .order("start_time")
       .limit(30),
     supabase.from("customer_settings").select("*").eq("business_id", businessId).maybeSingle(),
-  ]);
+  ];
+  
+  // Add restaurant-specific queries
+  if (isRestaurant) {
+    baseQueries.push(
+      supabase.from("menu_categories").select("id, name, description, display_order, is_active").eq("business_id", businessId).eq("is_active", true).order("display_order"),
+      supabase.from("menu_items").select("id, name, description, price, category_id, dietary_tags, is_available, has_sizes, preparation_time_minutes").eq("business_id", businessId).eq("is_available", true),
+      supabase.from("restaurant_tables").select("id, table_number, capacity, location, is_active").eq("business_id", businessId).eq("is_active", true),
+    );
+  }
+
+  const results = await Promise.all(baseQueries);
+  
+  const [staffResult, servicesResult, hoursResult, settingsResult, timeOffResult, bookingsResult, customerSettingsResult] = results;
+  
+  // Extract restaurant data if applicable
+  let menuCategories: any[] = [];
+  let menuItems: any[] = [];
+  let menuItemSizes: any[] = [];
+  let menuItemOptionGroups: any[] = [];
+  let menuItemOptions: any[] = [];
+  let tables: any[] = [];
+  
+  if (isRestaurant && results.length > 7) {
+    menuCategories = results[7]?.data || [];
+    menuItems = results[8]?.data || [];
+    tables = results[9]?.data || [];
+    
+    // Fetch menu item sizes and options for restaurants
+    const menuItemIds = menuItems.map((item: any) => item.id);
+    if (menuItemIds.length > 0) {
+      const [sizesResult, optionGroupsResult] = await Promise.all([
+        supabase.from("menu_item_sizes").select("id, menu_item_id, name, price, is_available, is_default, display_order").in("menu_item_id", menuItemIds).eq("is_available", true),
+        supabase.from("menu_item_option_groups").select("id, menu_item_id, name, description, is_required, min_selections, max_selections, display_order").in("menu_item_id", menuItemIds),
+      ]);
+      
+      menuItemSizes = sizesResult.data || [];
+      menuItemOptionGroups = optionGroupsResult.data || [];
+      
+      // Fetch options for the option groups
+      if (menuItemOptionGroups.length > 0) {
+        const groupIds = menuItemOptionGroups.map((g: any) => g.id);
+        const { data: optionsData } = await supabase.from("menu_item_options")
+          .select("id, option_group_id, name, price_adjustment, is_available, is_default, display_order")
+          .in("option_group_id", groupIds)
+          .eq("is_available", true);
+        menuItemOptions = optionsData || [];
+      }
+    }
+    
+    console.log(`[MediaStream] Loaded restaurant data: ${menuCategories.length} categories, ${menuItems.length} items, ${menuItemSizes.length} sizes, ${tables.length} tables`);
+  }
 
   const staff: StaffMember[] = (staffResult.data || []).map((s: any) => ({
     id: s.id,
@@ -3304,6 +3769,54 @@ ${depositInstruction}
 
 ${dataCollectionRules}${faqContext}`;
 
+  // For restaurants, use the appropriate restaurant prompt builder instead
+  if (isRestaurant) {
+    // Enrich menu items with their sizes
+    const enrichedMenuItems = menuItems.map((item: any) => {
+      const sizes = menuItemSizes.filter((s: any) => s.menu_item_id === item.id);
+      return {
+        ...item,
+        sizes: sizes.length > 0 ? sizes : null,
+      };
+    });
+    
+    const restaurantPrompt = buildSystemPromptForBusinessType({
+      businessType,
+      businessName,
+      businessAddress,
+      assistantName,
+      tone,
+      voiceSpeed,
+      callerPhone,
+      twilioPhoneNumber,
+      websiteKnowledge,
+      openingHours: hours,
+      businessSettings,
+      callerInfo,
+      menuCategories,
+      menuItems: enrichedMenuItems,
+      menuItemOptions,
+      menuItemOptionGroups,
+      tables,
+      restaurantSettings,
+    });
+    
+    console.log(`[MediaStream] Built restaurant prompt for ${businessType} with ${menuItems.length} menu items`);
+    
+    return {
+      prompt: restaurantPrompt,
+      businessSettings,
+      openingHours: hours,
+      staffTimeOff,
+      staffServices,
+      staff,
+      services,
+      menuCategories,
+      menuItems: enrichedMenuItems,
+      tables,
+    };
+  }
+
   return {
     prompt,
     businessSettings,
@@ -3312,6 +3825,9 @@ ${dataCollectionRules}${faqContext}`;
     staffServices,
     staff,
     services,
+    menuCategories: [],
+    menuItems: [],
+    tables: [],
   };
 }
 

@@ -30,6 +30,8 @@ interface PromptBuilderParams {
   tables?: any[];
   menuCategories?: any[];
   menuItems?: any[];
+  menuItemOptionGroups?: any[];
+  menuItemOptions?: any[];
   restaurantSettings?: {
     cuisineType: string | null;
     menuLink: string | null;
@@ -80,6 +82,8 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         openingHours: params.openingHours,
         menuCategories: params.menuCategories || [],
         menuItems: params.menuItems || [],
+        menuItemOptionGroups: params.menuItemOptionGroups || [],
+        menuItemOptions: params.menuItemOptions || [],
         businessSettings: params.businessSettings,
         restaurantSettings: params.restaurantSettings || getDefaultRestaurantSettings(),
         callerInfo: params.callerInfo,
