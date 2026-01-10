@@ -22,8 +22,9 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
+      supabaseUrl,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
@@ -170,15 +171,20 @@ serve(async (req) => {
     const deliveryFee = orderType === "delivery" ? (business.delivery_fee || 0) : 0;
     const total = subtotal + deliveryFee;
 
-    // Generate order number
-    const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
+    // Generate simple order number using database function
+    const { data: orderNumber } = await supabase.rpc("generate_order_number", {
+      p_business_id: business.id
+    });
 
-    // Create order
+    // Fallback to simple timestamp-based number if RPC fails
+    const finalOrderNumber = orderNumber || String(Math.floor(Date.now() / 1000) % 10000);
+
+    // Create order - status starts as "confirmed" (not pending)
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert({
         business_id: business.id,
-        order_number: orderNumber,
+        order_number: finalOrderNumber,
         customer_name: customerName,
         customer_phone: customerPhone,
         customer_email: customerEmail || null,
@@ -191,7 +197,7 @@ serve(async (req) => {
         items: orderItems,
         subtotal,
         total,
-        status: "pending",
+        status: "confirmed",
       })
       .select()
       .single();
@@ -201,7 +207,7 @@ serve(async (req) => {
       return json(500, { error: "Failed to create order" });
     }
 
-    logStep("Order created successfully", { orderNumber, total });
+    logStep("Order created successfully", { orderNumber: finalOrderNumber, total });
 
     // Calculate estimated time
     const prepTime = business.average_prep_time_minutes || 20;
@@ -211,11 +217,28 @@ serve(async (req) => {
       minute: "2-digit",
     });
 
-    // TODO: Send SMS notification to business and customer
+    // Send SMS confirmation to customer
+    try {
+      await fetch(`${supabaseUrl}/functions/v1/send-order-sms`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          businessId: business.id,
+          orderId: order.id,
+          type: "confirmation",
+        }),
+      });
+    } catch (smsError) {
+      console.error("[public-create-order] Failed to send confirmation SMS:", smsError);
+      // Don't fail the order if SMS fails
+    }
 
     return json(200, {
       success: true,
-      orderNumber,
+      orderNumber: finalOrderNumber,
       total,
       estimatedTime: estimatedTimeStr,
       orderType,
