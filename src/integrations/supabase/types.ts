@@ -934,10 +934,55 @@ export type Database = {
           },
         ]
       }
+      menu_item_option_sizes: {
+        Row: {
+          created_at: string | null
+          display_order: number | null
+          id: string
+          is_available: boolean | null
+          is_default: boolean | null
+          name: string
+          option_id: string
+          price: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_available?: boolean | null
+          is_default?: boolean | null
+          name: string
+          option_id: string
+          price: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_available?: boolean | null
+          is_default?: boolean | null
+          name?: string
+          option_id?: string
+          price?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_option_sizes_option_id_fkey"
+            columns: ["option_id"]
+            isOneToOne: false
+            referencedRelation: "menu_item_options"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_item_options: {
         Row: {
           created_at: string | null
           display_order: number | null
+          has_sizes: boolean | null
           id: string
           is_available: boolean | null
           is_default: boolean | null
@@ -949,6 +994,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           display_order?: number | null
+          has_sizes?: boolean | null
           id?: string
           is_available?: boolean | null
           is_default?: boolean | null
@@ -960,6 +1006,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           display_order?: number | null
+          has_sizes?: boolean | null
           id?: string
           is_available?: boolean | null
           is_default?: boolean | null
