@@ -11,11 +11,15 @@ import { format } from "date-fns";
 import { Search, Clock, Phone, ChefHat, CheckCircle, XCircle, RefreshCw, Package } from "lucide-react";
 
 interface OrderItem {
-  item_id: string;
-  name: string;
+  item_id?: string;
+  name?: string;
+  item_name?: string;
   quantity: number;
-  price: number;
+  price?: number;
+  unit_price?: number;
   options?: { name: string; price: number }[];
+  selectedOptions?: { option: { name: string }; selectedSize?: { name: string } }[];
+  selectedSize?: { name: string };
 }
 
 interface Order {
@@ -301,19 +305,37 @@ export function OrdersTab({ businessId, currency = "GBP" }: OrdersTabProps) {
               <div className="border-t pt-3">
                 <div className="text-sm font-medium mb-2">Items</div>
                 <div className="space-y-2">
-                  {selectedOrder.items.map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-sm">
-                      <span>
-                        {item.quantity}x {item.name}
-                        {item.options && item.options.length > 0 && (
-                          <span className="text-muted-foreground ml-1">
-                            ({item.options.map(o => o.name).join(", ")})
-                          </span>
-                        )}
-                      </span>
-                      <span>{getCurrencySymbol()}{(item.price * item.quantity).toFixed(2)}</span>
-                    </div>
-                  ))}
+                  {selectedOrder.items.map((item, idx) => {
+                    const itemName = item.name || item.item_name || "Unknown Item";
+                    const itemPrice = item.price ?? item.unit_price ?? 0;
+                    const optionsDisplay = item.options?.length 
+                      ? item.options.map(o => o.name).join(", ")
+                      : item.selectedOptions?.length
+                        ? item.selectedOptions.map(o => 
+                            o.selectedSize 
+                              ? `${o.option.name} (${o.selectedSize.name})`
+                              : o.option.name
+                          ).join(", ")
+                        : null;
+                    const sizeDisplay = item.selectedSize?.name;
+                    
+                    return (
+                      <div key={idx} className="flex justify-between text-sm">
+                        <span>
+                          {item.quantity}x {itemName}
+                          {sizeDisplay && (
+                            <span className="text-muted-foreground ml-1">({sizeDisplay})</span>
+                          )}
+                          {optionsDisplay && (
+                            <span className="text-muted-foreground ml-1">
+                              + {optionsDisplay}
+                            </span>
+                          )}
+                        </span>
+                        <span>{getCurrencySymbol()}{(itemPrice * item.quantity).toFixed(2)}</span>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="flex justify-between font-medium mt-3 pt-3 border-t">
                   <span>Total</span>

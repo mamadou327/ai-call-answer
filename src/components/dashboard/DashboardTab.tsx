@@ -14,10 +14,14 @@ interface DashboardTabProps {
   businessName: string;
   currency?: string;
   businessId: string;
+  businessType?: string | null;
 }
 
-export const DashboardTab = ({ businessName, currency = "GBP", businessId }: DashboardTabProps) => {
+const RESTAURANT_TYPES = ["restaurant_pickup", "restaurant_dine_in", "restaurant_hybrid"];
+
+export const DashboardTab = ({ businessName, currency = "GBP", businessId, businessType }: DashboardTabProps) => {
   const { t } = useTranslation();
+  const isRestaurant = RESTAURANT_TYPES.includes(businessType || "");
   const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "custom">("month");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
   const [bookingsCount, setBookingsCount] = useState(0);
@@ -374,7 +378,9 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
         <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => openStatDialog("bookings")}>
           <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
-            <CardTitle className="text-xs sm:text-sm font-medium">{t("dashboard.totalBookings")}</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">
+              {isRestaurant ? "Total Orders" : t("dashboard.totalBookings")}
+            </CardTitle>
             <CalendarCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
@@ -428,16 +434,20 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
         </Card>
       </div>
 
-      {/* Today's Appointments */}
+      {/* Today's Appointments/Orders */}
       <Card>
         <CardHeader className="p-4 sm:p-6">
-          <CardTitle className="text-base sm:text-lg">{t("dashboard.todaysAppointments")}</CardTitle>
+          <CardTitle className="text-base sm:text-lg">
+            {isRestaurant ? "Today's Orders" : t("dashboard.todaysAppointments")}
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
           {todaysAppointments.length === 0 ? (
             <div className="text-center py-6 sm:py-8 text-muted-foreground">
               <CalendarCheck className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 opacity-50" />
-              <p className="text-sm sm:text-base">{t("dashboard.noAppointments")}</p>
+              <p className="text-sm sm:text-base">
+                {isRestaurant ? "No orders scheduled for today" : t("dashboard.noAppointments")}
+              </p>
             </div>
           ) : (
             <div className="space-y-2 sm:space-y-3">
@@ -466,16 +476,20 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
       </Card>
 
       <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
-        {/* Upcoming Bookings */}
+        {/* Upcoming Bookings/Orders */}
         <Card>
           <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="text-base sm:text-lg">{t("dashboard.upcomingBookings")}</CardTitle>
+            <CardTitle className="text-base sm:text-lg">
+              {isRestaurant ? "Upcoming Orders" : t("dashboard.upcomingBookings")}
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
             {upcomingBookings.length === 0 ? (
               <div className="text-center py-6 sm:py-8 text-muted-foreground">
                 <Calendar className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm sm:text-base">{t("dashboard.noBookings")}</p>
+                <p className="text-sm sm:text-base">
+                  {isRestaurant ? "No upcoming orders" : t("dashboard.noBookings")}
+                </p>
               </div>
             ) : (
               <div className="space-y-2 sm:space-y-3">
@@ -503,19 +517,21 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId }: Das
           </CardContent>
         </Card>
 
-        {/* Cancelled Bookings */}
+        {/* Cancelled Bookings/Orders */}
         <Card>
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="text-base sm:text-lg flex items-center gap-2">
               <XCircle className="w-4 h-4 text-destructive" />
-              Cancelled Bookings
+              {isRestaurant ? "Cancelled Orders" : "Cancelled Bookings"}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
             {cancelledBookings.length === 0 ? (
               <div className="text-center py-6 sm:py-8 text-muted-foreground">
                 <XCircle className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm sm:text-base">No cancelled bookings</p>
+                <p className="text-sm sm:text-base">
+                  {isRestaurant ? "No cancelled orders" : "No cancelled bookings"}
+                </p>
               </div>
             ) : (
               <div className="space-y-2 sm:space-y-3">
