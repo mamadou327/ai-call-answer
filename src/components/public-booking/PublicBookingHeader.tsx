@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Menu, Home, Scissors, ImageIcon, MessageSquare, ShoppingBag } from "lucide-react";
+import { Menu, Home, Scissors, ImageIcon, MessageSquare, ShoppingBag, UtensilsCrossed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { PublicSocialLinks } from "./PublicSocialLinks";
 import { PublicMiniCart } from "./PublicMiniCart";
+import { PublicOrderMiniCart } from "./PublicOrderMiniCart";
 import { CartItem } from "./PublicBookingCart";
+import { OrderItem } from "./PublicMenuSelector";
 
 interface Socials {
   instagram: string | null;
@@ -22,19 +24,18 @@ interface PublicBookingHeaderProps {
   hasGallery: boolean;
   currentStep: string;
   cartItems: CartItem[];
+  orderItems?: OrderItem[];
   currency: string;
-  onNavigate: (step: "landing" | "service" | "gallery") => void;
+  businessType?: string | null;
+  onNavigate: (step: "landing" | "service" | "gallery" | "menu") => void;
   onOpenContact: () => void;
   onRemoveCartItem: (itemId: string) => void;
+  onRemoveOrderItem?: (itemId: string) => void;
   onCartContinue: () => void;
   onCartAddAnother: () => void;
 }
 
-const navItems = [
-  { id: "landing", label: "Home", icon: Home },
-  { id: "service", label: "Services", icon: Scissors },
-  { id: "gallery", label: "Gallery", icon: ImageIcon },
-] as const;
+const RESTAURANT_TYPES = ["restaurant_pickup", "restaurant_dine_in", "restaurant_hybrid"];
 
 export const PublicBookingHeader = ({
   businessName,
@@ -43,16 +44,21 @@ export const PublicBookingHeader = ({
   hasGallery,
   currentStep,
   cartItems,
+  orderItems = [],
   currency,
+  businessType,
   onNavigate,
   onOpenContact,
   onRemoveCartItem,
+  onRemoveOrderItem,
   onCartContinue,
   onCartAddAnother,
 }: PublicBookingHeaderProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const handleNavClick = (stepId: "landing" | "service" | "gallery") => {
+  const isRestaurant = RESTAURANT_TYPES.includes(businessType || "");
+
+  const handleNavClick = (stepId: "landing" | "service" | "gallery" | "menu") => {
     onNavigate(stepId);
     setMobileMenuOpen(false);
   };
@@ -60,11 +66,23 @@ export const PublicBookingHeader = ({
   const isActive = (stepId: string) => {
     if (stepId === "landing") return currentStep === "landing";
     if (stepId === "service") return ["service", "staff", "datetime", "customer", "group-type", "group-customer"].includes(currentStep);
+    if (stepId === "menu") return ["menu", "order-cart"].includes(currentStep);
     if (stepId === "gallery") return currentStep === "gallery";
     return false;
   };
 
-  const showCart = cartItems.length > 0 && !["landing", "confirmation"].includes(currentStep);
+  // Build nav items based on business type
+  const navItems = isRestaurant
+    ? [
+        { id: "landing" as const, label: "Home", icon: Home },
+        { id: "menu" as const, label: "Menu", icon: UtensilsCrossed },
+        { id: "gallery" as const, label: "Gallery", icon: ImageIcon },
+      ]
+    : [
+        { id: "landing" as const, label: "Home", icon: Home },
+        { id: "service" as const, label: "Services", icon: Scissors },
+        { id: "gallery" as const, label: "Gallery", icon: ImageIcon },
+      ];
 
   // Filter gallery if business doesn't have one
   const visibleNavItems = navItems.filter(item => {
@@ -118,14 +136,24 @@ export const PublicBookingHeader = ({
 
           {/* Right side: Cart, Social, Mobile Menu */}
           <div className="flex items-center gap-2">
-            {/* Cart - Always visible */}
-            <PublicMiniCart
-              items={cartItems}
-              currency={currency}
-              onRemoveItem={onRemoveCartItem}
-              onContinue={onCartContinue}
-              onAddAnother={onCartAddAnother}
-            />
+            {/* Cart - Show restaurant or salon cart based on business type */}
+            {isRestaurant ? (
+              <PublicOrderMiniCart
+                items={orderItems}
+                currency={currency}
+                onRemoveItem={onRemoveOrderItem || (() => {})}
+                onContinue={onCartContinue}
+                onAddAnother={onCartAddAnother}
+              />
+            ) : (
+              <PublicMiniCart
+                items={cartItems}
+                currency={currency}
+                onRemoveItem={onRemoveCartItem}
+                onContinue={onCartContinue}
+                onAddAnother={onCartAddAnother}
+              />
+            )}
 
             {/* Social Links - Desktop */}
             <div className="hidden md:block">
