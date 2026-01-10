@@ -356,7 +356,7 @@ const PublicBookingPage = () => {
             
             const [sizesRes, optionGroupsRes] = await Promise.all([
               sizeItemIds.length > 0 
-                ? supabase.from("menu_item_sizes").select("*").in("menu_item_id", sizeItemIds)
+                ? supabase.from("menu_item_sizes").select("*").in("menu_item_id", sizeItemIds).eq("is_available", true).order("display_order")
                 : Promise.resolve({ data: [] }),
               supabase.from("menu_item_option_groups").select("*").in("menu_item_id", itemIds).order("display_order"),
             ]);
@@ -872,7 +872,7 @@ const PublicBookingPage = () => {
     );
   }
 
-  const handleHeaderNavigate = (navStep: "landing" | "service" | "gallery") => {
+  const handleHeaderNavigate = (navStep: "landing" | "service" | "gallery" | "menu") => {
     setStep(navStep);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -892,12 +892,15 @@ const PublicBookingPage = () => {
         hasGallery={hasGallery}
         currentStep={step}
         cartItems={cartItems}
+        orderItems={orderItems}
         currency={currency}
+        businessType={business.business_type}
         onNavigate={handleHeaderNavigate}
         onOpenContact={() => setContactDialogOpen(true)}
         onRemoveCartItem={handleRemoveCartItem}
-        onCartContinue={handleCartContinue}
-        onCartAddAnother={handleCartAddAnother}
+        onRemoveOrderItem={handleRemoveOrderItem}
+        onCartContinue={isRestaurant ? () => setStep("order-cart") : handleCartContinue}
+        onCartAddAnother={isRestaurant ? () => setStep("menu") : handleCartAddAnother}
       />
 
       {/* Contact Dialog - controlled mode */}
