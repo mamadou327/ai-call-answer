@@ -348,19 +348,70 @@ const PublicBookingPage = () => {
           
           if (categoriesRes.data) setMenuCategories(categoriesRes.data);
           
-          // Fetch sizes for items that have them
-          if (itemsRes.data) {
+          // Fetch sizes and option groups for items
+          if (itemsRes.data && itemsRes.data.length > 0) {
+            const itemIds = itemsRes.data.map((i: any) => i.id);
             const itemsWithSizes = itemsRes.data.filter((i: any) => i.has_sizes);
-            const sizeIds = itemsWithSizes.map((i: any) => i.id);
+            const sizeItemIds = itemsWithSizes.map((i: any) => i.id);
             
-            const { data: sizes } = sizeIds.length > 0 
-              ? await supabase.from("menu_item_sizes").select("*").in("menu_item_id", sizeIds)
-              : { data: [] };
+            const [sizesRes, optionGroupsRes] = await Promise.all([
+              sizeItemIds.length > 0 
+                ? supabase.from("menu_item_sizes").select("*").in("menu_item_id", sizeItemIds)
+                : Promise.resolve({ data: [] }),
+              supabase.from("menu_item_option_groups").select("*").in("menu_item_id", itemIds).order("display_order"),
+            ]);
             
-            const enrichedItems = itemsRes.data.map((item: any) => ({
-              ...item,
-              sizes: sizes?.filter((s: any) => s.menu_item_id === item.id) || [],
-            }));
+            const sizes = sizesRes.data || [];
+            const optionGroups = optionGroupsRes.data || [];
+            
+            // Fetch options for all option groups
+            let options: any[] = [];
+            let optionSizes: any[] = [];
+            if (optionGroups.length > 0) {
+              const groupIds = optionGroups.map((g: any) => g.id);
+              const { data: optionsData } = await supabase
+                .from("menu_item_options")
+                .select("*")
+                .in("option_group_id", groupIds)
+                .eq("is_available", true)
+                .order("display_order");
+              options = optionsData || [];
+              
+              // Fetch sizes for options that have them
+              const optionsWithSizes = options.filter((o: any) => o.has_sizes);
+              if (optionsWithSizes.length > 0) {
+                const optionIds = optionsWithSizes.map((o: any) => o.id);
+                const { data: optSizesData } = await supabase
+                  .from("menu_item_option_sizes")
+                  .select("*")
+                  .in("option_id", optionIds)
+                  .eq("is_available", true)
+                  .order("display_order");
+                optionSizes = optSizesData || [];
+              }
+            }
+            
+            // Enrich items with sizes and option groups
+            const enrichedItems = itemsRes.data.map((item: any) => {
+              const itemSizes = sizes.filter((s: any) => s.menu_item_id === item.id);
+              const itemOptionGroups = optionGroups
+                .filter((g: any) => g.menu_item_id === item.id)
+                .map((group: any) => ({
+                  ...group,
+                  options: options
+                    .filter((o: any) => o.option_group_id === group.id)
+                    .map((opt: any) => ({
+                      ...opt,
+                      sizes: optionSizes.filter((os: any) => os.option_id === opt.id),
+                    })),
+                }));
+              
+              return {
+                ...item,
+                sizes: itemSizes,
+                option_groups: itemOptionGroups,
+              };
+            });
             
             setMenuItems(enrichedItems);
           }
@@ -858,17 +909,30 @@ const PublicBookingPage = () => {
         showTrigger={false}
       />
 
-      {!["landing", "confirmation", "lookup-cancel", "lookup-reschedule", "cancel", "reschedule", "gallery"].includes(step) && (
+      {!["landing", "confirmation", "lookup-cancel", "lookup-reschedule", "cancel", "reschedule", "gallery", "order-confirmation"].includes(step) && (
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center gap-2 text-sm">
-            {["service", "staff", "datetime", "customer"].map((s, i) => (
-              <span key={s} className="flex items-center gap-2">
-                {i > 0 && <span className="text-muted-foreground">→</span>}
-                <span className={step === s ? "font-bold" : "text-muted-foreground"}>
-                  {i + 1}. {s.charAt(0).toUpperCase() + s.slice(1)}
+            {isRestaurant ? (
+              // Restaurant steps
+              ["menu", "order-cart"].map((s, i) => (
+                <span key={s} className="flex items-center gap-2">
+                  {i > 0 && <span className="text-muted-foreground">→</span>}
+                  <span className={step === s ? "font-bold" : "text-muted-foreground"}>
+                    {i + 1}. {s === "menu" ? "Menu" : "Checkout"}
+                  </span>
                 </span>
-              </span>
-            ))}
+              ))
+            ) : (
+              // Salon steps
+              ["service", "staff", "datetime", "customer"].map((s, i) => (
+                <span key={s} className="flex items-center gap-2">
+                  {i > 0 && <span className="text-muted-foreground">→</span>}
+                  <span className={step === s ? "font-bold" : "text-muted-foreground"}>
+                    {i + 1}. {s.charAt(0).toUpperCase() + s.slice(1)}
+                  </span>
+                </span>
+              ))
+            )}
           </div>
         </div>
       )}
@@ -878,6 +942,7 @@ const PublicBookingPage = () => {
           <PublicLandingPage
             businessName={business.business_name}
             businessSlug={slug || ""}
+            businessType={business.business_type}
             welcomeMessage={business.online_booking_message}
             address={business.address}
             phone={business.main_phone}

@@ -31,6 +31,7 @@ interface OpeningHour {
 interface PublicLandingPageProps {
   businessName: string;
   businessSlug: string;
+  businessType?: string | null;
   welcomeMessage: string | null;
   address: string;
   phone: string;
@@ -43,6 +44,8 @@ interface PublicLandingPageProps {
   onRescheduleBooking: () => void;
   onViewGallery: () => void;
 }
+
+const RESTAURANT_TYPES = ["restaurant_pickup", "restaurant_dine_in", "restaurant_hybrid"];
 
 // Helper function to format policy text professionally
 const formatPolicyText = (rawPolicy: string): string => {
@@ -76,6 +79,7 @@ const formatPolicyText = (rawPolicy: string): string => {
 export const PublicLandingPage = ({
   businessName,
   businessSlug,
+  businessType,
   welcomeMessage,
   address,
   phone,
@@ -89,6 +93,8 @@ export const PublicLandingPage = ({
   onViewGallery,
 }: PublicLandingPageProps) => {
   const [policiesOpen, setPoliciesOpen] = useState(false);
+  
+  const isRestaurant = RESTAURANT_TYPES.includes(businessType || "");
 
   const formatPolicyItem = (label: string, value: number | null, unit: string) => {
     if (value === null) return null;
@@ -122,7 +128,7 @@ export const PublicLandingPage = ({
             onClick={onMakeBooking}
             className="text-lg px-8 py-6 h-auto font-semibold shadow-lg hover:shadow-xl transition-shadow"
           >
-            Book Appointment
+            {isRestaurant ? "Order Now" : "Book Appointment"}
           </Button>
         </div>
       </div>
@@ -132,47 +138,49 @@ export const PublicLandingPage = ({
         <div className="text-center">
           <Button variant="outline" size="lg" onClick={onViewGallery} className="gap-2">
             <Image className="h-5 w-5" />
-            View Our Work
+            {isRestaurant ? "View Menu" : "View Our Work"}
           </Button>
         </div>
       )}
 
-      {/* Action Cards - More Options */}
-      <div className="pt-4 border-t">
-        <h2 className="text-xl font-semibold text-center mb-6">More Options</h2>
-        
-        <div className="grid gap-4 md:grid-cols-2 max-w-2xl mx-auto">
-          <Card 
-            className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
-            onClick={onCancelBooking}
-          >
-            <CardHeader className="text-center pb-2">
-              <div className="mx-auto w-10 h-10 bg-destructive/10 rounded-full flex items-center justify-center mb-2">
-                <XCircle className="h-5 w-5 text-destructive" />
-              </div>
-              <CardTitle className="text-base">Cancel Booking</CardTitle>
-              <CardDescription className="text-sm">
-                Cancel an existing appointment
-              </CardDescription>
-            </CardHeader>
-          </Card>
+      {/* Action Cards - More Options (hide for restaurants) */}
+      {!isRestaurant && (
+        <div className="pt-4 border-t">
+          <h2 className="text-xl font-semibold text-center mb-6">More Options</h2>
+          
+          <div className="grid gap-4 md:grid-cols-2 max-w-2xl mx-auto">
+            <Card 
+              className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
+              onClick={onCancelBooking}
+            >
+              <CardHeader className="text-center pb-2">
+                <div className="mx-auto w-10 h-10 bg-destructive/10 rounded-full flex items-center justify-center mb-2">
+                  <XCircle className="h-5 w-5 text-destructive" />
+                </div>
+                <CardTitle className="text-base">Cancel Booking</CardTitle>
+                <CardDescription className="text-sm">
+                  Cancel an existing appointment
+                </CardDescription>
+              </CardHeader>
+            </Card>
 
-          <Card 
-            className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
-            onClick={onRescheduleBooking}
-          >
-            <CardHeader className="text-center pb-2">
-              <div className="mx-auto w-10 h-10 bg-amber-500/10 rounded-full flex items-center justify-center mb-2">
-                <RefreshCw className="h-5 w-5 text-amber-500" />
-              </div>
-              <CardTitle className="text-base">Reschedule</CardTitle>
-              <CardDescription className="text-sm">
-                Change the date/time of your booking
-              </CardDescription>
-            </CardHeader>
-          </Card>
+            <Card 
+              className="cursor-pointer hover:border-primary hover:shadow-md transition-all"
+              onClick={onRescheduleBooking}
+            >
+              <CardHeader className="text-center pb-2">
+                <div className="mx-auto w-10 h-10 bg-amber-500/10 rounded-full flex items-center justify-center mb-2">
+                  <RefreshCw className="h-5 w-5 text-amber-500" />
+                </div>
+                <CardTitle className="text-base">Reschedule</CardTitle>
+                <CardDescription className="text-sm">
+                  Change the date/time of your booking
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Footer with Contact Info and Policies */}
       <footer className="pt-8 border-t mt-8">
