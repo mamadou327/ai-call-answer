@@ -27,12 +27,6 @@ interface RestaurantOrderQueueProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode; bgColor: string }> = {
-  pending: { 
-    label: "Pending", 
-    color: "text-yellow-700", 
-    icon: <Clock className="w-4 h-4" />,
-    bgColor: "bg-yellow-50 border-yellow-200"
-  },
   confirmed: { 
     label: "Confirmed", 
     color: "text-blue-700", 
@@ -66,7 +60,6 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", onOrderUpdate }
 
   const getNextStatus = (currentStatus: string): string | null => {
     const flow: Record<string, string> = {
-      pending: "confirmed",
       confirmed: "preparing",
       preparing: "ready",
       ready: "completed",
@@ -114,9 +107,8 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", onOrderUpdate }
     return [];
   };
 
-  // Group orders by status
+  // Group orders by status (no pending - orders start as confirmed)
   const groupedOrders = {
-    pending: orders.filter(o => o.status === "pending"),
     confirmed: orders.filter(o => o.status === "confirmed"),
     preparing: orders.filter(o => o.status === "preparing"),
     ready: orders.filter(o => o.status === "ready"),
@@ -142,8 +134,8 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", onOrderUpdate }
             <p className="text-sm">New orders will appear here</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {(["pending", "confirmed", "preparing", "ready"] as const).map((status) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {(["confirmed", "preparing", "ready"] as const).map((status) => (
               <div key={status} className="space-y-3">
                 <div className="flex items-center gap-2">
                   <span className={`${statusConfig[status].color}`}>
@@ -169,8 +161,8 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", onOrderUpdate }
                       >
                         <div className="flex items-start justify-between mb-2">
                           <div>
-                            <p className="font-bold text-sm">#{order.order_number}</p>
-                            <p className="text-xs text-muted-foreground">{order.customer_name}</p>
+                            <p className="font-bold text-lg">#{order.order_number}</p>
+                            <p className="text-sm text-muted-foreground">{order.customer_name}</p>
                           </div>
                           <p className="font-semibold text-sm">
                             {currencySymbol}{(order.total || 0).toFixed(2)}
