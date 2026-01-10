@@ -18,12 +18,15 @@ import { PublicGroupTypeSelector } from "@/components/public-booking/PublicGroup
 import { PublicGroupCustomerForm } from "@/components/public-booking/PublicGroupCustomerForm";
 import { PublicBookingHeader } from "@/components/public-booking/PublicBookingHeader";
 import { PublicContactForm } from "@/components/public-booking/PublicContactForm";
+import { PublicMenuSelector, MenuItem, MenuCategory, MenuItemOptionGroup, OrderItem } from "@/components/public-booking/PublicMenuSelector";
+import { PublicOrderCart } from "@/components/public-booking/PublicOrderCart";
+import { PublicOrderConfirmation } from "@/components/public-booking/PublicOrderConfirmation";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-
 interface Business {
   id: string;
   business_name: string;
+  business_type: string | null;
   address: string;
   main_phone: string;
   website: string | null;
@@ -36,6 +39,11 @@ interface Business {
   social_tiktok: string | null;
   social_twitter: string | null;
   social_youtube: string | null;
+  minimum_order_amount: number | null;
+  delivery_enabled: boolean | null;
+  delivery_fee: number | null;
+  delivery_minimum_order: number | null;
+  average_prep_time_minutes: number | null;
 }
 
 interface PolicySettings {
@@ -69,7 +77,9 @@ interface Staff {
   name: string;
 }
 
-type BookingStep = "landing" | "service" | "staff" | "datetime" | "group-type" | "customer" | "group-customer" | "confirmation" | "lookup-cancel" | "cancel" | "lookup-reschedule" | "reschedule" | "gallery";
+type BookingStep = "landing" | "service" | "staff" | "datetime" | "group-type" | "customer" | "group-customer" | "confirmation" | "lookup-cancel" | "cancel" | "lookup-reschedule" | "reschedule" | "gallery" | "menu" | "order-cart" | "order-confirmation";
+
+const RESTAURANT_TYPES = ["restaurant_pickup", "restaurant_dine_in", "restaurant_hybrid"];
 
 const PublicBookingPage = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -86,6 +96,17 @@ const PublicBookingPage = () => {
   const [policies, setPolicies] = useState<PolicySettings | undefined>(undefined);
   const [openingHours, setOpeningHours] = useState<OpeningHour[]>([]);
   const [resolvedSlug, setResolvedSlug] = useState<string | null>(null);
+  
+  // Restaurant-specific state
+  const [menuCategories, setMenuCategories] = useState<MenuCategory[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [orderResult, setOrderResult] = useState<{
+    orderNumber: string;
+    total: number;
+    estimatedTime?: string;
+    orderType: "pickup" | "delivery";
+  } | null>(null);
 
   const [step, setStep] = useState<BookingStep>("landing");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -262,9 +283,10 @@ const PublicBookingPage = () => {
         const { data: businessData, error: businessError } = await supabase
           .from("businesses")
           .select(`
-            id, business_name, address, main_phone, website,
+            id, business_name, business_type, address, main_phone, website,
             online_booking_message, deposit_collection_timing, stripe_account_id,
-            logo_url, social_instagram, social_facebook, social_tiktok, social_twitter, social_youtube
+            logo_url, social_instagram, social_facebook, social_tiktok, social_twitter, social_youtube,
+            minimum_order_amount, delivery_enabled, delivery_fee, delivery_minimum_order, average_prep_time_minutes
           `)
           .eq("booking_slug", resolvedSlug)
           .eq("online_booking_enabled", true)
@@ -315,6 +337,35 @@ const PublicBookingPage = () => {
         }
         setHasGallery((galleryResult.data?.length || 0) > 0);
         if (hoursResult.data) setOpeningHours(hoursResult.data);
+        
+        // Fetch restaurant menu if applicable
+        const isRestaurant = RESTAURANT_TYPES.includes(businessData.business_type || "");
+        if (isRestaurant) {
+          const [categoriesRes, itemsRes] = await Promise.all([
+            supabase.from("menu_categories").select("id, name, description, display_order").eq("business_id", businessData.id).eq("is_active", true).order("display_order"),
+            supabase.from("menu_items").select("id, name, description, price, category_id, dietary_tags, is_available, has_sizes, preparation_time_minutes").eq("business_id", businessData.id).eq("is_available", true),
+          ]);
+          
+          if (categoriesRes.data) setMenuCategories(categoriesRes.data);
+          
+          // Fetch sizes for items that have them
+          if (itemsRes.data) {
+            const itemsWithSizes = itemsRes.data.filter((i: any) => i.has_sizes);
+            const sizeIds = itemsWithSizes.map((i: any) => i.id);
+            
+            const { data: sizes } = sizeIds.length > 0 
+              ? await supabase.from("menu_item_sizes").select("*").in("menu_item_id", sizeIds)
+              : { data: [] };
+            
+            const enrichedItems = itemsRes.data.map((item: any) => ({
+              ...item,
+              sizes: sizes?.filter((s: any) => s.menu_item_id === item.id) || [],
+            }));
+            
+            setMenuItems(enrichedItems);
+          }
+        }
+        
         setLoading(false);
       } catch (err) {
         console.error("Error fetching business data:", err);
@@ -398,6 +449,71 @@ const PublicBookingPage = () => {
     setSelectedTime(null);
     setStep("staff");
   };
+
+  // Restaurant order handlers
+  const handleAddToOrder = (item: OrderItem) => {
+    setOrderItems((prev) => [...prev, item]);
+  };
+
+  const handleRemoveOrderItem = (itemId: string) => {
+    setOrderItems((prev) => prev.filter((item) => item.id !== itemId));
+  };
+
+  const handleUpdateOrderQuantity = (itemId: string, quantity: number) => {
+    if (quantity <= 0) {
+      handleRemoveOrderItem(itemId);
+    } else {
+      setOrderItems((prev) => prev.map((item) => item.id === itemId ? { ...item, quantity } : item));
+    }
+  };
+
+  const handleOrderSubmit = async (orderData: {
+    customerName: string;
+    customerPhone: string;
+    customerEmail?: string;
+    orderType: "pickup" | "delivery";
+    deliveryAddress?: string;
+    pickupTime?: string;
+    notes?: string;
+  }) => {
+    const effectiveSlug = resolvedSlug || slug;
+    if (!effectiveSlug) return;
+
+    try {
+      const items = orderItems.map((item) => ({
+        menuItemId: item.menuItem.id,
+        quantity: item.quantity,
+        sizeId: item.selectedSize?.id,
+        sizeName: item.selectedSize?.name,
+        options: item.selectedOptions.map((opt) => ({
+          optionId: opt.option.id,
+          optionName: opt.option.name,
+          priceAdjustment: opt.option.price_adjustment,
+          optionSizeId: opt.selectedSize?.id,
+        })),
+        specialInstructions: item.specialInstructions,
+      }));
+
+      const { data, error } = await supabase.functions.invoke("public-create-order", {
+        body: { businessSlug: effectiveSlug, items, ...orderData },
+      });
+
+      if (error) throw error;
+
+      setOrderResult({
+        orderNumber: data.orderNumber,
+        total: data.total,
+        estimatedTime: data.estimatedTime,
+        orderType: data.orderType,
+      });
+      setOrderItems([]);
+      setStep("order-confirmation");
+    } catch (err: any) {
+      toast({ title: "Order failed", description: err?.message || "Failed to place order", variant: "destructive" });
+    }
+  };
+
+  const isRestaurant = business && RESTAURANT_TYPES.includes(business.business_type || "");
 
   const handleStaffSelect = (staffMember: Staff | null) => {
     setSelectedStaff(staffMember);
@@ -769,13 +885,55 @@ const PublicBookingPage = () => {
             hasGallery={hasGallery}
             policies={policies}
             openingHours={openingHours}
-            onMakeBooking={() => setStep("service")}
+            onMakeBooking={() => setStep(isRestaurant ? "menu" : "service")}
             onCancelBooking={() => setStep("lookup-cancel")}
             onRescheduleBooking={() => setStep("lookup-reschedule")}
             onViewGallery={() => setStep("gallery")}
           />
         )}
-        {step === "service" && (
+        {step === "menu" && isRestaurant && (
+          <PublicMenuSelector
+            categories={menuCategories}
+            menuItems={menuItems}
+            currency={currency}
+            orderItems={orderItems}
+            onAddToOrder={(item) => { handleAddToOrder(item); setStep("order-cart"); }}
+            onBack={handleBack}
+            minimumOrder={business.minimum_order_amount || undefined}
+          />
+        )}
+        {step === "order-cart" && isRestaurant && (
+          <PublicOrderCart
+            orderItems={orderItems}
+            currency={currency}
+            businessName={business.business_name}
+            businessAddress={business.address}
+            minimumOrder={business.minimum_order_amount || undefined}
+            deliveryEnabled={business.delivery_enabled || false}
+            deliveryFee={business.delivery_fee || 0}
+            deliveryMinimum={business.delivery_minimum_order || 0}
+            averagePrepTime={business.average_prep_time_minutes || 20}
+            onRemoveItem={handleRemoveOrderItem}
+            onUpdateQuantity={handleUpdateOrderQuantity}
+            onSubmit={handleOrderSubmit}
+            onBack={() => setStep("menu")}
+            onAddMore={() => setStep("menu")}
+          />
+        )}
+        {step === "order-confirmation" && orderResult && (
+          <PublicOrderConfirmation
+            orderNumber={orderResult.orderNumber}
+            businessName={business.business_name}
+            businessAddress={business.address}
+            businessPhone={business.main_phone}
+            orderType={orderResult.orderType}
+            estimatedTime={orderResult.estimatedTime}
+            total={orderResult.total}
+            currency={currency}
+            onBackToHome={() => setStep("landing")}
+          />
+        )}
+        {step === "service" && !isRestaurant && (
           <PublicServiceSelector 
             services={services} 
             currency={currency} 
