@@ -7,7 +7,8 @@ import { LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings, Package,
 import type { User } from "@supabase/supabase-js";
 import { useTranslation } from "react-i18next";
 import { SetupChecklist, type ChecklistItem } from "@/components/SetupChecklist";
-import { DashboardTab } from "@/components/dashboard/DashboardTab";
+import { SalonDashboardTab } from "@/components/dashboard/SalonDashboardTab";
+import { RestaurantDashboardTab } from "@/components/dashboard/RestaurantDashboardTab";
 import { CallsTab } from "@/components/dashboard/CallsTab";
 import { MessagesTab } from "@/components/dashboard/MessagesTab";
 import { BookingsTab } from "@/components/dashboard/BookingsTab";
@@ -418,7 +419,22 @@ const Dashboard = () => {
               </TabsList>
 
               <TabsContent value="dashboard">
-                {business && settings && <DashboardTab businessName={business.business_name} currency={settings.currency || "GBP"} businessId={business.id} businessType={business.business_type} />}
+                {business && settings && (
+                  ["restaurant_pickup", "restaurant_dine_in", "restaurant_hybrid"].includes(business.business_type || "") ? (
+                    <RestaurantDashboardTab 
+                      businessName={business.business_name} 
+                      currency={settings.currency || "GBP"} 
+                      businessId={business.id} 
+                      businessType={business.business_type || ""}
+                    />
+                  ) : (
+                    <SalonDashboardTab 
+                      businessName={business.business_name} 
+                      currency={settings.currency || "GBP"} 
+                      businessId={business.id} 
+                    />
+                  )
+                )}
               </TabsContent>
 
               {/* Salon tabs */}
