@@ -171,13 +171,30 @@ serve(async (req) => {
     const deliveryFee = orderType === "delivery" ? (business.delivery_fee || 0) : 0;
     const total = subtotal + deliveryFee;
 
-    // Generate simple order number using database function
-    const { data: orderNumber } = await supabase.rpc("generate_order_number", {
-      p_business_id: business.id
-    });
+    // Generate random 4-digit order code (1000-9999)
+    const generateOrderCode = (): string => {
+      return String(Math.floor(1000 + Math.random() * 9000));
+    };
 
-    // Fallback to simple timestamp-based number if RPC fails
-    const finalOrderNumber = orderNumber || String(Math.floor(Date.now() / 1000) % 10000);
+    // Check for uniqueness (within today's orders for this business)
+    let finalOrderNumber = generateOrderCode();
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    const { data: existingOrders } = await supabase
+      .from("orders")
+      .select("order_number")
+      .eq("business_id", business.id)
+      .gte("created_at", todayStart.toISOString());
+    
+    const existingNumbers = new Set(existingOrders?.map(o => o.order_number) || []);
+    
+    // Regenerate if duplicate (unlikely with 9000 possibilities)
+    let attempts = 0;
+    while (existingNumbers.has(finalOrderNumber) && attempts < 10) {
+      finalOrderNumber = generateOrderCode();
+      attempts++;
+    }
 
     // Create order - status starts as "confirmed" (not pending)
     const { data: order, error: orderError } = await supabase

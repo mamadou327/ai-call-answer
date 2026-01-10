@@ -2537,10 +2537,11 @@ async function executeCreatePickupOrder(supabase: any, session: StreamSession, p
     resolvedPhone = session.callerPhone;
   }
   
-  // Generate order number
-  const { data: orderNumber } = await supabase.rpc("generate_order_number", {
-    p_business_id: session.businessId
-  });
+  // Generate random 4-digit order code (1000-9999)
+  const generateOrderCode = (): string => {
+    return String(Math.floor(1000 + Math.random() * 9000));
+  };
+  const orderNumber = generateOrderCode();
   
   // Calculate pickup datetime
   const now = new Date();
@@ -2556,7 +2557,7 @@ async function executeCreatePickupOrder(supabase: any, session: StreamSession, p
     .from("orders")
     .insert({
       business_id: session.businessId,
-      order_number: orderNumber || `ORD-${Date.now()}`,
+      order_number: orderNumber,
       customer_name,
       customer_phone: resolvedPhone,
       items: validatedItems,
