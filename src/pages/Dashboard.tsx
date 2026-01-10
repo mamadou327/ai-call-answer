@@ -418,7 +418,7 @@ const Dashboard = () => {
               </TabsList>
 
               <TabsContent value="dashboard">
-                {business && settings && <DashboardTab businessName={business.business_name} currency={settings.currency || "GBP"} businessId={business.id} />}
+                {business && settings && <DashboardTab businessName={business.business_name} currency={settings.currency || "GBP"} businessId={business.id} businessType={business.business_type} />}
               </TabsContent>
 
               {/* Salon tabs */}
