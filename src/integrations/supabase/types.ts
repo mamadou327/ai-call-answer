@@ -200,6 +200,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bookings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bookings_service_id_fkey"
             columns: ["service_id"]
             isOneToOne: false
@@ -262,6 +269,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "business_gallery_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "business_gallery_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
@@ -301,6 +315,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: true
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_number_selection_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "public_businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -387,6 +408,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: true
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "public_businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -650,6 +678,13 @@ export type Database = {
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "call_conversations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
         ]
       }
       calls_log: {
@@ -725,6 +760,13 @@ export type Database = {
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "calls_log_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
         ]
       }
       customer_settings: {
@@ -773,6 +815,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: true
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "public_businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -841,6 +890,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "customers_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "customers_preferred_staff_id_fkey"
             columns: ["preferred_staff_id"]
             isOneToOne: false
@@ -886,6 +942,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_categories_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -1130,6 +1193,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "menu_items_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "menu_items_category_id_fkey"
             columns: ["category_id"]
             isOneToOne: false
@@ -1190,6 +1260,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "messages_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "messages_call_id_fkey"
             columns: ["call_id"]
             isOneToOne: false
@@ -1236,6 +1313,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opening_hours_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -1358,6 +1442,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "orders_call_id_fkey"
             columns: ["call_id"]
             isOneToOne: false
@@ -1475,6 +1566,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "reservations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "reservations_call_id_fkey"
             columns: ["call_id"]
             isOneToOne: false
@@ -1529,6 +1627,13 @@ export type Database = {
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "restaurant_tables_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
         ]
       }
       service_requests: {
@@ -1568,6 +1673,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_requests_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -1629,6 +1741,13 @@ export type Database = {
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "services_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
         ]
       }
       staff: {
@@ -1688,6 +1807,13 @@ export type Database = {
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "staff_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
         ]
       }
       staff_accounts: {
@@ -1736,6 +1862,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fk_business_account"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "fk_staff_account"
             columns: ["staff_id"]
             isOneToOne: true
@@ -1781,6 +1914,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_invites_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -1840,6 +1980,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_memberships_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
             referencedColumns: ["id"]
           },
           {
@@ -1933,6 +2080,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fk_business_timeoff"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "fk_staff_timeoff"
             columns: ["staff_id"]
             isOneToOne: false
@@ -1964,7 +2118,117 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_businesses: {
+        Row: {
+          address: string | null
+          average_prep_time_minutes: number | null
+          booking_slug: string | null
+          business_name: string | null
+          business_type: string | null
+          cuisine_type: string | null
+          custom_booking_domain: string | null
+          custom_domain_verified: boolean | null
+          delivery_enabled: boolean | null
+          delivery_fee: number | null
+          delivery_minimum_order: number | null
+          delivery_radius_miles: number | null
+          deposit_collection_timing: string | null
+          id: string | null
+          logo_url: string | null
+          main_phone: string | null
+          menu_link: string | null
+          minimum_order_amount: number | null
+          online_booking_enabled: boolean | null
+          online_booking_message: string | null
+          payment_methods: string[] | null
+          prepayment_type: string | null
+          refund_policy: string | null
+          refund_window_hours: number | null
+          require_prepayment: boolean | null
+          social_facebook: string | null
+          social_instagram: string | null
+          social_tiktok: string | null
+          social_twitter: string | null
+          social_youtube: string | null
+          status: Database["public"]["Enums"]["business_status"] | null
+          stripe_account_id: string | null
+          stripe_connected_at: string | null
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          average_prep_time_minutes?: number | null
+          booking_slug?: string | null
+          business_name?: string | null
+          business_type?: string | null
+          cuisine_type?: string | null
+          custom_booking_domain?: string | null
+          custom_domain_verified?: boolean | null
+          delivery_enabled?: boolean | null
+          delivery_fee?: number | null
+          delivery_minimum_order?: number | null
+          delivery_radius_miles?: number | null
+          deposit_collection_timing?: string | null
+          id?: string | null
+          logo_url?: string | null
+          main_phone?: string | null
+          menu_link?: string | null
+          minimum_order_amount?: number | null
+          online_booking_enabled?: boolean | null
+          online_booking_message?: string | null
+          payment_methods?: string[] | null
+          prepayment_type?: string | null
+          refund_policy?: string | null
+          refund_window_hours?: number | null
+          require_prepayment?: boolean | null
+          social_facebook?: string | null
+          social_instagram?: string | null
+          social_tiktok?: string | null
+          social_twitter?: string | null
+          social_youtube?: string | null
+          status?: Database["public"]["Enums"]["business_status"] | null
+          stripe_account_id?: string | null
+          stripe_connected_at?: string | null
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          average_prep_time_minutes?: number | null
+          booking_slug?: string | null
+          business_name?: string | null
+          business_type?: string | null
+          cuisine_type?: string | null
+          custom_booking_domain?: string | null
+          custom_domain_verified?: boolean | null
+          delivery_enabled?: boolean | null
+          delivery_fee?: number | null
+          delivery_minimum_order?: number | null
+          delivery_radius_miles?: number | null
+          deposit_collection_timing?: string | null
+          id?: string | null
+          logo_url?: string | null
+          main_phone?: string | null
+          menu_link?: string | null
+          minimum_order_amount?: number | null
+          online_booking_enabled?: boolean | null
+          online_booking_message?: string | null
+          payment_methods?: string[] | null
+          prepayment_type?: string | null
+          refund_policy?: string | null
+          refund_window_hours?: number | null
+          require_prepayment?: boolean | null
+          social_facebook?: string | null
+          social_instagram?: string | null
+          social_tiktok?: string | null
+          social_twitter?: string | null
+          social_youtube?: string | null
+          status?: Database["public"]["Enums"]["business_status"] | null
+          stripe_account_id?: string | null
+          stripe_connected_at?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       can_staff_access_booking: {

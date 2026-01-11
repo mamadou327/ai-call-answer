@@ -165,24 +165,24 @@ const PublicBookingPage = () => {
       // If we're on a custom domain, look up the business
       if (!isMainDomain) {
         try {
+          // Use public_businesses view to avoid exposing sensitive columns
           const { data, error } = await supabase
-            .from("businesses")
+            .from("public_businesses")
             .select("booking_slug, custom_domain_verified")
             .eq("custom_booking_domain", hostname)
             .eq("custom_domain_verified", true)
-            .eq("online_booking_enabled", true)
-            .eq("status", "approved")
             .single();
 
           if (data && !error) {
             setResolvedSlug(data.booking_slug);
           } else {
             // Check if there's an unverified business
-            const { data: unverified } = await supabase
-              .from("businesses")
-              .select("business_name, custom_domain_verified")
-              .eq("custom_booking_domain", hostname)
-              .single();
+          // Query for unverified domains - this still needs the base table as view filters on verified only
+          const { data: unverified } = await supabase
+            .from("public_businesses")
+            .select("business_name, custom_domain_verified")
+            .eq("custom_booking_domain", hostname)
+            .single();
 
             if (unverified && !unverified.custom_domain_verified) {
               setError("This domain is connected but not yet verified. Please contact the business owner.");
@@ -280,8 +280,9 @@ const PublicBookingPage = () => {
       if (!resolvedSlug) return;
 
       try {
+        // Use public_businesses view to avoid exposing sensitive columns like webhook tokens
         const { data: businessData, error: businessError } = await supabase
-          .from("businesses")
+          .from("public_businesses")
           .select(`
             id, business_name, business_type, address, main_phone, website,
             online_booking_message, deposit_collection_timing, stripe_account_id,
@@ -289,8 +290,6 @@ const PublicBookingPage = () => {
             minimum_order_amount, delivery_enabled, delivery_fee, delivery_minimum_order, average_prep_time_minutes
           `)
           .eq("booking_slug", resolvedSlug)
-          .eq("online_booking_enabled", true)
-          .eq("status", "approved")
           .single();
 
         if (businessError || !businessData) {
