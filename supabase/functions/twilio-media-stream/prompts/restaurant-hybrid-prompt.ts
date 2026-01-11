@@ -16,6 +16,7 @@ interface RestaurantHybridPromptData {
   menuItems: any[];
   menuItemOptions?: any[];
   menuItemOptionGroups?: any[];
+  menuItemOptionSizes?: any[];
   businessSettings: any;
   restaurantSettings: {
     cuisineType: string | null;
@@ -68,7 +69,7 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
   const currency = businessSettings?.currency || "GBP";
   const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
   
-  // Helper to format item options
+  // Helper to format item options with their sizes
   const formatItemOptions = (itemId: string): string => {
     const itemGroups = menuItemOptionGroups.filter((g: any) => g.menu_item_id === itemId);
     if (itemGroups.length === 0) return "";
@@ -78,9 +79,14 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
       const groupOptions = menuItemOptions.filter((o: any) => o.option_group_id === group.id && o.is_available);
       if (groupOptions.length === 0) continue;
       
-      const requiredTag = group.is_required ? " (REQUIRED)" : "";
+      const requiredTag = group.is_required ? " (REQUIRED - MUST ASK)" : "";
       optionsText += `\n      ↳ ${group.name}${requiredTag}: `;
       optionsText += groupOptions.map((opt: any) => {
+        // Check if this option has sizes
+        if (opt.has_sizes && opt.sizes && opt.sizes.length > 0) {
+          const sizesList = opt.sizes.map((s: any) => `${s.name}: ${currencySymbol}${s.price.toFixed(2)}`).join(", ");
+          return `${opt.name} [HAS SIZES - MUST ASK: ${sizesList}]`;
+        }
         const priceAdj = opt.price_adjustment !== 0 
           ? ` (${opt.price_adjustment > 0 ? '+' : ''}${currencySymbol}${opt.price_adjustment.toFixed(2)})`
           : "";
@@ -208,13 +214,15 @@ After greeting, ask: "Are you looking to place an order for pickup, or would you
 
 IF PICKUP ORDER:
 1. Take their order item by item
-2. For items with options (sizes, sides), proactively ask what they'd like
-3. If they're unsure about options, list them: "You can choose from rice, chips, or beans"
-4. Confirm each item with selected options and running total
-5. Get their name and phone
-6. Suggest pickup time (prep time + current time)
-7. If prepayment required, explain payment link will be sent
-8. Confirm full order and collection time
+2. For items with REQUIRED options, ALWAYS ask which one they want
+3. ⚠️ CRITICAL: If an option has SIZES (marked HAS SIZES), you MUST ask "What size?" - e.g., "Would you like small or large?"
+4. NEVER skip size selection - it affects the final price!
+5. Confirm each item with selected options/sizes and running total
+6. Get their name
+7. For phone: Ask "Should I send the confirmation to this number or a different one?"
+8. Suggest pickup time (prep time + current time)
+9. If prepayment required, explain payment link will be sent
+10. Confirm full order and collection time
 
 IF TABLE RESERVATION:
 1. Ask how many guests
