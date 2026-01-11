@@ -284,8 +284,9 @@ Deno.serve(async (req) => {
     // Build Media Stream URL
     const mediaStreamUrl = `wss://${new URL(supabaseUrl).hostname}/functions/v1/twilio-media-stream/${token}`;
 
-    // Build action URL for when stream ends (used for transfers)
-    const streamActionUrl = `${supabaseUrl}/functions/v1/twilio-stream-action/${token}?callSid=${encodeURIComponent(callSid)}&from=${encodeURIComponent(fromNumber)}`;
+    // Build action URL for when stream ends (used for transfers and reconnects)
+    // Start with reconnect=0 so reconnect logic can increment
+    const streamActionUrl = `${supabaseUrl}/functions/v1/twilio-stream-action/${token}?callSid=${encodeURIComponent(callSid)}&from=${encodeURIComponent(fromNumber)}&reconnect=0`;
 
     // Recording callback URL (stores recording in backend storage and links it to calls_log)
     const recordingCallbackUrl = `${supabaseUrl}/functions/v1/twilio-recording-callback/${token}`;

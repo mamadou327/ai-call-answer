@@ -83,6 +83,9 @@ function normalizeDialNumber(raw: string): string {
   return `+${digits}`;
 }
 
+// Maximum reconnect attempts before giving up
+const MAX_RECONNECTS = 2;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -94,8 +97,9 @@ Deno.serve(async (req) => {
     const token = pathParts[pathParts.length - 1];
     const callSid = url.searchParams.get("callSid") || "";
     const fromNumber = url.searchParams.get("from") || "";
+    const reconnectCount = parseInt(url.searchParams.get("reconnect") || "0", 10);
 
-    console.log("[StreamAction] Called for token:", token?.substring(0, 8) + "...", "callSid:", callSid);
+    console.log("[StreamAction] Called for token:", token?.substring(0, 8) + "...", "callSid:", callSid, "reconnectCount:", reconnectCount);
 
     // Parse form data if present (Twilio sends POST with form data)
     const params: Record<string, string> = {};
@@ -117,8 +121,8 @@ Deno.serve(async (req) => {
     const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
     if (twilioAuthToken) {
       const signature = req.headers.get("x-twilio-signature");
-      // Build full URL with query params for signature validation
-      const publicUrl = `${supabaseUrl}/functions/v1/twilio-stream-action/${token}?callSid=${encodeURIComponent(callSid)}&from=${encodeURIComponent(fromNumber)}`;
+      // Build full URL with query params for signature validation (include reconnect count)
+      const publicUrl = `${supabaseUrl}/functions/v1/twilio-stream-action/${token}?callSid=${encodeURIComponent(callSid)}&from=${encodeURIComponent(fromNumber)}&reconnect=${reconnectCount}`;
       
       console.log("[StreamAction] Validating signature with URL:", publicUrl);
       
@@ -190,11 +194,63 @@ Deno.serve(async (req) => {
       }
     }
 
-    // No transfer pending - just hang up gracefully
-    console.log("[StreamAction] No pending transfer, ending call");
+    // No transfer pending - check if we should attempt reconnect
+    if (reconnectCount < MAX_RECONNECTS) {
+      console.log(`[StreamAction] No transfer, attempting reconnect (${reconnectCount + 1}/${MAX_RECONNECTS})`);
+      
+      // Get business info to rebuild stream URL
+      const { data: business } = await supabase
+        .from("businesses")
+        .select("twilio_phone_number")
+        .eq("twilio_webhook_token", token)
+        .maybeSingle();
+
+      // Build new stream action URL with incremented reconnect count
+      const nextReconnect = reconnectCount + 1;
+      const newStreamActionUrl = `${supabaseUrl}/functions/v1/twilio-stream-action/${token}?callSid=${encodeURIComponent(callSid)}&from=${encodeURIComponent(fromNumber)}&reconnect=${nextReconnect}`;
+      const mediaStreamUrl = `wss://${new URL(supabaseUrl).hostname}/functions/v1/twilio-media-stream/${token}`;
+      const recordingCallbackUrl = `${supabaseUrl}/functions/v1/twilio-recording-callback/${token}`;
+      
+      // Log reconnect attempt to conversation
+      if (conversation) {
+        const messages = (conversation.messages as any[]) || [];
+        messages.push({
+          role: "system",
+          content: `[reconnect] Stream reconnecting (attempt ${nextReconnect}/${MAX_RECONNECTS})`,
+          timestamp: new Date().toISOString(),
+        });
+        await supabase
+          .from("call_conversations")
+          .update({ messages })
+          .eq("id", conversation.id);
+      }
+      
+      // Return TwiML to restart the stream with a brief pause
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Pause length="1"/>
+  <Connect action="${escapeXml(newStreamActionUrl)}">
+    <Stream url="${escapeXml(mediaStreamUrl)}">
+      <Parameter name="callerPhone" value="${escapeXml(fromNumber)}"/>
+      <Parameter name="callSid" value="${escapeXml(callSid)}"/>
+      <Parameter name="recordingCallbackUrl" value="${escapeXml(recordingCallbackUrl)}"/>
+      <Parameter name="isReconnect" value="true"/>
+      <Parameter name="reconnectCount" value="${nextReconnect}"/>
+    </Stream>
+  </Connect>
+</Response>`;
+
+      return new Response(twiml, {
+        headers: { ...corsHeaders, "Content-Type": "text/xml" },
+      });
+    }
+    
+    // Max reconnects reached - end the call gracefully
+    console.log("[StreamAction] Max reconnects reached, ending call");
     
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  <Say voice="Polly.Amy-Neural" language="en-GB">We're experiencing technical difficulties. Please call back in a moment. Goodbye.</Say>
   <Hangup/>
 </Response>`;
 
