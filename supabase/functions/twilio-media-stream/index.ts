@@ -57,6 +57,7 @@ interface BusinessSettings {
   min_reschedule_notice_hours: number;
   cancellation_policy: string | null;
   currency: string;
+  opening_context?: string | null;
 }
 
 interface OpeningHour {
@@ -3418,7 +3419,7 @@ async function buildFullSystemPrompt(
     supabase.from("staff").select("id, name, role, title, phone, ai_enabled, is_business_owner, working_hours").eq("business_id", businessId),
     supabase.from("services").select("id, name, duration_minutes, price, category, description, deposit_required, deposit_amount").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
-    supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours, min_reschedule_notice_hours").eq("business_id", businessId).maybeSingle(),
+    supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours, min_reschedule_notice_hours, opening_context").eq("business_id", businessId).maybeSingle(),
     supabase.from("staff_time_off")
       .select("staff_id, start_time, end_time, reason, staff:staff_id(name)")
       .eq("business_id", businessId)
@@ -4240,6 +4241,7 @@ ${dataCollectionRules}${faqContext}`;
       menuItemOptionGroups,
       tables,
       restaurantSettings,
+      openingContext: businessSettings?.opening_context || undefined,
     });
     
     console.log(`[MediaStream] Built restaurant prompt for ${businessType} with ${menuItems.length} menu items`);

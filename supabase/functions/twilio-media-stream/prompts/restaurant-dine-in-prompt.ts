@@ -20,6 +20,7 @@ interface RestaurantDineInPromptData {
     refundWindowHours: number;
   };
   callerInfo: any;
+  openingContext?: string;
 }
 
 export function buildRestaurantDineInSystemPrompt(data: RestaurantDineInPromptData): string {
@@ -37,6 +38,7 @@ export function buildRestaurantDineInSystemPrompt(data: RestaurantDineInPromptDa
     businessSettings,
     restaurantSettings,
     callerInfo,
+    openingContext,
   } = data;
 
   // Format opening hours
@@ -106,6 +108,19 @@ Be welcoming! Ask for their name when making the reservation.`;
     fast: "Be efficient but still warm and welcoming.",
   }[voiceSpeed] || "Speak at a natural pace.";
 
+  // Opening context section
+  const openingContextSection = openingContext?.trim()
+    ? `
+OPENING CONTEXT FROM BUSINESS:
+The business owner wants you to naturally incorporate the following information into your opening greeting.
+Do NOT read this word-for-word - interpret it and weave it into your greeting naturally based on your personality:
+
+"${openingContext}"
+
+Work this information smoothly into your greeting without making it sound like a scripted announcement.
+`
+    : "";
+
   return `You are ${assistantName}, the AI reservation assistant for ${businessName}.
 
 BUSINESS TYPE: Restaurant (Dine-in / Table Reservations)
@@ -136,7 +151,7 @@ RESERVATION POLICY:
 - Standard reservation duration: 2 hours
 - We hold tables for 15 minutes past reservation time
 ${cancellationInfo}
-
+${openingContextSection}
 ${callerContext}
 
 RESERVATION FLOW:

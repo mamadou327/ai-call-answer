@@ -29,6 +29,7 @@ interface RestaurantPickupPromptData {
     averagePrepTime: number;
   };
   callerInfo: any;
+  openingContext?: string;
 }
 
 export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptData): string {
@@ -49,6 +50,7 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
     businessSettings,
     restaurantSettings,
     callerInfo,
+    openingContext,
   } = data;
 
   // Format opening hours
@@ -176,6 +178,19 @@ Be welcoming! Ask for their name when taking the order.`;
     fast: "Be brisk but make sure to confirm order details clearly.",
   }[voiceSpeed] || "Speak at a natural pace.";
 
+  // Opening context section
+  const openingContextSection = openingContext?.trim()
+    ? `
+OPENING CONTEXT FROM BUSINESS:
+The business owner wants you to naturally incorporate the following information into your opening greeting.
+Do NOT read this word-for-word - interpret it and weave it into your greeting naturally based on your personality:
+
+"${openingContext}"
+
+Work this information smoothly into your greeting without making it sound like a scripted announcement.
+`
+    : "";
+
   return `You are ${assistantName}, the AI phone receptionist for ${businessName}. You handle calls like a professional restaurant receptionist with years of experience.
 
 BUSINESS TYPE: Restaurant (Pickup/Takeaway Only)
@@ -210,7 +225,7 @@ Average preparation time: ${restaurantSettings.averagePrepTime || 30} minutes
 
 CANCELLATION POLICY:
 ${refundInfo}
-
+${openingContextSection}
 ${callerContext}
 
 PROFESSIONAL ORDER TAKING FLOW:

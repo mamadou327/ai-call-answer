@@ -20,6 +20,7 @@ interface PromptBuilderParams {
   openingHours: any[];
   businessSettings: any;
   callerInfo: any;
+  openingContext?: string; // New: context to naturally incorporate into greeting
   // Salon-specific
   staff?: any[];
   services?: any[];
@@ -67,6 +68,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         businessSettings: params.businessSettings,
         callerInfo: params.callerInfo,
         customerSettings: params.customerSettings || {},
+        openingContext: params.openingContext,
       });
 
     case "restaurant_pickup":
@@ -87,6 +89,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         businessSettings: params.businessSettings,
         restaurantSettings: params.restaurantSettings || getDefaultRestaurantSettings(),
         callerInfo: params.callerInfo,
+        openingContext: params.openingContext,
       });
 
     case "restaurant_dine_in":
@@ -109,6 +112,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
           refundWindowHours: params.restaurantSettings?.refundWindowHours || 2,
         },
         callerInfo: params.callerInfo,
+        openingContext: params.openingContext,
       });
 
     case "restaurant_hybrid":
@@ -128,6 +132,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         businessSettings: params.businessSettings,
         restaurantSettings: params.restaurantSettings || getDefaultRestaurantSettings(),
         callerInfo: params.callerInfo,
+        openingContext: params.openingContext,
       });
 
     default:
@@ -150,6 +155,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         businessSettings: params.businessSettings,
         callerInfo: params.callerInfo,
         customerSettings: params.customerSettings || {},
+        openingContext: params.openingContext,
       });
   }
 }
