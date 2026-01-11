@@ -43,6 +43,11 @@ interface StreamSession {
   lastAudioSentAt: number | null;
   hasActiveResponse: boolean;
   lastTranscriptionFailureAt: number | null;
+  // Extended memory tracking
+  conversationHistory: Array<{role: string, content: string, itemId?: string}>;
+  estimatedTokens: number;
+  isReconnect: boolean;
+  reconnectCount: number;
 }
 
 interface BusinessSettings {
@@ -361,6 +366,11 @@ Deno.serve(async (req) => {
     lastAudioSentAt: null,
     hasActiveResponse: false,
     lastTranscriptionFailureAt: null,
+    // Extended memory tracking
+    conversationHistory: [],
+    estimatedTokens: 0,
+    isReconnect: false,
+    reconnectCount: 0,
   };
 
   twilioWs.onopen = () => {
@@ -384,14 +394,20 @@ Deno.serve(async (req) => {
           session.callerPhone = data.start.customParameters?.callerPhone || "";
           const recordingCallbackUrl = data.start.customParameters?.recordingCallbackUrl || "";
           
-          console.log("[MediaStream] Session initialized - callSid:", session.callSid, "callerPhone:", session.callerPhone);
+          // Check if this is a reconnect
+          session.isReconnect = data.start.customParameters?.isReconnect === "true";
+          session.reconnectCount = parseInt(data.start.customParameters?.reconnectCount || "0", 10);
           
-          // Start recording now that call is definitely in-progress
-          if (recordingCallbackUrl && session.callSid) {
+          console.log("[MediaStream] Session initialized - callSid:", session.callSid, "callerPhone:", session.callerPhone, "isReconnect:", session.isReconnect, "reconnectCount:", session.reconnectCount);
+          
+          // Start recording now that call is definitely in-progress (skip on reconnect - recording continues)
+          if (!session.isReconnect && recordingCallbackUrl && session.callSid) {
             tryStartTwilioCallRecording({
               callSid: session.callSid,
               recordingStatusCallbackUrl: recordingCallbackUrl,
             });
+          } else if (session.isReconnect) {
+            console.log("[MediaStream] Reconnect - skipping recording start (recording continues)");
           } else {
             console.warn("[MediaStream] Cannot start recording - missing callSid or recordingCallbackUrl");
           }
@@ -504,7 +520,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
       switch (data.type) {
         case "session.created":
           console.log("[MediaStream] OpenAI session created, sending config...");
-          sendSessionConfig(session);
+          await sendSessionConfig(session, supabase);
           break;
 
         case "session.updated":
@@ -660,6 +676,12 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           session.interactionCount++;
           // Log to conversation
           await logConversation(supabase, session.callSid, "user", data.transcript);
+          // Track in local conversation history for memory management
+          session.conversationHistory.push({
+            role: "user",
+            content: data.transcript,
+            itemId: data.item_id,
+          });
           break;
 
         case "response.function_call_arguments.done":
@@ -671,12 +693,34 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
         case "response.done":
           console.log("[MediaStream] Response complete");
           session.hasActiveResponse = false;
+          
+          // Track tokens for memory management
+          if (data.response?.usage?.total_tokens) {
+            session.estimatedTokens = data.response.usage.total_tokens;
+            console.log(`[MediaStream] Token usage: ${session.estimatedTokens}`);
+            
+            // Check if we need to summarize
+            if (session.estimatedTokens > TOKEN_LIMIT_THRESHOLD) {
+              console.log("[MediaStream] Token limit threshold reached, triggering summarization");
+              summarizeAndPrune(session, supabase).catch((err) => {
+                console.error("[MediaStream] Summarization error:", err);
+              });
+            }
+          }
+          
+          // Log assistant responses and track in local history
           if (data.response?.output) {
             for (const output of data.response.output) {
               if (output.content) {
                 for (const content of output.content) {
                   if (content.transcript) {
                     await logConversation(supabase, session.callSid, "assistant", content.transcript);
+                    // Track in local conversation history
+                    session.conversationHistory.push({
+                      role: "assistant",
+                      content: content.transcript,
+                      itemId: output.id,
+                    });
                   }
                 }
               }
@@ -714,14 +758,196 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
     session.hasActiveResponse = false;
     session.isAISpeaking = false;
     session.lastAudioSentAt = null;
+    
+    // CRITICAL: Close Twilio WebSocket to trigger reconnect flow via stream-action
+    // This ensures the call doesn't go silent when OpenAI disconnects
+    if (session.twilioWs && session.twilioWs.readyState === WebSocket.OPEN) {
+      console.log("[MediaStream] Closing Twilio WS to trigger reconnect flow");
+      
+      // Log reconnect event to conversation
+      logConversation(supabase, session.callSid, "system", "[reconnect] OpenAI disconnected, initiating reconnect").catch(() => {});
+      
+      session.twilioWs.close();
+    }
   };
 
   openAiWs.onerror = (error) => {
     console.error("[MediaStream] OpenAI WebSocket error:", error);
+    
+    // Also trigger reconnect on error
+    if (session.twilioWs && session.twilioWs.readyState === WebSocket.OPEN) {
+      console.log("[MediaStream] OpenAI error - closing Twilio WS to trigger reconnect");
+      logConversation(supabase, session.callSid, "system", "[reconnect] OpenAI error, initiating reconnect").catch(() => {});
+      session.twilioWs.close();
+    }
   };
 }
 
-function sendSessionConfig(session: StreamSession) {
+// Constants for token management
+const TOKEN_LIMIT_THRESHOLD = 15000; // Start summarizing when we approach this
+const LOVABLE_AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+// Rehydrate conversation context after a reconnect
+async function rehydrateContext(session: StreamSession, supabase: any): Promise<void> {
+  if (!session.callSid) return;
+  
+  console.log("[MediaStream] Rehydrating context for callSid:", session.callSid);
+  
+  try {
+    // Load recent messages from call_conversations
+    const { data: conversation } = await supabase
+      .from("call_conversations")
+      .select("messages")
+      .eq("call_sid", session.callSid)
+      .maybeSingle();
+    
+    if (!conversation?.messages || !Array.isArray(conversation.messages)) {
+      console.log("[MediaStream] No conversation history found for rehydration");
+      return;
+    }
+    
+    // Filter to only user and assistant messages (skip system events)
+    const relevantMessages = conversation.messages
+      .filter((m: any) => m.role === "user" || m.role === "assistant")
+      .slice(-15); // Last 15 messages
+    
+    if (relevantMessages.length === 0) {
+      console.log("[MediaStream] No relevant messages to rehydrate");
+      return;
+    }
+    
+    console.log(`[MediaStream] Rehydrating ${relevantMessages.length} messages`);
+    
+    // Send each message to OpenAI to rebuild context
+    for (const msg of relevantMessages) {
+      if (!session.openAiWs || session.openAiWs.readyState !== WebSocket.OPEN) break;
+      
+      const item: any = {
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: msg.role,
+          content: [{
+            type: msg.role === "user" ? "input_text" : "text",
+            text: msg.content,
+          }],
+        },
+      };
+      
+      session.openAiWs.send(JSON.stringify(item));
+      
+      // Track in local history
+      session.conversationHistory.push({
+        role: msg.role,
+        content: msg.content,
+      });
+    }
+    
+    // Estimate tokens from rehydrated content
+    session.estimatedTokens = relevantMessages.reduce(
+      (sum: number, m: any) => sum + Math.ceil((m.content?.length || 0) / 4),
+      0
+    );
+    
+    console.log(`[MediaStream] Context rehydrated. Estimated tokens: ${session.estimatedTokens}`);
+  } catch (error) {
+    console.error("[MediaStream] Error rehydrating context:", error);
+  }
+}
+
+// Summarize older messages to manage token window
+async function summarizeAndPrune(session: StreamSession, supabase: any): Promise<void> {
+  if (session.conversationHistory.length < 8) return; // Not enough to summarize
+  
+  console.log("[MediaStream] Token threshold reached, summarizing conversation...");
+  
+  try {
+    // Get messages to summarize (all but last 5)
+    const toSummarize = session.conversationHistory.slice(0, -5);
+    const toKeep = session.conversationHistory.slice(-5);
+    
+    // Format conversation for summarization
+    const conversationText = toSummarize
+      .map((m) => `${m.role === "user" ? "Caller" : "Assistant"}: ${m.content}`)
+      .join("\n");
+    
+    // Call Lovable AI for summarization
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      console.warn("[MediaStream] LOVABLE_API_KEY not configured - cannot summarize");
+      return;
+    }
+    
+    const summaryResponse = await fetch(LOVABLE_AI_GATEWAY, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [{
+          role: "user",
+          content: `Summarize this phone conversation in 2-3 sentences. Preserve key details like names, dates, times, services, and booking codes. Be concise:\n\n${conversationText}`,
+        }],
+        max_tokens: 200,
+      }),
+    });
+    
+    if (!summaryResponse.ok) {
+      console.error("[MediaStream] Summarization failed:", summaryResponse.status);
+      return;
+    }
+    
+    const summaryData = await summaryResponse.json();
+    const summary = summaryData.choices?.[0]?.message?.content || "";
+    
+    if (!summary) {
+      console.warn("[MediaStream] Empty summary returned");
+      return;
+    }
+    
+    console.log("[MediaStream] Conversation summarized:", summary.substring(0, 100) + "...");
+    
+    // Send summary as a system message to OpenAI
+    if (session.openAiWs?.readyState === WebSocket.OPEN) {
+      // Note: OpenAI Realtime API might not support injecting system messages mid-conversation
+      // So we inject it as context in the next response instruction if needed
+      session.openAiWs.send(JSON.stringify({
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [{
+            type: "input_text",
+            text: `[Context from earlier in call: ${summary}]`,
+          }],
+        },
+      }));
+    }
+    
+    // Update local history
+    session.conversationHistory = [
+      { role: "system", content: `Summary of earlier conversation: ${summary}` },
+      ...toKeep,
+    ];
+    
+    // Recalculate estimated tokens
+    session.estimatedTokens = session.conversationHistory.reduce(
+      (sum, m) => sum + Math.ceil(m.content.length / 4),
+      0
+    );
+    
+    // Log summary to database
+    await logConversation(supabase, session.callSid, "system", `[auto-summary] ${summary}`);
+    
+    console.log(`[MediaStream] Pruned conversation. New token estimate: ${session.estimatedTokens}`);
+  } catch (error) {
+    console.error("[MediaStream] Error summarizing conversation:", error);
+  }
+}
+
+async function sendSessionConfig(session: StreamSession, supabase: any) {
   if (!session.openAiWs || session.openAiWs.readyState !== WebSocket.OPEN) {
     console.error("[MediaStream] Cannot send config - WebSocket not open");
     return;
@@ -759,33 +985,44 @@ function sendSessionConfig(session: StreamSession) {
       },
       turn_detection: {
         type: "server_vad",
-        threshold: 0.80,           // Higher threshold to reduce false interruptions from background noise
+        threshold: 0.75,           // Slightly lower for better detection of quiet speakers
         prefix_padding_ms: 300,    // Standard pre-speech buffer
-        silence_duration_ms: 800,  // Natural pauses
+        silence_duration_ms: 1000, // Slightly longer pauses for natural conversation
         create_response: true,     // Auto-create response when speech ends
       },
       tools,
       tool_choice: "auto",
       temperature: 0.75,           // Higher for more natural variation in responses
-      max_response_output_tokens: 300, // Shorter, faster responses
+      max_response_output_tokens: 600, // Increased for more complete responses in long calls
     },
   };
 
-  console.log("[MediaStream] Sending session config with voice:", session.voice);
+  console.log("[MediaStream] Sending session config with voice:", session.voice, "isReconnect:", session.isReconnect);
   session.openAiWs.send(JSON.stringify(config));
 
-  // Send initial greeting immediately for faster perceived response
+  // For reconnects, rehydrate context before triggering response
+  if (session.isReconnect) {
+    await rehydrateContext(session, supabase);
+  }
+
+  // Send initial greeting or reconnect acknowledgment
   setTimeout(() => {
     if (session.openAiWs?.readyState === WebSocket.OPEN) {
-      session.openAiWs.send(
-        JSON.stringify({
-          type: "response.create",
-          response: {
-            modalities: ["audio", "text"],
-          },
-        })
-      );
-      console.log("[MediaStream] Triggered initial greeting");
+      const responseConfig: any = {
+        type: "response.create",
+        response: {
+          modalities: ["audio", "text"],
+        },
+      };
+      
+      // For reconnects, give the AI context about the reconnection
+      if (session.isReconnect) {
+        responseConfig.response.instructions = 
+          "The call was briefly reconnected due to a technical glitch. Continue the conversation naturally from where you left off. Say something brief like 'Sorry about that brief interruption. Now, where were we?' and continue helping the caller.";
+      }
+      
+      session.openAiWs.send(JSON.stringify(responseConfig));
+      console.log("[MediaStream] Triggered", session.isReconnect ? "reconnect greeting" : "initial greeting");
     }
   }, 100);
 }
