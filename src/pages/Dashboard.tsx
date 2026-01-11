@@ -35,6 +35,7 @@ interface Business {
   website: string | null;
   owner_id: string;
   business_type: string | null;
+  average_prep_time_minutes?: number | null;
 }
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -472,6 +473,7 @@ const Dashboard = () => {
                       currency={settings.currency || "GBP"} 
                       businessId={business.id} 
                       businessType={business.business_type || ""}
+                      averagePrepTime={business.average_prep_time_minutes || 20}
                     />
                   ) : (
                     <SalonDashboardTab 
@@ -498,7 +500,7 @@ const Dashboard = () => {
               {/* Orders tab for pickup and hybrid restaurants */}
               {(business.business_type === "restaurant_pickup" || business.business_type === "restaurant_hybrid") && (
                 <TabsContent value="orders">
-                  <OrdersTab businessId={business.id} currency={settings?.currency || "GBP"} />
+                  <OrdersTab businessId={business.id} currency={settings?.currency || "GBP"} averagePrepTime={business.average_prep_time_minutes || 20} />
                 </TabsContent>
               )}
 

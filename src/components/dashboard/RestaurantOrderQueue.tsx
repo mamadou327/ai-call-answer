@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Clock, ChefHat, Package, CheckCircle, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, addMinutes } from "date-fns";
+import { OrderReceiptDialog } from "./OrderReceiptDialog";
 
 interface Order {
   id: string;
@@ -25,6 +27,7 @@ interface RestaurantOrderQueueProps {
   currency?: string;
   businessId: string;
   onOrderUpdate: () => void;
+  averagePrepTime?: number;
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode; bgColor: string }> = {
@@ -61,10 +64,10 @@ const getCurrencySymbol = (curr: string) => {
   return symbols[curr] || "$";
 };
 
-export const RestaurantOrderQueue = ({ orders, currency = "GBP", businessId, onOrderUpdate }: RestaurantOrderQueueProps) => {
+export const RestaurantOrderQueue = ({ orders, currency = "GBP", businessId, onOrderUpdate, averagePrepTime = 20 }: RestaurantOrderQueueProps) => {
   const { toast } = useToast();
   const currencySymbol = getCurrencySymbol(currency);
-
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const getNextStatus = (currentStatus: string): string | null => {
     const flow: Record<string, string> = {
       pending: "confirmed",
@@ -197,7 +200,8 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", businessId, onO
                     return (
                       <div 
                         key={order.id} 
-                        className={`p-3 rounded-lg border ${statusConfig[status].bgColor}`}
+                        className={`p-3 rounded-lg border cursor-pointer hover:shadow-md transition-shadow ${statusConfig[status].bgColor}`}
+                        onClick={() => setSelectedOrder(order)}
                       >
                         <div className="flex items-start justify-between mb-2">
                           <div>
@@ -223,20 +227,17 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", businessId, onO
                           )}
                         </div>
 
-                        {/* Time info */}
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                        {/* Time info - Show estimated ready time */}
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                           <Clock className="w-3 h-3" />
                           {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
                         </div>
-
-                        {order.pickup_time && (
-                          <div className="text-xs text-muted-foreground mb-2">
-                            Pickup: {format(new Date(order.pickup_time), "HH:mm")}
-                          </div>
-                        )}
+                        <div className="text-xs font-medium mb-2">
+                          Ready: {format(addMinutes(new Date(order.created_at), averagePrepTime), "h:mm a")}
+                        </div>
 
                         {/* Action buttons */}
-                        <div className="flex gap-2">
+                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                           {nextStatus && (
                             <Button
                               size="sm"
@@ -266,6 +267,19 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", businessId, onO
           </div>
         )}
       </CardContent>
+
+      {/* Order Receipt Dialog */}
+      <OrderReceiptDialog
+        order={selectedOrder}
+        open={!!selectedOrder}
+        onOpenChange={(open) => !open && setSelectedOrder(null)}
+        currency={currency}
+        averagePrepTime={averagePrepTime}
+        onUpdateStatus={(orderId, newStatus) => {
+          updateOrderStatus(orderId, newStatus);
+          setSelectedOrder(null);
+        }}
+      />
     </Card>
   );
 };

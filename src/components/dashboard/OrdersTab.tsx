@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, addMinutes } from "date-fns";
 import { Search, Clock, Phone, ChefHat, CheckCircle, XCircle, RefreshCw, Package } from "lucide-react";
+import { OrderReceiptDialog } from "./OrderReceiptDialog";
 
 interface OrderItem {
   item_id?: string;
@@ -42,6 +42,7 @@ interface Order {
 interface OrdersTabProps {
   businessId: string;
   currency?: string;
+  averagePrepTime?: number;
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -52,7 +53,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
   cancelled: { label: "Cancelled", color: "bg-destructive", icon: <XCircle className="w-4 h-4" /> },
 };
 
-export function OrdersTab({ businessId, currency = "GBP" }: OrdersTabProps) {
+export function OrdersTab({ businessId, currency = "GBP", averagePrepTime = 20 }: OrdersTabProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -244,12 +245,11 @@ export function OrdersTab({ businessId, currency = "GBP" }: OrdersTabProps) {
                     {order.items.length} item{order.items.length !== 1 ? "s" : ""} •{" "}
                     {getCurrencySymbol()}{order.total?.toFixed(2)}
                   </div>
-                  {order.pickup_time && (
-                    <div className="flex items-center gap-1 text-sm">
-                      <Clock className="w-3 h-3" />
-                      Pickup: {format(new Date(order.pickup_time), "h:mm a")}
-                    </div>
-                  )}
+                  {/* Show estimated ready time (order time + prep time) */}
+                  <div className="flex items-center gap-1 text-sm">
+                    <Clock className="w-3 h-3" />
+                    Ready: {format(addMinutes(new Date(order.created_at), averagePrepTime), "h:mm a")}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     Ordered {format(new Date(order.created_at), "h:mm a")}
                   </div>
@@ -273,105 +273,18 @@ export function OrdersTab({ businessId, currency = "GBP" }: OrdersTabProps) {
         </div>
       )}
 
-      {/* Order Details Dialog */}
-      <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-mono">{selectedOrder?.order_number}</DialogTitle>
-          </DialogHeader>
-          {selectedOrder && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Status</span>
-                <Badge className={`${statusConfig[selectedOrder.status]?.color} text-white`}>
-                  {statusConfig[selectedOrder.status]?.label}
-                </Badge>
-              </div>
-
-              <div>
-                <div className="font-medium">{selectedOrder.customer_name}</div>
-                {selectedOrder.customer_phone && (
-                  <div className="text-sm text-muted-foreground">{selectedOrder.customer_phone}</div>
-                )}
-              </div>
-
-              {selectedOrder.pickup_time && (
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-muted-foreground" />
-                  <span>Pickup: {format(new Date(selectedOrder.pickup_time), "h:mm a")}</span>
-                </div>
-              )}
-
-              <div className="border-t pt-3">
-                <div className="text-sm font-medium mb-2">Items</div>
-                <div className="space-y-2">
-                  {selectedOrder.items.map((item, idx) => {
-                    const itemName = item.name || item.item_name || "Unknown Item";
-                    const itemPrice = item.price ?? item.unit_price ?? 0;
-                    const optionsDisplay = item.options?.length 
-                      ? item.options.map(o => o.name).join(", ")
-                      : item.selectedOptions?.length
-                        ? item.selectedOptions.map(o => 
-                            o.selectedSize 
-                              ? `${o.option.name} (${o.selectedSize.name})`
-                              : o.option.name
-                          ).join(", ")
-                        : null;
-                    const sizeDisplay = item.selectedSize?.name;
-                    
-                    return (
-                      <div key={idx} className="flex justify-between text-sm">
-                        <span>
-                          {item.quantity}x {itemName}
-                          {sizeDisplay && (
-                            <span className="text-muted-foreground ml-1">({sizeDisplay})</span>
-                          )}
-                          {optionsDisplay && (
-                            <span className="text-muted-foreground ml-1">
-                              + {optionsDisplay}
-                            </span>
-                          )}
-                        </span>
-                        <span>{getCurrencySymbol()}{(itemPrice * item.quantity).toFixed(2)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="flex justify-between font-medium mt-3 pt-3 border-t">
-                  <span>Total</span>
-                  <span>{getCurrencySymbol()}{selectedOrder.total?.toFixed(2)}</span>
-                </div>
-              </div>
-
-              {selectedOrder.notes && (
-                <div className="bg-muted/50 p-3 rounded-md text-sm">
-                  <span className="font-medium">Notes: </span>
-                  {selectedOrder.notes}
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-2">
-                {getNextStatus(selectedOrder.status) && (
-                  <Button
-                    className="flex-1"
-                    onClick={() => updateOrderStatus(selectedOrder.id, getNextStatus(selectedOrder.status)!)}
-                  >
-                    Mark as {statusConfig[getNextStatus(selectedOrder.status)!]?.label}
-                  </Button>
-                )}
-                {selectedOrder.status !== "cancelled" && selectedOrder.status !== "completed" && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => updateOrderStatus(selectedOrder.id, "cancelled")}
-                  >
-                    Cancel
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Order Receipt Dialog */}
+      <OrderReceiptDialog
+        order={selectedOrder}
+        open={!!selectedOrder}
+        onOpenChange={(open) => !open && setSelectedOrder(null)}
+        currency={currency}
+        averagePrepTime={averagePrepTime}
+        onUpdateStatus={(orderId, newStatus) => {
+          updateOrderStatus(orderId, newStatus);
+          setSelectedOrder(null);
+        }}
+      />
     </div>
   );
 }

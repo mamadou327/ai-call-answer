@@ -18,9 +18,10 @@ interface RestaurantDashboardTabProps {
   currency?: string;
   businessId: string;
   businessType: string;
+  averagePrepTime?: number;
 }
 
-export const RestaurantDashboardTab = ({ businessName, currency = "GBP", businessId, businessType }: RestaurantDashboardTabProps) => {
+export const RestaurantDashboardTab = ({ businessName, currency = "GBP", businessId, businessType, averagePrepTime = 20 }: RestaurantDashboardTabProps) => {
   const { t } = useTranslation();
   const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "custom">("today");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
@@ -355,6 +356,7 @@ export const RestaurantDashboardTab = ({ businessName, currency = "GBP", busines
         currency={currency}
         businessId={businessId}
         onOrderUpdate={handleOrderUpdate}
+        averagePrepTime={averagePrepTime}
       />
 
       {/* Stat Detail Dialog */}
