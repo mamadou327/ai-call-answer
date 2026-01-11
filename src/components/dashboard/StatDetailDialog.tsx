@@ -1,8 +1,15 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { CalendarCheck, XCircle, Phone, MessageSquare, DollarSign } from "lucide-react";
+
+// Safe date formatting helper
+const safeFormatDate = (dateValue: any, formatStr: string): string => {
+  if (!dateValue) return "Date unavailable";
+  const date = new Date(dateValue);
+  return isValid(date) ? format(date, formatStr) : "Invalid date";
+};
 
 interface StatDetailDialogProps {
   open: boolean;
@@ -57,7 +64,7 @@ export const StatDetailDialog = ({
         <div className="min-w-0 flex-1">
           <p className="font-medium truncate">{item.customer_name}</p>
           <p className="text-sm text-muted-foreground">
-            {format(new Date(item.start_time), "MMM d, yyyy 'at' h:mm a")}
+            {safeFormatDate(item.start_time, "MMM d, yyyy 'at' h:mm a")}
           </p>
           {item.service?.name && (
             <p className="text-xs text-muted-foreground">{item.service.name}</p>
@@ -84,7 +91,7 @@ export const StatDetailDialog = ({
         <div className="min-w-0 flex-1">
           <p className="font-medium truncate">{item.caller_name || item.caller_phone}</p>
           <p className="text-sm text-muted-foreground">
-            {format(new Date(item.created_at), "MMM d, yyyy 'at' h:mm a")}
+            {safeFormatDate(item.created_at, "MMM d, yyyy 'at' h:mm a")}
           </p>
           {item.summary && (
             <p className="text-xs text-muted-foreground line-clamp-2">{item.summary}</p>
@@ -108,7 +115,7 @@ export const StatDetailDialog = ({
         <div className="min-w-0 flex-1">
           <p className="font-medium truncate">{item.caller_name || item.caller_phone}</p>
           <p className="text-sm text-muted-foreground">
-            {format(new Date(item.created_at), "MMM d, yyyy 'at' h:mm a")}
+            {safeFormatDate(item.created_at, "MMM d, yyyy 'at' h:mm a")}
           </p>
           <p className="text-sm mt-1 line-clamp-2">{item.content}</p>
         </div>
@@ -126,7 +133,7 @@ export const StatDetailDialog = ({
         <div className="min-w-0 flex-1">
           <p className="font-medium truncate">{item.customer_name}</p>
           <p className="text-sm text-muted-foreground">
-            {format(new Date(item.start_time), "MMM d, yyyy")}
+            {safeFormatDate(item.start_time, "MMM d, yyyy")}
           </p>
           {item.service?.name && (
             <p className="text-xs text-muted-foreground">{item.service.name}</p>
