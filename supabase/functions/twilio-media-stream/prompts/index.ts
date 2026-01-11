@@ -297,25 +297,29 @@ export function getToolsForBusinessType(businessType: BusinessType): any[] {
         {
           type: "function",
           name: "create_pickup_order",
-          description: "Create a pickup/takeaway order.",
+          description: "Create a pickup/takeaway order. Always collect customer name and phone. Email is optional but helpful for receipts.",
           parameters: {
             type: "object",
             properties: {
-              customer_name: { type: "string" },
-              customer_phone: { type: "string" },
+              customer_name: { type: "string", description: "Customer's name for the order" },
+              customer_phone: { type: "string", description: "Customer's phone number for confirmation SMS" },
+              customer_email: { type: "string", description: "Customer's email (optional) for receipts" },
               items: {
                 type: "array",
+                description: "List of items being ordered",
                 items: {
                   type: "object",
                   properties: {
-                    name: { type: "string" },
-                    quantity: { type: "number" },
-                    notes: { type: "string" },
+                    name: { type: "string", description: "Menu item name" },
+                    quantity: { type: "number", description: "Number of this item" },
+                    notes: { type: "string", description: "Special instructions or options for this item" },
+                    size: { type: "string", description: "Size if applicable (e.g., small, large)" },
                   },
+                  required: ["name"],
                 },
               },
-              pickup_time: { type: "string" },
-              special_requests: { type: "string" },
+              pickup_time: { type: "string", description: "Time for pickup in HH:MM format (24-hour)" },
+              special_requests: { type: "string", description: "Any overall special requests for the order" },
             },
             required: ["customer_name", "customer_phone", "items", "pickup_time"],
           },
@@ -424,13 +428,25 @@ export function getToolsForBusinessType(businessType: BusinessType): any[] {
         {
           type: "function",
           name: "create_pickup_order",
-          description: "Create a pickup/takeaway order.",
+          description: "Create a pickup/takeaway order. Always collect customer name and phone. Email is optional.",
           parameters: {
             type: "object",
             properties: {
-              customer_name: { type: "string" },
-              customer_phone: { type: "string" },
-              items: { type: "array", items: { type: "object" } },
+              customer_name: { type: "string", description: "Customer's name for the order" },
+              customer_phone: { type: "string", description: "Customer's phone number for confirmation" },
+              customer_email: { type: "string", description: "Customer's email (optional)" },
+              items: { 
+                type: "array", 
+                items: { 
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    quantity: { type: "number" },
+                    notes: { type: "string" },
+                    size: { type: "string" },
+                  },
+                },
+              },
               pickup_time: { type: "string" },
               special_requests: { type: "string" },
             },
