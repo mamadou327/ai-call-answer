@@ -1,13 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, MessageSquare, DollarSign, Package, CheckCircle, XCircle, Plus, Calendar, Users } from "lucide-react";
+import { Phone, MessageSquare, DollarSign, Package, Clock, CheckCircle, XCircle, Plus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "./DateRangePicker";
 import { supabase } from "@/integrations/supabase/client";
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { StatDetailDialog } from "./StatDetailDialog";
 import { RestaurantOrderQueue } from "./RestaurantOrderQueue";
@@ -31,9 +31,6 @@ export const RestaurantDashboardTab = ({ businessName, currency = "GBP", busines
   const [messagesCount, setMessagesCount] = useState(0);
   const [revenue, setRevenue] = useState(0);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
-  const [todaysReservations, setTodaysReservations] = useState<any[]>([]);
-  const [upcomingReservations, setUpcomingReservations] = useState<any[]>([]);
-  const [cancelledReservations, setCancelledReservations] = useState<any[]>([]);
   
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -121,20 +118,15 @@ export const RestaurantDashboardTab = ({ businessName, currency = "GBP", busines
 
   const loadDashboardDataSilent = async () => {
     const { start, end } = getDateRange();
-    const today = new Date();
 
-    const [ordersResult, completedResult, cancelledResult, callsResult, messagesResult, activeResult, revenueResult, todayReservationsResult, upcomingReservationsResult, cancelledReservationsResult] = await Promise.all([
+    const [ordersResult, completedResult, cancelledResult, callsResult, messagesResult, activeResult, revenueResult] = await Promise.all([
       supabase.from("orders").select("*", { count: "exact", head: true }).eq("business_id", businessId).gte("created_at", start.toISOString()).lte("created_at", end.toISOString()),
       supabase.from("orders").select("*", { count: "exact", head: true }).eq("business_id", businessId).eq("status", "completed").gte("created_at", start.toISOString()).lte("created_at", end.toISOString()),
       supabase.from("orders").select("*", { count: "exact", head: true }).eq("business_id", businessId).eq("status", "cancelled").gte("created_at", start.toISOString()).lte("created_at", end.toISOString()),
       supabase.from("calls_log").select("*", { count: "exact", head: true }).eq("business_id", businessId).gte("created_at", start.toISOString()).lte("created_at", end.toISOString()),
       supabase.from("messages").select("*", { count: "exact", head: true }).eq("business_id", businessId).eq("is_read", false),
       supabase.from("orders").select("*").eq("business_id", businessId).in("status", ["pending", "confirmed", "preparing", "ready"]).order("created_at", { ascending: true }),
-      supabase.from("orders").select("total").eq("business_id", businessId).eq("status", "completed").gte("created_at", start.toISOString()).lte("created_at", end.toISOString()),
-      // Reservations queries
-      supabase.from("reservations").select(`*, restaurant_tables:table_id(table_number)`).eq("business_id", businessId).in("status", ["confirmed", "seated"]).gte("reservation_time", startOfDay(today).toISOString()).lte("reservation_time", endOfDay(today).toISOString()).order("reservation_time", { ascending: true }),
-      supabase.from("reservations").select(`*, restaurant_tables:table_id(table_number)`).eq("business_id", businessId).in("status", ["confirmed"]).gte("reservation_time", startOfDay(addDays(today, 1)).toISOString()).order("reservation_time", { ascending: true }).limit(5),
-      supabase.from("reservations").select(`*, restaurant_tables:table_id(table_number)`).eq("business_id", businessId).eq("status", "cancelled").order("cancelled_at", { ascending: false }).limit(5)
+      supabase.from("orders").select("total").eq("business_id", businessId).eq("status", "completed").gte("created_at", start.toISOString()).lte("created_at", end.toISOString())
     ]);
 
     if (ordersResult.count !== null) setOrdersCount(ordersResult.count);
@@ -147,9 +139,6 @@ export const RestaurantDashboardTab = ({ businessName, currency = "GBP", busines
       const total = revenueResult.data.reduce((sum, order) => sum + (order.total || 0), 0);
       setRevenue(total);
     }
-    if (todayReservationsResult.data) setTodaysReservations(todayReservationsResult.data);
-    if (upcomingReservationsResult.data) setUpcomingReservations(upcomingReservationsResult.data);
-    if (cancelledReservationsResult.data) setCancelledReservations(cancelledReservationsResult.data);
   };
 
   const loadDashboardData = async () => {
@@ -367,124 +356,6 @@ export const RestaurantDashboardTab = ({ businessName, currency = "GBP", busines
         businessId={businessId}
         onOrderUpdate={handleOrderUpdate}
       />
-
-      {/* Today's Reservations, Upcoming and Cancelled Sections */}
-      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
-        {/* Today's Reservations */}
-        <Card>
-          <CardHeader className="pb-2 sm:pb-3">
-            <CardTitle className="text-base sm:text-lg">{t("dashboard.todaysReservations")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 sm:space-y-4">
-            {todaysReservations.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4 text-sm">
-                {t("dashboard.noReservationsToday")}
-              </p>
-            ) : (
-              todaysReservations.map((reservation) => (
-                <div key={reservation.id} className="flex items-start justify-between border-b pb-3 last:border-0">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm truncate">{reservation.customer_name}</p>
-                    {reservation.customer_phone && (
-                      <p className="text-xs text-muted-foreground truncate">{reservation.customer_phone}</p>
-                    )}
-                    <div className="flex items-center gap-2 flex-wrap mt-1">
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(reservation.reservation_time), "HH:mm")}
-                      </span>
-                      <Badge variant="outline" className="text-[10px] h-5 gap-1">
-                        <Users className="w-2.5 h-2.5" />
-                        {reservation.party_size}
-                      </Badge>
-                      {reservation.restaurant_tables?.table_number && (
-                        <Badge variant="secondary" className="text-[10px] h-5">
-                          Table {reservation.restaurant_tables.table_number}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <Badge 
-                    variant={reservation.status === "seated" ? "default" : "outline"} 
-                    className="text-xs ml-2 shrink-0"
-                  >
-                    {reservation.status}
-                  </Badge>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Upcoming Reservations */}
-        <Card>
-          <CardHeader className="pb-2 sm:pb-3">
-            <CardTitle className="text-base sm:text-lg">{t("dashboard.upcomingReservations")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 sm:space-y-4">
-            {upcomingReservations.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4 text-sm">
-                {t("dashboard.noUpcomingReservations")}
-              </p>
-            ) : (
-              upcomingReservations.map((reservation) => (
-                <div key={reservation.id} className="flex items-start justify-between border-b pb-3 last:border-0">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm truncate">{reservation.customer_name}</p>
-                    {reservation.customer_phone && (
-                      <p className="text-xs text-muted-foreground truncate">{reservation.customer_phone}</p>
-                    )}
-                    <div className="flex items-center gap-2 mt-1">
-                      <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(reservation.reservation_time), "MMM d, HH:mm")}
-                      </span>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] h-5 ml-2 shrink-0 gap-1">
-                    <Users className="w-2.5 h-2.5" />
-                    {reservation.party_size}
-                  </Badge>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Cancelled Reservations */}
-        <Card>
-          <CardHeader className="pb-2 sm:pb-3">
-            <CardTitle className="text-base sm:text-lg">{t("dashboard.cancelledReservations")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 sm:space-y-4">
-            {cancelledReservations.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4 text-sm">
-                {t("dashboard.noCancelledReservations")}
-              </p>
-            ) : (
-              cancelledReservations.map((reservation) => (
-                <div key={reservation.id} className="flex items-start justify-between border-b pb-3 last:border-0">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm truncate">{reservation.customer_name}</p>
-                    {reservation.customer_phone && (
-                      <p className="text-xs text-muted-foreground truncate">{reservation.customer_phone}</p>
-                    )}
-                    <div className="flex items-center gap-2 mt-1">
-                      <XCircle className="w-3 h-3 text-destructive shrink-0" />
-                      <span className="text-xs text-muted-foreground">
-                        {reservation.cancelled_at ? format(new Date(reservation.cancelled_at), "MMM d, HH:mm") : "Unknown"}
-                      </span>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] h-5 ml-2 shrink-0 gap-1">
-                    <Users className="w-2.5 h-2.5" />
-                    {reservation.party_size}
-                  </Badge>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Stat Detail Dialog */}
       <StatDetailDialog
