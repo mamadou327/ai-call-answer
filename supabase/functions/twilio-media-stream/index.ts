@@ -637,6 +637,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
               JSON.stringify({
                 type: "response.create",
                 response: {
+                  modalities: ["audio", "text"],
                   instructions:
                     "Sorry — I didn't catch that clearly. Could you repeat that last bit for me?",
                 },
@@ -703,8 +704,12 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
     }
   };
 
-  openAiWs.onclose = () => {
-    console.log("[MediaStream] OpenAI WebSocket closed");
+  openAiWs.onclose = (ev) => {
+    console.log("[MediaStream] OpenAI WebSocket closed", {
+      code: ev?.code,
+      reason: ev?.reason,
+      wasClean: ev?.wasClean,
+    });
     session.openAiWs = null;
     session.hasActiveResponse = false;
     session.isAISpeaking = false;
@@ -772,7 +777,14 @@ function sendSessionConfig(session: StreamSession) {
   // Send initial greeting immediately for faster perceived response
   setTimeout(() => {
     if (session.openAiWs?.readyState === WebSocket.OPEN) {
-      session.openAiWs.send(JSON.stringify({ type: "response.create" }));
+      session.openAiWs.send(
+        JSON.stringify({
+          type: "response.create",
+          response: {
+            modalities: ["audio", "text"],
+          },
+        })
+      );
       console.log("[MediaStream] Triggered initial greeting");
     }
   }, 100);
@@ -886,7 +898,14 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
     session.openAiWs.send(JSON.stringify(toolResponse));
 
     // Trigger response generation
-    session.openAiWs.send(JSON.stringify({ type: "response.create" }));
+    session.openAiWs.send(
+      JSON.stringify({
+        type: "response.create",
+        response: {
+          modalities: ["audio", "text"],
+        },
+      })
+    );
   }
 }
 
