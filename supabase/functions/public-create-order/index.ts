@@ -226,6 +226,50 @@ serve(async (req) => {
 
     logStep("Order created successfully", { orderNumber: finalOrderNumber, total });
 
+    // Upsert customer data for marketing purposes
+    try {
+      // Normalize phone for consistent matching
+      const normalizedPhone = customerPhone.replace(/\D/g, '');
+      
+      // Check if customer exists
+      const { data: existingCustomer } = await supabase
+        .from("customers")
+        .select("id, total_visits, email")
+        .eq("business_id", business.id)
+        .or(`phone.eq.${customerPhone},phone.eq.${normalizedPhone},phone.eq.+${normalizedPhone}`)
+        .single();
+
+      if (existingCustomer) {
+        // Update existing customer
+        await supabase
+          .from("customers")
+          .update({
+            name: customerName,
+            email: customerEmail || (existingCustomer as any).email,
+            total_visits: ((existingCustomer as any).total_visits || 0) + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", (existingCustomer as any).id);
+        logStep("Updated existing customer", { customerId: (existingCustomer as any).id });
+      } else {
+        // Create new customer
+        await supabase
+          .from("customers")
+          .insert({
+            business_id: business.id,
+            name: customerName,
+            phone: customerPhone,
+            email: customerEmail || null,
+            first_visit_date: new Date().toISOString(),
+            total_visits: 1,
+          });
+        logStep("Created new customer for marketing");
+      }
+    } catch (customerError) {
+      console.error("[public-create-order] Failed to upsert customer:", customerError);
+      // Don't fail the order if customer upsert fails
+    }
+
     // Calculate estimated time
     const prepTime = business.average_prep_time_minutes || 20;
     const estimatedTime = new Date(Date.now() + prepTime * 60 * 1000);
