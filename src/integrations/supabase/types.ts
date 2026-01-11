@@ -323,6 +323,7 @@ export type Database = {
           min_cancellation_notice_hours: number | null
           min_reschedule_notice_hours: number | null
           notification_email: string | null
+          opening_context: string | null
           primary_language: string | null
           sms_reminder_hours: number | null
           tone: Database["public"]["Enums"]["tone_type"] | null
@@ -347,6 +348,7 @@ export type Database = {
           min_cancellation_notice_hours?: number | null
           min_reschedule_notice_hours?: number | null
           notification_email?: string | null
+          opening_context?: string | null
           primary_language?: string | null
           sms_reminder_hours?: number | null
           tone?: Database["public"]["Enums"]["tone_type"] | null
@@ -371,6 +373,7 @@ export type Database = {
           min_cancellation_notice_hours?: number | null
           min_reschedule_notice_hours?: number | null
           notification_email?: string | null
+          opening_context?: string | null
           primary_language?: string | null
           sms_reminder_hours?: number | null
           tone?: Database["public"]["Enums"]["tone_type"] | null

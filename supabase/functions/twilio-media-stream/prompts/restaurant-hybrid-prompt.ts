@@ -30,6 +30,7 @@ interface RestaurantHybridPromptData {
     averagePrepTime: number;
   };
   callerInfo: any;
+  openingContext?: string;
 }
 
 export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptData): string {
@@ -51,6 +52,7 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
     businessSettings,
     restaurantSettings,
     callerInfo,
+    openingContext,
   } = data;
 
   // Format opening hours
@@ -163,6 +165,19 @@ Be welcoming! Ask for their name when taking order or reservation.`;
     fast: "Be efficient but make sure to confirm all details.",
   }[voiceSpeed] || "Speak naturally.";
 
+  // Opening context section
+  const openingContextSection = openingContext?.trim()
+    ? `
+OPENING CONTEXT FROM BUSINESS:
+The business owner wants you to naturally incorporate the following information into your opening greeting.
+Do NOT read this word-for-word - interpret it and weave it into your greeting naturally based on your personality:
+
+"${openingContext}"
+
+Work this information smoothly into your greeting without making it sound like a scripted announcement.
+`
+    : "";
+
   return `You are ${assistantName}, the AI assistant for ${businessName}.
 
 BUSINESS TYPE: Restaurant (Pickup/Takeaway AND Dine-in)
@@ -201,7 +216,7 @@ DINE-IN / RESERVATIONS:
 
 CANCELLATION POLICY:
 ${refundInfo}
-
+${openingContextSection}
 ${callerContext}
 
 ═══════════════════════════════════════

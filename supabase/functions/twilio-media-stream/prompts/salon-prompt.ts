@@ -18,6 +18,7 @@ interface SalonPromptData {
   businessSettings: any;
   callerInfo: any;
   customerSettings: any;
+  openingContext?: string;
 }
 
 export function buildSalonSystemPrompt(data: SalonPromptData): string {
@@ -38,6 +39,7 @@ export function buildSalonSystemPrompt(data: SalonPromptData): string {
     businessSettings,
     callerInfo,
     customerSettings,
+    openingContext,
   } = data;
 
   // Format opening hours
@@ -118,6 +120,19 @@ This appears to be a new customer. Be welcoming and ask for their name when maki
     fast: "Speak briskly but clearly. Be concise.",
   }[voiceSpeed] || "Speak at a natural pace.";
 
+  // Opening context section
+  const openingContextSection = openingContext?.trim()
+    ? `
+OPENING CONTEXT FROM BUSINESS:
+The business owner wants you to naturally incorporate the following information into your opening greeting.
+Do NOT read this word-for-word - interpret it and weave it into your greeting naturally based on your personality:
+
+"${openingContext}"
+
+Work this information smoothly into your greeting without making it sound like a scripted announcement.
+`
+    : "";
+
   // Cancellation policy
   const cancellationPolicy = businessSettings?.cancellation_policy || "Please cancel at least 24 hours in advance.";
 
@@ -150,6 +165,10 @@ ${formattedTimeOff}
 BOOKING RULES:
 - Minimum notice: ${businessSettings?.min_booking_notice_hours || 2} hours
 - Maximum advance booking: ${businessSettings?.max_days_advance || 30} days
+- Cancellation notice required: ${businessSettings?.min_cancellation_notice_hours || 24} hours
+- Cancellation policy: ${cancellationPolicy}
+${openingContextSection}
+${callerContext}
 - Cancellation notice required: ${businessSettings?.min_cancellation_notice_hours || 24} hours
 - Cancellation policy: ${cancellationPolicy}
 
