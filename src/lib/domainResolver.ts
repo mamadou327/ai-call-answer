@@ -42,13 +42,12 @@ export async function getBusinessByCustomDomain(customDomain: string): Promise<{
 } | null> {
   const normalizedDomain = customDomain.toLowerCase().trim();
   
+  // Use public_businesses view to avoid exposing sensitive columns
   const { data, error } = await supabase
-    .from("businesses")
+    .from("public_businesses")
     .select("id, booking_slug, business_name, custom_domain_verified")
     .eq("custom_booking_domain", normalizedDomain)
     .eq("custom_domain_verified", true)
-    .eq("online_booking_enabled", true)
-    .eq("status", "approved")
     .single();
 
   if (error || !data) {
@@ -73,8 +72,9 @@ export async function getUnverifiedBusinessByDomain(customDomain: string): Promi
 } | null> {
   const normalizedDomain = customDomain.toLowerCase().trim();
   
+  // Use public_businesses view for safety
   const { data, error } = await supabase
-    .from("businesses")
+    .from("public_businesses")
     .select("id, business_name, custom_domain_verified")
     .eq("custom_booking_domain", normalizedDomain)
     .single();
