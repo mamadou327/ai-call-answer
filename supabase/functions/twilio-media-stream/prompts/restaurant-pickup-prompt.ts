@@ -15,6 +15,7 @@ interface RestaurantPickupPromptData {
   menuItems: any[];
   menuItemOptions?: any[];
   menuItemOptionGroups?: any[];
+  menuItemOptionSizes?: any[];
   businessSettings: any;
   restaurantSettings: {
     cuisineType: string | null;
@@ -66,7 +67,7 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
   const currency = businessSettings?.currency || "GBP";
   const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
   
-  // Helper to format item options
+  // Helper to format item options with their sizes
   const formatItemOptions = (itemId: string): string => {
     const itemGroups = menuItemOptionGroups.filter((g: any) => g.menu_item_id === itemId);
     if (itemGroups.length === 0) return "";
@@ -76,9 +77,14 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
       const groupOptions = menuItemOptions.filter((o: any) => o.option_group_id === group.id && o.is_available);
       if (groupOptions.length === 0) continue;
       
-      const requiredTag = group.is_required ? " (REQUIRED)" : "";
+      const requiredTag = group.is_required ? " (REQUIRED - MUST ASK)" : "";
       optionsText += `\n      ↳ ${group.name}${requiredTag}: `;
       optionsText += groupOptions.map((opt: any) => {
+        // Check if this option has sizes
+        if (opt.has_sizes && opt.sizes && opt.sizes.length > 0) {
+          const sizesList = opt.sizes.map((s: any) => `${s.name}: ${currencySymbol}${s.price.toFixed(2)}`).join(", ");
+          return `${opt.name} [HAS SIZES - MUST ASK: ${sizesList}]`;
+        }
         const priceAdj = opt.price_adjustment !== 0 
           ? ` (${opt.price_adjustment > 0 ? '+' : ''}${currencySymbol}${opt.price_adjustment.toFixed(2)})`
           : "";
@@ -206,19 +212,23 @@ ORDER TAKING FLOW:
 2. Ask what they'd like to order
 3. For each item:
    - Confirm the item name
-   - If the item has OPTIONS (like size or sides), proactively ask: "What size would you like?" or "Which side would you like with that?"
-   - List available options if the customer is unsure
-   - Note any price adjustments for their selections
-4. Calculate running total as you go (base price + option adjustments)
+   - ⚠️ CRITICAL: If item has REQUIRED OPTIONS (marked with MUST ASK), you MUST ask about each one!
+   - ⚠️ CRITICAL: If an option has SIZES (marked with HAS SIZES), you MUST ask "What size?" and list the available sizes with prices
+   - Example: "For the side, would you like that in small or large? Small is £7.99 and large is £9.99"
+   - NEVER skip size selection for options that have sizes - this directly affects the price!
+4. Calculate running total as you go (base price + option prices based on size)
 5. When they're done, read back the full order with total
-6. Ask for their name (if new customer) and phone number
-7. Suggest a pickup time based on prep time: "${restaurantSettings.averagePrepTime || 30} minutes from now, so around [TIME]?"
-8. If prepayment required, inform them they'll receive a payment link
-9. Confirm the order and pickup time
+6. Ask for their name (if new customer)
+7. For phone number, ASK: "Should I send the confirmation to the number you're calling from, or would you prefer a different number?"
+   - If they say "this number" or "same number", use their calling number
+   - If they want a different number, ask them to provide it
+8. Suggest a pickup time based on prep time: "${restaurantSettings.averagePrepTime || 30} minutes from now, so around [TIME]?"
+9. If prepayment required, inform them they'll receive a payment link
+10. Confirm the order and pickup time
 
 AVAILABLE TOOLS:
 - check_pickup_availability: Check if kitchen can handle order at requested time
-- create_pickup_order: Create the order with items
+- create_pickup_order: Create the order with items (include selected_options with size if applicable)
 - calculate_order_total: Get current order total
 - cancel_order: Cancel an existing order (check refund policy)
 - leave_message: Take a message for the kitchen/manager
@@ -230,6 +240,7 @@ CRITICAL RULES:
 4. Don't promise exact times - say "approximately" for pickup times
 5. If order is below minimum, politely inform customer
 6. NEVER hang up without the customer saying goodbye first
+7. ⚠️ NEVER FORGET TO ASK FOR SIZE when an option has multiple sizes - the price depends on it!
 
 Be enthusiastic about the food! If they ask for recommendations, suggest popular items.`;
 }

@@ -2578,6 +2578,30 @@ async function executeCreatePickupOrder(supabase: any, session: StreamSession, p
   
   console.log("[MediaStream] Order created:", order.id);
   
+  // Send SMS confirmation
+  try {
+    const smsResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-order-sms`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({
+        businessId: session.businessId,
+        orderId: order.id,
+        type: "confirmation",
+      }),
+    });
+    
+    if (smsResponse.ok) {
+      console.log("[MediaStream] SMS confirmation sent for order:", order.id);
+    } else {
+      console.warn("[MediaStream] Failed to send SMS confirmation:", await smsResponse.text());
+    }
+  } catch (smsError) {
+    console.warn("[MediaStream] Error sending SMS confirmation:", smsError);
+  }
+  
   // Format confirmation message
   const itemsList = validatedItems.map(i => `${i.quantity}x ${i.name}${i.size ? ` (${i.size})` : ""}`).join(", ");
   const pickupTimeFormatted = formatTime(pickupDateTime);
@@ -2586,7 +2610,7 @@ async function executeCreatePickupOrder(supabase: any, session: StreamSession, p
     success: true,
     order_number: order.order_number,
     total: orderTotal,
-    message: `Your order is confirmed! That's ${itemsList} for ${currencySymbol}${orderTotal.toFixed(2)}. Your order number is ${order.order_number}. It will be ready for pickup at ${pickupTimeFormatted}.`
+    message: `Your order is confirmed! That's ${itemsList} for ${currencySymbol}${orderTotal.toFixed(2)}. Your order number is ${order.order_number}. It will be ready for pickup at ${pickupTimeFormatted}. You'll receive a text confirmation shortly.`
   };
 }
 
@@ -3048,14 +3072,30 @@ async function buildFullSystemPrompt(
       menuItemSizes = sizesResult.data || [];
       menuItemOptionGroups = optionGroupsResult.data || [];
       
-      // Fetch options for the option groups
+      // Fetch options for the option groups with has_sizes flag
       if (menuItemOptionGroups.length > 0) {
         const groupIds = menuItemOptionGroups.map((g: any) => g.id);
         const { data: optionsData } = await supabase.from("menu_item_options")
-          .select("id, option_group_id, name, price_adjustment, is_available, is_default, display_order")
+          .select("id, option_group_id, name, price_adjustment, is_available, is_default, display_order, has_sizes")
           .in("option_group_id", groupIds)
           .eq("is_available", true);
         menuItemOptions = optionsData || [];
+        
+        // Fetch option sizes for options that have sizes
+        const optionsWithSizes = (optionsData || []).filter((o: any) => o.has_sizes);
+        if (optionsWithSizes.length > 0) {
+          const optionIds = optionsWithSizes.map((o: any) => o.id);
+          const { data: optionSizesData } = await supabase.from("menu_item_option_sizes")
+            .select("id, option_id, name, price, is_available, is_default, display_order")
+            .in("option_id", optionIds)
+            .eq("is_available", true);
+          
+          // Attach sizes to their parent options
+          menuItemOptions = (optionsData || []).map((opt: any) => ({
+            ...opt,
+            sizes: (optionSizesData || []).filter((s: any) => s.option_id === opt.id)
+          }));
+        }
       }
     }
     
