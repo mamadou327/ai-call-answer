@@ -28,6 +28,12 @@ interface RestaurantOrderQueueProps {
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode; bgColor: string }> = {
+  pending: { 
+    label: "Pending", 
+    color: "text-yellow-700", 
+    icon: <Clock className="w-4 h-4" />,
+    bgColor: "bg-yellow-50 border-yellow-200"
+  },
   confirmed: { 
     label: "Confirmed", 
     color: "text-blue-700", 
@@ -61,6 +67,7 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", businessId, onO
 
   const getNextStatus = (currentStatus: string): string | null => {
     const flow: Record<string, string> = {
+      pending: "confirmed",
       confirmed: "preparing",
       preparing: "ready",
       ready: "completed",
@@ -139,8 +146,9 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", businessId, onO
     return [];
   };
 
-  // Group orders by status (no pending - orders start as confirmed)
+  // Group orders by status
   const groupedOrders = {
+    pending: orders.filter(o => o.status === "pending"),
     confirmed: orders.filter(o => o.status === "confirmed"),
     preparing: orders.filter(o => o.status === "preparing"),
     ready: orders.filter(o => o.status === "ready"),
@@ -166,8 +174,8 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", businessId, onO
             <p className="text-sm">New orders will appear here</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {(["confirmed", "preparing", "ready"] as const).map((status) => (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {(["pending", "confirmed", "preparing", "ready"] as const).map((status) => (
               <div key={status} className="space-y-3">
                 <div className="flex items-center gap-2">
                   <span className={`${statusConfig[status].color}`}>
