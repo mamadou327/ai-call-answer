@@ -73,25 +73,24 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
   const formatItemOptions = (itemId: string): string => {
     const itemGroups = menuItemOptionGroups.filter((g: any) => g.menu_item_id === itemId);
     if (itemGroups.length === 0) return "";
-    
+
     let optionsText = "";
     for (const group of itemGroups) {
       const groupOptions = menuItemOptions.filter((o: any) => o.option_group_id === group.id && o.is_available);
       if (groupOptions.length === 0) continue;
-      
+
       const requiredTag = group.is_required ? " (REQUIRED - MUST ASK)" : "";
       optionsText += `\n      ↳ ${group.name}${requiredTag}: `;
-      optionsText += groupOptions.map((opt: any) => {
-        // Check if this option has sizes
-        if (opt.has_sizes && opt.sizes && opt.sizes.length > 0) {
-          const sizesList = opt.sizes.map((s: any) => `${s.name}: ${currencySymbol}${s.price.toFixed(2)}`).join(", ");
-          return `${opt.name} [HAS SIZES - MUST ASK: ${sizesList}]`;
-        }
-        const priceAdj = opt.price_adjustment !== 0 
-          ? ` (${opt.price_adjustment > 0 ? '+' : ''}${currencySymbol}${opt.price_adjustment.toFixed(2)})`
-          : "";
-        return `${opt.name}${priceAdj}`;
-      }).join(", ");
+      optionsText += groupOptions
+        .map((opt: any) => {
+          if (opt.has_sizes && opt.sizes && opt.sizes.length > 0) {
+            const sizesList = opt.sizes.map((s: any) => `${s.name}`).join(", ");
+            return `${opt.name} [HAS SIZES - MUST ASK: ${sizesList}]`;
+          }
+
+          return `${opt.name}`;
+        })
+        .join(", ");
     }
     return optionsText;
   };
@@ -103,7 +102,7 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
     formattedMenu += `\n${category.name}:\n`;
     for (const item of categoryItems) {
       const dietary = item.dietary_tags?.length > 0 ? ` (${item.dietary_tags.join(", ")})` : "";
-      formattedMenu += `  - ${item.name}: ${currencySymbol}${item.price}${dietary}`;
+      formattedMenu += `  - ${item.name}${dietary}`;
       formattedMenu += formatItemOptions(item.id);
       formattedMenu += "\n";
     }
@@ -215,7 +214,7 @@ After greeting, ask: "Are you looking to place an order for pickup, or would you
 IF PICKUP ORDER:
 1. Take their order item by item
 2. For items with REQUIRED options, ALWAYS ask which one they want
-3. ⚠️ CRITICAL: If an option has SIZES (marked HAS SIZES), you MUST ask "What size?" - e.g., "Would you like small or large?"
+3. ⚠️ CRITICAL: If an option has SIZES (marked HAS SIZES), you MUST ask "What size?" (only mention prices if the caller asks)
 4. NEVER skip size selection - it affects the final price!
 5. Confirm each item with selected options/sizes and running total
 6. Get their name
