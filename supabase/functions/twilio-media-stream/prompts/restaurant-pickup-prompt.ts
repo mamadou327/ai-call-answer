@@ -71,25 +71,26 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
   const formatItemOptions = (itemId: string): string => {
     const itemGroups = menuItemOptionGroups.filter((g: any) => g.menu_item_id === itemId);
     if (itemGroups.length === 0) return "";
-    
+
     let optionsText = "";
     for (const group of itemGroups) {
       const groupOptions = menuItemOptions.filter((o: any) => o.option_group_id === group.id && o.is_available);
       if (groupOptions.length === 0) continue;
-      
+
       const requiredTag = group.is_required ? " (REQUIRED - MUST ASK)" : "";
       optionsText += `\n      ↳ ${group.name}${requiredTag}: `;
-      optionsText += groupOptions.map((opt: any) => {
-        // Check if this option has sizes
-        if (opt.has_sizes && opt.sizes && opt.sizes.length > 0) {
-          const sizesList = opt.sizes.map((s: any) => `${s.name}: ${currencySymbol}${s.price.toFixed(2)}`).join(", ");
-          return `${opt.name} [HAS SIZES - MUST ASK: ${sizesList}]`;
-        }
-        const priceAdj = opt.price_adjustment !== 0 
-          ? ` (${opt.price_adjustment > 0 ? '+' : ''}${currencySymbol}${opt.price_adjustment.toFixed(2)})`
-          : "";
-        return `${opt.name}${priceAdj}`;
-      }).join(", ");
+      optionsText += groupOptions
+        .map((opt: any) => {
+          // If this option has sizes, list sizes *without prices* (only speak prices if caller asks)
+          if (opt.has_sizes && opt.sizes && opt.sizes.length > 0) {
+            const sizesList = opt.sizes.map((s: any) => `${s.name}`).join(", ");
+            return `${opt.name} [HAS SIZES - MUST ASK: ${sizesList}]`;
+          }
+
+          // Do NOT include price adjustments in the spoken flow unless the caller asks
+          return `${opt.name}`;
+        })
+        .join(", ");
     }
     return optionsText;
   };
@@ -101,7 +102,7 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
     formattedMenu += `\n${category.name}:\n`;
     for (const item of categoryItems) {
       const dietary = item.dietary_tags?.length > 0 ? ` (${item.dietary_tags.join(", ")})` : "";
-      formattedMenu += `  - ${item.name}: ${currencySymbol}${item.price}${dietary}`;
+      formattedMenu += `  - ${item.name}${dietary}`;
       if (item.description) {
         formattedMenu += `\n    ${item.description}`;
       }
@@ -115,7 +116,7 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
     formattedMenu = "\nMenu Items:\n";
     for (const item of menuItems.filter((i: any) => i.is_available)) {
       const dietary = item.dietary_tags?.length > 0 ? ` (${item.dietary_tags.join(", ")})` : "";
-      formattedMenu += `- ${item.name}: ${currencySymbol}${item.price}${dietary}`;
+      formattedMenu += `- ${item.name}${dietary}`;
       formattedMenu += formatItemOptions(item.id);
       formattedMenu += "\n";
     }
@@ -221,13 +222,13 @@ PROFESSIONAL ORDER TAKING FLOW:
    - Listen carefully to what they want
    - Repeat back each item to confirm: "So that's one Lamb Shish, got it!"
    - ⚠️ CRITICAL: If an item has REQUIRED OPTIONS (marked MUST ASK), ASK about each one
-   - ⚠️ CRITICAL: If an option has SIZES, you MUST ask which size and give prices
+   - ⚠️ CRITICAL: If an option has SIZES, you MUST ask which size (only mention prices if the caller asks)
    - Be helpful with suggestions: "Would you like any sides with that?" or "Our [popular item] goes great with that!"
-   - Keep a mental running total
+   - ❌ Do NOT proactively mention prices or totals unless the caller asks
 
 3. **CONFIRMING THE ORDER** (be clear and complete):
    - Read back the COMPLETE order: "Let me confirm - that's [full order list]"
-   - State the total clearly: "Your total comes to [amount]"
+   - Only state the total/price if the caller asks ("how much?" / "what's the total?")
    - Ask: "Would you like to add anything else?"
 
 4. **CUSTOMER DETAILS** (collect what you need):
@@ -241,7 +242,7 @@ PROFESSIONAL ORDER TAKING FLOW:
    - Confirm the pickup time clearly
 
 6. **CLOSING** (professional and complete):
-   - Confirm EVERYTHING: "Perfect! So [name], your order of [items] for [total] will be ready for pickup at [time]. You'll get a text confirmation shortly."
+   - Confirm EVERYTHING: "Perfect! So [name], your order of [items] will be ready for pickup at [time]. You'll get a text confirmation shortly."
    - Say goodbye warmly: "See you soon! Have a great [day/evening]!"
    - WAIT for them to say goodbye before ending
 
@@ -252,17 +253,18 @@ AVAILABLE TOOLS:
 - cancel_order: Cancel an existing order (check refund policy)
 - leave_message: Take a message for the kitchen/manager
 
-CRITICAL RULES FOR PROFESSIONAL SERVICE:
-1. ✅ ALWAYS complete your sentences - never trail off or cut yourself short
-2. ✅ ALWAYS confirm the full order before creating it
-3. ✅ ALWAYS repeat back items as you take them to avoid mistakes
-4. ✅ ALWAYS get the customer's name and confirm their phone number
-5. ✅ ALWAYS be patient if they're deciding - don't rush them
-6. ❌ NEVER hang up without the customer saying goodbye first
-7. ❌ NEVER assume what they want - always clarify
-8. ❌ NEVER skip asking about sizes or required options
-9. ❌ NEVER interrupt the customer while they're speaking
-10. ❌ NEVER say "I don't know" - instead say "Let me check on that" or offer an alternative
+ CRITICAL RULES FOR PROFESSIONAL SERVICE:
+ 1. ✅ ALWAYS complete your sentences - never trail off or cut yourself short
+ 2. ✅ ALWAYS confirm the full order before creating it
+ 3. ✅ ALWAYS repeat back items as you take them to avoid mistakes
+ 4. ✅ ALWAYS get the customer's name and confirm their phone number
+ 5. ✅ ALWAYS be patient if they're deciding - don't rush them
+ 6. ✅ ONLY mention prices/totals if the caller explicitly asks ("how much?" / "what's the total?")
+ 7. ❌ NEVER hang up without the customer saying goodbye first
+ 8. ❌ NEVER assume what they want - always clarify
+ 9. ❌ NEVER skip asking about sizes or required options
+ 10. ❌ NEVER interrupt the customer while they're speaking
+ 11. ❌ NEVER say "I don't know" - instead say "Let me check on that" or offer an alternative
 
 HANDLING COMMON SITUATIONS:
 - If unsure about an item: "Just to make sure I've got the right one, did you mean [item name]?"

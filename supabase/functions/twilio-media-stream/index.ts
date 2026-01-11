@@ -38,9 +38,11 @@ interface StreamSession {
   // Call stability tracking
   interactionCount: number;
   callStartTime: number;
-  // Audio playback tracking to prevent cutoff
+  // Audio playback + response tracking for stability
   isAISpeaking: boolean;
   lastAudioSentAt: number | null;
+  hasActiveResponse: boolean;
+  lastTranscriptionFailureAt: number | null;
 }
 
 interface BusinessSettings {
@@ -354,9 +356,11 @@ Deno.serve(async (req) => {
     // Call stability tracking
     interactionCount: 0,
     callStartTime: Date.now(),
-    // Audio playback tracking to prevent cutoff
+    // Audio playback + response tracking for stability
     isAISpeaking: false,
     lastAudioSentAt: null,
+    hasActiveResponse: false,
+    lastTranscriptionFailureAt: null,
   };
 
   twilioWs.onopen = () => {
@@ -447,6 +451,7 @@ Deno.serve(async (req) => {
           console.log("[MediaStream] Twilio mark received:", data.mark?.name);
           if (data.mark?.name === "audio_complete") {
             session.isAISpeaking = false;
+            session.lastAudioSentAt = null;
             console.log("[MediaStream] Audio playback confirmed complete");
           }
           break;
@@ -506,8 +511,19 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           console.log("[MediaStream] OpenAI session updated");
           break;
 
+        case "response.created":
+          // Track active responses so we don't send response.cancel when nothing is running
+          session.hasActiveResponse = true;
+          break;
+
         case "response.audio.delta":
           // Forward audio to Twilio
+          // Mark the *start* of playback so we can allow barge-in after a short grace period
+          if (!session.isAISpeaking) {
+            session.isAISpeaking = true;
+            session.lastAudioSentAt = Date.now();
+          }
+
           if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
             const audioMessage = {
               event: "media",
@@ -522,15 +538,15 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
 
         case "response.audio.done":
           console.log("[MediaStream] AI response audio complete");
-          session.isAISpeaking = true;
-          session.lastAudioSentAt = Date.now();
           // Send mark to track when Twilio finishes playing the audio
           if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
-            session.twilioWs.send(JSON.stringify({
-              event: "mark",
-              streamSid: session.streamSid,
-              mark: { name: "audio_complete" }
-            }));
+            session.twilioWs.send(
+              JSON.stringify({
+                event: "mark",
+                streamSid: session.streamSid,
+                mark: { name: "audio_complete" },
+              })
+            );
           }
           break;
 
@@ -541,35 +557,102 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           }
           break;
 
-        case "input_audio_buffer.speech_started":
+        case "input_audio_buffer.speech_started": {
+          // Only interrupt if the AI is actually speaking or generating
+          const isInterruptingSomething = session.isAISpeaking || session.hasActiveResponse;
+          if (!isInterruptingSomething) break;
+
           // Prevent interruption if AI just started speaking (prevents audio cutoff)
-          const timeSinceAudioSent = session.lastAudioSentAt 
-            ? Date.now() - session.lastAudioSentAt 
+          const timeSinceAudioStarted = session.lastAudioSentAt
+            ? Date.now() - session.lastAudioSentAt
             : 1000;
-          
-          if (timeSinceAudioSent < 600) {
-            console.log("[MediaStream] Ignoring interruption - AI just started speaking (" + timeSinceAudioSent + "ms ago)");
+
+          if (session.isAISpeaking && timeSinceAudioStarted < 600) {
+            console.log(
+              "[MediaStream] Ignoring interruption - AI just started speaking (" +
+                timeSinceAudioStarted +
+                "ms ago)"
+            );
             break;
           }
-          
+
           console.log("[MediaStream] User started speaking - interrupting AI");
           session.isAISpeaking = false;
+          session.lastAudioSentAt = null;
+
           // Clear any pending AI audio (barge-in)
           if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
-            session.twilioWs.send(JSON.stringify({
-              event: "clear",
-              streamSid: session.streamSid,
-            }));
+            session.twilioWs.send(
+              JSON.stringify({
+                event: "clear",
+                streamSid: session.streamSid,
+              })
+            );
           }
-          // Cancel any in-progress response
-          if (session.openAiWs?.readyState === WebSocket.OPEN) {
+
+          // Cancel any in-progress response (only if one is active)
+          if (session.hasActiveResponse && session.openAiWs?.readyState === WebSocket.OPEN) {
             session.openAiWs.send(JSON.stringify({ type: "response.cancel" }));
           }
+
+          session.hasActiveResponse = false;
           break;
+        }
 
         case "input_audio_buffer.speech_stopped":
           console.log("[MediaStream] User stopped speaking");
           break;
+
+        case "conversation.item.input_audio_transcription.failed": {
+          console.warn("[MediaStream] OpenAI event: conversation.item.input_audio_transcription.failed");
+
+          // Avoid spamming the caller if multiple failures happen in a row
+          const now = Date.now();
+          const shouldRecover =
+            !session.lastTranscriptionFailureAt || now - session.lastTranscriptionFailureAt > 3000;
+          session.lastTranscriptionFailureAt = now;
+
+          if (shouldRecover && session.openAiWs?.readyState === WebSocket.OPEN) {
+            // Stop any audio currently queued to Twilio
+            if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
+              session.twilioWs.send(
+                JSON.stringify({
+                  event: "clear",
+                  streamSid: session.streamSid,
+                })
+              );
+            }
+
+            // Cancel any in-progress model response if present
+            if (session.hasActiveResponse) {
+              session.openAiWs.send(JSON.stringify({ type: "response.cancel" }));
+            }
+
+            session.hasActiveResponse = false;
+            session.isAISpeaking = false;
+            session.lastAudioSentAt = null;
+
+            // Ask the caller to repeat (recovery)
+            session.openAiWs.send(
+              JSON.stringify({
+                type: "response.create",
+                conversation: "none",
+                response: {
+                  instructions:
+                    "Sorry — I didn't catch that clearly. Could you repeat that last bit for me?",
+                },
+              })
+            );
+
+            await logConversation(
+              supabase,
+              session.callSid,
+              "assistant",
+              "[Audio issue] Asked caller to repeat."
+            );
+          }
+          break;
+        }
 
         case "conversation.item.input_audio_transcription.completed":
           console.log("[MediaStream] User said:", data.transcript);
@@ -587,6 +670,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
 
         case "response.done":
           console.log("[MediaStream] Response complete");
+          session.hasActiveResponse = false;
           if (data.response?.output) {
             for (const output of data.response.output) {
               if (output.content) {
@@ -601,6 +685,11 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           break;
 
         case "error":
+          // Ignore noisy cancellation errors (happens if we try to cancel when nothing is active)
+          if (data.error?.code === "response_cancel_not_active") {
+            console.warn("[MediaStream] OpenAI error (ignored):", data.error);
+            break;
+          }
           console.error("[MediaStream] OpenAI error:", data.error);
           break;
 
@@ -618,6 +707,9 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
   openAiWs.onclose = () => {
     console.log("[MediaStream] OpenAI WebSocket closed");
     session.openAiWs = null;
+    session.hasActiveResponse = false;
+    session.isAISpeaking = false;
+    session.lastAudioSentAt = null;
   };
 
   openAiWs.onerror = (error) => {
