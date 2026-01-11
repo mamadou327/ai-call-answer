@@ -9,12 +9,8 @@ interface PaymentProvidersSettingsProps {
   currency?: string;
 }
 
-export const PaymentProvidersSettings = ({ business, onUpdate, currency = "GBP" }: PaymentProvidersSettingsProps) => {
+export const PaymentProvidersSettings = ({ business, onUpdate }: PaymentProvidersSettingsProps) => {
   const isStripeConnected = !!business?.stripe_account_id;
-
-  const getExampleFee = (amount: number) => {
-    return (amount * 0.015 + 0.20).toFixed(2);
-  };
 
   return (
     <div className="space-y-6">
@@ -52,59 +48,14 @@ export const PaymentProvidersSettings = ({ business, onUpdate, currency = "GBP" 
                     </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="font-medium">1.5% + 20p</div>
-                  <div className="text-xs text-muted-foreground">per transaction</div>
-                </div>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Fee Examples */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Fee Examples</CardTitle>
-          <CardDescription>
-            See what fees apply at different deposit amounts
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2">Deposit Amount</th>
-                  <th className="text-right py-2">Stripe Fee</th>
-                  <th className="text-right py-2">You Receive</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[10, 20, 30, 50].map((amount) => {
-                  const fee = parseFloat(getExampleFee(amount));
-                  const received = amount - fee;
-                  return (
-                    <tr key={amount} className="border-b last:border-0">
-                      <td className="py-2">{currency}{amount}</td>
-                      <td className="text-right py-2">{currency}{fee.toFixed(2)}</td>
-                      <td className="text-right py-2 font-medium">
-                        {currency}{received.toFixed(2)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Stripe Connection */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Connect Stripe</h3>
-        <StripeConnectSettings business={business} onUpdate={onUpdate} />
-      </div>
+      <StripeConnectSettings business={business} onUpdate={onUpdate} />
     </div>
   );
 };
