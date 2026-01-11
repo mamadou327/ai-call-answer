@@ -636,7 +636,6 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
             session.openAiWs.send(
               JSON.stringify({
                 type: "response.create",
-                conversation: "none",
                 response: {
                   instructions:
                     "Sorry — I didn't catch that clearly. Could you repeat that last bit for me?",
