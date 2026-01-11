@@ -6,10 +6,36 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Minus, Trash2 } from "lucide-react";
+import { Plus, Minus, Trash2, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+interface OptionSize {
+  id: string;
+  name: string;
+  price: number;
+  is_default?: boolean;
+}
+
+interface MenuOption {
+  id: string;
+  name: string;
+  price_adjustment: number;
+  has_sizes?: boolean;
+  sizes?: OptionSize[];
+}
+
+interface OptionGroup {
+  id: string;
+  name: string;
+  is_required: boolean;
+  min_selections?: number;
+  max_selections?: number;
+  options: MenuOption[];
+}
 
 interface MenuItemSize {
   id: string;
@@ -26,6 +52,18 @@ interface MenuItem {
   category_id?: string;
   has_sizes?: boolean;
   sizes?: MenuItemSize[];
+  option_groups?: OptionGroup[];
+}
+
+interface SelectedOption {
+  option: MenuOption;
+  selectedSize?: OptionSize;
+}
+
+interface OrderItemOption {
+  name: string;
+  size?: string;
+  price: number;
 }
 
 interface OrderItem {
@@ -35,6 +73,7 @@ interface OrderItem {
   price: number;
   size_id?: string;
   size_name?: string;
+  options?: OrderItemOption[];
 }
 
 interface ManualOrderDialogProps {
@@ -55,10 +94,11 @@ export function ManualOrderDialog({ open, onOpenChange, businessId, currency = "
   const [loading, setLoading] = useState(false);
   const [loadingMenu, setLoadingMenu] = useState(true);
   
-  // Size selection state
-  const [sizeDialogOpen, setSizeDialogOpen] = useState(false);
+  // Customization dialog state
+  const [customizeDialogOpen, setCustomizeDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [selectedSizeId, setSelectedSizeId] = useState<string>("");
+  const [selectedOptions, setSelectedOptions] = useState<Map<string, SelectedOption>>(new Map());
 
   const getCurrencySymbol = () => {
     const symbols: Record<string, string> = { GBP: "£", USD: "$", EUR: "€" };
@@ -95,6 +135,7 @@ export function ManualOrderDialog({ open, onOpenChange, businessId, currency = "
 
     // Fetch sizes for items that have them
     const itemsWithSizes = items.filter(item => item.has_sizes);
+    let sizesData: any[] = [];
     if (itemsWithSizes.length > 0) {
       const { data: sizes } = await supabase
         .from("menu_item_sizes")
@@ -102,51 +143,222 @@ export function ManualOrderDialog({ open, onOpenChange, businessId, currency = "
         .in("menu_item_id", itemsWithSizes.map(i => i.id))
         .eq("is_available", true)
         .order("display_order");
-
-      // Map sizes to their items
-      const itemsWithSizeData = items.map(item => {
-        if (item.has_sizes && sizes) {
-          const itemSizes = sizes.filter(s => s.menu_item_id === item.id);
-          return { ...item, sizes: itemSizes };
-        }
-        return item;
-      });
-      
-      setMenuItems(itemsWithSizeData);
-    } else {
-      setMenuItems(items);
+      sizesData = sizes || [];
     }
-    
+
+    // Fetch option groups for all items
+    const { data: optionGroups } = await supabase
+      .from("menu_item_option_groups")
+      .select("id, menu_item_id, name, is_required, min_selections, max_selections")
+      .in("menu_item_id", items.map(i => i.id))
+      .order("display_order");
+
+    // Fetch options for all groups
+    let optionsData: any[] = [];
+    if (optionGroups && optionGroups.length > 0) {
+      const { data: options } = await supabase
+        .from("menu_item_options")
+        .select("id, option_group_id, name, price_adjustment, has_sizes, is_available")
+        .in("option_group_id", optionGroups.map(g => g.id))
+        .eq("is_available", true)
+        .order("display_order");
+      optionsData = options || [];
+    }
+
+    // Fetch option sizes
+    let optionSizesData: any[] = [];
+    const optionsWithSizes = optionsData.filter(o => o.has_sizes);
+    if (optionsWithSizes.length > 0) {
+      const { data: optionSizes } = await supabase
+        .from("menu_item_option_sizes")
+        .select("id, option_id, name, price, is_default, is_available")
+        .in("option_id", optionsWithSizes.map(o => o.id))
+        .eq("is_available", true)
+        .order("display_order");
+      optionSizesData = optionSizes || [];
+    }
+
+    // Map everything together
+    const enrichedItems = items.map(item => {
+      const itemSizes = sizesData.filter(s => s.menu_item_id === item.id);
+      const itemOptionGroups = (optionGroups || [])
+        .filter(g => g.menu_item_id === item.id)
+        .map(group => {
+          const groupOptions = optionsData
+            .filter(o => o.option_group_id === group.id)
+            .map(option => {
+              const optionSizes = optionSizesData.filter(s => s.option_id === option.id);
+              return {
+                ...option,
+                sizes: optionSizes.length > 0 ? optionSizes : undefined
+              };
+            });
+          return {
+            ...group,
+            options: groupOptions
+          };
+        });
+
+      return {
+        ...item,
+        sizes: itemSizes.length > 0 ? itemSizes : undefined,
+        option_groups: itemOptionGroups.length > 0 ? itemOptionGroups : undefined
+      };
+    });
+
+    setMenuItems(enrichedItems);
     setLoadingMenu(false);
   };
 
   const handleItemClick = (item: MenuItem) => {
-    if (item.has_sizes && item.sizes && item.sizes.length > 0) {
-      // Show size selection dialog
+    const hasSizes = item.has_sizes && item.sizes && item.sizes.length > 0;
+    const hasOptions = item.option_groups && item.option_groups.length > 0;
+
+    if (hasSizes || hasOptions) {
+      // Show customization dialog
       setSelectedItem(item);
-      const defaultSize = item.sizes.find(s => s.is_default) || item.sizes[0];
-      setSelectedSizeId(defaultSize.id);
-      setSizeDialogOpen(true);
+      if (hasSizes && item.sizes) {
+        const defaultSize = item.sizes.find(s => s.is_default) || item.sizes[0];
+        setSelectedSizeId(defaultSize.id);
+      } else {
+        setSelectedSizeId("");
+      }
+      setSelectedOptions(new Map());
+      setCustomizeDialogOpen(true);
     } else {
-      // Add directly without size
+      // Add directly without customization
       addItem(item);
     }
   };
 
-  const handleSizeConfirm = () => {
-    if (!selectedItem || !selectedSizeId) return;
-    
-    const size = selectedItem.sizes?.find(s => s.id === selectedSizeId);
-    if (!size) return;
+  const toggleOption = (option: MenuOption) => {
+    setSelectedOptions(prev => {
+      const newMap = new Map(prev);
+      if (newMap.has(option.id)) {
+        newMap.delete(option.id);
+      } else {
+        // If option has sizes, set default size
+        if (option.has_sizes && option.sizes && option.sizes.length > 0) {
+          const defaultSize = option.sizes.find(s => s.is_default) || option.sizes[0];
+          newMap.set(option.id, { option, selectedSize: defaultSize });
+        } else {
+          newMap.set(option.id, { option });
+        }
+      }
+      return newMap;
+    });
+  };
 
-    addItemWithSize(selectedItem, size);
-    setSizeDialogOpen(false);
+  const setOptionSize = (optionId: string, size: OptionSize) => {
+    setSelectedOptions(prev => {
+      const newMap = new Map(prev);
+      const existing = newMap.get(optionId);
+      if (existing) {
+        newMap.set(optionId, { ...existing, selectedSize: size });
+      }
+      return newMap;
+    });
+  };
+
+  const calculateItemPrice = () => {
+    if (!selectedItem) return 0;
+
+    let basePrice = selectedItem.price;
+    
+    // If item has sizes, use selected size price
+    if (selectedItem.has_sizes && selectedItem.sizes && selectedSizeId) {
+      const size = selectedItem.sizes.find(s => s.id === selectedSizeId);
+      if (size) {
+        basePrice = size.price;
+      }
+    }
+
+    // Add option prices
+    selectedOptions.forEach(({ option, selectedSize }) => {
+      if (selectedSize) {
+        basePrice += selectedSize.price;
+      } else {
+        basePrice += option.price_adjustment;
+      }
+    });
+
+    return basePrice;
+  };
+
+  const handleCustomizeConfirm = () => {
+    if (!selectedItem) return;
+
+    // Validate required options
+    if (selectedItem.option_groups) {
+      for (const group of selectedItem.option_groups) {
+        if (group.is_required) {
+          const selectedInGroup = Array.from(selectedOptions.values()).filter(so => 
+            group.options.some(o => o.id === so.option.id)
+          );
+          if (selectedInGroup.length === 0) {
+            toast.error(`Please select at least one option from "${group.name}"`);
+            return;
+          }
+        }
+      }
+    }
+
+    const selectedSize = selectedItem.sizes?.find(s => s.id === selectedSizeId);
+    const optionsArray: OrderItemOption[] = Array.from(selectedOptions.values()).map(({ option, selectedSize }) => ({
+      name: option.name,
+      size: selectedSize?.name,
+      price: selectedSize?.price ?? option.price_adjustment
+    }));
+
+    const totalPrice = calculateItemPrice();
+    
+    // Build display name
+    let displayName = selectedItem.name;
+    if (selectedSize) {
+      displayName += ` (${selectedSize.name})`;
+    }
+    if (optionsArray.length > 0) {
+      const optionNames = optionsArray.map(o => o.size ? `${o.name} ${o.size}` : o.name).join(", ");
+      displayName += ` + ${optionNames}`;
+    }
+
+    // Create unique key for deduplication
+    const optionKey = optionsArray.map(o => `${o.name}-${o.size || ''}`).sort().join('|');
+    const uniqueKey = `${selectedItem.id}-${selectedSizeId || ''}-${optionKey}`;
+
+    // Check if exact same item exists
+    const existingIndex = orderItems.findIndex(oi => {
+      const oiOptionKey = (oi.options || []).map(o => `${o.name}-${o.size || ''}`).sort().join('|');
+      const oiKey = `${oi.item_id}-${oi.size_id || ''}-${oiOptionKey}`;
+      return oiKey === uniqueKey;
+    });
+
+    if (existingIndex >= 0) {
+      const updated = [...orderItems];
+      updated[existingIndex].quantity += 1;
+      setOrderItems(updated);
+    } else {
+      setOrderItems([...orderItems, {
+        item_id: selectedItem.id,
+        name: displayName,
+        quantity: 1,
+        price: totalPrice,
+        size_id: selectedSizeId || undefined,
+        size_name: selectedSize?.name,
+        options: optionsArray.length > 0 ? optionsArray : undefined
+      }]);
+    }
+
+    setCustomizeDialogOpen(false);
     setSelectedItem(null);
     setSelectedSizeId("");
+    setSelectedOptions(new Map());
   };
 
   const addItem = (item: MenuItem) => {
-    const existingIndex = orderItems.findIndex(oi => oi.item_id === item.id && !oi.size_id);
+    const existingIndex = orderItems.findIndex(oi => 
+      oi.item_id === item.id && !oi.size_id && (!oi.options || oi.options.length === 0)
+    );
     if (existingIndex >= 0) {
       const updated = [...orderItems];
       updated[existingIndex].quantity += 1;
@@ -161,36 +373,15 @@ export function ManualOrderDialog({ open, onOpenChange, businessId, currency = "
     }
   };
 
-  const addItemWithSize = (item: MenuItem, size: MenuItemSize) => {
-    const displayName = `${item.name} (${size.name})`;
-    const existingIndex = orderItems.findIndex(oi => oi.item_id === item.id && oi.size_id === size.id);
-    
-    if (existingIndex >= 0) {
-      const updated = [...orderItems];
-      updated[existingIndex].quantity += 1;
-      setOrderItems(updated);
-    } else {
-      setOrderItems([...orderItems, {
-        item_id: item.id,
-        name: displayName,
-        quantity: 1,
-        price: size.price,
-        size_id: size.id,
-        size_name: size.name
-      }]);
-    }
+  const getUniqueItemKey = (item: OrderItem, index: number) => {
+    const optionKey = (item.options || []).map(o => `${o.name}-${o.size || ''}`).sort().join('|');
+    return `${item.item_id}-${item.size_id || ''}-${optionKey}-${index}`;
   };
 
-  const getUniqueItemKey = (item: OrderItem) => {
-    return item.size_id ? `${item.item_id}-${item.size_id}` : item.item_id;
-  };
-
-  const updateQuantity = (item: OrderItem, delta: number) => {
-    const key = getUniqueItemKey(item);
+  const updateQuantity = (targetIndex: number, delta: number) => {
     setOrderItems(prev => {
-      const updated = prev.map(oi => {
-        const oiKey = getUniqueItemKey(oi);
-        if (oiKey === key) {
+      const updated = prev.map((oi, idx) => {
+        if (idx === targetIndex) {
           const newQty = oi.quantity + delta;
           return newQty > 0 ? { ...oi, quantity: newQty } : oi;
         }
@@ -200,9 +391,8 @@ export function ManualOrderDialog({ open, onOpenChange, businessId, currency = "
     });
   };
 
-  const removeItem = (item: OrderItem) => {
-    const key = getUniqueItemKey(item);
-    setOrderItems(prev => prev.filter(oi => getUniqueItemKey(oi) !== key));
+  const removeItem = (targetIndex: number) => {
+    setOrderItems(prev => prev.filter((_, idx) => idx !== targetIndex));
   };
 
   const calculateTotal = () => {
@@ -210,7 +400,6 @@ export function ManualOrderDialog({ open, onOpenChange, businessId, currency = "
   };
 
   const generateOrderNumber = () => {
-    // Generate random 4-digit code
     return `#${Math.floor(1000 + Math.random() * 9000)}`;
   };
 
@@ -343,19 +532,28 @@ export function ManualOrderDialog({ open, onOpenChange, businessId, currency = "
                 <Label>Order Items</Label>
                 <div className="border rounded-md divide-y">
                   {orderItems.map((item, index) => (
-                    <div key={`${getUniqueItemKey(item)}-${index}`} className="flex items-center justify-between p-3">
-                      <div>
-                        <span className="font-medium">{item.name}</span>
-                        <span className="text-muted-foreground ml-2">
+                    <div key={getUniqueItemKey(item, index)} className="flex items-center justify-between p-3">
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium text-sm">{item.name}</span>
+                        {item.options && item.options.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {item.options.map((opt, i) => (
+                              <Badge key={i} variant="secondary" className="text-xs">
+                                {opt.name}{opt.size ? ` (${opt.size})` : ""}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        <span className="text-muted-foreground ml-2 text-sm">
                           {getCurrencySymbol()}{(item.price * item.quantity).toFixed(2)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <Button
                           variant="outline"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => updateQuantity(item, -1)}
+                          onClick={() => updateQuantity(index, -1)}
                         >
                           <Minus className="w-4 h-4" />
                         </Button>
@@ -364,7 +562,7 @@ export function ManualOrderDialog({ open, onOpenChange, businessId, currency = "
                           variant="outline"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => updateQuantity(item, 1)}
+                          onClick={() => updateQuantity(index, 1)}
                         >
                           <Plus className="w-4 h-4" />
                         </Button>
@@ -372,7 +570,7 @@ export function ManualOrderDialog({ open, onOpenChange, businessId, currency = "
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-destructive"
-                          onClick={() => removeItem(item)}
+                          onClick={() => removeItem(index)}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -411,36 +609,122 @@ export function ManualOrderDialog({ open, onOpenChange, businessId, currency = "
         </DialogContent>
       </Dialog>
 
-      {/* Size Selection Dialog */}
-      <Dialog open={sizeDialogOpen} onOpenChange={setSizeDialogOpen}>
-        <DialogContent className="max-w-sm">
+      {/* Customization Dialog */}
+      <Dialog open={customizeDialogOpen} onOpenChange={setCustomizeDialogOpen}>
+        <DialogContent className="max-w-md max-h-[80vh]">
           <DialogHeader>
-            <DialogTitle>Select Size</DialogTitle>
+            <DialogTitle>{selectedItem?.name}</DialogTitle>
           </DialogHeader>
-          {selectedItem && selectedItem.sizes && (
-            <div className="py-4">
-              <p className="text-sm text-muted-foreground mb-4">{selectedItem.name}</p>
-              <RadioGroup value={selectedSizeId} onValueChange={setSelectedSizeId}>
-                {selectedItem.sizes.map((size) => (
-                  <div key={size.id} className="flex items-center justify-between py-2">
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value={size.id} id={size.id} />
-                      <Label htmlFor={size.id} className="cursor-pointer">{size.name}</Label>
-                    </div>
-                    <span className="font-medium">{getCurrencySymbol()}{size.price.toFixed(2)}</span>
+          <ScrollArea className="max-h-[50vh] pr-4">
+            <div className="space-y-6">
+              {/* Size Selection */}
+              {selectedItem?.has_sizes && selectedItem.sizes && selectedItem.sizes.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="font-semibold">Size</Label>
+                  <RadioGroup value={selectedSizeId} onValueChange={setSelectedSizeId}>
+                    {selectedItem.sizes.map((size) => (
+                      <div key={size.id} className="flex items-center justify-between py-2">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value={size.id} id={`size-${size.id}`} />
+                          <Label htmlFor={`size-${size.id}`} className="cursor-pointer">{size.name}</Label>
+                        </div>
+                        <span className="font-medium">{getCurrencySymbol()}{size.price.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+              )}
+
+              {/* Option Groups (Sides/Extras) */}
+              {selectedItem?.option_groups?.map((group) => (
+                <div key={group.id} className="space-y-3">
+                  <div>
+                    <Label className="font-semibold">{group.name}</Label>
+                    {group.is_required && (
+                      <span className="text-xs text-destructive ml-2">Required</span>
+                    )}
+                    {group.max_selections && group.max_selections > 1 && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        (Select up to {group.max_selections})
+                      </span>
+                    )}
                   </div>
-                ))}
-              </RadioGroup>
+                  <div className="space-y-2">
+                    {group.options.map((option) => {
+                      const isSelected = selectedOptions.has(option.id);
+                      const selectedOption = selectedOptions.get(option.id);
+                      
+                      return (
+                        <div key={option.id} className="space-y-2">
+                          <div 
+                            className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                              isSelected ? "bg-primary/10 border-primary" : "hover:bg-muted"
+                            }`}
+                            onClick={() => toggleOption(option)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                                isSelected ? "bg-primary border-primary" : "border-muted-foreground"
+                              }`}>
+                                {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
+                              </div>
+                              <span>{option.name}</span>
+                            </div>
+                            {!option.has_sizes && option.price_adjustment > 0 && (
+                              <span className="text-sm">+{getCurrencySymbol()}{option.price_adjustment.toFixed(2)}</span>
+                            )}
+                            {option.has_sizes && option.sizes && (
+                              <span className="text-sm text-muted-foreground">
+                                from +{getCurrencySymbol()}{Math.min(...option.sizes.map(s => s.price)).toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Option Size Selection */}
+                          {isSelected && option.has_sizes && option.sizes && option.sizes.length > 0 && (
+                            <div className="ml-8 pl-4 border-l space-y-1">
+                              {option.sizes.map((size) => (
+                                <div
+                                  key={size.id}
+                                  className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                                    selectedOption?.selectedSize?.id === size.id
+                                      ? "bg-primary/10 border border-primary"
+                                      : "bg-muted hover:bg-muted/80"
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOptionSize(option.id, size);
+                                  }}
+                                >
+                                  <span className="text-sm">{size.name}</span>
+                                  <span className="text-sm font-medium">+{getCurrencySymbol()}{size.price.toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSizeDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSizeConfirm}>
-              Add to Order
-            </Button>
-          </DialogFooter>
+          </ScrollArea>
+
+          <div className="pt-4 border-t">
+            <div className="flex items-center justify-between mb-4">
+              <span className="font-semibold">Item Total</span>
+              <span className="font-semibold text-lg">{getCurrencySymbol()}{calculateItemPrice().toFixed(2)}</span>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCustomizeDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCustomizeConfirm}>
+                Add to Order
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </>
