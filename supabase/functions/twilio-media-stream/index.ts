@@ -2460,7 +2460,7 @@ async function executeCheckPickupAvailability(supabase: any, session: StreamSess
 async function executeCreatePickupOrder(supabase: any, session: StreamSession, params: any): Promise<any> {
   console.log("[MediaStream] Creating pickup order:", params);
   
-  const { customer_name, customer_phone, items, pickup_time, special_requests } = params;
+  const { customer_name, customer_phone, customer_email, items, pickup_time, special_requests } = params;
   
   // Validate customer name
   if (!customer_name || customer_name.trim().toLowerCase() === "unknown") {
@@ -2552,6 +2552,58 @@ async function executeCreatePickupOrder(supabase: any, session: StreamSession, p
     pickupDateTime.setDate(pickupDateTime.getDate() + 1);
   }
   
+  // Create or update customer record for marketing and returning customer recognition
+  try {
+    // Normalize phone for matching
+    const phoneDigits = resolvedPhone.replace(/\D/g, "").slice(-10);
+    
+    // Check if customer exists by phone
+    const { data: existingCustomers } = await supabase
+      .from("customers")
+      .select("id, total_visits")
+      .eq("business_id", session.businessId)
+      .or(`phone.ilike.%${phoneDigits}%`);
+    
+    if (existingCustomers && existingCustomers.length > 0) {
+      // Update existing customer - increment visits
+      const existingCustomer = existingCustomers[0];
+      await supabase
+        .from("customers")
+        .update({
+          name: customer_name,
+          total_visits: (existingCustomer.total_visits || 0) + 1,
+          updated_at: new Date().toISOString(),
+          ...(customer_email && { email: customer_email }),
+        })
+        .eq("id", existingCustomer.id);
+      console.log("[MediaStream] Updated existing customer:", existingCustomer.id);
+    } else {
+      // Create new customer
+      const { data: newCustomer, error: customerError } = await supabase
+        .from("customers")
+        .insert({
+          business_id: session.businessId,
+          name: customer_name,
+          phone: resolvedPhone,
+          email: customer_email || null,
+          first_visit_date: new Date().toISOString().split("T")[0],
+          total_visits: 1,
+          marketing_consent: false, // Can be updated later
+        })
+        .select("id")
+        .single();
+      
+      if (customerError) {
+        console.warn("[MediaStream] Failed to create customer record:", customerError);
+      } else {
+        console.log("[MediaStream] Created new customer:", newCustomer.id);
+      }
+    }
+  } catch (customerErr) {
+    console.warn("[MediaStream] Customer record error (non-blocking):", customerErr);
+    // Don't fail the order if customer creation fails
+  }
+  
   // Create the order
   const { data: order, error } = await supabase
     .from("orders")
@@ -2560,6 +2612,7 @@ async function executeCreatePickupOrder(supabase: any, session: StreamSession, p
       order_number: orderNumber,
       customer_name,
       customer_phone: resolvedPhone,
+      customer_email: customer_email || null,
       items: validatedItems,
       total: orderTotal,
       subtotal: orderTotal,
