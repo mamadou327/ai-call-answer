@@ -23,6 +23,7 @@ interface Order {
 interface RestaurantOrderQueueProps {
   orders: Order[];
   currency?: string;
+  businessId: string;
   onOrderUpdate: () => void;
 }
 
@@ -54,7 +55,7 @@ const getCurrencySymbol = (curr: string) => {
   return symbols[curr] || "$";
 };
 
-export const RestaurantOrderQueue = ({ orders, currency = "GBP", onOrderUpdate }: RestaurantOrderQueueProps) => {
+export const RestaurantOrderQueue = ({ orders, currency = "GBP", businessId, onOrderUpdate }: RestaurantOrderQueueProps) => {
   const { toast } = useToast();
   const currencySymbol = getCurrencySymbol(currency);
 
@@ -65,6 +66,22 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", onOrderUpdate }
       ready: "completed",
     };
     return flow[currentStatus] || null;
+  };
+
+  const sendOrderSms = async (orderId: string, type: "confirmation" | "ready" | "cancelled") => {
+    try {
+      const response = await supabase.functions.invoke("send-order-sms", {
+        body: { businessId, orderId, type },
+      });
+      
+      if (response.error) {
+        console.warn("SMS send failed:", response.error);
+      } else if (response.data?.success) {
+        console.log(`SMS (${type}) sent for order:`, orderId);
+      }
+    } catch (error) {
+      console.warn("Error sending SMS:", error);
+    }
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
@@ -88,10 +105,25 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", onOrderUpdate }
         variant: "destructive",
       });
     } else {
-      toast({
-        title: "Order updated",
-        description: `Order marked as ${newStatus}`,
-      });
+      // Send SMS notifications for ready and cancelled statuses
+      if (newStatus === "ready") {
+        sendOrderSms(orderId, "ready");
+        toast({
+          title: "Order ready",
+          description: "Customer will receive an SMS notification",
+        });
+      } else if (newStatus === "cancelled") {
+        sendOrderSms(orderId, "cancelled");
+        toast({
+          title: "Order cancelled",
+          description: "Customer has been notified via SMS",
+        });
+      } else {
+        toast({
+          title: "Order updated",
+          description: `Order marked as ${newStatus}`,
+        });
+      }
       onOrderUpdate();
     }
   };

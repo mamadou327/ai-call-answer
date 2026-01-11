@@ -353,6 +353,7 @@ export const RestaurantDashboardTab = ({ businessName, currency = "GBP", busines
       <RestaurantOrderQueue 
         orders={activeOrders} 
         currency={currency}
+        businessId={businessId}
         onOrderUpdate={handleOrderUpdate}
       />
 
