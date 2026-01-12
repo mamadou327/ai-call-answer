@@ -3866,6 +3866,19 @@ SOUND HUMAN - THIS IS CRITICAL:
     ? `Greet warmly: "Hey ${callerInfo.name?.split(' ')[0] || callerInfo.name}! Great to hear from you again! Quick heads up - this call may be recorded to help us improve our service. What can I do for you today?"`
     : `Greet: "Hey there! Thanks for calling ${businessName}! Just so you know, this call may be recorded to help us improve our service. I'm ${assistantName}, how can I help you today?"`;
 
+  // Opening context from business owner - should be woven naturally into greeting
+  const openingContext = businessSettings?.opening_context?.trim() || "";
+  const openingContextSection = openingContext
+    ? `
+## OPENING CONTEXT FROM BUSINESS:
+The business owner wants you to naturally incorporate the following information into your opening greeting.
+Do NOT read this word-for-word - interpret it and weave it into your greeting naturally based on your personality:
+
+"${openingContext}"
+
+Work this information smoothly into your greeting without making it sound like a scripted announcement.
+`
+    : "";
   // Build customer data collection rules based on business settings
   let dataCollectionRules = "## DATA COLLECTION:\nCollect: name, phone (use caller's number by default).\nDO NOT ask for email, marketing consent, preferred staff, notes, or how they heard about us.";
   
@@ -4184,7 +4197,7 @@ When customer chooses a staff member and time:
 - If no business owner is set or they don't have a phone number, apologize and offer to take a message or help with their query.
 
 ${greetingInstruction}
-
+${openingContextSection}
 ## CURRENT CONTEXT:
 - Today: ${currentDay}, ${currentDate} at ${currentTime}
 - Business Status: ${todayStatus}
