@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, Calendar, Clock, MessageSquare, AlertTriangle, LayoutDashboard, CalendarDays, Check } from "lucide-react";
+import { LogOut, Calendar, Clock, MessageSquare, AlertTriangle, LayoutDashboard, CalendarDays, Check, ClipboardList } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { format, isToday, startOfDay, endOfDay, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameDay } from "date-fns";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { BookingDetailsDialog } from "@/components/dashboard/BookingDetailsDialog";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
+import { StaffTasksTab } from "@/components/dashboard/StaffTasksTab";
 
 interface Booking {
   id: string;
@@ -330,7 +331,7 @@ const StaffDashboard = () => {
 
       <main className="container py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <LayoutDashboard className="w-4 h-4" />
               <span className="hidden sm:inline">Dashboard</span>
@@ -342,6 +343,10 @@ const StaffDashboard = () => {
             <TabsTrigger value="bookings" className="flex items-center gap-2">
               <Clock className="w-4 h-4" />
               <span className="hidden sm:inline">Bookings</span>
+            </TabsTrigger>
+            <TabsTrigger value="tasks" className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4" />
+              <span className="hidden sm:inline">Tasks</span>
             </TabsTrigger>
             <TabsTrigger value="messages" className="flex items-center gap-2 relative">
               <MessageSquare className="w-4 h-4" />
@@ -673,6 +678,11 @@ const StaffDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Tasks Tab */}
+          <TabsContent value="tasks" className="space-y-6">
+            <StaffTasksTab businessId={businessId} staffId={staffId} />
           </TabsContent>
 
           {/* Messages Tab */}
