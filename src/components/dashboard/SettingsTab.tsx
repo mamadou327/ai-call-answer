@@ -2,6 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BusinessInfoForm } from "./settings/BusinessInfoForm";
 import { ServicesManagement } from "./settings/ServicesManagement";
 import { StaffManagement } from "./settings/StaffManagement";
+import { StaffTasksManagement } from "./settings/StaffTasksManagement";
 import { OpeningHoursForm } from "./settings/OpeningHoursForm";
 import { TimeOffManagement } from "./settings/TimeOffManagement";
 import { StaffJoinCodeSection } from "./settings/StaffJoinCodeSection";
@@ -73,17 +74,17 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
         
         {/* Salon-specific tabs */}
         {!isRestaurant && (
-          <>
-            <TabsTrigger value="services" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
-              <Scissors className="w-4 h-4" />
-              <span className="hidden sm:inline">Services</span>
-            </TabsTrigger>
-            <TabsTrigger value="staff" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
-              <Users className="w-4 h-4" />
-              <span className="hidden sm:inline">Staff</span>
-            </TabsTrigger>
-          </>
+          <TabsTrigger value="services" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+            <Scissors className="w-4 h-4" />
+            <span className="hidden sm:inline">Services</span>
+          </TabsTrigger>
         )}
+        
+        {/* Staff tab - available for all business types */}
+        <TabsTrigger value="staff" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <Users className="w-4 h-4" />
+          <span className="hidden sm:inline">Staff</span>
+        </TabsTrigger>
         
         {/* Restaurant-specific tabs */}
         {isPickup && (
@@ -154,21 +155,23 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
             <ServicesManagement businessId={businessId} onUpdate={onUpdate} currency={currency} />
           </TabsContent>
 
-          <TabsContent value="staff" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Staff Management</h3>
-              <StaffInviteDialog businessId={businessId} businessName={business?.business_name || ""} />
-            </div>
-            <StaffManagement businessId={businessId} businessName={business?.business_name || ""} onUpdate={onUpdate} />
-            <StaffMembershipsManagement businessId={businessId} onUpdate={onUpdate} />
-            <StaffJoinCodeSection businessId={businessId} businessName={business?.business_name || ""} />
-          </TabsContent>
-
           <TabsContent value="timeoff">
             <TimeOffManagement businessId={businessId} onUpdate={onUpdate} />
           </TabsContent>
         </>
       )}
+
+      {/* Staff tab - available for all business types */}
+      <TabsContent value="staff" className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Staff Management</h3>
+          <StaffInviteDialog businessId={businessId} businessName={business?.business_name || ""} />
+        </div>
+        <StaffManagement businessId={businessId} businessName={business?.business_name || ""} onUpdate={onUpdate} />
+        <StaffTasksManagement businessId={businessId} onUpdate={onUpdate} />
+        <StaffMembershipsManagement businessId={businessId} onUpdate={onUpdate} />
+        <StaffJoinCodeSection businessId={businessId} businessName={business?.business_name || ""} />
+      </TabsContent>
 
       {/* Restaurant-specific content */}
       {isPickup && (

@@ -2034,6 +2034,79 @@ export type Database = {
           },
         ]
       }
+      staff_tasks: {
+        Row: {
+          assigned_by_user_id: string
+          assigned_to_staff_id: string | null
+          business_id: string
+          category: string | null
+          completed_at: string | null
+          completed_by_user_id: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          priority: Database["public"]["Enums"]["task_priority"]
+          status: Database["public"]["Enums"]["task_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_by_user_id: string
+          assigned_to_staff_id?: string | null
+          business_id: string
+          category?: string | null
+          completed_at?: string | null
+          completed_by_user_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: Database["public"]["Enums"]["task_priority"]
+          status?: Database["public"]["Enums"]["task_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_by_user_id?: string
+          assigned_to_staff_id?: string | null
+          business_id?: string
+          category?: string | null
+          completed_at?: string | null
+          completed_by_user_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: Database["public"]["Enums"]["task_priority"]
+          status?: Database["public"]["Enums"]["task_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_tasks_assigned_to_staff_id_fkey"
+            columns: ["assigned_to_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_tasks_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_tasks_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_time_off: {
         Row: {
           business_id: string
@@ -2337,6 +2410,8 @@ export type Database = {
         | "color"
         | "treatment"
         | "other"
+      task_priority: "low" | "medium" | "high" | "urgent"
+      task_status: "pending" | "in_progress" | "completed" | "cancelled"
       tone_type: "casual" | "neutral" | "formal"
       voice_gender: "male" | "female" | "neutral"
       voice_speed: "slow" | "normal" | "fast"
@@ -2497,6 +2572,8 @@ export const Constants = {
         "treatment",
         "other",
       ],
+      task_priority: ["low", "medium", "high", "urgent"],
+      task_status: ["pending", "in_progress", "completed", "cancelled"],
       tone_type: ["casual", "neutral", "formal"],
       voice_gender: ["male", "female", "neutral"],
       voice_speed: ["slow", "normal", "fast"],
