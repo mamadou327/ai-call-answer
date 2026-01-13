@@ -17,6 +17,9 @@ interface StreamSession {
   callSid: string;
   callerPhone: string;
   callerName: string | null;
+  // Passed from voice webhook (more reliable than DB lookup during greeting)
+  callerIsReturning?: boolean;
+  callerFirstName?: string | null;
   systemPrompt: string;
   voice: string;
   streamSid: string | null;
@@ -333,6 +336,8 @@ Deno.serve(async (req) => {
     callSid: "",
     callerPhone: "",
     callerName: null,
+    callerIsReturning: false,
+    callerFirstName: null,
     systemPrompt: "", // Will be built when we get caller info
     voice: openAiVoice,
     streamSid: null,
@@ -396,13 +401,30 @@ Deno.serve(async (req) => {
           session.callSid = data.start.customParameters?.callSid || data.start.callSid;
           session.callerPhone = data.start.customParameters?.callerPhone || "";
           const recordingCallbackUrl = data.start.customParameters?.recordingCallbackUrl || "";
-          
+
+          // Caller personalization passed from voice webhook
+          session.callerIsReturning = data.start.customParameters?.isReturning === "true";
+          session.callerFirstName = (data.start.customParameters?.customerFirstName || "").trim() || null;
+
           // Check if this is a reconnect
           session.isReconnect = data.start.customParameters?.isReconnect === "true";
           session.reconnectCount = parseInt(data.start.customParameters?.reconnectCount || "0", 10);
-          
-          console.log("[MediaStream] Session initialized - callSid:", session.callSid, "callerPhone:", session.callerPhone, "isReconnect:", session.isReconnect, "reconnectCount:", session.reconnectCount);
-          
+
+          console.log(
+            "[MediaStream] Session initialized - callSid:",
+            session.callSid,
+            "callerPhone:",
+            session.callerPhone,
+            "isReturning:",
+            session.callerIsReturning,
+            "callerFirstName:",
+            session.callerFirstName,
+            "isReconnect:",
+            session.isReconnect,
+            "reconnectCount:",
+            session.reconnectCount
+          );
+
           // Start recording now that call is definitely in-progress (skip on reconnect - recording continues)
           if (!session.isReconnect && recordingCallbackUrl && session.callSid) {
             tryStartTwilioCallRecording({
@@ -414,7 +436,7 @@ Deno.serve(async (req) => {
           } else {
             console.warn("[MediaStream] Cannot start recording - missing callSid or recordingCallbackUrl");
           }
-          
+
           // Build full system prompt with caller context AND cache business data for tool validation
           const promptData = await buildFullSystemPrompt(
             supabase, 
@@ -430,7 +452,7 @@ Deno.serve(async (req) => {
             session.businessType,
             session.restaurantSettings
           );
-          
+
           session.systemPrompt = promptData.prompt;
           session.businessSettings = promptData.businessSettings;
           session.openingHours = promptData.openingHours;
@@ -442,7 +464,7 @@ Deno.serve(async (req) => {
           session.menuCategories = promptData.menuCategories || [];
           session.menuItems = promptData.menuItems || [];
           session.tables = promptData.tables || [];
-          
+
           // Connect to OpenAI Realtime API
           await connectToOpenAI(session, supabase);
           break;
@@ -1017,13 +1039,39 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
           modalities: ["audio", "text"],
         },
       };
-      
+
       // For reconnects, give the AI context about the reconnection
       if (session.isReconnect) {
-        responseConfig.response.instructions = 
+        responseConfig.response.instructions =
           "The call was briefly reconnected due to a technical glitch. Continue the conversation naturally from where you left off. Say something brief like 'Sorry about that brief interruption. Now, where were we?' and continue helping the caller.";
+      } else {
+        // FORCE the first greeting to include BOTH:
+        // 1) opening context (if set)
+        // 2) returning-customer welcome (if caller is returning)
+        const openingContext = session.businessSettings?.opening_context?.trim() || "";
+        const firstName = (session.callerFirstName || session.callerName || "").trim();
+        const isReturning = session.callerIsReturning === true;
+
+        const safeOpening = openingContext.replace(/\s+/g, " ").trim();
+
+        const greetingLead = isReturning
+          ? (firstName
+              ? `Hey ${firstName}! Welcome back!`
+              : `Hey there! Welcome back to ${session.businessName}!`)
+          : `Hey there! Thanks for calling ${session.businessName}!`;
+
+        const parts = [
+          greetingLead,
+          safeOpening ? `Quick note: ${safeOpening}` : "",
+          "Just so you know, this call may be recorded to help us improve our service.",
+          "What can I do for you today?",
+        ].filter(Boolean);
+
+        const forcedGreeting = parts.join(" ");
+
+        responseConfig.response.instructions = `Say this exact greeting verbatim, then wait for the caller:\n"${forcedGreeting}"`;
       }
-      
+
       session.openAiWs.send(JSON.stringify(responseConfig));
       console.log("[MediaStream] Triggered", session.isReconnect ? "reconnect greeting" : "initial greeting");
     }
