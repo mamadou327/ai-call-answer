@@ -82,6 +82,22 @@ const StaffLogin = () => {
       }
 
       if (membership.status === "active") {
+        // Fetch pending tasks count to show notification
+        const { data: tasksData } = await supabase
+          .from("staff_tasks")
+          .select("id")
+          .eq("business_id", membership.business_id)
+          .in("status", ["pending", "in_progress"]);
+
+        const pendingCount = tasksData?.length || 0;
+        
+        if (pendingCount > 0) {
+          toast({
+            title: `You have ${pendingCount} pending task${pendingCount > 1 ? 's' : ''}`,
+            description: "Check your Tasks tab for details.",
+          });
+        }
+
         navigate("/staff/dashboard");
         return;
       }

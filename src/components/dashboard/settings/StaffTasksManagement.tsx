@@ -162,6 +162,26 @@ export const StaffTasksManagement = ({ businessId, onUpdate }: StaffTasksManagem
 
         if (error) throw error;
         toast({ title: "Task created successfully" });
+
+        // Send email notification if task is assigned to a specific staff member
+        if (formData.assigned_to_staff_id) {
+          try {
+            await supabase.functions.invoke('send-task-notification', {
+              body: {
+                taskTitle: formData.title,
+                taskDescription: formData.description || null,
+                taskPriority: formData.priority,
+                taskDueDate: formData.due_date ? new Date(formData.due_date).toISOString() : null,
+                staffId: formData.assigned_to_staff_id,
+                businessId: businessId,
+              }
+            });
+            console.log("Task notification sent");
+          } catch (notifError) {
+            console.error("Failed to send task notification:", notifError);
+            // Don't fail the task creation if notification fails
+          }
+        }
       }
 
       setDialogOpen(false);
