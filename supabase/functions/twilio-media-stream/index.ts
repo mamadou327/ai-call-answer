@@ -303,7 +303,9 @@ Deno.serve(async (req) => {
   // Get business AI settings
   const { data: settings } = await supabase
     .from("business_settings")
-    .select("assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id")
+    .select(
+      "assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id, opening_context"
+    )
     .eq("business_id", business.id)
     .maybeSingle();
 
