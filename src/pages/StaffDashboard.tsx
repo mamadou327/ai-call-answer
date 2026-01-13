@@ -40,6 +40,13 @@ interface Message {
   recipient_type: string;
 }
 
+interface PendingTask {
+  id: string;
+  title: string;
+  priority: string;
+  due_date: string | null;
+}
+
 const StaffDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -53,6 +60,7 @@ const StaffDashboard = () => {
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [pendingTasks, setPendingTasks] = useState<PendingTask[]>([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [calendarDate, setCalendarDate] = useState<Date>(new Date());
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("week");
@@ -234,6 +242,18 @@ const StaffDashboard = () => {
       .limit(20);
 
     setMessages(messagesData || []);
+
+    // Load pending tasks for this staff member
+    const { data: tasksData } = await supabase
+      .from("staff_tasks")
+      .select("id, title, priority, due_date")
+      .eq("business_id", bizId)
+      .in("status", ["pending", "in_progress"])
+      .or(sId ? `assigned_to_staff_id.eq.${sId},assigned_to_staff_id.is.null` : 'assigned_to_staff_id.is.null')
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .limit(10);
+
+    setPendingTasks(tasksData || []);
   };
 
   const handleSignOut = async () => {
@@ -344,9 +364,14 @@ const StaffDashboard = () => {
               <Clock className="w-4 h-4" />
               <span className="hidden sm:inline">Bookings</span>
             </TabsTrigger>
-            <TabsTrigger value="tasks" className="flex items-center gap-2">
+            <TabsTrigger value="tasks" className="flex items-center gap-2 relative">
               <ClipboardList className="w-4 h-4" />
               <span className="hidden sm:inline">Tasks</span>
+              {pendingTasks.length > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs bg-orange-500">
+                  {pendingTasks.length}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="messages" className="flex items-center gap-2 relative">
               <MessageSquare className="w-4 h-4" />
@@ -396,6 +421,48 @@ const StaffDashboard = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Pending Tasks Alert */}
+            {pendingTasks.length > 0 && (
+              <Card className="border-orange-500 bg-orange-500/10">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2 text-orange-600">
+                    <ClipboardList className="w-4 h-4" />
+                    Pending Tasks ({pendingTasks.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {pendingTasks.slice(0, 3).map((task) => (
+                    <div key={task.id} className="flex items-center justify-between text-sm">
+                      <p className="font-medium truncate flex-1">{task.title}</p>
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          variant="outline" 
+                          className={
+                            task.priority === "urgent" ? "border-red-500 text-red-500" :
+                            task.priority === "high" ? "border-orange-500 text-orange-500" :
+                            task.priority === "medium" ? "border-blue-500 text-blue-500" :
+                            "border-slate-500 text-slate-500"
+                          }
+                        >
+                          {task.priority}
+                        </Badge>
+                        {task.due_date && (
+                          <span className="text-muted-foreground text-xs">
+                            {format(new Date(task.due_date), "MMM d")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {pendingTasks.length > 3 && (
+                    <Button variant="link" className="p-0 h-auto text-orange-600" onClick={() => setActiveTab("tasks")}>
+                      View all tasks →
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Urgent Messages Alert */}
             {urgentMessages.length > 0 && (
