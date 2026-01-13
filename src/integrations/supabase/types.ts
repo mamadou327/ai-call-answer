@@ -2046,7 +2046,13 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          is_recurring: boolean | null
+          next_occurrence: string | null
+          parent_task_id: string | null
           priority: Database["public"]["Enums"]["task_priority"]
+          recurrence_days: string[] | null
+          recurrence_end_date: string | null
+          recurrence_pattern: string | null
           status: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at: string
@@ -2062,7 +2068,13 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_recurring?: boolean | null
+          next_occurrence?: string | null
+          parent_task_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"]
+          recurrence_days?: string[] | null
+          recurrence_end_date?: string | null
+          recurrence_pattern?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at?: string
@@ -2078,7 +2090,13 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_recurring?: boolean | null
+          next_occurrence?: string | null
+          parent_task_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"]
+          recurrence_days?: string[] | null
+          recurrence_end_date?: string | null
+          recurrence_pattern?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           title?: string
           updated_at?: string
@@ -2103,6 +2121,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "staff_tasks"
             referencedColumns: ["id"]
           },
         ]

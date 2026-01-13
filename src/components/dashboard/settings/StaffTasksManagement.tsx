@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit2, Trash2, CheckCircle2, Clock, AlertTriangle, User } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle2, Clock, AlertTriangle, User, Repeat } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -10,7 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, isPast, isToday, isTomorrow } from "date-fns";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { format, isPast, isToday, isTomorrow, addDays } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface StaffTasksManagementProps {
@@ -30,7 +32,24 @@ interface Task {
   completed_at: string | null;
   created_at: string;
   staff?: { id: string; name: string } | null;
+  is_recurring?: boolean;
+  recurrence_pattern?: string | null;
+  recurrence_days?: string[] | null;
+  recurrence_end_date?: string | null;
+  parent_task_id?: string | null;
 }
+
+const WEEKDAYS = [
+  { value: "monday", label: "Mon" },
+  { value: "tuesday", label: "Tue" },
+  { value: "wednesday", label: "Wed" },
+  { value: "thursday", label: "Thu" },
+  { value: "friday", label: "Fri" },
+  { value: "saturday", label: "Sat" },
+  { value: "sunday", label: "Sun" },
+];
+
+const MONTH_DAYS = [1, 5, 10, 15, 20, 25, 28];
 
 interface Staff {
   id: string;
@@ -75,6 +94,10 @@ export const StaffTasksManagement = ({ businessId, onUpdate }: StaffTasksManagem
     category: "other",
     assigned_to_staff_id: "",
     due_date: "",
+    is_recurring: false,
+    recurrence_pattern: "daily" as "daily" | "weekly" | "monthly",
+    recurrence_days: [] as string[],
+    recurrence_end_date: "",
   });
 
   useEffect(() => {
@@ -124,6 +147,10 @@ export const StaffTasksManagement = ({ businessId, onUpdate }: StaffTasksManagem
       category: task.category || "other",
       assigned_to_staff_id: task.assigned_to_staff_id || "",
       due_date: task.due_date ? task.due_date.split("T")[0] : "",
+      is_recurring: task.is_recurring || false,
+      recurrence_pattern: (task.recurrence_pattern as "daily" | "weekly" | "monthly") || "daily",
+      recurrence_days: task.recurrence_days || [],
+      recurrence_end_date: task.recurrence_end_date ? task.recurrence_end_date.split("T")[0] : "",
     });
     setDialogOpen(true);
   };
@@ -136,21 +163,73 @@ export const StaffTasksManagement = ({ businessId, onUpdate }: StaffTasksManagem
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const taskData = {
+      // Calculate first occurrence for recurring tasks
+      const calculateFirstOccurrence = () => {
+        if (!formData.is_recurring) return null;
+        
+        const now = new Date();
+        if (formData.recurrence_pattern === 'daily') {
+          return addDays(now, 1).toISOString();
+        } else if (formData.recurrence_pattern === 'weekly' && formData.recurrence_days.length > 0) {
+          const dayMap: { [key: string]: number } = {
+            'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+            'thursday': 4, 'friday': 5, 'saturday': 6
+          };
+          const currentDay = now.getDay();
+          const sortedDays = formData.recurrence_days
+            .map(d => dayMap[d.toLowerCase()])
+            .filter(d => d !== undefined)
+            .sort((a, b) => a - b);
+          
+          let nextDay = sortedDays.find(d => d > currentDay);
+          const daysToAdd = nextDay !== undefined 
+            ? nextDay - currentDay 
+            : 7 - currentDay + sortedDays[0];
+          return addDays(now, daysToAdd).toISOString();
+        } else if (formData.recurrence_pattern === 'monthly' && formData.recurrence_days.length > 0) {
+          const currentDayOfMonth = now.getDate();
+          const sortedDates = formData.recurrence_days
+            .map(d => parseInt(d))
+            .filter(d => !isNaN(d))
+            .sort((a, b) => a - b);
+          
+          let nextDate = sortedDates.find(d => d > currentDayOfMonth);
+          if (nextDate !== undefined) {
+            const nextOccurrence = new Date(now);
+            nextOccurrence.setDate(nextDate);
+            return nextOccurrence.toISOString();
+          } else {
+            const nextOccurrence = new Date(now);
+            nextOccurrence.setMonth(nextOccurrence.getMonth() + 1);
+            nextOccurrence.setDate(sortedDates[0]);
+            return nextOccurrence.toISOString();
+          }
+        }
+        return addDays(now, 1).toISOString();
+      };
+
+      const taskData: Record<string, any> = {
         business_id: businessId,
         title: formData.title,
         description: formData.description || null,
         priority: formData.priority,
         category: formData.category,
         assigned_to_staff_id: formData.assigned_to_staff_id || null,
-        due_date: formData.due_date ? new Date(formData.due_date).toISOString() : null,
+        due_date: formData.is_recurring ? null : (formData.due_date ? new Date(formData.due_date).toISOString() : null),
         assigned_by_user_id: user.id,
+        is_recurring: formData.is_recurring,
+        recurrence_pattern: formData.is_recurring ? formData.recurrence_pattern : null,
+        recurrence_days: formData.is_recurring && formData.recurrence_days.length > 0 ? formData.recurrence_days : null,
+        recurrence_end_date: formData.is_recurring && formData.recurrence_end_date 
+          ? new Date(formData.recurrence_end_date).toISOString() 
+          : null,
+        next_occurrence: formData.is_recurring ? calculateFirstOccurrence() : null,
       };
 
       if (selectedTask) {
         const { error } = await supabase
           .from("staff_tasks")
-          .update(taskData)
+          .update(taskData as any)
           .eq("id", selectedTask.id);
 
         if (error) throw error;
@@ -158,10 +237,10 @@ export const StaffTasksManagement = ({ businessId, onUpdate }: StaffTasksManagem
       } else {
         const { error } = await supabase
           .from("staff_tasks")
-          .insert([taskData]);
+          .insert([taskData as any]);
 
         if (error) throw error;
-        toast({ title: "Task created successfully" });
+        toast({ title: formData.is_recurring ? "Recurring task created successfully" : "Task created successfully" });
 
         // Send email notification if task is assigned to a specific staff member
         if (formData.assigned_to_staff_id) {
@@ -256,6 +335,10 @@ export const StaffTasksManagement = ({ businessId, onUpdate }: StaffTasksManagem
       category: "other",
       assigned_to_staff_id: "",
       due_date: "",
+      is_recurring: false,
+      recurrence_pattern: "daily",
+      recurrence_days: [],
+      recurrence_end_date: "",
     });
   };
 
@@ -419,14 +502,136 @@ export const StaffTasksManagement = ({ businessId, onUpdate }: StaffTasksManagem
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="due_date">Due Date</Label>
-                  <Input
-                    id="due_date"
-                    type="date"
-                    value={formData.due_date}
-                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                  />
+                {!formData.is_recurring && (
+                  <div className="space-y-2">
+                    <Label htmlFor="due_date">Due Date</Label>
+                    <Input
+                      id="due_date"
+                      type="date"
+                      value={formData.due_date}
+                      onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                    />
+                  </div>
+                )}
+
+                {/* Recurring Task Settings */}
+                <div className="space-y-4 border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="is_recurring" className="flex items-center gap-2">
+                        <Repeat className="w-4 h-4" />
+                        Recurring Task
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automatically repeat this task
+                      </p>
+                    </div>
+                    <Switch
+                      id="is_recurring"
+                      checked={formData.is_recurring}
+                      onCheckedChange={(checked) => setFormData({ ...formData, is_recurring: checked })}
+                    />
+                  </div>
+
+                  {formData.is_recurring && (
+                    <div className="space-y-4 pl-2 border-l-2 border-muted ml-2">
+                      <div className="space-y-2">
+                        <Label>Repeat Pattern</Label>
+                        <Select
+                          value={formData.recurrence_pattern}
+                          onValueChange={(value: "daily" | "weekly" | "monthly") => 
+                            setFormData({ ...formData, recurrence_pattern: value, recurrence_days: [] })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="daily">Daily</SelectItem>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {formData.recurrence_pattern === "weekly" && (
+                        <div className="space-y-2">
+                          <Label>On these days</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {WEEKDAYS.map((day) => (
+                              <div key={day.value} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={day.value}
+                                  checked={formData.recurrence_days.includes(day.value)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setFormData({
+                                        ...formData,
+                                        recurrence_days: [...formData.recurrence_days, day.value]
+                                      });
+                                    } else {
+                                      setFormData({
+                                        ...formData,
+                                        recurrence_days: formData.recurrence_days.filter(d => d !== day.value)
+                                      });
+                                    }
+                                  }}
+                                />
+                                <Label htmlFor={day.value} className="text-sm font-normal">
+                                  {day.label}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {formData.recurrence_pattern === "monthly" && (
+                        <div className="space-y-2">
+                          <Label>On these dates</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {MONTH_DAYS.map((day) => (
+                              <div key={day} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`day-${day}`}
+                                  checked={formData.recurrence_days.includes(day.toString())}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setFormData({
+                                        ...formData,
+                                        recurrence_days: [...formData.recurrence_days, day.toString()]
+                                      });
+                                    } else {
+                                      setFormData({
+                                        ...formData,
+                                        recurrence_days: formData.recurrence_days.filter(d => d !== day.toString())
+                                      });
+                                    }
+                                  }}
+                                />
+                                <Label htmlFor={`day-${day}`} className="text-sm font-normal">
+                                  {day}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label htmlFor="recurrence_end_date">End Date (Optional)</Label>
+                        <Input
+                          id="recurrence_end_date"
+                          type="date"
+                          value={formData.recurrence_end_date}
+                          onChange={(e) => setFormData({ ...formData, recurrence_end_date: e.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Leave empty for indefinite recurring
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button type="submit" disabled={loading}>
@@ -455,10 +660,21 @@ export const StaffTasksManagement = ({ businessId, onUpdate }: StaffTasksManagem
                 }`}
               >
                 <div className="flex-1 min-w-0 space-y-2">
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-start gap-2 flex-wrap">
                     <h4 className={`font-medium ${task.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
                       {task.title}
                     </h4>
+                    {task.is_recurring && (
+                      <Badge variant="outline" className="border-purple-500 text-purple-500">
+                        <Repeat className="w-3 h-3 mr-1" />
+                        {task.recurrence_pattern}
+                      </Badge>
+                    )}
+                    {task.parent_task_id && (
+                      <Badge variant="outline" className="border-purple-300 text-purple-400 text-xs">
+                        From recurring
+                      </Badge>
+                    )}
                     {getPriorityBadge(task.priority)}
                     {getStatusBadge(task.status)}
                     {getDueDateBadge(task.due_date)}
