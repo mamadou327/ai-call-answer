@@ -349,7 +349,7 @@ function twimlGatherWithPolly(
 async function getBusinessAiVoiceSettings(supabase: any, businessId: string) {
   const { data: settings, error } = await supabase
     .from("business_settings")
-    .select("assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id")
+    .select("assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id, opening_context")
     .eq("business_id", businessId)
     .maybeSingle();
 
@@ -364,6 +364,7 @@ async function getBusinessAiVoiceSettings(supabase: any, businessId: string) {
     voiceGender: settings?.voice_gender || "female",
     voiceSpeed: settings?.voice_speed || "normal",
     elevenLabsVoiceId: settings?.elevenlabs_voice_id || null,
+    openingContext: settings?.opening_context || null,
   };
 }
 // Look up caller in customers table to check if returning customer
@@ -397,21 +398,26 @@ function getFirstName(fullName: string | null): string | null {
   return firstName || null;
 }
 
-// Generate personalized casual greeting with recording disclosure
+// Generate personalized casual greeting with recording disclosure and opening context
 function generateGreeting(businessName: string, settings: any, callerInfo: { name: string | null; totalVisits: number } | null): string {
-  const { assistantName } = settings;
+  const { assistantName, openingContext } = settings;
   const firstName = getFirstName(callerInfo?.name || null);
   const isReturning = callerInfo && callerInfo.totalVisits > 0;
   
+  // Build opening context note if set
+  const openingNote = openingContext?.trim() 
+    ? ` Quick note: ${openingContext.trim()}` 
+    : "";
+  
   if (isReturning && firstName) {
     // Returning customer with known name
-    return `Hey ${firstName}! Great to hear from you again! Quick heads up - this call may be recorded to help us improve our service. What can I do for you today?`;
+    return `Hey ${firstName}! Great to hear from you again!${openingNote} Quick heads up - this call may be recorded to help us improve our service. What can I do for you today?`;
   } else if (isReturning) {
     // Returning customer but no name
-    return `Hey there! Welcome back to ${businessName}! Just so you know, this call may be recorded to help us improve our service. I'm ${assistantName}, how can I help?`;
+    return `Hey there! Welcome back to ${businessName}!${openingNote} Just so you know, this call may be recorded to help us improve our service. I'm ${assistantName}, how can I help?`;
   } else {
     // New caller
-    return `Hey there! Thanks for calling ${businessName}! Just so you know, this call may be recorded to help us improve our service. I'm ${assistantName}, how can I help you today?`;
+    return `Hey there! Thanks for calling ${businessName}!${openingNote} Just so you know, this call may be recorded to help us improve our service. I'm ${assistantName}, how can I help you today?`;
   }
 }
 

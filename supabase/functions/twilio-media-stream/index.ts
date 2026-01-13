@@ -3589,7 +3589,10 @@ async function buildFullSystemPrompt(
     min_reschedule_notice_hours: settingsResult.data.min_reschedule_notice_hours || 24,
     cancellation_policy: settingsResult.data.cancellation_policy,
     currency: settingsResult.data.currency || "GBP",
+    opening_context: settingsResult.data.opening_context || null,
   } : null;
+  
+  console.log("[MediaStream] Loaded opening_context:", businessSettings?.opening_context ? `"${businessSettings.opening_context.substring(0, 50)}..."` : "not set");
   
   const staffTimeOff: StaffTimeOff[] = (timeOffResult.data || []).map((t: any) => ({
     staff_id: t.staff_id,
