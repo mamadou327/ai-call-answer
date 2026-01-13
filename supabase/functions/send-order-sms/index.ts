@@ -128,11 +128,15 @@ serve(async (req: Request): Promise<Response> => {
     const currency = settings?.currency || "GBP";
     const currencySymbol = currency === "GBP" ? "£" : currency === "EUR" ? "€" : "$";
 
-    // Parse order items
+    // Parse order items - include notes and sizes
     const items = Array.isArray(order.items) ? order.items : [];
-    const itemsList = items.slice(0, 5).map((item: any) => 
-      `${item.quantity || 1}x ${item.item_name || item.name || "Item"}`
-    ).join("\n");
+    const itemsList = items.slice(0, 5).map((item: any) => {
+      const qty = item.quantity || 1;
+      const name = item.item_name || item.name || "Item";
+      const size = item.size ? ` (${item.size})` : "";
+      const notes = item.notes ? ` - ${item.notes}` : "";
+      return `${qty}x ${name}${size}${notes}`;
+    }).join("\n");
     const moreItems = items.length > 5 ? `\n+${items.length - 5} more items` : "";
 
     const customerName = order.customer_name || "there";
@@ -140,9 +144,15 @@ serve(async (req: Request): Promise<Response> => {
     const total = order.total || 0;
     const orderType = order.order_type === "delivery" ? "Delivery" : "Pickup";
 
-    // Format pickup time
+    // Format pickup/ready time based on SMS type
     let pickupInfo = "";
-    if (order.pickup_time) {
+    if (type === "confirmation") {
+      // For confirmation, show estimated ready time based on prep time
+      const prepTime = business.average_prep_time_minutes || 20;
+      const estimatedReady = new Date(Date.now() + prepTime * 60 * 1000);
+      pickupInfo = `\n⏰ Ready in ~${prepTime} mins (around ${estimatedReady.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })})`;
+    } else if (order.pickup_time) {
+      // For ready/cancelled SMS, show the original pickup time if set
       const pickupTime = new Date(order.pickup_time);
       pickupInfo = `\n⏰ ${orderType} time: ${pickupTime.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
     }
