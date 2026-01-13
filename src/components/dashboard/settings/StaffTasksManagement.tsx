@@ -383,14 +383,14 @@ export const StaffTasksManagement = ({ businessId, onUpdate }: StaffTasksManagem
                 <div className="space-y-2">
                   <Label htmlFor="assigned_to">Assign To</Label>
                   <Select
-                    value={formData.assigned_to_staff_id}
-                    onValueChange={(value) => setFormData({ ...formData, assigned_to_staff_id: value })}
+                    value={formData.assigned_to_staff_id || "all"}
+                    onValueChange={(value) => setFormData({ ...formData, assigned_to_staff_id: value === "all" ? "" : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="All Staff" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Staff</SelectItem>
+                      <SelectItem value="all">All Staff</SelectItem>
                       {staff.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
                           {s.name}
