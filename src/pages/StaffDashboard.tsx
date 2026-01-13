@@ -71,6 +71,41 @@ const StaffDashboard = () => {
     checkUserAndLoadData();
   }, []);
 
+  // Realtime subscription for staff_tasks
+  useEffect(() => {
+    if (!businessId) return;
+
+    const channel = supabase
+      .channel('staff-tasks-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'staff_tasks',
+          filter: `business_id=eq.${businessId}`
+        },
+        (payload) => {
+          console.log("Task change detected:", payload);
+          // Reload tasks when changes detected
+          if (staffId) {
+            loadStaffData(businessId, staffId);
+          }
+          if (payload.eventType === 'INSERT') {
+            toast({
+              title: "New task assigned!",
+              description: "Check your Tasks tab for details.",
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, staffId]);
+
   const checkUserAndLoadData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
