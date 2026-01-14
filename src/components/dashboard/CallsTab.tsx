@@ -1,11 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Phone, Calendar, ChevronRight } from "lucide-react";
+import { Phone, Calendar, ChevronRight, CalendarCheck, HelpCircle, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { CallDetailsDialog } from "./CallDetailsDialog";
+import { DateRangePicker } from "./DateRangePicker";
+import { DateRange } from "react-day-picker";
 
 interface CallsTabProps {
   businessId?: string;
@@ -52,10 +55,48 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
   const [loading, setLoading] = useState(true);
   const [selectedCall, setSelectedCall] = useState<CallLog | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  
+  // Analytics state
+  const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "custom">("month");
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
+  const [totalCalls, setTotalCalls] = useState(0);
+  const [bookingsCreated, setBookingsCreated] = useState(0);
+  const [enquiries, setEnquiries] = useState(0);
+  const [cancellations, setCancellations] = useState(0);
+
+  const getDateRange = () => {
+    const now = new Date();
+    switch (dateRange) {
+      case "today":
+        return { start: startOfDay(now), end: endOfDay(now) };
+      case "week":
+        return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
+      case "month":
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      case "custom":
+        if (customDateRange?.from && customDateRange?.to) {
+          return { start: startOfDay(customDateRange.from), end: endOfDay(customDateRange.to) };
+        }
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      default:
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+    }
+  };
+
+  const getPeriodLabel = () => {
+    switch (dateRange) {
+      case "today": return t("dashboard.today");
+      case "week": return t("dashboard.thisWeek");
+      case "month": return t("dashboard.thisMonth");
+      case "custom": return t("dashboard.customRange");
+      default: return t("dashboard.thisMonth");
+    }
+  };
 
   useEffect(() => {
     if (businessId) {
       loadCalls();
+      loadAnalytics();
       
       // Set up realtime subscription with smart updates
       const channel = supabase
@@ -70,6 +111,7 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
           },
           (payload) => {
             setCalls(prev => [payload.new as CallLog, ...prev].slice(0, 50));
+            loadAnalytics(); // Refresh analytics on new call
           }
         )
         .on(
@@ -96,6 +138,7 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
           },
           (payload) => {
             setCalls(prev => prev.filter(call => call.id !== payload.old.id));
+            loadAnalytics();
           }
         )
         .subscribe();
@@ -105,6 +148,54 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
       };
     }
   }, [businessId]);
+
+  // Reload analytics when date range changes
+  useEffect(() => {
+    if (businessId) {
+      loadAnalytics();
+    }
+  }, [businessId, dateRange, customDateRange]);
+
+  const loadAnalytics = async () => {
+    if (!businessId) return;
+    
+    const { start, end } = getDateRange();
+    
+    const [totalResult, bookingsResult, enquiriesResult, cancellationsResult] = await Promise.all([
+      supabase
+        .from("calls_log")
+        .select("*", { count: "exact", head: true })
+        .eq("business_id", businessId)
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString()),
+      supabase
+        .from("calls_log")
+        .select("*", { count: "exact", head: true })
+        .eq("business_id", businessId)
+        .eq("call_type", "new_booking")
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString()),
+      supabase
+        .from("calls_log")
+        .select("*", { count: "exact", head: true })
+        .eq("business_id", businessId)
+        .eq("call_type", "question")
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString()),
+      supabase
+        .from("calls_log")
+        .select("*", { count: "exact", head: true })
+        .eq("business_id", businessId)
+        .eq("call_type", "cancel")
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString()),
+    ]);
+
+    setTotalCalls(totalResult.count || 0);
+    setBookingsCreated(bookingsResult.count || 0);
+    setEnquiries(enquiriesResult.count || 0);
+    setCancellations(cancellationsResult.count || 0);
+  };
 
   const loadCalls = async () => {
     if (!businessId) return;
@@ -133,11 +224,83 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Date Range Selector */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <h2 className="text-xl sm:text-2xl font-bold">Call Analytics</h2>
+        <div className="flex gap-2 items-center flex-wrap">
+          <Select value={dateRange} onValueChange={(value: any) => setDateRange(value)}>
+            <SelectTrigger className="w-[140px] sm:w-[180px] h-9 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">{t("dashboard.today")}</SelectItem>
+              <SelectItem value="week">{t("dashboard.thisWeek")}</SelectItem>
+              <SelectItem value="month">{t("dashboard.thisMonth")}</SelectItem>
+              <SelectItem value="custom">{t("dashboard.customRange")}</SelectItem>
+            </SelectContent>
+          </Select>
+          {dateRange === "custom" && (
+            <DateRangePicker 
+              dateRange={customDateRange}
+              onDateRangeChange={setCustomDateRange}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Analytics Cards */}
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Calls</CardTitle>
+            <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-xl sm:text-2xl font-bold">{totalCalls}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{getPeriodLabel()}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Bookings Created</CardTitle>
+            <CalendarCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
+          </CardHeader>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-xl sm:text-2xl font-bold text-primary">{bookingsCreated}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{getPeriodLabel()}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Enquiries</CardTitle>
+            <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-xl sm:text-2xl font-bold">{enquiries}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{getPeriodLabel()}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Cancellations</CardTitle>
+            <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-destructive" />
+          </CardHeader>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-xl sm:text-2xl font-bold text-destructive">{cancellations}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{getPeriodLabel()}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Calls List */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Phone className="w-5 h-5" />
-            {t("dashboard.calls")}
+            Recent Calls
           </CardTitle>
         </CardHeader>
         <CardContent>

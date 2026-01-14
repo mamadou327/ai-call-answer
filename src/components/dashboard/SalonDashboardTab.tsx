@@ -361,7 +361,7 @@ export const SalonDashboardTab = ({ businessName, currency = "GBP", businessId }
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => openStatDialog("bookings")}>
           <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
             <CardTitle className="text-xs sm:text-sm font-medium">{t("dashboard.totalBookings")}</CardTitle>
@@ -384,16 +384,6 @@ export const SalonDashboardTab = ({ businessName, currency = "GBP", businessId }
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => openStatDialog("calls")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
-            <CardTitle className="text-xs sm:text-sm font-medium">{t("dashboard.totalCalls")}</CardTitle>
-            <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-xl sm:text-2xl font-bold">{callsCount}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground">{getPeriodLabel()}</p>
-          </CardContent>
-        </Card>
 
 
         <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => openStatDialog("revenue")}>
