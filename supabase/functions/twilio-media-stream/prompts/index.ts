@@ -21,6 +21,11 @@ interface PromptBuilderParams {
   businessSettings: any;
   callerInfo: any;
   openingContext?: string; // New: context to naturally incorporate into greeting
+  // Time context for AI awareness
+  currentTime?: string;     // Current time in business timezone (e.g., "14:30")
+  currentDate?: string;     // Full date (e.g., "14 January 2026")
+  currentDay?: string;      // Day name (e.g., "Tuesday")
+  businessStatus?: string;  // "OPEN (11:00-22:00)" or "CLOSED"
   // Salon-specific
   staff?: any[];
   services?: any[];
@@ -90,6 +95,10 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         restaurantSettings: params.restaurantSettings || getDefaultRestaurantSettings(),
         callerInfo: params.callerInfo,
         openingContext: params.openingContext,
+        currentTime: params.currentTime,
+        currentDate: params.currentDate,
+        currentDay: params.currentDay,
+        businessStatus: params.businessStatus,
       });
 
     case "restaurant_dine_in":
@@ -133,6 +142,10 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         restaurantSettings: params.restaurantSettings || getDefaultRestaurantSettings(),
         callerInfo: params.callerInfo,
         openingContext: params.openingContext,
+        currentTime: params.currentTime,
+        currentDate: params.currentDate,
+        currentDay: params.currentDay,
+        businessStatus: params.businessStatus,
       });
 
     default:

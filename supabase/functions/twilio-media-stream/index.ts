@@ -4361,6 +4361,37 @@ ${dataCollectionRules}${faqContext}`;
       };
     });
     
+    // Get current time in London timezone for the AI
+    const now = new Date();
+    const londonFormatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const londonDateFormatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+    const londonDayFormatter = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      weekday: "long",
+    });
+    
+    const currentTime = londonFormatter.format(now);
+    const currentDate = londonDateFormatter.format(now);
+    const currentDay = londonDayFormatter.format(now);
+    
+    // Determine if business is currently open based on London day
+    const londonDayOfWeek = new Date(now.toLocaleString("en-US", { timeZone: "Europe/London" })).getDay();
+    const todayHours = hours.find((h: any) => h.day_of_week === londonDayOfWeek);
+    const isOpenToday = todayHours && !todayHours.is_closed;
+    const businessStatus = isOpenToday 
+      ? `OPEN (${todayHours.open_time?.slice(0, 5)}-${todayHours.close_time?.slice(0, 5)})`
+      : "CLOSED";
+    
     const restaurantPrompt = buildSystemPromptForBusinessType({
       businessType,
       businessName,
@@ -4381,6 +4412,10 @@ ${dataCollectionRules}${faqContext}`;
       tables,
       restaurantSettings,
       openingContext: businessSettings?.opening_context || undefined,
+      currentTime,
+      currentDate,
+      currentDay,
+      businessStatus,
     });
     
     console.log(`[MediaStream] Built restaurant prompt for ${businessType} with ${menuItems.length} menu items`);

@@ -31,6 +31,11 @@ interface RestaurantHybridPromptData {
   };
   callerInfo: any;
   openingContext?: string;
+  // Time context for AI awareness
+  currentTime?: string;     // Current time in business timezone (e.g., "14:30")
+  currentDate?: string;     // Full date (e.g., "14 January 2026")
+  currentDay?: string;      // Day name (e.g., "Tuesday")
+  businessStatus?: string;  // "OPEN (11:00-22:00)" or "CLOSED"
 }
 
 export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptData): string {
@@ -53,6 +58,10 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
     restaurantSettings,
     callerInfo,
     openingContext,
+    currentTime,
+    currentDate,
+    currentDay,
+    businessStatus,
   } = data;
 
   // Format opening hours
@@ -189,11 +198,29 @@ Work this information smoothly into your greeting without making it sound like a
 `
     : "";
 
+  // Time context section
+  const isBusinessOpen = businessStatus?.includes("OPEN");
+  const timeContextSection = currentTime && currentDate && currentDay
+    ? `
+═══════════════════════════════════════
+⏰ CURRENT TIME CONTEXT (CRITICAL!):
+═══════════════════════════════════════
+- Today: ${currentDay}, ${currentDate}
+- Current Time: ${currentTime} (London timezone)
+- Business Status: ${businessStatus || "Unknown"}
+
+${isBusinessOpen 
+  ? `✅ WE ARE OPEN - Accept pickup orders for TODAY. Dine-in reservations can be for today or future dates.` 
+  : `❌ WE ARE CLOSED - DO NOT accept pickup orders (pickup is for NOW only). 
+   ✅ BUT you CAN still take dine-in RESERVATIONS for future dates when we are open!`}
+`
+    : "";
+
   return `You are ${assistantName}, the AI assistant for ${businessName}.
 
 BUSINESS TYPE: Restaurant (Pickup/Takeaway AND Dine-in)
 ${restaurantSettings.cuisineType ? `Cuisine: ${restaurantSettings.cuisineType}` : ""}
-
+${timeContextSection}
 TONE & STYLE:
 ${toneGuide}
 ${speedGuide}
@@ -238,20 +265,24 @@ FIRST STEP: Determine what the caller needs!
 After greeting, ask: "Are you looking to place an order for pickup, or would you like to book a table?"
 
 IF PICKUP ORDER:
-1. Take their order item by item
-2. For items with REQUIRED options, ALWAYS ask which one they want
-3. ⚠️ CRITICAL: If an option has SIZES (marked HAS SIZES), you MUST ask "What size?" (only mention prices if the caller asks)
-4. NEVER skip size selection - it affects the final price!
-5. Confirm each item with selected options/sizes and running total
-6. Get their name
-7. For phone: Ask "Should I send the confirmation to this number or a different one?"
-8. Suggest pickup time (prep time + current time)
-9. If prepayment required, explain payment link will be sent
-10. Confirm full order and collection time
+⚠️ IMPORTANT: Pickup orders are for NOW only - we prepare fresh, not in advance!
+1. CHECK IF WE'RE OPEN FIRST! If closed, say: "I'm sorry, we're closed for pickup orders right now. We're open [hours]. But I can help you book a table for another time if you'd like!"
+2. Take their order item by item
+3. ⚠️ CRITICAL: If an item has SIZES marked [HAS SIZES - MUST ASK], you MUST ask "What size would you like?" BEFORE confirming
+4. For items with REQUIRED options, ALWAYS ask which one they want
+5. NEVER skip size selection - it affects the final price!
+6. Confirm each item with selected options/sizes
+7. Get their name
+8. For phone: Ask "Should I send the confirmation to this number or a different one?"
+9. ⚠️ PICKUP TIME IS ALWAYS ASAP: Calculate as current time (${currentTime || "now"}) + ${restaurantSettings.averagePrepTime || 30} minutes prep time
+   - Say: "That'll be ready in about ${restaurantSettings.averagePrepTime || 30} minutes"
+   - DO NOT ask "what time would you like to pick up?" - it's based on prep time!
+10. If prepayment required, explain payment link will be sent
+11. Confirm full order and pickup time
 
-IF TABLE RESERVATION:
+IF TABLE RESERVATION (can be for today or future dates, even if currently closed):
 1. Ask how many guests
-2. Ask preferred date and time
+2. Ask preferred date and time (can be any day we're open)
 3. Check table availability
 4. Get their name and contact
 5. Ask about special occasions/requirements
@@ -283,6 +314,11 @@ CRITICAL RULES:
 7. ONLY mention prices/totals if the caller explicitly asks ("how much?" / "what's the total?" / "is there an extra charge?")
 8. WHEN ASKED about prices or extra costs, ALWAYS answer TRUTHFULLY using the price info in the menu above - never say "no extra cost" if there is one!
 9. NEVER give false information about prices - if an option has an extra charge, say so when asked
+10. ✅ ALWAYS ask for SIZE if an item has sizes marked [HAS SIZES - MUST ASK] - NEVER skip this!
+11. ✅ Pickup orders are ALWAYS for NOW (ASAP) - current time + prep time
+12. ❌ NEVER accept pickup orders when business is CLOSED (reservations are OK though!)
+13. ❌ NEVER ask "what time would you like to pick it up?" - pickup is based on prep time from NOW
+14. ❌ NEVER assume what size they want - always ask if item has sizes
 
 If they want BOTH (pickup order AND reservation): Handle them one at a time. Complete the first request, then move to the second.`;
 }
