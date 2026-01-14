@@ -10,23 +10,59 @@ const logStep = (step: string, details?: any) => {
   console.log(`[RESCHEDULE-BOOKING] ${step}`, details ? JSON.stringify(details) : "");
 };
 
+// Simple in-memory rate limiting (per function instance)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_MAX = 10; // max requests per minute per IP
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+
+function checkRateLimit(clientIp: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(clientIp);
+  
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(clientIp, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  
+  if (record.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  
+  record.count++;
+  return true;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Rate limiting
+    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || 
+                     req.headers.get("cf-connecting-ip") || 
+                     "unknown";
+    
+    if (!checkRateLimit(clientIp)) {
+      logStep("Rate limit exceeded", { clientIp });
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please try again in a minute." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "60" } }
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { bookingId, businessSlug, newStartTime } = await req.json();
+    const { bookingId, businessSlug, newStartTime, bookingCode } = await req.json();
 
-    logStep("Rescheduling booking", { bookingId, businessSlug, newStartTime });
+    logStep("Rescheduling booking", { bookingId, businessSlug, newStartTime, hasBookingCode: !!bookingCode });
 
-    if (!bookingId || !businessSlug || !newStartTime) {
+    // SECURITY: Require booking code for verification
+    if (!bookingId || !businessSlug || !newStartTime || !bookingCode) {
       return new Response(
-        JSON.stringify({ error: "Booking ID, business slug, and new start time are required" }),
+        JSON.stringify({ error: "Booking ID, business slug, new start time, and booking code are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -54,7 +90,7 @@ serve(async (req) => {
       .eq("business_id", business.id)
       .single();
 
-    // Fetch booking with service info
+    // SECURITY: Fetch booking with booking code verification
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
       .select(`
@@ -62,13 +98,15 @@ serve(async (req) => {
         service:services(id, name, duration_minutes)
       `)
       .eq("id", bookingId)
+      .eq("booking_code", bookingCode.toUpperCase())
       .eq("business_id", business.id)
       .in("status", ["pending", "confirmed"])
       .single();
 
     if (bookingError || !booking) {
+      logStep("Booking verification failed", { bookingId, bookingCode: bookingCode?.slice(0, 4) });
       return new Response(
-        JSON.stringify({ error: "Booking not found or already cancelled" }),
+        JSON.stringify({ error: "Booking not found or verification failed" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

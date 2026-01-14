@@ -58,6 +58,7 @@ export const PublicCancelBooking = ({
         body: {
           bookingId: booking.id,
           businessSlug,
+          bookingCode: booking.booking_code, // SECURITY: Include booking code for verification
         },
       });
 
