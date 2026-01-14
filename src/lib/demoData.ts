@@ -293,8 +293,8 @@ export const DEMO_CANCELLED_BOOKINGS = [
   start_time: new Date(apt.start_time).toISOString(),
 }));
 
-// Demo call logs
-export const DEMO_CALLS = [
+// Demo call logs - Salon specific
+export const DEMO_SALON_CALLS = [
   {
     id: "demo-call-1",
     caller_name: "Sarah Johnson",
@@ -350,65 +350,131 @@ export const DEMO_CALLS = [
     needs_review: false,
     created_at: new Date(Date.now() - 28800000).toISOString(),
   },
+];
+
+// Demo call logs - Restaurant specific
+export const DEMO_RESTAURANT_CALLS = [
   {
-    id: "demo-call-6",
-    caller_name: "David Wilson",
-    caller_phone: "+44 7700 901890",
-    call_type: "question",
-    call_outcome: "Price enquiry",
-    summary: "Customer asked about pricing for men's cuts and beard trims.",
-    duration_ms: 75000,
-    needs_review: false,
-    created_at: new Date(Date.now() - 36000000).toISOString(),
-  },
-  {
-    id: "demo-call-7",
-    caller_name: "Olivia Taylor",
-    caller_phone: "+44 7700 902123",
-    call_type: "new_booking",
-    call_outcome: "Booking confirmed",
-    summary: "Booked wash and style for this afternoon.",
-    duration_ms: 150000,
-    needs_review: false,
-    created_at: new Date(Date.now() - 43200000).toISOString(),
-  },
-  {
-    id: "demo-call-8",
-    caller_name: "Liam Harris",
-    caller_phone: "+44 7700 902456",
-    call_type: "new_booking",
-    call_outcome: "Booking confirmed",
-    summary: "New booking for men's fade haircut.",
-    duration_ms: 120000,
-    needs_review: false,
-    created_at: new Date(Date.now() - 50400000).toISOString(),
-  },
-  {
-    id: "demo-call-9",
-    caller_name: "Charlotte Davies",
-    caller_phone: "+44 7700 902789",
-    call_type: "question",
-    call_outcome: "Service enquiry",
-    summary: "Asked about keratin treatment process and duration.",
+    id: "demo-call-1",
+    caller_name: "John Smith",
+    caller_phone: "+44 7700 800123",
+    call_type: "new_order",
+    call_outcome: "Order placed for pickup",
+    summary: "Customer placed an order for 2 Fish & Chips with mushy peas. Pickup in 20 minutes.",
     duration_ms: 180000,
     needs_review: false,
-    created_at: new Date(Date.now() - 57600000).toISOString(),
+    created_at: new Date(Date.now() - 3600000).toISOString(),
   },
   {
-    id: "demo-call-10",
-    caller_name: "Unknown Caller",
-    caller_phone: "+44 7700 999999",
-    call_type: "other",
-    call_outcome: "Missed call",
-    summary: "Caller hung up before speaking with the assistant.",
-    duration_ms: 5000,
-    needs_review: true,
-    created_at: new Date(Date.now() - 64800000).toISOString(),
+    id: "demo-call-2",
+    caller_name: "Mary Johnson",
+    caller_phone: "+44 7700 800456",
+    call_type: "question",
+    call_outcome: "Menu enquiry",
+    summary: "Customer asked about vegetarian options and gluten-free items on the menu.",
+    duration_ms: 120000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 7200000).toISOString(),
+  },
+  {
+    id: "demo-call-3",
+    caller_name: "Robert Williams",
+    caller_phone: "+44 7700 800789",
+    call_type: "new_order",
+    call_outcome: "Large order placed",
+    summary: "Customer ordered 2 pizzas and garlic bread for family dinner. Ready in 25 minutes.",
+    duration_ms: 240000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 14400000).toISOString(),
+  },
+  {
+    id: "demo-call-4",
+    caller_name: "Patricia Brown",
+    caller_phone: "+44 7700 801234",
+    call_type: "cancel",
+    call_outcome: "Order cancelled",
+    summary: "Customer cancelled their pending order due to change of plans.",
+    duration_ms: 60000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 21600000).toISOString(),
+  },
+  {
+    id: "demo-call-5",
+    caller_name: "James Wilson",
+    caller_phone: "+44 7700 801567",
+    call_type: "question",
+    call_outcome: "Opening hours enquiry",
+    summary: "Customer asked about opening hours and delivery options.",
+    duration_ms: 90000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 28800000).toISOString(),
   },
 ];
 
-// Demo messages
-export const DEMO_MESSAGES = [
+// Demo call logs - Dine-in Restaurant specific
+export const DEMO_DINEIN_CALLS = [
+  {
+    id: "demo-call-1",
+    caller_name: "William Turner",
+    caller_phone: "+44 7700 700123",
+    call_type: "new_reservation",
+    call_outcome: "Table reserved for 4",
+    summary: "Customer booked a table for 4 people at 7pm this evening.",
+    duration_ms: 180000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: "demo-call-2",
+    caller_name: "Elizabeth Moore",
+    caller_phone: "+44 7700 700456",
+    call_type: "question",
+    call_outcome: "Menu enquiry",
+    summary: "Customer enquired about the tasting menu and wine pairing options.",
+    duration_ms: 150000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 7200000).toISOString(),
+  },
+  {
+    id: "demo-call-3",
+    caller_name: "Henry Jackson",
+    caller_phone: "+44 7700 700789",
+    call_type: "reschedule",
+    call_outcome: "Reservation moved to later time",
+    summary: "Customer rescheduled their 6pm reservation to 8pm due to traffic.",
+    duration_ms: 90000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 14400000).toISOString(),
+  },
+  {
+    id: "demo-call-4",
+    caller_name: "Victoria Martin",
+    caller_phone: "+44 7700 701234",
+    call_type: "cancel",
+    call_outcome: "Reservation cancelled",
+    summary: "Customer cancelled their reservation for tomorrow evening.",
+    duration_ms: 60000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 21600000).toISOString(),
+  },
+  {
+    id: "demo-call-5",
+    caller_name: "Charles Anderson",
+    caller_phone: "+44 7700 701567",
+    call_type: "new_reservation",
+    call_outcome: "Private dining enquiry",
+    summary: "Customer enquired about private dining room for a birthday celebration next month.",
+    duration_ms: 300000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 28800000).toISOString(),
+  },
+];
+
+// Default DEMO_CALLS for backward compatibility (uses salon calls)
+export const DEMO_CALLS = DEMO_SALON_CALLS;
+
+// Demo messages - Salon specific
+export const DEMO_SALON_MESSAGES = [
   {
     id: "demo-msg-1",
     caller_name: "Sarah Johnson",
@@ -465,6 +531,127 @@ export const DEMO_MESSAGES = [
     created_at: new Date(Date.now() - 259200000).toISOString(),
   },
 ];
+
+// Demo messages - Restaurant specific
+export const DEMO_RESTAURANT_MESSAGES = [
+  {
+    id: "demo-msg-1",
+    caller_name: "John Smith",
+    caller_phone: "+44 7700 800123",
+    content: "Hi, I placed an order 30 minutes ago. Is it ready for collection yet?",
+    recipient_type: "business",
+    is_urgent: true,
+    is_read: false,
+    is_archived: false,
+    created_at: new Date(Date.now() - 1800000).toISOString(),
+  },
+  {
+    id: "demo-msg-2",
+    caller_name: "Mary Johnson",
+    caller_phone: "+44 7700 800456",
+    content: "Do you have any gluten-free options on the menu? My daughter has allergies.",
+    recipient_type: "business",
+    is_urgent: false,
+    is_read: false,
+    is_archived: false,
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: "demo-msg-3",
+    caller_name: "Robert Williams",
+    caller_phone: "+44 7700 800789",
+    content: "The food was delicious! Will definitely order again. Thank you!",
+    recipient_type: "business",
+    is_urgent: false,
+    is_read: true,
+    is_archived: false,
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: "demo-msg-4",
+    caller_name: "Patricia Brown",
+    caller_phone: "+44 7700 801234",
+    content: "What time do you close tonight? I want to pick up before you shut.",
+    recipient_type: "business",
+    is_urgent: false,
+    is_read: true,
+    is_archived: false,
+    created_at: new Date(Date.now() - 172800000).toISOString(),
+  },
+  {
+    id: "demo-msg-5",
+    caller_name: "James Wilson",
+    caller_phone: "+44 7700 801567",
+    content: "Can I order for delivery to my office tomorrow lunchtime?",
+    recipient_type: "business",
+    is_urgent: false,
+    is_read: true,
+    is_archived: true,
+    created_at: new Date(Date.now() - 259200000).toISOString(),
+  },
+];
+
+// Demo messages - Dine-in Restaurant specific
+export const DEMO_DINEIN_MESSAGES = [
+  {
+    id: "demo-msg-1",
+    caller_name: "William Turner",
+    caller_phone: "+44 7700 700123",
+    content: "Hi, I have a reservation for tonight at 7pm. Can we add 2 more guests?",
+    recipient_type: "business",
+    is_urgent: true,
+    is_read: false,
+    is_archived: false,
+    created_at: new Date(Date.now() - 1800000).toISOString(),
+  },
+  {
+    id: "demo-msg-2",
+    caller_name: "Elizabeth Moore",
+    caller_phone: "+44 7700 700456",
+    content: "Do you have a private dining room available for a birthday party next Saturday?",
+    recipient_type: "business",
+    is_urgent: false,
+    is_read: false,
+    is_archived: false,
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: "demo-msg-3",
+    caller_name: "Henry Jackson",
+    caller_phone: "+44 7700 700789",
+    content: "Wonderful meal last night! The tasting menu was exceptional. Thank you!",
+    recipient_type: "business",
+    is_urgent: false,
+    is_read: true,
+    is_archived: false,
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: "demo-msg-4",
+    caller_name: "Victoria Martin",
+    caller_phone: "+44 7700 701234",
+    content: "Can you confirm our reservation for 3 guests tomorrow at 8pm?",
+    recipient_type: "business",
+    is_urgent: false,
+    is_read: true,
+    is_archived: false,
+    created_at: new Date(Date.now() - 172800000).toISOString(),
+  },
+  {
+    id: "demo-msg-5",
+    caller_name: "Charles Anderson",
+    caller_phone: "+44 7700 701567",
+    content: "What's the dress code for dinner? Planning to come this weekend.",
+    recipient_type: "business",
+    is_urgent: false,
+    is_read: true,
+    is_archived: true,
+    created_at: new Date(Date.now() - 259200000).toISOString(),
+  },
+];
+
+// Default DEMO_MESSAGES for backward compatibility (uses salon messages)
+export const DEMO_MESSAGES = DEMO_SALON_MESSAGES;
 
 // Demo orders (Restaurant)
 export const DEMO_ORDERS = [

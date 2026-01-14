@@ -9,12 +9,20 @@ import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, end
 import { CallDetailsDialog } from "./CallDetailsDialog";
 import { DateRangePicker } from "./DateRangePicker";
 import { DateRange } from "react-day-picker";
-import { DEMO_CALLS_STATS, DEMO_CALLS } from "@/lib/demoData";
+import { DEMO_CALLS_STATS, DEMO_SALON_CALLS, DEMO_RESTAURANT_CALLS, DEMO_DINEIN_CALLS } from "@/lib/demoData";
 
 interface CallsTabProps {
   businessId?: string;
   isDemoMode?: boolean;
+  businessType?: string | null;
 }
+
+const getDemoCalls = (businessType?: string | null) => {
+  if (businessType === "restaurant_pickup") return DEMO_RESTAURANT_CALLS;
+  if (businessType === "restaurant_dine_in") return DEMO_DINEIN_CALLS;
+  if (businessType === "restaurant_hybrid") return DEMO_RESTAURANT_CALLS;
+  return DEMO_SALON_CALLS;
+};
 
 interface CallLog {
   id: string;
@@ -51,9 +59,10 @@ const callTypeBadgeVariants: Record<string, "default" | "secondary" | "destructi
   other: "outline",
 };
 
-export const CallsTab = ({ businessId, isDemoMode = false }: CallsTabProps) => {
+export const CallsTab = ({ businessId, isDemoMode = false, businessType }: CallsTabProps) => {
   const { t } = useTranslation();
-  const [calls, setCalls] = useState<CallLog[]>(isDemoMode ? DEMO_CALLS as CallLog[] : []);
+  const demoCalls = getDemoCalls(businessType);
+  const [calls, setCalls] = useState<CallLog[]>(isDemoMode ? demoCalls as CallLog[] : []);
   const [loading, setLoading] = useState(!isDemoMode);
   const [selectedCall, setSelectedCall] = useState<CallLog | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
