@@ -361,7 +361,7 @@ export const SalonDashboardTab = ({ businessName, currency = "GBP", businessId }
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-5 gap-2 sm:gap-3">
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
         <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => openStatDialog("bookings")}>
           <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
             <CardTitle className="text-xs sm:text-sm font-medium">{t("dashboard.totalBookings")}</CardTitle>
@@ -395,16 +395,6 @@ export const SalonDashboardTab = ({ businessName, currency = "GBP", businessId }
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => openStatDialog("messages")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
-            <CardTitle className="text-xs sm:text-sm font-medium">{t("dashboard.messages")}</CardTitle>
-            <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-xl sm:text-2xl font-bold">{messagesCount}</div>
-            <Badge variant="secondary" className="text-[10px] px-1.5">unread</Badge>
-          </CardContent>
-        </Card>
 
         <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => openStatDialog("revenue")}>
           <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
