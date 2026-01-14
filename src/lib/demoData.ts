@@ -657,7 +657,7 @@ export const DEMO_MESSAGES = DEMO_SALON_MESSAGES;
 export const DEMO_ORDERS = [
   {
     id: "demo-order-1",
-    order_number: "ORD-0114-001",
+    order_number: "4521",
     customer_name: "John Smith",
     customer_phone: "+44 7700 800123",
     items: [
@@ -673,7 +673,7 @@ export const DEMO_ORDERS = [
   },
   {
     id: "demo-order-2",
-    order_number: "ORD-0114-002",
+    order_number: "7832",
     customer_name: "Mary Johnson",
     customer_phone: "+44 7700 800456",
     items: [
@@ -689,7 +689,7 @@ export const DEMO_ORDERS = [
   },
   {
     id: "demo-order-3",
-    order_number: "ORD-0114-003",
+    order_number: "2156",
     customer_name: "Robert Williams",
     customer_phone: "+44 7700 800789",
     items: [
@@ -705,7 +705,7 @@ export const DEMO_ORDERS = [
   },
   {
     id: "demo-order-4",
-    order_number: "ORD-0114-004",
+    order_number: "8943",
     customer_name: "Patricia Brown",
     customer_phone: "+44 7700 801234",
     items: [
