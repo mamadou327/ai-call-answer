@@ -375,7 +375,7 @@ export const DashboardTab = ({ businessName, currency = "GBP", businessId, busin
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-5 gap-2 sm:gap-3">
         <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => openStatDialog("bookings")}>
           <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
             <CardTitle className="text-xs sm:text-sm font-medium">
