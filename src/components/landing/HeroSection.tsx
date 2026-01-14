@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Play, Sparkles } from "lucide-react";
-import aiviaLogo from "@/assets/aivia-logo-new.png";
+import DeviceMockup from "./DeviceMockup";
 
 const HeroSection = () => {
   const navigate = useNavigate();
@@ -72,6 +72,9 @@ const HeroSection = () => {
           <span className="text-sm ml-2">Join <strong className="text-foreground">200+</strong> businesses already using AIVIA</span>
         </div>
       </div>
+
+      {/* Device Mockups */}
+      <DeviceMockup />
     </section>
   );
 };
