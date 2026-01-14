@@ -69,7 +69,7 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
   const currency = businessSettings?.currency || "GBP";
   const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
   
-  // Helper to format item options with their sizes
+  // Helper to format item options with their sizes and prices (for AI knowledge)
   const formatItemOptions = (itemId: string): string => {
     const itemGroups = menuItemOptionGroups.filter((g: any) => g.menu_item_id === itemId);
     if (itemGroups.length === 0) return "";
@@ -83,13 +83,22 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
       optionsText += `\n      ↳ ${group.name}${requiredTag}: `;
       optionsText += groupOptions
         .map((opt: any) => {
-          // If this option has sizes, list sizes *without prices* (only speak prices if caller asks)
+          // If this option has sizes, list sizes WITH prices so AI knows the truth
           if (opt.has_sizes && opt.sizes && opt.sizes.length > 0) {
-            const sizesList = opt.sizes.map((s: any) => `${s.name}`).join(", ");
+            const sizesList = opt.sizes.map((s: any) => {
+              const priceStr = s.price > 0 ? ` +${currencySymbol}${s.price.toFixed(2)}` : "";
+              return `${s.name}${priceStr}`;
+            }).join(", ");
             return `${opt.name} [HAS SIZES - MUST ASK: ${sizesList}]`;
           }
 
-          // Do NOT include price adjustments in the spoken flow unless the caller asks
+          // Include price adjustments so AI can answer truthfully when asked
+          const priceAdj = opt.price_adjustment || 0;
+          if (priceAdj > 0) {
+            return `${opt.name} (+${currencySymbol}${priceAdj.toFixed(2)})`;
+          } else if (priceAdj < 0) {
+            return `${opt.name} (-${currencySymbol}${Math.abs(priceAdj).toFixed(2)})`;
+          }
           return `${opt.name}`;
         })
         .join(", ");
@@ -274,12 +283,14 @@ AVAILABLE TOOLS:
  3. ✅ ALWAYS repeat back items as you take them to avoid mistakes
  4. ✅ ALWAYS get the customer's name and confirm their phone number
  5. ✅ ALWAYS be patient if they're deciding - don't rush them
- 6. ✅ ONLY mention prices/totals if the caller explicitly asks ("how much?" / "what's the total?")
- 7. ❌ NEVER hang up without the customer saying goodbye first
- 8. ❌ NEVER assume what they want - always clarify
- 9. ❌ NEVER skip asking about sizes or required options
- 10. ❌ NEVER interrupt the customer while they're speaking
- 11. ❌ NEVER say "I don't know" - instead say "Let me check on that" or offer an alternative
+ 6. ✅ ONLY mention prices/totals if the caller explicitly asks ("how much?" / "what's the total?" / "is there an extra charge?")
+ 7. ✅ WHEN ASKED about prices or extra costs, ALWAYS answer TRUTHFULLY using the price info in the menu above - never say "no extra cost" if there is one!
+ 8. ❌ NEVER hang up without the customer saying goodbye first
+ 9. ❌ NEVER assume what they want - always clarify
+ 10. ❌ NEVER skip asking about sizes or required options
+ 11. ❌ NEVER interrupt the customer while they're speaking
+ 12. ❌ NEVER say "I don't know" - instead say "Let me check on that" or offer an alternative
+ 13. ❌ NEVER give false information about prices - if an option has an extra charge, say so when asked
 
 HANDLING COMMON SITUATIONS:
 - If unsure about an item: "Just to make sure I've got the right one, did you mean [item name]?"

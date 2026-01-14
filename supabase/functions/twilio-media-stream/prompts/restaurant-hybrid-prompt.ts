@@ -71,7 +71,7 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
   const currency = businessSettings?.currency || "GBP";
   const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
   
-  // Helper to format item options with their sizes
+  // Helper to format item options with their sizes and prices (for AI knowledge)
   const formatItemOptions = (itemId: string): string => {
     const itemGroups = menuItemOptionGroups.filter((g: any) => g.menu_item_id === itemId);
     if (itemGroups.length === 0) return "";
@@ -85,11 +85,22 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
       optionsText += `\n      ↳ ${group.name}${requiredTag}: `;
       optionsText += groupOptions
         .map((opt: any) => {
+          // If this option has sizes, list sizes WITH prices so AI knows the truth
           if (opt.has_sizes && opt.sizes && opt.sizes.length > 0) {
-            const sizesList = opt.sizes.map((s: any) => `${s.name}`).join(", ");
+            const sizesList = opt.sizes.map((s: any) => {
+              const priceStr = s.price > 0 ? ` +${currencySymbol}${s.price.toFixed(2)}` : "";
+              return `${s.name}${priceStr}`;
+            }).join(", ");
             return `${opt.name} [HAS SIZES - MUST ASK: ${sizesList}]`;
           }
 
+          // Include price adjustments so AI can answer truthfully when asked
+          const priceAdj = opt.price_adjustment || 0;
+          if (priceAdj > 0) {
+            return `${opt.name} (+${currencySymbol}${priceAdj.toFixed(2)})`;
+          } else if (priceAdj < 0) {
+            return `${opt.name} (-${currencySymbol}${Math.abs(priceAdj).toFixed(2)})`;
+          }
           return `${opt.name}`;
         })
         .join(", ");
@@ -269,6 +280,9 @@ CRITICAL RULES:
 4. Provide reference numbers for both orders and reservations
 5. Ask "Is there anything else?" before ending
 6. NEVER hang up without customer saying goodbye
+7. ONLY mention prices/totals if the caller explicitly asks ("how much?" / "what's the total?" / "is there an extra charge?")
+8. WHEN ASKED about prices or extra costs, ALWAYS answer TRUTHFULLY using the price info in the menu above - never say "no extra cost" if there is one!
+9. NEVER give false information about prices - if an option has an extra charge, say so when asked
 
 If they want BOTH (pickup order AND reservation): Handle them one at a time. Complete the first request, then move to the second.`;
 }
