@@ -282,7 +282,7 @@ export const RestaurantDashboardTab = ({ businessName, currency = "GBP", busines
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-6 gap-2 sm:gap-3">
         <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => openStatDialog("orders")}>
           <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
             <CardTitle className="text-xs sm:text-sm font-medium">Total Orders</CardTitle>
