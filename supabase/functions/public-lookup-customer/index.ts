@@ -11,12 +11,47 @@ const logStep = (step: string, details?: any) => {
   console.log(`[PUBLIC-LOOKUP-CUSTOMER] ${step}${detailsStr}`);
 };
 
+// Simple in-memory rate limiting (per function instance)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_MAX = 5; // max 5 lookups per minute per IP (stricter than other endpoints)
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+
+function checkRateLimit(clientIp: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(clientIp);
+  
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(clientIp, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  
+  if (record.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  
+  record.count++;
+  return true;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Rate limiting to prevent enumeration attacks
+    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || 
+                     req.headers.get("cf-connecting-ip") || 
+                     "unknown";
+    
+    if (!checkRateLimit(clientIp)) {
+      logStep("Rate limit exceeded", { clientIp });
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please try again in a minute." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "60" } }
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -57,10 +92,10 @@ serve(async (req) => {
     // Normalize phone number for search (remove spaces, dashes)
     const normalizedPhone = phone.replace(/[\s\-()]/g, "");
 
-    // Look up customer by phone
+    // Look up customer by phone - SECURITY: Only return minimal necessary data
     const { data: customer, error: customerError } = await supabase
       .from("customers")
-      .select("id, name, email, phone, total_visits, first_visit_date, preferred_staff_id")
+      .select("id, name, preferred_staff_id")
       .eq("business_id", business.id)
       .or(`phone.eq.${normalizedPhone},phone.eq.${phone}`)
       .single();
@@ -73,24 +108,7 @@ serve(async (req) => {
       );
     }
 
-    logStep("Customer found", { customerId: customer.id, visits: customer.total_visits });
-
-    // Get last 3 bookings for this customer
-    const { data: recentBookings } = await supabase
-      .from("bookings")
-      .select(`
-        id,
-        booking_code,
-        start_time,
-        status,
-        service:service_id(id, name, price),
-        staff:staff_id(id, name)
-      `)
-      .eq("business_id", business.id)
-      .eq("customer_phone", phone)
-      .in("status", ["confirmed", "completed"])
-      .order("start_time", { ascending: false })
-      .limit(3);
+    logStep("Customer found", { customerId: customer.id });
 
     // Get preferred staff name if set
     let preferredStaffName = null;
@@ -103,18 +121,16 @@ serve(async (req) => {
       preferredStaffName = staff?.name;
     }
 
+    // SECURITY: Only return minimal data needed for booking flow
+    // Removed: email, total_visits, first_visit_date, recent bookings
     return new Response(
       JSON.stringify({
         found: true,
         customer: {
           name: customer.name,
-          email: customer.email,
-          totalVisits: customer.total_visits,
-          firstVisitDate: customer.first_visit_date,
           preferredStaffId: customer.preferred_staff_id,
           preferredStaffName,
         },
-        recentBookings: recentBookings || [],
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

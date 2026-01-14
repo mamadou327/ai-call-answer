@@ -83,6 +83,7 @@ export const PublicRescheduleBooking = ({
           bookingId: booking.id,
           businessSlug,
           newStartTime: newStartTime.toISOString(),
+          bookingCode: booking.booking_code, // SECURITY: Include booking code for verification
         },
       });
 
