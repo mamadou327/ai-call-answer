@@ -46,8 +46,12 @@ interface StreamSession {
   lastAudioSentAt: number | null;
   hasActiveResponse: boolean;
   lastTranscriptionFailureAt: number | null;
+  // OpenAI reconnect (in-place) tracking
+  openAiReconnectAttempts: number;
+  openAiReconnectTimeoutId: number | null;
+  lastOpenAiDisconnectAt: number | null;
   // Extended memory tracking
-  conversationHistory: Array<{role: string, content: string, itemId?: string}>;
+  conversationHistory: Array<{ role: string; content: string; itemId?: string }>;
   estimatedTokens: number;
   isReconnect: boolean;
   reconnectCount: number;
@@ -374,6 +378,10 @@ Deno.serve(async (req) => {
     lastAudioSentAt: null,
     hasActiveResponse: false,
     lastTranscriptionFailureAt: null,
+    // OpenAI reconnect (in-place) tracking
+    openAiReconnectAttempts: 0,
+    openAiReconnectTimeoutId: null,
+    lastOpenAiDisconnectAt: null,
     // Extended memory tracking
     conversationHistory: [],
     estimatedTokens: 0,
@@ -537,6 +545,79 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
     console.log("[MediaStream] OpenAI WebSocket connected");
     // Session config will be sent after receiving session.created
   };
+
+  function scheduleOpenAiReconnect(reason: string, meta: Record<string, unknown> = {}) {
+    const now = Date.now();
+
+    // If we had a long stable period, forgive previous reconnect attempts
+    if (session.lastOpenAiDisconnectAt && now - session.lastOpenAiDisconnectAt > 60_000) {
+      session.openAiReconnectAttempts = 0;
+    }
+    session.lastOpenAiDisconnectAt = now;
+
+    // Avoid multiple timers
+    if (session.openAiReconnectTimeoutId !== null) return;
+
+    // Only attempt reconnect if Twilio stream is still alive
+    if (!session.twilioWs || session.twilioWs.readyState !== WebSocket.OPEN) {
+      console.warn("[MediaStream] Skipping OpenAI reconnect - Twilio WS not open", { reason, ...meta });
+      return;
+    }
+
+    const MAX_OPENAI_RECONNECT_ATTEMPTS = 3;
+    const delayMs = 700;
+
+    if (session.openAiReconnectAttempts >= MAX_OPENAI_RECONNECT_ATTEMPTS) {
+      console.warn("[MediaStream] OpenAI reconnect attempts exhausted - falling back to Twilio stream reconnect", {
+        attempts: session.openAiReconnectAttempts,
+        reason,
+        ...meta,
+      });
+
+      // Log reconnect event to conversation
+      logConversation(
+        supabase,
+        session.callSid,
+        "system",
+        `[reconnect] OpenAI unstable; restarting stream (fallback after ${MAX_OPENAI_RECONNECT_ATTEMPTS} attempts)`
+      ).catch(() => {});
+
+      // Fall back to existing stream-action reconnect flow (and its fallback behavior)
+      if (session.twilioWs.readyState === WebSocket.OPEN) {
+        session.isReconnect = true;
+        session.twilioWs.close();
+      }
+      return;
+    }
+
+    session.openAiReconnectAttempts += 1;
+    session.isReconnect = true;
+
+    const attempt = session.openAiReconnectAttempts;
+    console.log(`[MediaStream] Scheduling in-place OpenAI reconnect (${attempt}/${MAX_OPENAI_RECONNECT_ATTEMPTS}) in ${delayMs}ms`, {
+      reason,
+      ...meta,
+    });
+
+    logConversation(
+      supabase,
+      session.callSid,
+      "system",
+      `[reconnect] In-place OpenAI reconnect attempt ${attempt}/${MAX_OPENAI_RECONNECT_ATTEMPTS}`
+    ).catch(() => {});
+
+    session.openAiReconnectTimeoutId = setTimeout(() => {
+      session.openAiReconnectTimeoutId = null;
+
+      // If we already reconnected, don't double-connect
+      if (session.openAiWs && session.openAiWs.readyState === WebSocket.OPEN) return;
+      if (!session.twilioWs || session.twilioWs.readyState !== WebSocket.OPEN) return;
+
+      connectToOpenAI(session, supabase).catch((err) => {
+        console.error("[MediaStream] Failed to start OpenAI reconnect:", err);
+      });
+    }, delayMs);
+  }
 
   openAiWs.onmessage = async (event) => {
     try {
@@ -783,28 +864,20 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
     session.hasActiveResponse = false;
     session.isAISpeaking = false;
     session.lastAudioSentAt = null;
-    
-    // CRITICAL: Close Twilio WebSocket to trigger reconnect flow via stream-action
-    // This ensures the call doesn't go silent when OpenAI disconnects
-    if (session.twilioWs && session.twilioWs.readyState === WebSocket.OPEN) {
-      console.log("[MediaStream] Closing Twilio WS to trigger reconnect flow");
-      
-      // Log reconnect event to conversation
-      logConversation(supabase, session.callSid, "system", "[reconnect] OpenAI disconnected, initiating reconnect").catch(() => {});
-      
-      session.twilioWs.close();
-    }
+
+    // Prefer in-place reconnect first (keeps the phone call alive)
+    scheduleOpenAiReconnect("close", {
+      code: ev?.code,
+      reason: ev?.reason,
+      wasClean: ev?.wasClean,
+    });
   };
 
   openAiWs.onerror = (error) => {
     console.error("[MediaStream] OpenAI WebSocket error:", error);
-    
-    // Also trigger reconnect on error
-    if (session.twilioWs && session.twilioWs.readyState === WebSocket.OPEN) {
-      console.log("[MediaStream] OpenAI error - closing Twilio WS to trigger reconnect");
-      logConversation(supabase, session.callSid, "system", "[reconnect] OpenAI error, initiating reconnect").catch(() => {});
-      session.twilioWs.close();
-    }
+
+    // Prefer in-place reconnect first; fall back to stream-action if needed
+    scheduleOpenAiReconnect("error", { error: String(error) });
   };
 }
 
