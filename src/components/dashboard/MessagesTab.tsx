@@ -8,12 +8,20 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { DEMO_MESSAGES } from "@/lib/demoData";
+import { DEMO_SALON_MESSAGES, DEMO_RESTAURANT_MESSAGES, DEMO_DINEIN_MESSAGES } from "@/lib/demoData";
 
 interface MessagesTabProps {
   businessId?: string;
   isDemoMode?: boolean;
+  businessType?: string | null;
 }
+
+const getDemoMessages = (businessType?: string | null) => {
+  if (businessType === "restaurant_pickup") return DEMO_RESTAURANT_MESSAGES;
+  if (businessType === "restaurant_dine_in") return DEMO_DINEIN_MESSAGES;
+  if (businessType === "restaurant_hybrid") return DEMO_RESTAURANT_MESSAGES;
+  return DEMO_SALON_MESSAGES;
+};
 
 interface Message {
   id: string;
@@ -29,9 +37,10 @@ interface Message {
   staff?: { name: string } | null;
 }
 
-export const MessagesTab = ({ businessId, isDemoMode = false }: MessagesTabProps) => {
+export const MessagesTab = ({ businessId, isDemoMode = false, businessType }: MessagesTabProps) => {
   const { t } = useTranslation();
-  const [messages, setMessages] = useState<Message[]>(isDemoMode ? DEMO_MESSAGES as Message[] : []);
+  const demoMessages = getDemoMessages(businessType);
+  const [messages, setMessages] = useState<Message[]>(isDemoMode ? demoMessages as Message[] : []);
   const [loading, setLoading] = useState(!isDemoMode);
   const [filter, setFilter] = useState<"all" | "urgent" | "unread" | "archived">("all");
 

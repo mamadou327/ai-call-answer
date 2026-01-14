@@ -396,11 +396,6 @@ const Dashboard = () => {
           <div className="flex items-center gap-2 sm:gap-3">
             <img alt="Aivia" className="h-8 sm:h-12 w-auto object-fill" src="/lovable-uploads/46fe3693-5209-4fc3-ae63-c34586186b41.png" />
             <span className="text-sm sm:text-base font-mono font-extrabold hidden xs:inline">AIVIA</span>
-            {isDemoMode && (
-              <Badge variant="outline" className="ml-2 bg-yellow-100 text-yellow-800 border-yellow-300 font-semibold">
-                DEMO MODE
-              </Badge>
-            )}
           </div>
           <div className="flex items-center">
             {business && user && <AccountMenu businessName={business.business_name} userEmail={user.email || ""} planTier={business.plan_tier} aiviaActive={business.aivia_active} businessId={business.id} onAiviaToggle={active => !isDemoMode && setBusiness({
@@ -544,11 +539,11 @@ const Dashboard = () => {
 
               {!isStaffView && <>
                   <TabsContent value="calls">
-                    <CallsTab businessId={business.id} isDemoMode={isDemoMode} />
+                    <CallsTab businessId={business.id} isDemoMode={isDemoMode} businessType={business.business_type} />
                   </TabsContent>
 
                   <TabsContent value="messages">
-                    <MessagesTab businessId={business.id} isDemoMode={isDemoMode} />
+                    <MessagesTab businessId={business.id} isDemoMode={isDemoMode} businessType={business.business_type} />
                   </TabsContent>
                 </>}
 
