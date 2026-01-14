@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { StatDetailDialog } from "./StatDetailDialog";
 import { RestaurantOrderQueue } from "./RestaurantOrderQueue";
 import { ManualOrderDialog } from "./ManualOrderDialog";
+import { DEMO_RESTAURANT_STATS, DEMO_ORDERS } from "@/lib/demoData";
 
 interface RestaurantDashboardTabProps {
   businessName: string;
@@ -19,19 +20,20 @@ interface RestaurantDashboardTabProps {
   businessId: string;
   businessType: string;
   averagePrepTime?: number;
+  isDemoMode?: boolean;
 }
 
-export const RestaurantDashboardTab = ({ businessName, currency = "GBP", businessId, businessType, averagePrepTime = 20 }: RestaurantDashboardTabProps) => {
+export const RestaurantDashboardTab = ({ businessName, currency = "GBP", businessId, businessType, averagePrepTime = 20, isDemoMode = false }: RestaurantDashboardTabProps) => {
   const { t } = useTranslation();
   const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "custom">("today");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
-  const [ordersCount, setOrdersCount] = useState(0);
-  const [completedCount, setCompletedCount] = useState(0);
-  const [cancelledCount, setCancelledCount] = useState(0);
-  const [callsCount, setCallsCount] = useState(0);
-  const [messagesCount, setMessagesCount] = useState(0);
-  const [revenue, setRevenue] = useState(0);
-  const [activeOrders, setActiveOrders] = useState<any[]>([]);
+  const [ordersCount, setOrdersCount] = useState(isDemoMode ? DEMO_RESTAURANT_STATS.ordersCount : 0);
+  const [completedCount, setCompletedCount] = useState(isDemoMode ? DEMO_RESTAURANT_STATS.completedCount : 0);
+  const [cancelledCount, setCancelledCount] = useState(isDemoMode ? DEMO_RESTAURANT_STATS.cancelledCount : 0);
+  const [callsCount, setCallsCount] = useState(isDemoMode ? DEMO_RESTAURANT_STATS.callsCount : 0);
+  const [messagesCount, setMessagesCount] = useState(isDemoMode ? DEMO_RESTAURANT_STATS.messagesCount : 0);
+  const [revenue, setRevenue] = useState(isDemoMode ? DEMO_RESTAURANT_STATS.revenue : 0);
+  const [activeOrders, setActiveOrders] = useState<any[]>(isDemoMode ? DEMO_ORDERS.filter(o => ["pending", "preparing", "ready"].includes(o.status)) : []);
   
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -40,6 +42,7 @@ export const RestaurantDashboardTab = ({ businessName, currency = "GBP", busines
   const [manualOrderOpen, setManualOrderOpen] = useState(false);
 
   useEffect(() => {
+    if (isDemoMode) return; // Skip data loading in demo mode
     loadDashboardData();
 
     // Set up realtime subscriptions for orders

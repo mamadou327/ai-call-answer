@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, addMinutes } from "date-fns";
 import { Search, Clock, Phone, ChefHat, CheckCircle, XCircle, RefreshCw, Package } from "lucide-react";
 import { OrderReceiptDialog } from "./OrderReceiptDialog";
+import { DEMO_ORDERS } from "@/lib/demoData";
 
 interface OrderItem {
   item_id?: string;
@@ -43,6 +44,7 @@ interface OrdersTabProps {
   businessId: string;
   currency?: string;
   averagePrepTime?: number;
+  isDemoMode?: boolean;
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -53,9 +55,9 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
   cancelled: { label: "Cancelled", color: "bg-destructive", icon: <XCircle className="w-4 h-4" /> },
 };
 
-export function OrdersTab({ businessId, currency = "GBP", averagePrepTime = 20 }: OrdersTabProps) {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+export function OrdersTab({ businessId, currency = "GBP", averagePrepTime = 20, isDemoMode = false }: OrdersTabProps) {
+  const [orders, setOrders] = useState<Order[]>(isDemoMode ? DEMO_ORDERS as Order[] : []);
+  const [loading, setLoading] = useState(!isDemoMode);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -92,6 +94,7 @@ export function OrdersTab({ businessId, currency = "GBP", averagePrepTime = 20 }
   };
 
   useEffect(() => {
+    if (isDemoMode) return; // Skip data loading in demo mode
     loadOrders();
 
     // Subscribe to realtime updates

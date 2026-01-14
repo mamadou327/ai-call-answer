@@ -11,9 +11,11 @@ import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getCurrencySymbol } from "@/lib/utils";
+import { DEMO_BOOKINGS_LIST, DEMO_CANCELLED_BOOKINGS } from "@/lib/demoData";
 
 interface BookingsTabProps {
   businessId: string;
+  isDemoMode?: boolean;
 }
 
 interface Booking {
@@ -36,20 +38,24 @@ interface Booking {
   creator_name?: string;
 }
 
-export const BookingsTab = ({ businessId }: BookingsTabProps) => {
+export const BookingsTab = ({ businessId, isDemoMode = false }: BookingsTabProps) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [bookings, setBookings] = useState<Booking[]>(isDemoMode ? DEMO_BOOKINGS_LIST as Booking[] : []);
+  const [loading, setLoading] = useState(!isDemoMode);
   const [showAll, setShowAll] = useState(false);
   const [cancelledOpen, setCancelledOpen] = useState(false);
   const [currency, setCurrency] = useState<string>("USD");
 
   // Fetch business currency
   useEffect(() => {
+    if (isDemoMode) {
+      setCurrency("GBP");
+      return;
+    }
     const fetchCurrency = async () => {
       const { data } = await supabase
         .from("business_settings")
@@ -64,6 +70,7 @@ export const BookingsTab = ({ businessId }: BookingsTabProps) => {
   }, [businessId]);
 
   useEffect(() => {
+    if (isDemoMode) return; // Skip data loading in demo mode
     loadBookings();
     
     // Set up realtime subscription with smart updates (no loading state flash)

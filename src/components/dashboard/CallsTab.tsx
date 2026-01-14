@@ -9,9 +9,11 @@ import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, end
 import { CallDetailsDialog } from "./CallDetailsDialog";
 import { DateRangePicker } from "./DateRangePicker";
 import { DateRange } from "react-day-picker";
+import { DEMO_CALLS_STATS, DEMO_CALLS } from "@/lib/demoData";
 
 interface CallsTabProps {
   businessId?: string;
+  isDemoMode?: boolean;
 }
 
 interface CallLog {
@@ -49,20 +51,20 @@ const callTypeBadgeVariants: Record<string, "default" | "secondary" | "destructi
   other: "outline",
 };
 
-export const CallsTab = ({ businessId }: CallsTabProps) => {
+export const CallsTab = ({ businessId, isDemoMode = false }: CallsTabProps) => {
   const { t } = useTranslation();
-  const [calls, setCalls] = useState<CallLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [calls, setCalls] = useState<CallLog[]>(isDemoMode ? DEMO_CALLS as CallLog[] : []);
+  const [loading, setLoading] = useState(!isDemoMode);
   const [selectedCall, setSelectedCall] = useState<CallLog | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   
   // Analytics state
   const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "custom">("month");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
-  const [totalCalls, setTotalCalls] = useState(0);
-  const [bookingsCreated, setBookingsCreated] = useState(0);
-  const [enquiries, setEnquiries] = useState(0);
-  const [cancellations, setCancellations] = useState(0);
+  const [totalCalls, setTotalCalls] = useState(isDemoMode ? DEMO_CALLS_STATS.totalCalls : 0);
+  const [bookingsCreated, setBookingsCreated] = useState(isDemoMode ? DEMO_CALLS_STATS.bookingsCreated : 0);
+  const [enquiries, setEnquiries] = useState(isDemoMode ? DEMO_CALLS_STATS.enquiries : 0);
+  const [cancellations, setCancellations] = useState(isDemoMode ? DEMO_CALLS_STATS.cancellations : 0);
 
   const getDateRange = () => {
     const now = new Date();
@@ -94,6 +96,7 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
   };
 
   useEffect(() => {
+    if (isDemoMode) return; // Skip data loading in demo mode
     if (businessId) {
       loadCalls();
       loadAnalytics();
@@ -151,10 +154,11 @@ export const CallsTab = ({ businessId }: CallsTabProps) => {
 
   // Reload analytics when date range changes
   useEffect(() => {
+    if (isDemoMode) return; // Skip in demo mode
     if (businessId) {
       loadAnalytics();
     }
-  }, [businessId, dateRange, customDateRange]);
+  }, [businessId, dateRange, customDateRange, isDemoMode]);
 
   const loadAnalytics = async () => {
     if (!businessId) return;
