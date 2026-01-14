@@ -83,8 +83,8 @@ function normalizeDialNumber(raw: string): string {
   return `+${digits}`;
 }
 
-// Maximum reconnect attempts before giving up
-const MAX_RECONNECTS = 2;
+// Maximum reconnect attempts before switching to a fallback flow
+const MAX_RECONNECTS = 4;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -245,13 +245,15 @@ Deno.serve(async (req) => {
       });
     }
     
-    // Max reconnects reached - end the call gracefully
-    console.log("[StreamAction] Max reconnects reached, ending call");
-    
+    // Max reconnects reached - switch to a fallback flow instead of hanging up
+    console.log("[StreamAction] Max reconnects reached, switching to fallback voice flow");
+
+    const fallbackUrl = `${supabaseUrl}/functions/v1/twilio-voice-webhook/${token}`;
+
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Amy-Neural" language="en-GB">We're experiencing technical difficulties. Please call back in a moment. Goodbye.</Say>
-  <Hangup/>
+  <Say voice="Polly.Amy-Neural" language="en-GB">Sorry — we had a technical glitch. I’m switching to our backup system so we can finish helping you.</Say>
+  <Redirect method="POST">${escapeXml(fallbackUrl)}</Redirect>
 </Response>`;
 
     return new Response(twiml, {
