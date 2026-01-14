@@ -108,12 +108,53 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const recipientPhone = normalizePhoneToE164(order.customer_phone);
+    let recipientPhone = normalizePhoneToE164(order.customer_phone);
 
-    if (!recipientPhone) {
-      console.log(`[send-order-sms] Invalid/missing customer phone for order ${orderId}`);
+    // If customer_phone is same as Twilio number or invalid, try to get from call log
+    const twilioNumber = normalizePhoneToE164(business.twilio_phone_number);
+    if (!recipientPhone || recipientPhone === twilioNumber) {
+      console.log(`[send-order-sms] Customer phone same as Twilio number or invalid, checking call log for order ${orderId}`);
+      
+      // Try to get phone from the call that created this order
+      if (order.call_id) {
+        const { data: callLog } = await supabase
+          .from("calls_log")
+          .select("caller_phone")
+          .eq("id", order.call_id)
+          .single();
+        
+        if (callLog?.caller_phone) {
+          const callPhone = normalizePhoneToE164(callLog.caller_phone);
+          if (callPhone && callPhone !== twilioNumber) {
+            recipientPhone = callPhone;
+            console.log(`[send-order-sms] Found valid phone from call log: ${recipientPhone}`);
+          }
+        }
+      }
+      
+      // Still no valid phone? Try customer database
+      if (!recipientPhone || recipientPhone === twilioNumber) {
+        const { data: customer } = await supabase
+          .from("customers")
+          .select("phone")
+          .eq("business_id", businessId)
+          .eq("name", order.customer_name)
+          .single();
+        
+        if (customer?.phone) {
+          const customerPhone = normalizePhoneToE164(customer.phone);
+          if (customerPhone && customerPhone !== twilioNumber) {
+            recipientPhone = customerPhone;
+            console.log(`[send-order-sms] Found valid phone from customer record: ${recipientPhone}`);
+          }
+        }
+      }
+    }
+
+    if (!recipientPhone || recipientPhone === twilioNumber) {
+      console.log(`[send-order-sms] Cannot send SMS - no valid distinct customer phone for order ${orderId}`);
       return new Response(
-        JSON.stringify({ success: false, reason: "Invalid or missing customer phone number" }),
+        JSON.stringify({ success: false, reason: "Customer phone is same as business Twilio number or invalid" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

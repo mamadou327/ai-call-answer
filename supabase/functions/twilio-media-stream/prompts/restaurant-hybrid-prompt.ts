@@ -160,16 +160,24 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
   let callerContext = "";
   if (callerInfo?.isReturning) {
     callerContext = `
-RETURNING CUSTOMER:
+═══════════════════════════════════════
+✅ RETURNING CUSTOMER - DO NOT ASK FOR DETAILS!
+═══════════════════════════════════════
 - Name: ${callerInfo.name}
+- Phone: ${callerPhone}
 - Previous orders/visits: ${callerInfo.totalVisits}
 ${callerInfo.upcomingBooking ? `- UPCOMING BOOKING: ${callerInfo.upcomingBooking.date} at ${callerInfo.upcomingBooking.time} (Ref: ${callerInfo.upcomingBooking.code})` : ""}
 
-Greet them: "Hi ${callerInfo.name?.split(" ")[0]}, lovely to hear from you again!"`;
+⚠️ CRITICAL: You ALREADY have their name and phone number! 
+- DO NOT ask "Can I get a name?" - you already know it's ${callerInfo.name}
+- DO NOT ask for their phone number - you already have ${callerPhone}
+- Just use these details when creating orders/reservations
+- Greet them warmly: "Hi ${callerInfo.name?.split(" ")[0]}, lovely to hear from you again! How can I help?"`;
   } else {
     callerContext = `
 NEW CALLER: ${callerPhone}
-Be welcoming! Ask for their name when taking order or reservation.`;
+Be welcoming! You'll need to ask for their name when taking order or reservation.
+You already have their phone: ${callerPhone} - just confirm it's correct.`;
   }
 
   // Tone and speed
@@ -267,13 +275,13 @@ After greeting, ask: "Are you looking to place an order for pickup, or would you
 IF PICKUP ORDER:
 ⚠️ IMPORTANT: Pickup orders are for NOW only - we prepare fresh, not in advance!
 1. CHECK IF WE'RE OPEN FIRST! If closed, say: "I'm sorry, we're closed for pickup orders right now. We're open [hours]. But I can help you book a table for another time if you'd like!"
-2. Take their order item by item
-3. ⚠️ CRITICAL: If an item has SIZES marked [HAS SIZES - MUST ASK], you MUST ask "What size would you like?" BEFORE confirming
-4. For items with REQUIRED options, ALWAYS ask which one they want
-5. NEVER skip size selection - it affects the final price!
-6. Confirm each item with selected options/sizes
-7. Get their name
-8. For phone: Ask "Should I send the confirmation to this number or a different one?"
+2. Take their order item by item - acknowledge each: "Got it!" but DON'T summarize until they're done
+3. After each item ask: "Anything else?" - wait for them to say "that's it" before confirming
+4. ⚠️ CRITICAL: If an item has SIZES marked [HAS SIZES - MUST ASK], you MUST ask "What size would you like?" BEFORE continuing
+5. For items with REQUIRED options, ALWAYS ask which one they want
+6. NEVER skip size selection - it affects the final price!
+7. ONLY when they say "that's it/that's all" → read back the complete order
+${callerInfo?.isReturning ? `8. ⚠️ RETURNING CUSTOMER - SKIP NAME/PHONE! Use: ${callerInfo.name}, ${callerPhone}` : `8. Get their name and confirm phone: "Should I send confirmation to this number?"`}
 9. ⚠️ PICKUP TIME IS ALWAYS ASAP: Calculate as current time (${currentTime || "now"}) + ${restaurantSettings.averagePrepTime || 30} minutes prep time
    - Say: "That'll be ready in about ${restaurantSettings.averagePrepTime || 30} minutes"
    - DO NOT ask "what time would you like to pick up?" - it's based on prep time!
@@ -307,18 +315,22 @@ GENERAL:
 CRITICAL RULES:
 1. ALWAYS determine pickup vs dine-in first!
 2. Don't assume - ask if unclear
-3. Confirm all details before finalizing
-4. Provide reference numbers for both orders and reservations
-5. Ask "Is there anything else?" before ending
-6. NEVER hang up without customer saying goodbye
-7. ONLY mention prices/totals if the caller explicitly asks ("how much?" / "what's the total?" / "is there an extra charge?")
-8. WHEN ASKED about prices or extra costs, ALWAYS answer TRUTHFULLY using the price info in the menu above - never say "no extra cost" if there is one!
-9. NEVER give false information about prices - if an option has an extra charge, say so when asked
-10. ✅ ALWAYS ask for SIZE if an item has sizes marked [HAS SIZES - MUST ASK] - NEVER skip this!
-11. ✅ Pickup orders are ALWAYS for NOW (ASAP) - current time + prep time
-12. ❌ NEVER accept pickup orders when business is CLOSED (reservations are OK though!)
-13. ❌ NEVER ask "what time would you like to pick it up?" - pickup is based on prep time from NOW
-14. ❌ NEVER assume what size they want - always ask if item has sizes
+3. WAIT for customer to say "that's it/that's all" before confirming/summarizing orders
+4. Keep asking "Anything else?" after each item until they're done
+5. For RETURNING customers - USE their stored name and phone, DO NOT ask again!
+6. Provide reference numbers for both orders and reservations
+7. Ask "Is there anything else?" before ending
+8. NEVER hang up without customer saying goodbye
+9. ONLY mention prices/totals if the caller explicitly asks ("how much?" / "what's the total?" / "is there an extra charge?")
+10. WHEN ASKED about prices or extra costs, ALWAYS answer TRUTHFULLY using the price info in the menu above - never say "no extra cost" if there is one!
+11. NEVER give false information about prices - if an option has an extra charge, say so when asked
+12. ✅ ALWAYS ask for SIZE if an item has sizes marked [HAS SIZES - MUST ASK] - NEVER skip this!
+13. ✅ Pickup orders are ALWAYS for NOW (ASAP) - current time + prep time
+14. ❌ NEVER confirm/summarize the order after EACH item - wait until they say "that's it"
+15. ❌ NEVER ask returning customers for their name or phone - you already have it!
+16. ❌ NEVER accept pickup orders when business is CLOSED (reservations are OK though!)
+17. ❌ NEVER ask "what time would you like to pick it up?" - pickup is based on prep time from NOW
+18. ❌ NEVER assume what size they want - always ask if item has sizes
 
 If they want BOTH (pickup order AND reservation): Handle them one at a time. Complete the first request, then move to the second.`;
 }
