@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isTomorrow, startOfDay, addDays } from "date-fns";
 import { Search, Users, Clock, Phone, CheckCircle, XCircle, RefreshCw, CalendarDays, Plus, Armchair } from "lucide-react";
+import { DEMO_RESERVATIONS } from "@/lib/demoData";
 
 interface Reservation {
   id: string;
@@ -40,6 +41,7 @@ interface Table {
 
 interface ReservationsTabProps {
   businessId: string;
+  isDemoMode?: boolean;
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -50,10 +52,10 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
   cancelled: { label: "Cancelled", color: "bg-destructive", icon: <XCircle className="w-4 h-4" /> },
 };
 
-export function ReservationsTab({ businessId }: ReservationsTabProps) {
-  const [reservations, setReservations] = useState<Reservation[]>([]);
+export function ReservationsTab({ businessId, isDemoMode = false }: ReservationsTabProps) {
+  const [reservations, setReservations] = useState<Reservation[]>(isDemoMode ? DEMO_RESERVATIONS as Reservation[] : []);
   const [tables, setTables] = useState<Table[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isDemoMode);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState<string>("today");
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
@@ -117,6 +119,7 @@ export function ReservationsTab({ businessId }: ReservationsTabProps) {
   };
 
   useEffect(() => {
+    if (isDemoMode) return; // Skip data loading in demo mode
     loadData();
 
     // Subscribe to realtime updates

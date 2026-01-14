@@ -19,6 +19,8 @@ import { ReservationsTab } from "@/components/dashboard/ReservationsTab";
 import { AccountMenu } from "@/components/AccountMenu";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
+import { Badge } from "@/components/ui/badge";
+import { isDemoAccount, DEMO_BUSINESS, DEMO_SETTINGS } from "@/lib/demoData";
 interface Business {
   id: string;
   business_name: string;
@@ -55,6 +57,8 @@ const Dashboard = () => {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isStaffView, setIsStaffView] = useState(false);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  
   // Track unread messages count
   useEffect(() => {
     if (!business?.id) return;
@@ -124,6 +128,26 @@ const Dashboard = () => {
         return;
       }
       setUser(user);
+
+      // Check if this is a demo account
+      if (isDemoAccount(user.email)) {
+        setIsDemoMode(true);
+        setUserRole("business_owner");
+        
+        // Get the demo business type based on email
+        const demoType = user.email?.includes("salon") ? "salon" 
+          : user.email?.includes("pickup") ? "restaurant_pickup"
+          : user.email?.includes("dinein") ? "restaurant_dine_in"
+          : user.email?.includes("hybrid") ? "restaurant_hybrid"
+          : "salon";
+        
+        const demoBiz = DEMO_BUSINESS[demoType as keyof typeof DEMO_BUSINESS] || DEMO_BUSINESS.salon;
+        setBusiness(demoBiz as unknown as Business);
+        setSettings(DEMO_SETTINGS);
+        setChecklistItems([]);
+        setLoading(false);
+        return;
+      }
 
       // Check user roles
       const {
@@ -372,9 +396,14 @@ const Dashboard = () => {
           <div className="flex items-center gap-2 sm:gap-3">
             <img alt="Aivia" className="h-8 sm:h-12 w-auto object-fill" src="/lovable-uploads/46fe3693-5209-4fc3-ae63-c34586186b41.png" />
             <span className="text-sm sm:text-base font-mono font-extrabold hidden xs:inline">AIVIA</span>
+            {isDemoMode && (
+              <Badge variant="outline" className="ml-2 bg-yellow-100 text-yellow-800 border-yellow-300 font-semibold">
+                DEMO MODE
+              </Badge>
+            )}
           </div>
           <div className="flex items-center">
-            {business && user && <AccountMenu businessName={business.business_name} userEmail={user.email || ""} planTier={business.plan_tier} aiviaActive={business.aivia_active} businessId={business.id} onAiviaToggle={active => setBusiness({
+            {business && user && <AccountMenu businessName={business.business_name} userEmail={user.email || ""} planTier={business.plan_tier} aiviaActive={business.aivia_active} businessId={business.id} onAiviaToggle={active => !isDemoMode && setBusiness({
             ...business,
             aivia_active: active
           })} />}
@@ -474,12 +503,14 @@ const Dashboard = () => {
                       businessId={business.id} 
                       businessType={business.business_type || ""}
                       averagePrepTime={business.average_prep_time_minutes || 20}
+                      isDemoMode={isDemoMode}
                     />
                   ) : (
                     <SalonDashboardTab 
                       businessName={business.business_name} 
                       currency={settings.currency || "GBP"} 
-                      businessId={business.id} 
+                      businessId={business.id}
+                      isDemoMode={isDemoMode}
                     />
                   )
                 )}
@@ -492,7 +523,7 @@ const Dashboard = () => {
                     <CalendarTab businessId={business.id} currency={settings?.currency || "GBP"} />
                   </TabsContent>
                   <TabsContent value="bookings">
-                    <BookingsTab businessId={business.id} />
+                    <BookingsTab businessId={business.id} isDemoMode={isDemoMode} />
                   </TabsContent>
                 </>
               )}
@@ -500,24 +531,24 @@ const Dashboard = () => {
               {/* Orders tab for pickup and hybrid restaurants */}
               {(business.business_type === "restaurant_pickup" || business.business_type === "restaurant_hybrid") && (
                 <TabsContent value="orders">
-                  <OrdersTab businessId={business.id} currency={settings?.currency || "GBP"} averagePrepTime={business.average_prep_time_minutes || 20} />
+                  <OrdersTab businessId={business.id} currency={settings?.currency || "GBP"} averagePrepTime={business.average_prep_time_minutes || 20} isDemoMode={isDemoMode} />
                 </TabsContent>
               )}
 
               {/* Reservations tab for dine-in and hybrid restaurants */}
               {(business.business_type === "restaurant_dine_in" || business.business_type === "restaurant_hybrid") && (
                 <TabsContent value="reservations">
-                  <ReservationsTab businessId={business.id} />
+                  <ReservationsTab businessId={business.id} isDemoMode={isDemoMode} />
                 </TabsContent>
               )}
 
               {!isStaffView && <>
                   <TabsContent value="calls">
-                    <CallsTab businessId={business.id} />
+                    <CallsTab businessId={business.id} isDemoMode={isDemoMode} />
                   </TabsContent>
 
                   <TabsContent value="messages">
-                    <MessagesTab businessId={business.id} />
+                    <MessagesTab businessId={business.id} isDemoMode={isDemoMode} />
                   </TabsContent>
                 </>}
 

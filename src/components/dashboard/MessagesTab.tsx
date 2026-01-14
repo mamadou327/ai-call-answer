@@ -8,9 +8,11 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { DEMO_MESSAGES } from "@/lib/demoData";
 
 interface MessagesTabProps {
   businessId?: string;
+  isDemoMode?: boolean;
 }
 
 interface Message {
@@ -27,13 +29,14 @@ interface Message {
   staff?: { name: string } | null;
 }
 
-export const MessagesTab = ({ businessId }: MessagesTabProps) => {
+export const MessagesTab = ({ businessId, isDemoMode = false }: MessagesTabProps) => {
   const { t } = useTranslation();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [messages, setMessages] = useState<Message[]>(isDemoMode ? DEMO_MESSAGES as Message[] : []);
+  const [loading, setLoading] = useState(!isDemoMode);
   const [filter, setFilter] = useState<"all" | "urgent" | "unread" | "archived">("all");
 
   useEffect(() => {
+    if (isDemoMode) return; // Skip data loading in demo mode
     if (businessId) {
       loadMessages();
       

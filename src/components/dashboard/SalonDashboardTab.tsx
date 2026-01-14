@@ -9,25 +9,32 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { StatDetailDialog } from "./StatDetailDialog";
+import { 
+  DEMO_SALON_STATS, 
+  DEMO_TODAYS_APPOINTMENTS, 
+  DEMO_UPCOMING_BOOKINGS, 
+  DEMO_CANCELLED_BOOKINGS 
+} from "@/lib/demoData";
 
 interface SalonDashboardTabProps {
   businessName: string;
   currency?: string;
   businessId: string;
+  isDemoMode?: boolean;
 }
 
-export const SalonDashboardTab = ({ businessName, currency = "GBP", businessId }: SalonDashboardTabProps) => {
+export const SalonDashboardTab = ({ businessName, currency = "GBP", businessId, isDemoMode = false }: SalonDashboardTabProps) => {
   const { t } = useTranslation();
   const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "custom">("month");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
-  const [bookingsCount, setBookingsCount] = useState(0);
-  const [cancelledCount, setCancelledCount] = useState(0);
-  const [callsCount, setCallsCount] = useState(0);
-  const [messagesCount, setMessagesCount] = useState(0);
-  const [todaysAppointments, setTodaysAppointments] = useState<any[]>([]);
-  const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
-  const [cancelledBookings, setCancelledBookings] = useState<any[]>([]);
-  const [revenue, setRevenue] = useState(0);
+  const [bookingsCount, setBookingsCount] = useState(isDemoMode ? DEMO_SALON_STATS.bookingsCount : 0);
+  const [cancelledCount, setCancelledCount] = useState(isDemoMode ? DEMO_SALON_STATS.cancelledCount : 0);
+  const [callsCount, setCallsCount] = useState(isDemoMode ? DEMO_SALON_STATS.callsCount : 0);
+  const [messagesCount, setMessagesCount] = useState(isDemoMode ? DEMO_SALON_STATS.messagesCount : 0);
+  const [todaysAppointments, setTodaysAppointments] = useState<any[]>(isDemoMode ? DEMO_TODAYS_APPOINTMENTS : []);
+  const [upcomingBookings, setUpcomingBookings] = useState<any[]>(isDemoMode ? DEMO_UPCOMING_BOOKINGS : []);
+  const [cancelledBookings, setCancelledBookings] = useState<any[]>(isDemoMode ? DEMO_CANCELLED_BOOKINGS : []);
+  const [revenue, setRevenue] = useState(isDemoMode ? DEMO_SALON_STATS.revenue : 0);
   
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -35,6 +42,7 @@ export const SalonDashboardTab = ({ businessName, currency = "GBP", businessId }
   const [dialogData, setDialogData] = useState<any[]>([]);
 
   useEffect(() => {
+    if (isDemoMode) return; // Skip data loading in demo mode
     loadDashboardData();
 
     // Set up realtime subscriptions
