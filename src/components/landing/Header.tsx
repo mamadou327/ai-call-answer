@@ -6,7 +6,7 @@ import { Menu } from "lucide-react";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import ContactDialog from "./ContactDialog";
 
-export type ActiveSection = 'features' | 'how-it-works' | 'pricing' | 'demo' | null;
+export type ActiveSection = 'features' | 'how-it-works' | 'pricing' | 'demo' | 'faq' | null;
 
 interface HeaderProps {
   activeSection?: ActiveSection;
@@ -21,6 +21,7 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
   const navLinks: { label: string; section: ActiveSection }[] = [
     { label: "Features", section: "features" },
     { label: "Pricing", section: "pricing" },
+    { label: "FAQ", section: "faq" },
   ];
 
   const handleNavClick = (section: ActiveSection) => {
