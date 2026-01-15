@@ -21,7 +21,7 @@ const HeroSection = () => {
 
         {/* Sub-headline */}
         <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-          AI that answers your phone, books appointments, and takes orders — so you never miss another customer again.
+          AI that answers your phone, books appointments, and takes orders so you never miss another customer again.
         </p>
 
         {/* Demo CTA Badge */}

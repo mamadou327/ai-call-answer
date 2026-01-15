@@ -60,7 +60,7 @@ const HowItWorksDialog = ({ children }: HowItWorksDialogProps) => {
                 <h3 className="font-semibold text-lg">Aivia answers every call, 24/7</h3>
               </div>
               <p className="text-muted-foreground leading-relaxed pl-11">
-                When a customer calls your number, Aivia picks up instantly with your restaurant name, speaks naturally, and asks how it can help. It understands what they say, checks your availability, and takes orders, makes reservations, or answers questions — just like a real receptionist.
+                When a customer calls your number, Aivia picks up instantly with your restaurant name, speaks naturally, and asks how it can help. It understands what they say, checks your availability, and takes orders, makes reservations, or answers questions just like a real receptionist.
               </p>
               {/* Conversation Example */}
               <div className="bg-muted/50 rounded-xl p-4 ml-11 space-y-3">
@@ -132,7 +132,7 @@ const HowItWorksDialog = ({ children }: HowItWorksDialogProps) => {
                 <h3 className="font-semibold text-lg">Customers get instant confirmations & reminders</h3>
               </div>
               <p className="text-muted-foreground leading-relaxed pl-11">
-                After every order or reservation, Aivia can automatically send SMS confirmations and reminders, so your customers know exactly when to arrive — and you get fewer no-shows.
+                After every order or reservation, Aivia can automatically send SMS confirmations and reminders, so your customers know exactly when to arrive and you get fewer no-shows.
               </p>
               {/* SMS Preview */}
               <div className="bg-muted/50 rounded-xl p-4 ml-11">
