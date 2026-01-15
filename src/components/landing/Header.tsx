@@ -52,7 +52,7 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
             onClick={() => navigate("/")} 
             className="flex items-center hover:opacity-80 transition-opacity"
           >
-            <img src={aiviaLogo} alt="AIVIA" className="h-12 w-auto" width="78" height="48" />
+            <img src={aiviaLogo} alt="AIVIA" className="h-12 w-auto" width="78" height="48" loading="eager" fetchPriority="high" decoding="async" />
           </button>
 
           {/* Desktop Navigation */}
