@@ -14,9 +14,7 @@ const HeroSection = () => {
 
         {/* Main Headline */}
         <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 text-foreground">
-          Stop Losing Customers
-          <br />
-          <span className="text-muted-foreground">to Missed Calls</span>
+          Every Call Answered. Every Order Taken. Every Table Booked.
         </h1>
 
         {/* Sub-headline */}
