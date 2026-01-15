@@ -1,32 +1,22 @@
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 
 const Footer = () => {
-  const navigate = useNavigate();
-
   const footerLinks = {
     product: [
       { label: "Features", href: "#features" },
       { label: "Pricing", href: "#pricing" },
-      { label: "Demo", href: "#demo" },
-    ],
-    resources: [
-      { label: "Help Center", href: "#" },
-      { label: "FAQ", href: "#" },
-      { label: "Blog", href: "#" },
     ],
     company: [
       { label: "About Us", href: "#" },
       { label: "Contact", href: "#" },
-      { label: "Careers", href: "#" },
+      { label: "FAQ", href: "#faq" },
     ]
   };
 
   return (
     <footer className="border-t-2 border-border bg-background">
       <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
           {/* Logo & Description */}
           <div className="col-span-2">
             <div className="flex items-center gap-2 mb-4">
@@ -43,23 +33,6 @@ const Footer = () => {
             <h4 className="font-semibold mb-4">Product</h4>
             <ul className="space-y-2">
               {footerLinks.product.map((link, index) => (
-                <li key={index}>
-                  <a 
-                    href={link.href} 
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Resources Links */}
-          <div>
-            <h4 className="font-semibold mb-4">Resources</h4>
-            <ul className="space-y-2">
-              {footerLinks.resources.map((link, index) => (
                 <li key={index}>
                   <a 
                     href={link.href} 
@@ -91,25 +64,10 @@ const Footer = () => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t border-border pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="border-t border-border pt-8 flex items-center justify-center">
           <p className="text-sm text-muted-foreground">
             © 2025 AIVIA. All rights reserved.
           </p>
-          <div className="flex items-center gap-6">
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Privacy Policy
-            </a>
-            <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Terms of Service
-            </a>
-            <Button 
-              variant="link" 
-              onClick={() => navigate("/staff/login")}
-              className="text-sm text-muted-foreground hover:text-foreground p-0 h-auto"
-            >
-              Staff Login
-            </Button>
-          </div>
         </div>
       </div>
     </footer>

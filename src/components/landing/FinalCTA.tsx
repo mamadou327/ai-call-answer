@@ -1,15 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Check, Headphones } from "lucide-react";
+import { Headphones } from "lucide-react";
 
 const FinalCTA = () => {
   const navigate = useNavigate();
-
-  const trustPoints = [
-    "Free 14-day trial",
-    "No credit card required",
-    "Cancel anytime"
-  ];
 
   return (
     <section className="container mx-auto px-4 py-16 md:py-24">
@@ -19,18 +13,18 @@ const FinalCTA = () => {
             Ready to Transform Your Business?
           </h2>
           <p className="text-primary-foreground/80 text-lg mb-8">
-            Join 200+ UK salons and restaurants using AIVIA to grow their business and never miss a customer again.
+            Transform the way your business handles calls with AI-powered assistance that never misses a customer.
           </p>
 
           {/* CTAs */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
               size="lg" 
               variant="secondary"
               onClick={() => navigate("/auth")}
               className="text-lg px-8"
             >
-              Start Free Trial
+              Get Started
             </Button>
             <Button 
               size="lg" 
@@ -44,16 +38,6 @@ const FinalCTA = () => {
               <Headphones className="w-5 h-5" />
               Book a Demo
             </Button>
-          </div>
-
-          {/* Trust Points */}
-          <div className="flex flex-wrap items-center justify-center gap-6">
-            {trustPoints.map((point, index) => (
-              <div key={index} className="flex items-center gap-2 text-sm text-primary-foreground/80">
-                <Check className="w-4 h-4" />
-                <span>{point}</span>
-              </div>
-            ))}
           </div>
         </div>
       </div>

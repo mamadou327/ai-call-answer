@@ -261,6 +261,14 @@ const Auth = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/")}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Home
+          </Button>
           <CardHeader className="text-center">
             <div className="flex items-center justify-center gap-3 mb-4">
               <img src={aiviaLogo} alt="Aivia" className="h-20 w-auto" />
@@ -337,6 +345,14 @@ const Auth = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
+        <Button
+          variant="ghost"
+          onClick={() => navigate("/")}
+          className="mb-4"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Home
+        </Button>
         <CardHeader className="text-center">
           <div className="flex items-center justify-center gap-3 mb-4">
             <img src={aiviaLogo} alt="Aivia" className="h-20 w-auto" />
