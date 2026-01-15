@@ -264,107 +264,182 @@ const DemoDashboard = () => {
       </div>
 
       {/* Phone Mockup - Mobile Dashboard */}
-      <div className="absolute -right-2 md:right-4 lg:right-8 bottom-16 md:bottom-24 w-32 md:w-40 z-10 animate-float hidden sm:block">
-        <div className="bg-foreground rounded-[24px] p-1.5 shadow-2xl">
-          <div className="bg-background rounded-[20px] overflow-hidden">
+      <div className="absolute -right-2 md:right-4 lg:right-12 bottom-8 md:bottom-16 w-36 md:w-44 z-10 animate-float hidden sm:block">
+        <div className="bg-foreground rounded-[28px] p-1.5 shadow-2xl">
+          <div className="bg-background rounded-[24px] overflow-hidden">
             {/* Phone Status Bar */}
-            <div className="bg-muted px-3 py-1.5 flex justify-between items-center text-[8px] border-b border-border">
+            <div className="bg-muted px-3 py-1 flex justify-between items-center text-[8px] border-b border-border">
               <span className="font-medium">9:41</span>
               <div className="flex gap-1 items-center">
-                <div className="w-3 h-2 bg-foreground rounded-sm" />
+                <svg className="w-3 h-2" viewBox="0 0 17 10" fill="currentColor">
+                  <rect x="0" y="3" width="3" height="7" rx="0.5" fillOpacity="0.3"/>
+                  <rect x="4" y="2" width="3" height="8" rx="0.5" fillOpacity="0.5"/>
+                  <rect x="8" y="1" width="3" height="9" rx="0.5" fillOpacity="0.7"/>
+                  <rect x="12" y="0" width="3" height="10" rx="0.5"/>
+                </svg>
+                <div className="w-4 h-2 border border-current rounded-sm relative">
+                  <div className="absolute inset-0.5 bg-current rounded-xs" style={{ width: '70%' }} />
+                </div>
               </div>
             </div>
             
-            {/* Phone Content */}
-            <div className="p-2.5 space-y-2 min-h-[200px]">
-              {/* Mini Header */}
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-bold truncate">{businessConfig.name}</div>
-                <div className="w-2 h-2 rounded-full bg-green-500" />
+            {/* Phone Dashboard Content */}
+            <div className="p-2 space-y-2 min-h-[240px]">
+              {/* Mini Header - Matching Laptop */}
+              <div className="flex items-center justify-between pb-1 border-b border-border">
+                <div>
+                  <div className="text-[9px] font-bold truncate">{businessConfig.name}</div>
+                  <div className="text-[6px] text-muted-foreground">{businessConfig.subtitle}</div>
+                </div>
+                <Badge variant="outline" className="text-[5px] px-1 py-0 h-3 gap-0.5">
+                  <div className="w-1 h-1 rounded-full bg-green-500" />
+                  Active
+                </Badge>
               </div>
               
-              {/* Mini Stats Grid */}
-              <div className="grid grid-cols-2 gap-1.5">
-                <div className="bg-muted border border-border rounded p-1.5">
-                  <div className="text-[7px] text-muted-foreground">
-                    {selectedType === "dinein" ? "Tables" : "Orders"}
+              {/* Mini Tabs - Like the laptop */}
+              <div className="flex gap-0.5 bg-muted rounded p-0.5">
+                <div className="flex-1 bg-background rounded text-[6px] text-center py-0.5 font-medium shadow-sm">
+                  <LayoutDashboard className="w-2 h-2 mx-auto mb-0.5" />
+                </div>
+                <div className="flex-1 rounded text-[6px] text-center py-0.5 text-muted-foreground">
+                  {showOrders ? <ShoppingBag className="w-2 h-2 mx-auto mb-0.5" /> : <CalendarDays className="w-2 h-2 mx-auto mb-0.5" />}
+                </div>
+                <div className="flex-1 rounded text-[6px] text-center py-0.5 text-muted-foreground">
+                  <Phone className="w-2 h-2 mx-auto mb-0.5" />
+                </div>
+                <div className="flex-1 rounded text-[6px] text-center py-0.5 text-muted-foreground">
+                  <MessageSquare className="w-2 h-2 mx-auto mb-0.5" />
+                </div>
+              </div>
+              
+              {/* Mini Stats Grid - 4 cards like laptop */}
+              <div className="grid grid-cols-2 gap-1">
+                <Card className="border-border/50 p-1.5">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[6px] text-muted-foreground">
+                      {selectedType === "dinein" ? "Reservations" : "Orders"}
+                    </span>
+                    <Package className="w-2 h-2 text-muted-foreground" />
                   </div>
-                  <div className="text-sm font-bold">
+                  <div className="text-xs font-bold">
                     {selectedType === "dinein" 
                       ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount 
                       : (stats as typeof DEMO_RESTAURANT_STATS).ordersCount}
                   </div>
-                </div>
-                <div className="bg-muted border border-border rounded p-1.5">
-                  <div className="text-[7px] text-muted-foreground">
-                    {selectedType === "dinein" ? "Covers" : "Revenue"}
+                </Card>
+                <Card className="border-border/50 p-1.5">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[6px] text-muted-foreground">
+                      {selectedType === "dinein" ? "Seated" : "Completed"}
+                    </span>
+                    <CheckCircle className="w-2 h-2 text-green-500" />
                   </div>
-                  <div className="text-sm font-bold">
+                  <div className="text-xs font-bold text-green-600">
+                    {selectedType === "dinein" 
+                      ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount - (stats as typeof DEMO_RESERVATION_STATS).cancelledCount
+                      : (stats as typeof DEMO_RESTAURANT_STATS).completedCount}
+                  </div>
+                </Card>
+                <Card className="border-border/50 p-1.5">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[6px] text-muted-foreground">Cancelled</span>
+                    <XCircle className="w-2 h-2 text-destructive" />
+                  </div>
+                  <div className="text-xs font-bold text-destructive">
+                    {selectedType === "dinein" 
+                      ? (stats as typeof DEMO_RESERVATION_STATS).cancelledCount 
+                      : (stats as typeof DEMO_RESTAURANT_STATS).cancelledCount}
+                  </div>
+                </Card>
+                <Card className="border-border/50 p-1.5">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[6px] text-muted-foreground">
+                      {selectedType === "dinein" ? "Covers" : "Revenue"}
+                    </span>
+                    {selectedType === "dinein" ? (
+                      <Users className="w-2 h-2 text-muted-foreground" />
+                    ) : (
+                      <DollarSign className="w-2 h-2 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="text-xs font-bold">
                     {selectedType === "dinein" 
                       ? (stats as typeof DEMO_RESERVATION_STATS).totalCovers 
                       : `£${(stats as typeof DEMO_RESTAURANT_STATS).revenue.toFixed(0)}`}
                   </div>
-                </div>
+                </Card>
               </div>
               
-              {/* Mini Chart */}
-              <div className="bg-muted border border-border rounded p-1.5 h-10 flex items-end gap-0.5">
-                {[40, 65, 80, 55, 90, 60, 75].map((height, i) => (
-                  <div 
-                    key={i} 
-                    className="flex-1 bg-primary rounded-t"
-                    style={{ height: `${height}%` }}
-                  />
-                ))}
-              </div>
-              
-              {/* Mini Active Items */}
+              {/* Mini Active Section */}
               <div className="space-y-1">
-                <div className="text-[8px] font-medium text-muted-foreground">
-                  {showOrders ? "Active Orders" : "Upcoming"}
+                <div className="flex items-center justify-between">
+                  <span className="text-[7px] font-semibold">
+                    {showOrders ? "Active Orders" : "Today's Tables"}
+                  </span>
+                  <ChevronRight className="w-2 h-2 text-muted-foreground" />
                 </div>
                 {showOrders ? (
-                  <>
+                  <div className="space-y-1">
                     {DEMO_ORDERS.slice(0, 2).map((order, i) => (
-                      <div key={i} className="bg-secondary border border-border rounded p-1.5 flex items-center justify-between">
-                        <div>
-                          <div className="text-[8px] font-medium truncate max-w-[60px]">{order.customer_name.split(' ')[0]}</div>
-                          <div className="text-[7px] text-muted-foreground">#{order.order_number}</div>
+                      <Card key={i} className="border-border/50 p-1.5 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <div className={`w-1.5 h-1.5 rounded-full ${
+                            order.status === 'pending' ? 'bg-yellow-500' :
+                            order.status === 'preparing' ? 'bg-orange-500' :
+                            order.status === 'ready' ? 'bg-green-500' : 'bg-blue-500'
+                          }`} />
+                          <div>
+                            <div className="text-[7px] font-medium">#{order.order_number}</div>
+                            <div className="text-[6px] text-muted-foreground truncate max-w-[50px]">{order.customer_name.split(' ')[0]}</div>
+                          </div>
                         </div>
-                        <Badge variant="outline" className="text-[6px] px-1 py-0 h-3">
-                          {order.status}
-                        </Badge>
-                      </div>
+                        <div className="text-right">
+                          <div className="text-[7px] font-medium">£{order.total.toFixed(0)}</div>
+                          <Badge variant="outline" className="text-[5px] px-0.5 py-0 h-2.5 capitalize">
+                            {order.status}
+                          </Badge>
+                        </div>
+                      </Card>
                     ))}
-                  </>
+                  </div>
                 ) : (
-                  <>
+                  <div className="space-y-1">
                     {DEMO_RESERVATIONS.slice(0, 2).map((res, i) => (
-                      <div key={i} className="bg-secondary border border-border rounded p-1.5 flex items-center justify-between">
-                        <div>
-                          <div className="text-[8px] font-medium truncate max-w-[60px]">{res.customer_name.split(' ')[0]}</div>
-                          <div className="text-[7px] text-muted-foreground">{res.party_size} guests</div>
+                      <Card key={i} className="border-border/50 p-1.5 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-4 h-4 rounded bg-muted flex items-center justify-center">
+                            <Users className="w-2 h-2" />
+                          </div>
+                          <div>
+                            <div className="text-[7px] font-medium truncate max-w-[50px]">{res.customer_name.split(' ')[0]}</div>
+                            <div className="text-[6px] text-muted-foreground">{res.party_size} guests</div>
+                          </div>
                         </div>
-                        <div className="text-[7px] text-muted-foreground">
-                          {format(new Date(res.reservation_time), 'HH:mm')}
+                        <div className="text-right">
+                          <div className="text-[7px] font-medium">
+                            {format(new Date(res.reservation_time), 'HH:mm')}
+                          </div>
+                          <div className="text-[5px] text-muted-foreground">Table {res.table.table_number}</div>
                         </div>
-                      </div>
+                      </Card>
                     ))}
-                  </>
+                  </div>
                 )}
               </div>
             </div>
             
             {/* Phone Home Indicator */}
-            <div className="flex justify-center pb-1.5">
-              <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+            <div className="flex justify-center pb-1.5 pt-1">
+              <div className="w-12 h-1 bg-foreground/20 rounded-full" />
             </div>
           </div>
         </div>
         
-        {/* Phone Notch */}
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-14 h-4 bg-foreground rounded-b-xl flex items-center justify-center">
-          <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
+        {/* Phone Dynamic Island */}
+        <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-16 h-5 bg-foreground rounded-full flex items-center justify-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+          <div className="w-1 h-1 rounded-full bg-muted-foreground/50" />
         </div>
       </div>
 
