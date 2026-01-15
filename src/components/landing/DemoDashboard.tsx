@@ -707,13 +707,15 @@ const DemoDashboard = () => {
                       <Card className="cursor-pointer hover:bg-accent/50 transition-colors border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
                           <CardTitle className="text-[10px] font-medium">
-                            {selectedType === "dinein" ? "No Shows" : "Completed"}
+                            {selectedType === "dinein" ? "Seated" : "Completed"}
                           </CardTitle>
                           <CheckCircle className="w-3 h-3 text-green-500" />
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
                           <div className="text-lg font-bold text-green-600">
-                            {selectedType === "dinein" ? (stats as typeof DEMO_RESERVATION_STATS).noShowCount : (stats as typeof DEMO_RESTAURANT_STATS).completedCount}
+                            {selectedType === "dinein" 
+                              ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount - (stats as typeof DEMO_RESERVATION_STATS).cancelledCount
+                              : (stats as typeof DEMO_RESTAURANT_STATS).completedCount}
                           </div>
                           <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
