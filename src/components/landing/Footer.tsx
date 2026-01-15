@@ -3,11 +3,13 @@ import aiviaLogo from "@/assets/aivia-logo-new.png";
 import FeaturesDialog from "./FeaturesDialog";
 import PricingDialog from "./PricingDialog";
 import ContactDialog from "./ContactDialog";
+import AboutUsDialog from "./AboutUsDialog";
 
 const Footer = () => {
   const [featuresOpen, setFeaturesOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   const scrollToFaq = () => {
     const faqSection = document.getElementById('faq');
@@ -59,7 +61,7 @@ const Footer = () => {
               <ul className="space-y-2">
                 <li>
                   <button 
-                    onClick={() => setContactOpen(true)}
+                    onClick={() => setAboutOpen(true)}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     About Us
@@ -97,6 +99,7 @@ const Footer = () => {
       <FeaturesDialog open={featuresOpen} onOpenChange={setFeaturesOpen} />
       <PricingDialog open={pricingOpen} onOpenChange={setPricingOpen} />
       <ContactDialog open={contactOpen} onOpenChange={setContactOpen} />
+      <AboutUsDialog open={aboutOpen} onOpenChange={setAboutOpen} />
     </>
   );
 };
