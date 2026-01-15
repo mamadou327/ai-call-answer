@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   LayoutDashboard, 
   ShoppingBag, 
@@ -158,6 +158,19 @@ const DemoDashboard = () => {
   const [selectedOrder, setSelectedOrder] = useState<DemoOrder | null>(null);
   const [selectedReservation, setSelectedReservation] = useState<DemoReservation | null>(null);
   const [dateRange, setDateRange] = useState("today");
+  const [currentTime, setCurrentTime] = useState(() => {
+    const now = new Date();
+    return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  });
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
+    };
+    const interval = setInterval(updateTime, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Get config based on selected type
   const businessConfig = businessConfigs[selectedType];
@@ -286,7 +299,7 @@ const DemoDashboard = () => {
             <div className="bg-background rounded-[32px] overflow-hidden">
               {/* Status Bar */}
               <div className="px-6 pt-3 pb-1 flex justify-between items-center text-[11px]">
-                <span className="font-semibold">9:41</span>
+                <span className="font-semibold">{currentTime}</span>
                 <div className="w-[90px]" /> {/* Space for dynamic island */}
                 <div className="flex gap-1.5 items-center">
                   <svg className="w-4 h-3" viewBox="0 0 17 10" fill="currentColor">
@@ -1035,7 +1048,7 @@ const DemoDashboard = () => {
               <div className="bg-background rounded-[32px] overflow-hidden w-[280px]">
                 {/* Status Bar */}
                 <div className="px-6 pt-3 pb-1 flex justify-between items-center text-[11px]">
-                  <span className="font-semibold">9:41</span>
+                  <span className="font-semibold">{currentTime}</span>
                   <div className="w-[90px]" />
                   <div className="flex gap-1.5 items-center">
                     <svg className="w-4 h-3" viewBox="0 0 17 10" fill="currentColor">
