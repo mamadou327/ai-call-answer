@@ -5,6 +5,8 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import ContactDialog from "./ContactDialog";
+import FeaturesDialog from "./FeaturesDialog";
+import PricingDialog from "./PricingDialog";
 
 export type ActiveSection = 'features' | 'how-it-works' | 'pricing' | 'demo' | 'faq' | null;
 
@@ -17,20 +19,20 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
+  const [featuresOpen, setFeaturesOpen] = useState(false);
+  const [pricingOpen, setPricingOpen] = useState(false);
 
-  const navLinks: { label: string; section: ActiveSection }[] = [
-    { label: "Features", section: "features" },
-    { label: "Pricing", section: "pricing" },
-    { label: "FAQ", section: "faq" },
-  ];
-
-  const handleNavClick = (section: ActiveSection) => {
-    if (onSectionChange) {
-      // Toggle: if same section clicked, close it
-      if (activeSection === section) {
+  const handleNavClick = (section: string) => {
+    if (section === "features") {
+      setFeaturesOpen(true);
+    } else if (section === "pricing") {
+      setPricingOpen(true);
+    } else if (section === "faq" && onSectionChange) {
+      // Toggle FAQ section on page
+      if (activeSection === "faq") {
         onSectionChange(null);
       } else {
-        onSectionChange(section);
+        onSectionChange("faq");
       }
     }
     setMobileMenuOpen(false);
@@ -55,19 +57,28 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6">
-            {navLinks.map((link) => (
-              <button
-                key={link.label}
-                onClick={() => handleNavClick(link.section)}
-                className={`text-sm font-medium transition-colors ${
-                  activeSection === link.section
-                    ? "text-primary font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {link.label}
-              </button>
-            ))}
+            <button
+              onClick={() => handleNavClick("features")}
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Features
+            </button>
+            <button
+              onClick={() => handleNavClick("pricing")}
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Pricing
+            </button>
+            <button
+              onClick={() => handleNavClick("faq")}
+              className={`text-sm font-medium transition-colors ${
+                activeSection === "faq"
+                  ? "text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              FAQ
+            </button>
             <button
               onClick={handleContactClick}
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -96,19 +107,28 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
               </SheetTrigger>
               <SheetContent side="right" className="w-[280px]">
                 <nav className="flex flex-col gap-4 mt-8">
-                  {navLinks.map((link) => (
-                    <button
-                      key={link.label}
-                      onClick={() => handleNavClick(link.section)}
-                      className={`text-left py-2 text-lg font-medium transition-colors ${
-                        activeSection === link.section
-                          ? "text-primary font-semibold"
-                          : "text-foreground hover:text-primary"
-                      }`}
-                    >
-                      {link.label}
-                    </button>
-                  ))}
+                  <button
+                    onClick={() => handleNavClick("features")}
+                    className="text-left py-2 text-lg font-medium text-foreground hover:text-primary transition-colors"
+                  >
+                    Features
+                  </button>
+                  <button
+                    onClick={() => handleNavClick("pricing")}
+                    className="text-left py-2 text-lg font-medium text-foreground hover:text-primary transition-colors"
+                  >
+                    Pricing
+                  </button>
+                  <button
+                    onClick={() => handleNavClick("faq")}
+                    className={`text-left py-2 text-lg font-medium transition-colors ${
+                      activeSection === "faq"
+                        ? "text-primary font-semibold"
+                        : "text-foreground hover:text-primary"
+                    }`}
+                  >
+                    FAQ
+                  </button>
                   <button
                     onClick={handleContactClick}
                     className="text-left py-2 text-lg font-medium text-foreground hover:text-primary transition-colors"
@@ -145,6 +165,8 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
       </header>
 
       <ContactDialog open={contactOpen} onOpenChange={setContactOpen} />
+      <FeaturesDialog open={featuresOpen} onOpenChange={setFeaturesOpen} />
+      <PricingDialog open={pricingOpen} onOpenChange={setPricingOpen} />
     </>
   );
 };
