@@ -566,8 +566,10 @@ const DemoDashboard = () => {
         </div>
       </div>
 
-      {/* Laptop Frame - Hide on mobile, show on desktop */}
-      <div className="hidden md:block max-w-4xl mx-auto relative">
+      {/* Desktop: Laptop + Floating Phone */}
+      <div className="hidden md:flex items-start justify-center gap-8 lg:gap-12 max-w-6xl mx-auto relative">
+        {/* Laptop Frame */}
+        <div className="flex-shrink-0 max-w-4xl relative">
         <div className="relative bg-muted border-2 border-border rounded-t-xl pt-4 px-4 pb-0">
           {/* Browser Chrome */}
           <div className="flex items-center gap-2 mb-3">
@@ -1006,9 +1008,161 @@ const DemoDashboard = () => {
           </div>
         </div>
 
-        {/* Laptop Base */}
-        <div className="h-4 bg-muted border-2 border-t-0 border-border rounded-b-xl mx-8" />
-        <div className="h-2 bg-muted/50 border border-t-0 border-border/50 rounded-b-lg mx-16" />
+          {/* Laptop Base */}
+          <div className="h-4 bg-muted border-2 border-t-0 border-border rounded-b-xl mx-8" />
+          <div className="h-2 bg-muted/50 border border-t-0 border-border/50 rounded-b-lg mx-16" />
+        </div>
+
+        {/* Floating Phone Mockup - Desktop */}
+        <div className="flex-shrink-0 hidden lg:block relative mt-8">
+          {/* Realistic iPhone-style frame */}
+          <div className="bg-gradient-to-b from-zinc-800 to-zinc-900 rounded-[40px] p-[10px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.1)_inset]">
+            {/* Side buttons - Volume */}
+            <div className="absolute -left-[2px] top-24 w-[3px] h-8 bg-zinc-700 rounded-l-sm" />
+            <div className="absolute -left-[2px] top-36 w-[3px] h-8 bg-zinc-700 rounded-l-sm" />
+            {/* Side button - Power */}
+            <div className="absolute -right-[2px] top-28 w-[3px] h-12 bg-zinc-700 rounded-r-sm" />
+            
+            {/* Inner screen bezel */}
+            <div className="bg-black rounded-[32px] overflow-hidden">
+              {/* Dynamic Island */}
+              <div className="absolute top-[18px] left-1/2 -translate-x-1/2 w-[90px] h-[28px] bg-black rounded-full z-20 flex items-center justify-center gap-3">
+                <div className="w-3 h-3 rounded-full bg-zinc-800 ring-1 ring-zinc-700" />
+                <div className="w-2 h-2 rounded-full bg-zinc-700" />
+              </div>
+              
+              {/* Screen content */}
+              <div className="bg-background rounded-[32px] overflow-hidden w-[260px]">
+                {/* Status Bar */}
+                <div className="px-6 pt-3 pb-1 flex justify-between items-center text-[11px]">
+                  <span className="font-semibold">9:41</span>
+                  <div className="w-[90px]" /> {/* Space for dynamic island */}
+                  <div className="flex gap-1.5 items-center">
+                    <svg className="w-4 h-3" viewBox="0 0 17 10" fill="currentColor">
+                      <rect x="0" y="3" width="3" height="7" rx="0.5" fillOpacity="0.3"/>
+                      <rect x="4" y="2" width="3" height="8" rx="0.5" fillOpacity="0.5"/>
+                      <rect x="8" y="1" width="3" height="9" rx="0.5" fillOpacity="0.7"/>
+                      <rect x="12" y="0" width="3" height="10" rx="0.5"/>
+                    </svg>
+                    <svg className="w-4 h-3" viewBox="0 0 15 11" fill="currentColor">
+                      <path d="M7.5 2.5c2.5 0 4.5 1 6 2.5-.3.4-.6.7-1 1-1.2-1.2-2.9-2-5-2s-3.8.8-5 2c-.4-.3-.7-.6-1-1 1.5-1.5 3.5-2.5 6-2.5z" fillOpacity="0.4"/>
+                      <path d="M7.5 5c1.7 0 3.2.7 4.3 1.7-.3.4-.6.7-1 1-.8-.7-1.9-1.2-3.3-1.2s-2.5.5-3.3 1.2c-.4-.3-.7-.6-1-1C4.3 5.7 5.8 5 7.5 5z" fillOpacity="0.7"/>
+                      <circle cx="7.5" cy="9" r="1.5"/>
+                    </svg>
+                    <div className="w-6 h-3 border border-current rounded-[3px] relative">
+                      <div className="absolute inset-[2px] right-[4px] bg-current rounded-[1px]" />
+                      <div className="absolute -right-[2px] top-1/2 -translate-y-1/2 w-[2px] h-1.5 bg-current rounded-r-sm" />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* App Content */}
+                <div className="p-3 pt-1 space-y-3 min-h-[420px]">
+                  {/* App Header */}
+                  <div className="flex items-center justify-between pb-2 border-b border-border">
+                    <div>
+                      <div className="text-sm font-bold">{businessConfig.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{businessConfig.subtitle}</div>
+                    </div>
+                    <Badge variant="outline" className="text-[9px] px-2 py-0.5 h-5 gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                      Active
+                    </Badge>
+                  </div>
+                  
+                  {/* Quick Stats */}
+                  <div className="space-y-3">
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <Card className="border-border/50 p-2.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-muted-foreground">
+                            {selectedType === "dinein" ? "Reservations" : "Orders"}
+                          </span>
+                          <Package className="w-3.5 h-3.5 text-muted-foreground" />
+                        </div>
+                        <div className="text-lg font-bold">
+                          {selectedType === "dinein" 
+                            ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount 
+                            : (stats as typeof DEMO_RESTAURANT_STATS).ordersCount}
+                        </div>
+                      </Card>
+                      <Card className="border-border/50 p-2.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-muted-foreground">
+                            {selectedType === "dinein" ? "Seated" : "Completed"}
+                          </span>
+                          <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                        </div>
+                        <div className="text-lg font-bold text-green-600">
+                          {selectedType === "dinein" 
+                            ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount - (stats as typeof DEMO_RESERVATION_STATS).cancelledCount
+                            : (stats as typeof DEMO_RESTAURANT_STATS).completedCount}
+                        </div>
+                      </Card>
+                      <Card className="border-border/50 p-2.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-muted-foreground">Cancelled</span>
+                          <XCircle className="w-3.5 h-3.5 text-destructive" />
+                        </div>
+                        <div className="text-lg font-bold text-destructive">
+                          {selectedType === "dinein" 
+                            ? (stats as typeof DEMO_RESERVATION_STATS).cancelledCount 
+                            : (stats as typeof DEMO_RESTAURANT_STATS).cancelledCount}
+                        </div>
+                      </Card>
+                      <Card className="border-border/50 p-2.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-muted-foreground">
+                            {selectedType === "dinein" ? "Covers" : "Revenue"}
+                          </span>
+                          {selectedType === "dinein" ? (
+                            <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                          ) : (
+                            <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="text-lg font-bold">
+                          {selectedType === "dinein" 
+                            ? (stats as typeof DEMO_RESERVATION_STATS).totalCovers
+                            : `£${(stats as typeof DEMO_RESTAURANT_STATS).revenue.toFixed(0)}`}
+                        </div>
+                      </Card>
+                    </div>
+                    
+                    {/* Recent Activity */}
+                    <div>
+                      <p className="text-[10px] font-medium text-muted-foreground mb-2">Recent Calls</p>
+                      <div className="space-y-2">
+                        {calls.slice(0, 3).map((call) => (
+                          <Card key={call.id} className="border-border/50 p-2">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-[11px] font-medium">{call.caller_name}</p>
+                                <p className="text-[9px] text-muted-foreground">{call.caller_phone}</p>
+                              </div>
+                              <Badge 
+                                variant={callTypeBadgeVariants[call.call_type] || "outline"} 
+                                className="text-[8px] px-1.5 py-0.5"
+                              >
+                                {callTypeLabels[call.call_type] || call.call_type}
+                              </Badge>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Home Indicator */}
+                <div className="flex justify-center pb-2 pt-1">
+                  <div className="w-28 h-1 bg-foreground/20 rounded-full" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Order Detail Dialog */}
