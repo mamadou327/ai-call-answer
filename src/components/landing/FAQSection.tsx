@@ -9,35 +9,47 @@ const FAQSection = () => {
   const faqs = [
     {
       question: "Can customers tell they're speaking to AI?",
-      answer: "AIVIA uses natural language processing and sounds human-like. Most customers don't realize they're speaking to AI until told. The voice is warm, professional, and trained for your specific industry."
+      answer: "AIVIA uses advanced natural language processing and sounds remarkably human-like. Most customers don't realize they're speaking to AI until told. The voice is warm, professional, and trained specifically for your industry."
     },
     {
-      question: "What if the AI makes a mistake?",
-      answer: "All calls are recorded with full transcripts available in your dashboard. You can review and correct any bookings immediately. Customers also receive confirmation texts, giving them a chance to verify details."
+      question: "Will this stop missed calls during busy hours?",
+      answer: "Absolutely. AIVIA answers every call instantly, 24/7, even when you're with customers, during rush hours, or after closing. No more missed opportunities or voicemails that never get returned."
+    },
+    {
+      question: "Can it handle multiple calls at the same time?",
+      answer: "Yes! Unlike a human receptionist, AIVIA can handle unlimited simultaneous calls. Whether you get 2 calls or 200 at once, every customer gets immediate attention without waiting."
+    },
+    {
+      question: "Can it take reservations and food orders?",
+      answer: "Yes, AIVIA handles both seamlessly. For restaurants, it can take table reservations with party size and special requests, as well as complete takeaway orders with customizations. Everything appears instantly in your dashboard."
+    },
+    {
+      question: "What happens if a customer calls after closing time?",
+      answer: "AIVIA works 24/7, so after-hours calls are handled just like daytime calls. It can take bookings, orders, and messages anytime. Customers love being able to book at their convenience, even at midnight."
+    },
+    {
+      question: "Can I keep my existing phone number?",
+      answer: "Yes! You can simply forward your current business number to AIVIA, or get a dedicated new AI number. Many businesses start with call forwarding and find it works seamlessly with no customer disruption."
     },
     {
       question: "How long does setup take?",
       answer: "Most businesses are up and running in under 10 minutes. Our guided onboarding walks you through everything step by step. Just add your services or menu, set your hours, and you're ready to go."
     },
     {
-      question: "Do I need technical skills?",
-      answer: "None at all. If you can use a smartphone, you can use AIVIA. Everything is designed to be simple and intuitive. Our support team is also available if you need any help."
-    },
-    {
-      question: "What about my existing phone number?",
-      answer: "You have two options: forward your current business number to AIVIA, or get a dedicated new AI number. Many businesses start with forwarding and find it works seamlessly."
-    },
-    {
-      question: "Is there a contract or commitment?",
-      answer: "No contracts whatsoever. Cancel anytime with one click. We offer a free 14-day trial so you can experience the benefits risk-free before deciding."
+      question: "Do I need any technical skills to use this?",
+      answer: "None at all. If you can use a smartphone, you can use AIVIA. Everything is designed to be simple and intuitive with a clean dashboard. Our support team is also available if you need any help."
     },
     {
       question: "What happens if the AI can't handle a request?",
-      answer: "AIVIA is trained to handle the vast majority of calls, but for unusual requests, it can take a message or offer to have someone call back. You're notified immediately of any calls that need your attention."
+      answer: "AIVIA is trained to handle the vast majority of calls, but for unusual requests, it can take a detailed message or offer to have someone call back. You're notified immediately of any calls that need your personal attention."
     },
     {
-      question: "Does it work with my current booking system?",
-      answer: "AIVIA includes its own powerful booking and order management system. All your appointments, orders, and customer data are accessible from one dashboard. No need for additional software."
+      question: "Will customers ever be put on hold?",
+      answer: "Never. Every call is answered instantly, and since AIVIA can handle unlimited calls simultaneously, there's no waiting queue. Customers get immediate service every single time."
+    },
+    {
+      question: "Can it answer menu questions and common customer enquiries?",
+      answer: "Yes! AIVIA learns your menu, services, prices, opening hours, and policies. It can answer questions like 'Do you have vegetarian options?', 'What time do you close?', or 'Do you offer delivery?' – all without involving your staff."
     }
   ];
 
