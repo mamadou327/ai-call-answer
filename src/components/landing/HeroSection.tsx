@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Play, Sparkles } from "lucide-react";
-import DeviceMockup from "./DeviceMockup";
+import DemoDashboard from "./DemoDashboard";
 
 const HeroSection = () => {
   const navigate = useNavigate();
@@ -73,8 +73,8 @@ const HeroSection = () => {
         </div>
       </div>
 
-      {/* Device Mockups */}
-      <DeviceMockup />
+      {/* Interactive Demo Dashboard */}
+      <DemoDashboard />
     </section>
   );
 };
