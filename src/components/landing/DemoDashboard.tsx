@@ -1174,6 +1174,52 @@ const DemoDashboard = () => {
                           </div>
                         </Card>
                       </div>
+                      
+                      {/* Active Section */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold">
+                            {showOrders ? "Active Orders" : "Today's Tables"}
+                          </span>
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
+                            {showOrders ? `${activeOrders.length} active` : `${DEMO_RESERVATIONS.length} bookings`}
+                          </Badge>
+                        </div>
+                        {showOrders ? (
+                          <div className="space-y-1.5">
+                            {activeOrders.slice(0, 2).map((order) => (
+                              <Card key={order.id} className={`p-2 border ${orderStatusConfig[order.status].bgColor}`}>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className={orderStatusConfig[order.status].color}>
+                                      {orderStatusConfig[order.status].icon}
+                                    </span>
+                                    <span className="text-xs font-bold">#{order.order_number}</span>
+                                  </div>
+                                  <span className="text-xs font-medium">£{order.total.toFixed(2)}</span>
+                                </div>
+                                <div className="text-[10px] text-muted-foreground mt-1">{order.customer_name}</div>
+                              </Card>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {DEMO_RESERVATIONS.slice(0, 2).map((res, i) => (
+                              <Card key={i} className="border-border/50 p-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs font-medium">{res.customer_name}</div>
+                                  <div className="text-[10px]">{format(new Date(res.reservation_time), 'HH:mm')}</div>
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1">
+                                  <Users className="w-3 h-3" />
+                                  <span>{res.party_size} guests</span>
+                                  <span>• Table {res.table.table_number}</span>
+                                </div>
+                              </Card>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                   
