@@ -48,7 +48,7 @@ const FeatureShowcase = () => {
   ];
 
   return (
-    <section className="container mx-auto px-4 py-16 md:py-24">
+    <section id="features" className="container mx-auto px-4 py-16 md:py-24">
       <div className="space-y-24">
         {features.map((feature, index) => (
           <div 
