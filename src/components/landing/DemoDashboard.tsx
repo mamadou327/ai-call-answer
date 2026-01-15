@@ -566,10 +566,10 @@ const DemoDashboard = () => {
         </div>
       </div>
 
-      {/* Desktop: Laptop + Floating Phone */}
-      <div className="hidden md:flex items-start justify-center gap-8 lg:gap-12 max-w-6xl mx-auto relative">
+      {/* Desktop: Laptop with Floating Phone Overlay */}
+      <div className="hidden md:block max-w-4xl mx-auto relative">
         {/* Laptop Frame */}
-        <div className="flex-shrink-0 max-w-4xl relative">
+        <div className="relative">
         <div className="relative bg-muted border-2 border-border rounded-t-xl pt-4 px-4 pb-0">
           {/* Browser Chrome */}
           <div className="flex items-center gap-2 mb-3">
@@ -1013,8 +1013,8 @@ const DemoDashboard = () => {
           <div className="h-2 bg-muted/50 border border-t-0 border-border/50 rounded-b-lg mx-16" />
         </div>
 
-        {/* Floating Phone Mockup - Desktop */}
-        <div className="flex-shrink-0 relative mt-8 scale-90 lg:scale-100 origin-top">
+        {/* Floating Phone Mockup - Overlays on right side */}
+        <div className="absolute -right-4 md:right-4 lg:right-8 top-12 z-20 scale-75 md:scale-[0.65] lg:scale-75 origin-top-right">
           {/* Realistic iPhone-style frame */}
           <div className="bg-gradient-to-b from-zinc-800 to-zinc-900 rounded-[40px] p-[10px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.1)_inset]">
             {/* Side buttons - Volume */}
