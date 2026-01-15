@@ -118,26 +118,27 @@ export const DEMO_SALON_STATS = {
 };
 
 export const DEMO_RESTAURANT_STATS = {
-  ordersCount: 312,
-  completedCount: 298,
-  cancelledCount: 8,
-  revenue: 4890,
-  callsCount: 156,
+  ordersCount: 24,
+  completedCount: 21,
+  cancelledCount: 2,
+  revenue: 485,
+  callsCount: 18,
   messagesCount: 5,
 };
 
 export const DEMO_RESERVATION_STATS = {
-  reservationsCount: 156,
-  cancelledCount: 6,
-  noShowCount: 4,
-  totalCovers: 412,
+  reservationsCount: 18,
+  cancelledCount: 1,
+  noShowCount: 1,
+  totalCovers: 56,
 };
 
+// Demo call stats for calls tab (consistent with dashboard stats)
 export const DEMO_CALLS_STATS = {
-  totalCalls: 189,
-  bookingsCreated: 156,
-  enquiries: 28,
-  cancellations: 5,
+  totalCalls: 18,
+  bookingsCreated: 20,
+  enquiries: 4,
+  cancellations: 2,
 };
 
 // Demo today's appointments (Salon)
