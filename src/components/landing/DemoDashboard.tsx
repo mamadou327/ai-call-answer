@@ -335,7 +335,7 @@ const DemoDashboard = () => {
                 </div>
                 
                 {/* Tab Bar */}
-                <div className="flex gap-1 bg-muted rounded-lg p-1">
+                <div className={`flex gap-1 bg-muted rounded-lg p-1`}>
                   <button 
                     onClick={() => setPhoneTab("dashboard")}
                     className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "dashboard" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
@@ -343,13 +343,24 @@ const DemoDashboard = () => {
                     <LayoutDashboard className="w-3.5 h-3.5 mx-auto mb-0.5" />
                     <span>Home</span>
                   </button>
-                  <button 
-                    onClick={() => setPhoneTab("orders")}
-                    className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "orders" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                  >
-                    {showOrders ? <ShoppingBag className="w-3.5 h-3.5 mx-auto mb-0.5" /> : <CalendarDays className="w-3.5 h-3.5 mx-auto mb-0.5" />}
-                    <span>{showOrders ? "Orders" : "Bookings"}</span>
-                  </button>
+                  {showOrders && (
+                    <button 
+                      onClick={() => setPhoneTab("orders")}
+                      className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "orders" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5 mx-auto mb-0.5" />
+                      <span>Orders</span>
+                    </button>
+                  )}
+                  {showReservations && (
+                    <button 
+                      onClick={() => setPhoneTab("tables")}
+                      className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "tables" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <CalendarDays className="w-3.5 h-3.5 mx-auto mb-0.5" />
+                      <span>Tables</span>
+                    </button>
+                  )}
                   <button 
                     onClick={() => setPhoneTab("calls")}
                     className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "calls" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
@@ -484,50 +495,51 @@ const DemoDashboard = () => {
                   </div>
                 )}
 
-                {phoneTab === "orders" && (
+                {phoneTab === "orders" && showOrders && (
                   <div className="space-y-2">
-                    <div className="text-xs font-semibold">
-                      {showOrders ? "Order Queue" : "Reservations"}
+                    <div className="text-xs font-semibold">Order Queue</div>
+                    <div className="space-y-1.5">
+                      {activeOrders.slice(0, 4).map((order) => (
+                        <Card key={order.id} className={`p-2 border ${orderStatusConfig[order.status].bgColor}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className={orderStatusConfig[order.status].color}>
+                                {orderStatusConfig[order.status].icon}
+                              </span>
+                              <span className="text-xs font-bold">#{order.order_number}</span>
+                            </div>
+                            <Badge variant="outline" className="text-[9px]">
+                              {orderStatusConfig[order.status].label}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between mt-1">
+                            <div className="text-[10px] text-muted-foreground">{order.customer_name}</div>
+                            <span className="text-xs font-medium">£{order.total.toFixed(2)}</span>
+                          </div>
+                        </Card>
+                      ))}
                     </div>
-                    {showOrders ? (
-                      <div className="space-y-1.5">
-                        {activeOrders.slice(0, 4).map((order) => (
-                          <Card key={order.id} className={`p-2 border ${orderStatusConfig[order.status].bgColor}`}>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className={orderStatusConfig[order.status].color}>
-                                  {orderStatusConfig[order.status].icon}
-                                </span>
-                                <span className="text-xs font-bold">#{order.order_number}</span>
-                              </div>
-                              <Badge variant="outline" className="text-[9px]">
-                                {orderStatusConfig[order.status].label}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center justify-between mt-1">
-                              <div className="text-[10px] text-muted-foreground">{order.customer_name}</div>
-                              <span className="text-xs font-medium">£{order.total.toFixed(2)}</span>
-                            </div>
-                          </Card>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {DEMO_RESERVATIONS.slice(0, 4).map((res, i) => (
-                          <Card key={i} className="border-border/50 p-2">
-                            <div className="flex items-center justify-between">
-                              <div className="text-xs font-medium">{res.customer_name}</div>
-                              <div className="text-[10px]">{format(new Date(res.reservation_time), 'HH:mm')}</div>
-                            </div>
-                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1">
-                              <Users className="w-3 h-3" />
-                              <span>{res.party_size} guests</span>
-                              <span>• Table {res.table.table_number}</span>
-                            </div>
-                          </Card>
-                        ))}
-                      </div>
-                    )}
+                  </div>
+                )}
+
+                {phoneTab === "tables" && showReservations && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold">Today's Reservations</div>
+                    <div className="space-y-1.5">
+                      {DEMO_RESERVATIONS.slice(0, 4).map((res, i) => (
+                        <Card key={i} className="border-border/50 p-2">
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs font-medium">{res.customer_name}</div>
+                            <div className="text-[10px]">{format(new Date(res.reservation_time), 'HH:mm')}</div>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1">
+                            <Users className="w-3 h-3" />
+                            <span>{res.party_size} guests</span>
+                            <span>• Table {res.table.table_number}</span>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -1093,7 +1105,7 @@ const DemoDashboard = () => {
                   </div>
                   
                   {/* Interactive Tab Bar */}
-                  <div className="flex gap-1 bg-muted rounded-lg p-1">
+                  <div className={`flex gap-1 bg-muted rounded-lg p-1`}>
                     <button 
                       onClick={() => setPhoneTab("dashboard")}
                       className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "dashboard" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
@@ -1101,13 +1113,24 @@ const DemoDashboard = () => {
                       <LayoutDashboard className="w-3.5 h-3.5 mx-auto mb-0.5" />
                       <span>Home</span>
                     </button>
-                    <button 
-                      onClick={() => setPhoneTab("orders")}
-                      className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "orders" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      {showOrders ? <ShoppingBag className="w-3.5 h-3.5 mx-auto mb-0.5" /> : <CalendarDays className="w-3.5 h-3.5 mx-auto mb-0.5" />}
-                      <span>{showOrders ? "Orders" : "Bookings"}</span>
-                    </button>
+                    {showOrders && (
+                      <button 
+                        onClick={() => setPhoneTab("orders")}
+                        className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "orders" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5 mx-auto mb-0.5" />
+                        <span>Orders</span>
+                      </button>
+                    )}
+                    {showReservations && (
+                      <button 
+                        onClick={() => setPhoneTab("tables")}
+                        className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "tables" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        <CalendarDays className="w-3.5 h-3.5 mx-auto mb-0.5" />
+                        <span>Tables</span>
+                      </button>
+                    )}
                     <button 
                       onClick={() => setPhoneTab("calls")}
                       className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "calls" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
@@ -1241,31 +1264,35 @@ const DemoDashboard = () => {
                     </div>
                   )}
                   
-                  {phoneTab === "orders" && (
+                  {phoneTab === "orders" && showOrders && (
                     <div className="space-y-2">
-                      {showOrders ? (
-                        activeOrders.slice(0, 4).map((order) => (
-                          <Card key={order.id} className={`border p-2 ${orderStatusConfig[order.status]?.bgColor || ''}`}>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-bold">#{order.order_number}</span>
-                              <Badge variant="outline" className="text-[9px] px-1.5 py-0">
-                                {orderStatusConfig[order.status]?.label}
-                              </Badge>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground truncate">{order.customer_name}</p>
-                          </Card>
-                        ))
-                      ) : (
-                        DEMO_RESERVATIONS.slice(0, 4).map((res) => (
-                          <Card key={res.id} className="border-border/50 p-2">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-medium">{res.customer_name}</span>
-                              <span className="text-[10px] text-muted-foreground">{res.party_size} guests</span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground">Table {res.table.table_number}</p>
-                          </Card>
-                        ))
-                      )}
+                      <div className="text-xs font-semibold">Order Queue</div>
+                      {activeOrders.slice(0, 4).map((order) => (
+                        <Card key={order.id} className={`border p-2 ${orderStatusConfig[order.status]?.bgColor || ''}`}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold">#{order.order_number}</span>
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                              {orderStatusConfig[order.status]?.label}
+                            </Badge>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground truncate">{order.customer_name}</p>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {phoneTab === "tables" && showReservations && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold">Today's Reservations</div>
+                      {DEMO_RESERVATIONS.slice(0, 4).map((res) => (
+                        <Card key={res.id} className="border-border/50 p-2">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium">{res.customer_name}</span>
+                            <span className="text-[10px] text-muted-foreground">{res.party_size} guests</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">Table {res.table.table_number}</p>
+                        </Card>
+                      ))}
                     </div>
                   )}
                   
