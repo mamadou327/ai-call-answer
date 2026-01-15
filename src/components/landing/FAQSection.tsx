@@ -33,7 +33,7 @@ const FAQSection = () => {
     },
     {
       question: "How long does setup take?",
-      answer: "Most businesses are up and running in under 10 minutes. Our guided onboarding walks you through everything step by step. Just add your services or menu, set your hours, and you're ready to go."
+      answer: "Setup typically takes 48-72 hours. During this time, we configure your AI assistant with your business details, menu or services, and customise the voice and responses to match your brand. Once complete, you'll have a fully trained AI receptionist ready to handle calls."
     },
     {
       question: "Do I need any technical skills to use this?",
