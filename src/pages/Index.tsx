@@ -1,18 +1,26 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
-// Landing page sections
+// Critical above-the-fold components loaded eagerly
 import Header, { ActiveSection } from "@/components/landing/Header";
 import HeroSection from "@/components/landing/HeroSection";
-import BusinessTypeSelector from "@/components/landing/BusinessTypeSelector";
-import ProblemSection from "@/components/landing/ProblemSection";
-import FeatureShowcase from "@/components/landing/FeatureShowcase";
-import PricingSection from "@/components/landing/PricingSection";
-import FAQSection from "@/components/landing/FAQSection";
-import ComparisonTable from "@/components/landing/ComparisonTable";
 import FinalCTA from "@/components/landing/FinalCTA";
 import Footer from "@/components/landing/Footer";
+
+// Lazy load conditional sections to reduce initial bundle size
+const BusinessTypeSelector = lazy(() => import("@/components/landing/BusinessTypeSelector"));
+const ProblemSection = lazy(() => import("@/components/landing/ProblemSection"));
+const FeatureShowcase = lazy(() => import("@/components/landing/FeatureShowcase"));
+const PricingSection = lazy(() => import("@/components/landing/PricingSection"));
+const FAQSection = lazy(() => import("@/components/landing/FAQSection"));
+const ComparisonTable = lazy(() => import("@/components/landing/ComparisonTable"));
+
+const SectionLoader = () => (
+  <div className="flex items-center justify-center py-16">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+  </div>
+);
 
 const Index = () => {
   const navigate = useNavigate();
@@ -50,24 +58,30 @@ const Index = () => {
       {/* Dynamic Content Area - Shows based on nav selection */}
       <div ref={sectionRef}>
         {activeSection === 'features' && (
-          <div id="features" className="animate-fade-in">
-            <BusinessTypeSelector />
-            <FeatureShowcase />
-            <ProblemSection />
-          </div>
+          <Suspense fallback={<SectionLoader />}>
+            <div id="features" className="animate-fade-in">
+              <BusinessTypeSelector />
+              <FeatureShowcase />
+              <ProblemSection />
+            </div>
+          </Suspense>
         )}
 
         {activeSection === 'pricing' && (
-          <div id="pricing" className="animate-fade-in">
-            <PricingSection />
-            <ComparisonTable />
-          </div>
+          <Suspense fallback={<SectionLoader />}>
+            <div id="pricing" className="animate-fade-in">
+              <PricingSection />
+              <ComparisonTable />
+            </div>
+          </Suspense>
         )}
 
         {activeSection === 'faq' && (
-          <div id="faq" className="animate-fade-in">
-            <FAQSection />
-          </div>
+          <Suspense fallback={<SectionLoader />}>
+            <div id="faq" className="animate-fade-in">
+              <FAQSection />
+            </div>
+          </Suspense>
         )}
       </div>
 
