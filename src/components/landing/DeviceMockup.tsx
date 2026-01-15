@@ -1,6 +1,6 @@
 const DeviceMockup = () => {
   return (
-    <div className="relative w-full max-w-6xl mx-auto mt-16 px-4">
+    <div className="relative w-full max-w-7xl mx-auto mt-16 px-4">
       {/* Laptop/Desktop Frame - Main Device */}
       <div className="relative animate-float">
         {/* Screen Bezel */}
@@ -29,7 +29,7 @@ const DeviceMockup = () => {
             </div>
             
             {/* Dashboard Content */}
-            <div className="bg-background p-5 md:p-8 min-h-[320px] md:min-h-[380px]">
+            <div className="bg-background p-5 md:p-8 min-h-[380px] md:min-h-[480px]">
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
