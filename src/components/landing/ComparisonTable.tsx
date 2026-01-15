@@ -89,7 +89,7 @@ const ComparisonTable = () => {
                   <td className="p-4 font-semibold">Monthly Cost</td>
                   <td className="p-4 text-center font-bold text-destructive">£2,000+</td>
                   <td className="p-4 text-center font-bold text-success">£0</td>
-                  <td className="p-4 text-center font-bold bg-primary/5 text-primary">From £49</td>
+                  <td className="p-4 text-center font-bold bg-primary/5 text-primary">Contact Us</td>
                 </tr>
               </tbody>
             </table>

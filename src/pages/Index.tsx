@@ -1,16 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 // Landing page sections
-import Header from "@/components/landing/Header";
+import Header, { ActiveSection } from "@/components/landing/Header";
 import HeroSection from "@/components/landing/HeroSection";
 import BusinessTypeSelector from "@/components/landing/BusinessTypeSelector";
 import DemoAudioSection from "@/components/landing/DemoAudioSection";
 import ProblemSection from "@/components/landing/ProblemSection";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import FeatureShowcase from "@/components/landing/FeatureShowcase";
-import MidPageCTA from "@/components/landing/MidPageCTA";
 import PricingSection from "@/components/landing/PricingSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import FAQSection from "@/components/landing/FAQSection";
@@ -20,6 +19,8 @@ import Footer from "@/components/landing/Footer";
 
 const Index = () => {
   const navigate = useNavigate();
+  const [activeSection, setActiveSection] = useState<ActiveSection>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -31,19 +32,56 @@ const Index = () => {
     checkAuth();
   }, [navigate]);
 
+  // Scroll to section when it becomes active
+  useEffect(() => {
+    if (activeSection && sectionRef.current) {
+      setTimeout(() => {
+        sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  }, [activeSection]);
+
+  const handleSectionChange = (section: ActiveSection) => {
+    setActiveSection(section);
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header activeSection={activeSection} onSectionChange={handleSectionChange} />
       <HeroSection />
-      <BusinessTypeSelector />
-      <DemoAudioSection />
-      <ProblemSection />
-      <HowItWorksSection />
-      <FeatureShowcase />
-      <MidPageCTA />
-      <PricingSection />
+      
+      {/* Dynamic Content Area - Shows based on nav selection */}
+      <div ref={sectionRef}>
+        {activeSection === 'features' && (
+          <div id="features" className="animate-fade-in">
+            <BusinessTypeSelector />
+            <FeatureShowcase />
+            <ProblemSection />
+          </div>
+        )}
+
+        {activeSection === 'how-it-works' && (
+          <div id="how-it-works" className="animate-fade-in">
+            <HowItWorksSection />
+          </div>
+        )}
+
+        {activeSection === 'pricing' && (
+          <div id="pricing" className="animate-fade-in">
+            <PricingSection />
+            <ComparisonTable />
+          </div>
+        )}
+
+        {activeSection === 'demo' && (
+          <div id="demo" className="animate-fade-in">
+            <DemoAudioSection />
+          </div>
+        )}
+      </div>
+
+      {/* Always visible sections */}
       <TestimonialsSection />
-      <ComparisonTable />
       <FAQSection />
       <FinalCTA />
       <Footer />

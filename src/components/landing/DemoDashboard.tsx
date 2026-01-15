@@ -264,8 +264,8 @@ const DemoDashboard = () => {
         </div>
       </div>
 
-      {/* Phone Mockup - Mobile Dashboard */}
-      <div className="absolute -right-2 md:right-4 lg:right-12 bottom-8 md:bottom-16 w-36 md:w-44 z-10 animate-float hidden sm:block">
+      {/* Phone Mockup - Mobile Dashboard - Show on mobile, hide on desktop */}
+      <div className="block md:hidden mx-auto w-48 mb-8 animate-float relative">
         <div className="bg-foreground rounded-[28px] p-1.5 shadow-2xl">
           <div className="bg-background rounded-[24px] overflow-hidden">
             {/* Phone Status Bar */}
@@ -556,8 +556,8 @@ const DemoDashboard = () => {
         </div>
       </div>
 
-      {/* Laptop Frame */}
-      <div className="max-w-4xl mx-auto">
+      {/* Laptop Frame - Hide on mobile, show on desktop */}
+      <div className="hidden md:block max-w-4xl mx-auto relative">
         <div className="relative bg-muted border-2 border-border rounded-t-xl pt-4 px-4 pb-0">
           {/* Browser Chrome */}
           <div className="flex items-center gap-2 mb-3">

@@ -6,23 +6,33 @@ import { Menu } from "lucide-react";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import ContactDialog from "./ContactDialog";
 
-const Header = () => {
+export type ActiveSection = 'features' | 'how-it-works' | 'pricing' | 'demo' | null;
+
+interface HeaderProps {
+  activeSection?: ActiveSection;
+  onSectionChange?: (section: ActiveSection) => void;
+}
+
+const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
 
-  const navLinks = [
-    { label: "Features", href: "#features" },
-    { label: "How It Works", href: "#how-it-works" },
-    { label: "Pricing", href: "#pricing" },
-    { label: "Demo", href: "#demo" },
+  const navLinks: { label: string; section: ActiveSection }[] = [
+    { label: "Features", section: "features" },
+    { label: "How It Works", section: "how-it-works" },
+    { label: "Pricing", section: "pricing" },
+    { label: "Demo", section: "demo" },
   ];
 
-  const scrollToSection = (href: string) => {
-    const id = href.replace("#", "");
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
+  const handleNavClick = (section: ActiveSection) => {
+    if (onSectionChange) {
+      // Toggle: if same section clicked, close it
+      if (activeSection === section) {
+        onSectionChange(null);
+      } else {
+        onSectionChange(section);
+      }
     }
     setMobileMenuOpen(false);
   };
@@ -47,8 +57,12 @@ const Header = () => {
             {navLinks.map((link) => (
               <button
                 key={link.label}
-                onClick={() => scrollToSection(link.href)}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => handleNavClick(link.section)}
+                className={`text-sm font-medium transition-colors ${
+                  activeSection === link.section
+                    ? "text-primary font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
                 {link.label}
               </button>
@@ -84,8 +98,12 @@ const Header = () => {
                   {navLinks.map((link) => (
                     <button
                       key={link.label}
-                      onClick={() => scrollToSection(link.href)}
-                      className="text-left py-2 text-lg font-medium text-foreground hover:text-primary transition-colors"
+                      onClick={() => handleNavClick(link.section)}
+                      className={`text-left py-2 text-lg font-medium transition-colors ${
+                        activeSection === link.section
+                          ? "text-primary font-semibold"
+                          : "text-foreground hover:text-primary"
+                      }`}
                     >
                       {link.label}
                     </button>
