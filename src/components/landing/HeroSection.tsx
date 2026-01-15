@@ -1,8 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Play, Sparkles } from "lucide-react";
+import { Play } from "lucide-react";
 import DemoDashboard from "./DemoDashboard";
-
+import HowItWorksDialog from "@/components/HowItWorksDialog";
 const HeroSection = () => {
   const navigate = useNavigate();
 
@@ -38,18 +38,16 @@ const HeroSection = () => {
           >
             Start Free Trial
           </Button>
-          <Button 
-            size="lg" 
-            variant="outline" 
-            className="text-lg px-8 gap-2"
-            onClick={() => {
-              const demoSection = document.getElementById('demo-section');
-              demoSection?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          >
-            <Play className="w-5 h-5" />
-            See How It Works
-          </Button>
+          <HowItWorksDialog>
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="text-lg px-8 gap-2"
+            >
+              <Play className="w-5 h-5" />
+              See How It Works
+            </Button>
+          </HowItWorksDialog>
         </div>
 
       </div>
