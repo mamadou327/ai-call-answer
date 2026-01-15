@@ -29,7 +29,7 @@ const HeroSection = () => {
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary border border-border mb-8 cursor-pointer hover:bg-secondary/80 transition-colors">
             <Headphones className="w-4 h-4 text-primary" />
             <span className="text-sm text-muted-foreground">
-              Want to hear a demo? <span className="text-primary font-medium">Click here</span>
+              Want to hear how it works? <span className="text-primary font-medium">Click here</span>
             </span>
           </div>
         </DemoRequestDialog>
