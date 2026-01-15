@@ -63,10 +63,15 @@ const Index = () => {
             <ComparisonTable />
           </div>
         )}
+
+        {activeSection === 'faq' && (
+          <div id="faq" className="animate-fade-in">
+            <FAQSection />
+          </div>
+        )}
       </div>
 
       {/* Always visible sections */}
-      <FAQSection />
       <FinalCTA />
       <Footer />
     </div>
