@@ -387,56 +387,53 @@ const DemoDashboard = () => {
                     </Card>
                   </div>
                   
-                  {/* Mini Active Section */}
+                  {/* Mini Active Section - Kanban style like laptop */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="text-[7px] font-semibold">
                         {showOrders ? "Active Orders" : "Today's Tables"}
                       </span>
-                      <ChevronRight className="w-2 h-2 text-muted-foreground" />
+                      <Badge variant="secondary" className="text-[5px] px-1 py-0 h-2.5">
+                        {showOrders ? `${activeOrders.length} active` : `${DEMO_RESERVATIONS.length} bookings`}
+                      </Badge>
                     </div>
                     {showOrders ? (
-                      <div className="space-y-1">
-                        {activeOrders.slice(0, 2).map((order, i) => (
-                          <Card key={i} className="border-border/50 p-1.5 flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                              <div className={`w-1.5 h-1.5 rounded-full ${
-                                order.status === 'pending' ? 'bg-yellow-500' :
-                                order.status === 'preparing' ? 'bg-orange-500' :
-                                order.status === 'ready' ? 'bg-green-500' : 'bg-blue-500'
-                              }`} />
-                              <div>
-                                <div className="text-[7px] font-medium">#{order.order_number}</div>
-                                <div className="text-[6px] text-muted-foreground truncate max-w-[50px]">{order.customer_name.split(' ')[0]}</div>
+                      <div className="grid grid-cols-4 gap-0.5">
+                        {(["pending", "confirmed", "preparing", "ready"] as const).map((status) => (
+                          <div key={status} className="space-y-0.5">
+                            <div className="flex items-center gap-0.5">
+                              <span className={`${orderStatusConfig[status].color}`}>
+                                {status === 'pending' && <Clock className="w-1.5 h-1.5" />}
+                                {status === 'confirmed' && <CheckCircle className="w-1.5 h-1.5" />}
+                                {status === 'preparing' && <ChefHat className="w-1.5 h-1.5" />}
+                                {status === 'ready' && <Package className="w-1.5 h-1.5" />}
+                              </span>
+                              <span className="text-[5px] text-muted-foreground">{groupedOrders[status].length}</span>
+                            </div>
+                            {groupedOrders[status].slice(0, 1).map((order) => (
+                              <div 
+                                key={order.id} 
+                                className={`p-1 rounded text-[6px] border ${orderStatusConfig[status].bgColor}`}
+                              >
+                                <div className="font-bold">#{order.order_number}</div>
+                                <div className="text-[5px] truncate">{order.customer_name.split(' ')[0]}</div>
                               </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-[7px] font-medium">£{order.total.toFixed(0)}</div>
-                              <Badge variant="outline" className="text-[5px] px-0.5 py-0 h-2.5 capitalize">
-                                {order.status}
-                              </Badge>
-                            </div>
-                          </Card>
+                            ))}
+                          </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="space-y-1">
+                      <div className="grid grid-cols-2 gap-1">
                         {DEMO_RESERVATIONS.slice(0, 2).map((res, i) => (
-                          <Card key={i} className="border-border/50 p-1.5 flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-4 h-4 rounded bg-muted flex items-center justify-center">
-                                <Users className="w-2 h-2" />
-                              </div>
-                              <div>
-                                <div className="text-[7px] font-medium truncate max-w-[50px]">{res.customer_name.split(' ')[0]}</div>
-                                <div className="text-[6px] text-muted-foreground">{res.party_size} guests</div>
-                              </div>
+                          <Card key={i} className="border-border/50 p-1.5">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <div className="text-[7px] font-medium truncate max-w-[40px]">{res.customer_name.split(' ')[0]}</div>
+                              <div className="text-[6px]">{format(new Date(res.reservation_time), 'HH:mm')}</div>
                             </div>
-                            <div className="text-right">
-                              <div className="text-[7px] font-medium">
-                                {format(new Date(res.reservation_time), 'HH:mm')}
-                              </div>
-                              <div className="text-[5px] text-muted-foreground">Table {res.table.table_number}</div>
+                            <div className="flex items-center gap-1 text-[5px] text-muted-foreground">
+                              <Users className="w-1.5 h-1.5" />
+                              <span>{res.party_size}</span>
+                              <span>• T{res.table.table_number}</span>
                             </div>
                           </Card>
                         ))}
@@ -449,37 +446,54 @@ const DemoDashboard = () => {
               {phoneTab === "orders" && (
                 <div className="space-y-1.5">
                   <div className="text-[7px] font-semibold">
-                    {showOrders ? "All Orders" : "Reservations"}
+                    {showOrders ? "Order Queue" : "Reservations"}
                   </div>
                   {showOrders ? (
-                    activeOrders.slice(0, 4).map((order, i) => (
-                      <Card key={i} className="border-border/50 p-1.5 flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <div className={`w-1.5 h-1.5 rounded-full ${
-                            order.status === 'pending' ? 'bg-yellow-500' :
-                            order.status === 'preparing' ? 'bg-orange-500' :
-                            order.status === 'ready' ? 'bg-green-500' : 'bg-blue-500'
-                          }`} />
-                          <div>
-                            <div className="text-[7px] font-medium">#{order.order_number}</div>
-                            <div className="text-[6px] text-muted-foreground">{order.customer_name.split(' ')[0]}</div>
+                    <div className="grid grid-cols-4 gap-0.5">
+                      {(["pending", "confirmed", "preparing", "ready"] as const).map((status) => (
+                        <div key={status} className="space-y-0.5">
+                          <div className="flex items-center justify-between">
+                            <span className={`${orderStatusConfig[status].color}`}>
+                              {status === 'pending' && <Clock className="w-2 h-2" />}
+                              {status === 'confirmed' && <CheckCircle className="w-2 h-2" />}
+                              {status === 'preparing' && <ChefHat className="w-2 h-2" />}
+                              {status === 'ready' && <Package className="w-2 h-2" />}
+                            </span>
+                            <Badge variant="outline" className="text-[5px] px-0.5 py-0 h-2">
+                              {groupedOrders[status].length}
+                            </Badge>
+                          </div>
+                          <div className="space-y-0.5 min-h-[50px]">
+                            {groupedOrders[status].slice(0, 2).map((order) => (
+                              <div 
+                                key={order.id} 
+                                className={`p-1 rounded text-[6px] border ${orderStatusConfig[status].bgColor}`}
+                              >
+                                <div className="font-bold">#{order.order_number}</div>
+                                <div className="text-[5px] truncate">{order.customer_name.split(' ')[0]}</div>
+                                <div className="text-[5px] font-medium">£{order.total.toFixed(0)}</div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                        <Badge variant="outline" className="text-[5px] px-0.5 py-0 h-2.5 capitalize">
-                          {order.status}
-                        </Badge>
-                      </Card>
-                    ))
+                      ))}
+                    </div>
                   ) : (
-                    DEMO_RESERVATIONS.slice(0, 4).map((res, i) => (
-                      <Card key={i} className="border-border/50 p-1.5 flex items-center justify-between">
-                        <div>
-                          <div className="text-[7px] font-medium">{res.customer_name.split(' ')[0]}</div>
-                          <div className="text-[6px] text-muted-foreground">{res.party_size} guests • Table {res.table.table_number}</div>
-                        </div>
-                        <div className="text-[7px]">{format(new Date(res.reservation_time), 'HH:mm')}</div>
-                      </Card>
-                    ))
+                    <div className="grid grid-cols-2 gap-1">
+                      {DEMO_RESERVATIONS.slice(0, 4).map((res, i) => (
+                        <Card key={i} className="border-border/50 p-1.5">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <div className="text-[7px] font-medium truncate max-w-[40px]">{res.customer_name.split(' ')[0]}</div>
+                            <div className="text-[6px]">{format(new Date(res.reservation_time), 'HH:mm')}</div>
+                          </div>
+                          <div className="flex items-center gap-1 text-[5px] text-muted-foreground">
+                            <Users className="w-1.5 h-1.5" />
+                            <span>{res.party_size}</span>
+                            <span>• T{res.table.table_number}</span>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
