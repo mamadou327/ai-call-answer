@@ -5,17 +5,23 @@ import {
   CalendarDays, 
   Phone, 
   MessageSquare,
-  TrendingUp,
-  Users,
   Clock,
   ChefHat,
+  Package,
+  CheckCircle,
+  XCircle,
+  DollarSign,
+  Users,
+  Plus,
   Sparkles
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   DEMO_ORDERS, 
   DEMO_RESERVATIONS, 
@@ -23,44 +29,37 @@ import {
   DEMO_RESTAURANT_MESSAGES,
   DEMO_RESTAURANT_STATS 
 } from "@/lib/demoData";
-import { format } from "date-fns";
+import { format, formatDistanceToNow, addMinutes } from "date-fns";
 
 type DemoOrder = typeof DEMO_ORDERS[0];
 type DemoReservation = typeof DEMO_RESERVATIONS[0];
 
-const OrderCard = ({ order, onClick }: { order: DemoOrder; onClick: () => void }) => {
-  const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    pending: { label: "Pending", variant: "outline" },
-    confirmed: { label: "Confirmed", variant: "secondary" },
-    preparing: { label: "Preparing", variant: "default" },
-    ready: { label: "Ready", variant: "default" },
-    completed: { label: "Completed", variant: "secondary" },
-    cancelled: { label: "Cancelled", variant: "destructive" },
-  };
-  const status = statusConfig[order.status] || statusConfig.pending;
-
-  return (
-    <Card 
-      className="cursor-pointer hover:shadow-md transition-shadow border-border/50"
-      onClick={onClick}
-    >
-      <CardContent className="p-3">
-        <div className="flex items-start justify-between mb-2">
-          <div>
-            <p className="font-semibold text-sm">#{order.order_number}</p>
-            <p className="text-xs text-muted-foreground">{order.customer_name}</p>
-          </div>
-          <Badge variant={status.variant} className="text-[10px] px-1.5 py-0.5">
-            {status.label}
-          </Badge>
-        </div>
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{order.items.length} item{order.items.length > 1 ? 's' : ''}</span>
-          <span className="font-medium text-foreground">£{order.total.toFixed(2)}</span>
-        </div>
-      </CardContent>
-    </Card>
-  );
+// Status config matching RestaurantOrderQueue
+const orderStatusConfig: Record<string, { label: string; color: string; icon: React.ReactNode; bgColor: string }> = {
+  pending: { 
+    label: "Pending", 
+    color: "text-yellow-700", 
+    icon: <Clock className="w-4 h-4" />,
+    bgColor: "bg-yellow-50 border-yellow-200"
+  },
+  confirmed: { 
+    label: "Confirmed", 
+    color: "text-blue-700", 
+    icon: <CheckCircle className="w-4 h-4" />,
+    bgColor: "bg-blue-50 border-blue-200"
+  },
+  preparing: { 
+    label: "Preparing", 
+    color: "text-orange-700", 
+    icon: <ChefHat className="w-4 h-4" />,
+    bgColor: "bg-orange-50 border-orange-200"
+  },
+  ready: { 
+    label: "Ready", 
+    color: "text-green-700", 
+    icon: <Package className="w-4 h-4" />,
+    bgColor: "bg-green-50 border-green-200"
+  },
 };
 
 const ReservationCard = ({ reservation, onClick }: { reservation: DemoReservation; onClick: () => void }) => {
@@ -104,8 +103,38 @@ const DemoDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [selectedOrder, setSelectedOrder] = useState<DemoOrder | null>(null);
   const [selectedReservation, setSelectedReservation] = useState<DemoReservation | null>(null);
+  const [dateRange, setDateRange] = useState("today");
 
   const stats = DEMO_RESTAURANT_STATS;
+  
+  // Group orders by status for the kanban queue
+  const activeOrders = DEMO_ORDERS.filter(o => ["pending", "confirmed", "preparing", "ready"].includes(o.status));
+  const groupedOrders = {
+    pending: activeOrders.filter(o => o.status === "pending"),
+    confirmed: activeOrders.filter(o => o.status === "confirmed"),
+    preparing: activeOrders.filter(o => o.status === "preparing"),
+    ready: activeOrders.filter(o => o.status === "ready"),
+  };
+
+  const getOrderItems = (items: any): { name: string; quantity: number }[] => {
+    if (!items) return [];
+    if (Array.isArray(items)) {
+      return items.map((item: any) => ({
+        name: item.name || item.item_name || "Unknown",
+        quantity: item.quantity || 1,
+      }));
+    }
+    return [];
+  };
+
+  const getPeriodLabel = () => {
+    switch (dateRange) {
+      case "today": return "Today";
+      case "week": return "This Week";
+      case "month": return "This Month";
+      default: return "Today";
+    }
+  };
 
   return (
     <div className="relative mt-16">
@@ -175,79 +204,127 @@ const DemoDashboard = () => {
                   </TabsTrigger>
                 </TabsList>
 
-                <ScrollArea className="h-[280px] mt-4">
-                  {/* Dashboard Tab */}
+                <ScrollArea className="h-[300px] mt-4">
+                  {/* Dashboard Tab - Matching RestaurantDashboardTab */}
                   <TabsContent value="dashboard" className="mt-0 space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <Card className="border-border/50">
-                        <CardContent className="p-3">
-                          <div className="flex items-center gap-2">
-                            <div className="p-1.5 rounded-md bg-primary/10">
-                              <ShoppingBag className="w-4 h-4 text-primary" />
-                            </div>
-                            <div>
-                              <p className="text-xl font-bold">{stats.ordersCount}</p>
-                              <p className="text-[10px] text-muted-foreground">Orders Today</p>
-                            </div>
-                          </div>
+                    {/* Date Range & Manual Order Header */}
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold">Analytics</h3>
+                      <div className="flex gap-2 items-center">
+                        <Button size="sm" className="h-7 text-xs gap-1" variant="default">
+                          <Plus className="w-3 h-3" />
+                          Manual Order
+                        </Button>
+                        <Select value={dateRange} onValueChange={setDateRange}>
+                          <SelectTrigger className="w-[100px] h-7 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="today">Today</SelectItem>
+                            <SelectItem value="week">This Week</SelectItem>
+                            <SelectItem value="month">This Month</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Key Metrics - Matching RestaurantDashboardTab exactly */}
+                    <div className="grid grid-cols-4 gap-2">
+                      <Card className="cursor-pointer hover:bg-accent/50 transition-colors border-border/50">
+                        <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
+                          <CardTitle className="text-[10px] font-medium">Total Orders</CardTitle>
+                          <Package className="w-3 h-3 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent className="p-2 pt-0">
+                          <div className="text-lg font-bold">{stats.ordersCount}</div>
+                          <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
                       </Card>
-                      <Card className="border-border/50">
-                        <CardContent className="p-3">
-                          <div className="flex items-center gap-2">
-                            <div className="p-1.5 rounded-md bg-green-500/10">
-                              <TrendingUp className="w-4 h-4 text-green-500" />
-                            </div>
-                            <div>
-                              <p className="text-xl font-bold">£{stats.revenue}</p>
-                              <p className="text-[10px] text-muted-foreground">Revenue</p>
-                            </div>
-                          </div>
+
+                      <Card className="cursor-pointer hover:bg-accent/50 transition-colors border-border/50">
+                        <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
+                          <CardTitle className="text-[10px] font-medium">Completed</CardTitle>
+                          <CheckCircle className="w-3 h-3 text-green-500" />
+                        </CardHeader>
+                        <CardContent className="p-2 pt-0">
+                          <div className="text-lg font-bold text-green-600">{stats.completedCount}</div>
+                          <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
                       </Card>
-                      <Card className="border-border/50">
-                        <CardContent className="p-3">
-                          <div className="flex items-center gap-2">
-                            <div className="p-1.5 rounded-md bg-blue-500/10">
-                              <Users className="w-4 h-4 text-blue-500" />
-                            </div>
-                            <div>
-                              <p className="text-xl font-bold">{DEMO_RESERVATIONS.length}</p>
-                              <p className="text-[10px] text-muted-foreground">Reservations</p>
-                            </div>
-                          </div>
+
+                      <Card className="cursor-pointer hover:bg-accent/50 transition-colors border-border/50">
+                        <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
+                          <CardTitle className="text-[10px] font-medium">Cancelled</CardTitle>
+                          <XCircle className="w-3 h-3 text-destructive" />
+                        </CardHeader>
+                        <CardContent className="p-2 pt-0">
+                          <div className="text-lg font-bold text-destructive">{stats.cancelledCount}</div>
+                          <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
                       </Card>
-                      <Card className="border-border/50">
-                        <CardContent className="p-3">
-                          <div className="flex items-center gap-2">
-                            <div className="p-1.5 rounded-md bg-orange-500/10">
-                              <Phone className="w-4 h-4 text-orange-500" />
-                            </div>
-                            <div>
-                              <p className="text-xl font-bold">{stats.callsCount}</p>
-                              <p className="text-[10px] text-muted-foreground">Calls Handled</p>
-                            </div>
-                          </div>
+
+                      <Card className="cursor-pointer hover:bg-accent/50 transition-colors border-border/50">
+                        <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
+                          <CardTitle className="text-[10px] font-medium">Revenue</CardTitle>
+                          <DollarSign className="w-3 h-3 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent className="p-2 pt-0">
+                          <div className="text-lg font-bold">£{stats.revenue.toFixed(2)}</div>
+                          <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
                       </Card>
                     </div>
 
+                    {/* Active Orders Queue - Matching RestaurantOrderQueue */}
                     <Card className="border-border/50">
-                      <CardHeader className="p-3 pb-2">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <ChefHat className="w-4 h-4" />
-                          Active Orders
-                        </CardTitle>
+                      <CardHeader className="p-2 pb-1">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm font-semibold">Active Orders</CardTitle>
+                          <Badge variant="secondary" className="text-[10px]">
+                            {activeOrders.length} active
+                          </Badge>
+                        </div>
                       </CardHeader>
-                      <CardContent className="p-3 pt-0">
-                        <div className="grid grid-cols-2 gap-2">
-                          {DEMO_ORDERS.slice(0, 2).map((order) => (
-                            <OrderCard 
-                              key={order.id} 
-                              order={order} 
-                              onClick={() => setSelectedOrder(order)} 
-                            />
+                      <CardContent className="p-2 pt-0">
+                        <div className="grid grid-cols-4 gap-2">
+                          {(["pending", "confirmed", "preparing", "ready"] as const).map((status) => (
+                            <div key={status} className="space-y-1">
+                              <div className="flex items-center gap-1">
+                                <span className={`${orderStatusConfig[status].color}`}>
+                                  {orderStatusConfig[status].icon}
+                                </span>
+                                <span className={`text-[10px] font-medium ${orderStatusConfig[status].color}`}>
+                                  {orderStatusConfig[status].label}
+                                </span>
+                                <Badge variant="outline" className="ml-auto text-[8px] px-1 py-0">
+                                  {groupedOrders[status].length}
+                                </Badge>
+                              </div>
+                              
+                              <div className="space-y-1 min-h-[60px]">
+                                {groupedOrders[status].slice(0, 1).map((order) => {
+                                  const items = getOrderItems(order.items);
+                                  return (
+                                    <div 
+                                      key={order.id} 
+                                      className={`p-1.5 rounded-md border cursor-pointer hover:shadow-sm transition-shadow ${orderStatusConfig[status].bgColor}`}
+                                      onClick={() => setSelectedOrder(order)}
+                                    >
+                                      <div className="flex items-start justify-between mb-0.5">
+                                        <p className="font-bold text-xs">#{order.order_number}</p>
+                                        <p className="font-medium text-[10px]">
+                                          £{order.total.toFixed(2)}
+                                        </p>
+                                      </div>
+                                      <p className="text-[9px] text-muted-foreground mb-0.5">{order.customer_name}</p>
+                                      <p className="text-[8px] text-muted-foreground truncate">
+                                        {items.slice(0, 2).map(i => `${i.quantity}x ${i.name}`).join(", ")}
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           ))}
                         </div>
                       </CardContent>
@@ -256,13 +333,62 @@ const DemoDashboard = () => {
 
                   {/* Orders Tab */}
                   <TabsContent value="orders" className="mt-0">
-                    <div className="grid grid-cols-2 gap-3">
-                      {DEMO_ORDERS.map((order) => (
-                        <OrderCard 
-                          key={order.id} 
-                          order={order} 
-                          onClick={() => setSelectedOrder(order)} 
-                        />
+                    <div className="grid grid-cols-4 gap-2">
+                      {(["pending", "confirmed", "preparing", "ready"] as const).map((status) => (
+                        <div key={status} className="space-y-2">
+                          <div className="flex items-center gap-1">
+                            <span className={`${orderStatusConfig[status].color}`}>
+                              {orderStatusConfig[status].icon}
+                            </span>
+                            <span className={`text-xs font-medium ${orderStatusConfig[status].color}`}>
+                              {orderStatusConfig[status].label}
+                            </span>
+                            <Badge variant="outline" className="ml-auto text-[10px]">
+                              {groupedOrders[status].length}
+                            </Badge>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            {groupedOrders[status].map((order) => {
+                              const items = getOrderItems(order.items);
+                              return (
+                                <div 
+                                  key={order.id} 
+                                  className={`p-2 rounded-lg border cursor-pointer hover:shadow-md transition-shadow ${orderStatusConfig[status].bgColor}`}
+                                  onClick={() => setSelectedOrder(order)}
+                                >
+                                  <div className="flex items-start justify-between mb-1">
+                                    <div>
+                                      <p className="font-bold text-sm">#{order.order_number}</p>
+                                      <p className="text-[10px] text-muted-foreground">{order.customer_name}</p>
+                                    </div>
+                                    <p className="font-semibold text-xs">
+                                      £{order.total.toFixed(2)}
+                                    </p>
+                                  </div>
+                                  
+                                  <div className="text-[9px] mb-1 space-y-0.5">
+                                    {items.slice(0, 2).map((item, idx) => (
+                                      <p key={idx} className="text-muted-foreground">
+                                        {item.quantity}x {item.name}
+                                      </p>
+                                    ))}
+                                    {items.length > 2 && (
+                                      <p className="text-muted-foreground italic">
+                                        +{items.length - 2} more
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                                    <Clock className="w-2.5 h-2.5" />
+                                    {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </TabsContent>
@@ -396,14 +522,22 @@ const DemoDashboard = () => {
                 <div>
                   <p className="text-muted-foreground">Time</p>
                   <p className="font-medium">
-                    {format(new Date(selectedReservation.reservation_time), 'MMM d, HH:mm')}
+                    {format(new Date(selectedReservation.reservation_time), 'MMM d, h:mm a')}
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Duration</p>
-                  <p className="font-medium">{selectedReservation.duration_minutes} min</p>
+                  <p className="text-muted-foreground">Status</p>
+                  <Badge variant="secondary" className="mt-0.5">
+                    {selectedReservation.status}
+                  </Badge>
                 </div>
               </div>
+              {'special_requests' in selectedReservation && selectedReservation.special_requests && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Special Requests</p>
+                  <p className="text-sm">{String(selectedReservation.special_requests)}</p>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
