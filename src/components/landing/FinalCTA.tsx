@@ -11,7 +11,7 @@ const FinalCTA = () => {
   return (
     <>
       <section className="container mx-auto px-4 py-16 md:py-24">
-        <div className="bg-primary text-primary-foreground p-8 md:p-16 text-center">
+        <div className="bg-primary text-primary-foreground p-8 md:p-16 text-center rounded-3xl">
           <div className="max-w-2xl mx-auto">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               Ready to Transform Your Business?
