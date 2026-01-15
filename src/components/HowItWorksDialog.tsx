@@ -35,16 +35,16 @@ const HowItWorksDialog = ({ children }: HowItWorksDialogProps) => {
                 <h3 className="font-semibold text-lg">Set up your business in minutes</h3>
               </div>
               <p className="text-muted-foreground leading-relaxed pl-11">
-                Create your account, add your services, prices, staff, and opening hours. Choose your Aivia phone number (or connect your existing line), and pick the AI voice and greeting you want customers to hear.
+                Create your account, add your menu items, tables, opening hours and delivery options. Choose your Aivia phone number (or connect your existing line), and pick the AI voice and greeting you want customers to hear.
               </p>
               <div className="flex flex-wrap gap-2 pl-11">
                 <div className="flex items-center gap-2 bg-muted px-3 py-1.5 rounded-full text-sm">
                   <Plus className="w-3.5 h-3.5 text-accent" />
-                  Add services
+                  Add menu
                 </div>
                 <div className="flex items-center gap-2 bg-muted px-3 py-1.5 rounded-full text-sm">
                   <Users className="w-3.5 h-3.5 text-accent" />
-                  Add staff
+                  Set tables
                 </div>
                 <div className="flex items-center gap-2 bg-muted px-3 py-1.5 rounded-full text-sm">
                   <Zap className="w-3.5 h-3.5 text-accent" />
@@ -60,28 +60,28 @@ const HowItWorksDialog = ({ children }: HowItWorksDialogProps) => {
                 <h3 className="font-semibold text-lg">Aivia answers every call, 24/7</h3>
               </div>
               <p className="text-muted-foreground leading-relaxed pl-11">
-                When a customer calls your number, Aivia picks up instantly with your business name, speaks naturally, and asks how it can help. It understands what they say, checks your availability, and books, moves, or cancels appointments — just like a real receptionist.
+                When a customer calls your number, Aivia picks up instantly with your restaurant name, speaks naturally, and asks how it can help. It understands what they say, checks your availability, and takes orders, makes reservations, or answers questions — just like a real receptionist.
               </p>
               {/* Conversation Example */}
               <div className="bg-muted/50 rounded-xl p-4 ml-11 space-y-3">
                 <div className="flex justify-end">
                   <div className="bg-primary text-primary-foreground rounded-2xl rounded-br-md px-3 py-2 max-w-[80%] text-sm">
-                    "Hey, I'd like a skin fade tomorrow around 3pm."
+                    "Hi, I'd like to make a reservation for 4 people tomorrow at 7pm."
                   </div>
                 </div>
                 <div className="flex justify-start">
                   <div className="bg-accent/20 text-foreground rounded-2xl rounded-bl-md px-3 py-2 max-w-[80%] text-sm">
-                    "No problem. We have Ahmed free at 3:15pm or Sam at 2:45pm. Which would you prefer?"
+                    "Of course! I have a table available at 7pm or 7:30pm. Which would you prefer?"
                   </div>
                 </div>
                 <div className="flex justify-end">
                   <div className="bg-primary text-primary-foreground rounded-2xl rounded-br-md px-3 py-2 max-w-[80%] text-sm">
-                    "Ahmed at 3:15."
+                    "7pm please, and can we get a table by the window?"
                   </div>
                 </div>
                 <div className="flex justify-start">
                   <div className="bg-accent/20 text-foreground rounded-2xl rounded-bl-md px-3 py-2 max-w-[80%] text-sm">
-                    "All set. I've booked you in with Ahmed tomorrow at 3:15pm. You'll get a confirmation text shortly."
+                    "Perfect! I've reserved a window table for 4 at 7pm tomorrow. You'll receive a confirmation text shortly."
                   </div>
                 </div>
               </div>
@@ -94,7 +94,7 @@ const HowItWorksDialog = ({ children }: HowItWorksDialogProps) => {
                 <h3 className="font-semibold text-lg">You see everything in one dashboard</h3>
               </div>
               <p className="text-muted-foreground leading-relaxed pl-11">
-                Every call, booking, and message appears in your Aivia dashboard. You can see today's appointments, who's coming in, which staff are busy, and simple analytics like how many calls Aivia answered and how many bookings were made.
+                Every call, order, and reservation appears in your Aivia dashboard. You can see today's bookings, upcoming orders, table availability, and simple analytics like how many calls Aivia answered and how much revenue was generated.
               </p>
               {/* Mini Dashboard */}
               <div className="bg-muted/50 rounded-xl p-4 ml-11">
@@ -107,19 +107,19 @@ const HowItWorksDialog = ({ children }: HowItWorksDialogProps) => {
                   <div className="bg-background rounded-lg p-2.5 text-center">
                     <Calendar className="w-4 h-4 text-accent mx-auto mb-1" />
                     <div className="text-base font-bold">32</div>
-                    <div className="text-xs text-muted-foreground">Bookings</div>
+                    <div className="text-xs text-muted-foreground">Orders</div>
                   </div>
                   <div className="bg-background rounded-lg p-2.5 text-center">
                     <TrendingUp className="w-4 h-4 text-accent mx-auto mb-1" />
-                    <div className="text-base font-bold">£640</div>
+                    <div className="text-base font-bold">£1,240</div>
                     <div className="text-xs text-muted-foreground">Revenue</div>
                   </div>
                 </div>
                 <div className="bg-background rounded-lg p-2.5">
-                  <div className="text-xs font-medium text-muted-foreground mb-1.5">Today's Bookings</div>
+                  <div className="text-xs font-medium text-muted-foreground mb-1.5">Today's Reservations</div>
                   <div className="space-y-1 text-xs">
-                    <div className="flex justify-between"><span>10:00 - Jamal (Skin fade)</span><span className="text-accent">Ahmed</span></div>
-                    <div className="flex justify-between"><span>11:30 - Marcus (Beard trim)</span><span className="text-accent">Sam</span></div>
+                    <div className="flex justify-between"><span>19:00 - Sarah (4 guests)</span><span className="text-accent">Window</span></div>
+                    <div className="flex justify-between"><span>20:30 - James (2 guests)</span><span className="text-accent">Booth</span></div>
                   </div>
                 </div>
               </div>
@@ -132,7 +132,7 @@ const HowItWorksDialog = ({ children }: HowItWorksDialogProps) => {
                 <h3 className="font-semibold text-lg">Customers get instant confirmations & reminders</h3>
               </div>
               <p className="text-muted-foreground leading-relaxed pl-11">
-                After every booking, Aivia can automatically send SMS confirmations and reminders, so your customers know exactly when they're booked — and you get fewer no-shows.
+                After every order or reservation, Aivia can automatically send SMS confirmations and reminders, so your customers know exactly when to arrive — and you get fewer no-shows.
               </p>
               {/* SMS Preview */}
               <div className="bg-muted/50 rounded-xl p-4 ml-11">
@@ -141,16 +141,16 @@ const HowItWorksDialog = ({ children }: HowItWorksDialogProps) => {
                     <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center">
                       <MessageSquare className="w-3 h-3 text-accent" />
                     </div>
-                    <span className="text-xs font-medium">Exclusive Cuts</span>
+                    <span className="text-xs font-medium">The Italian Kitchen</span>
                   </div>
                   <div className="text-xs space-y-0.5">
-                    <p className="font-semibold">Booking confirmed ✅</p>
-                    <p className="text-muted-foreground"><span className="font-medium text-foreground">Name:</span> Jamal</p>
-                    <p className="text-muted-foreground"><span className="font-medium text-foreground">Service:</span> Skin fade</p>
-                    <p className="text-muted-foreground"><span className="font-medium text-foreground">With:</span> Ahmed</p>
-                    <p className="text-muted-foreground"><span className="font-medium text-foreground">When:</span> Tue 10 Dec at 3:15 PM</p>
-                    <p className="text-muted-foreground"><span className="font-medium text-foreground">Where:</span> 123 High Street</p>
-                    <p className="text-muted-foreground"><span className="font-medium text-foreground">Code:</span> EXC-2647</p>
+                    <p className="font-semibold">Reservation confirmed ✅</p>
+                    <p className="text-muted-foreground"><span className="font-medium text-foreground">Name:</span> Sarah</p>
+                    <p className="text-muted-foreground"><span className="font-medium text-foreground">Party size:</span> 4 guests</p>
+                    <p className="text-muted-foreground"><span className="font-medium text-foreground">Table:</span> Window seating</p>
+                    <p className="text-muted-foreground"><span className="font-medium text-foreground">When:</span> Fri 13 Dec at 7:00 PM</p>
+                    <p className="text-muted-foreground"><span className="font-medium text-foreground">Where:</span> 45 High Street</p>
+                    <p className="text-muted-foreground"><span className="font-medium text-foreground">Code:</span> ITK-4821</p>
                   </div>
                 </div>
               </div>
