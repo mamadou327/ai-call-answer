@@ -57,20 +57,6 @@ const HeroSection = () => {
           </Button>
         </div>
 
-        {/* Social Proof Bar */}
-        <div className="flex items-center justify-center gap-2 text-muted-foreground">
-          <div className="flex -space-x-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div 
-                key={i} 
-                className="w-8 h-8 rounded-full bg-muted border-2 border-background flex items-center justify-center text-xs font-bold"
-              >
-                {String.fromCharCode(64 + i)}
-              </div>
-            ))}
-          </div>
-          <span className="text-sm ml-2">Join <strong className="text-foreground">200+</strong> businesses already using AIVIA</span>
-        </div>
       </div>
 
       {/* Interactive Demo Dashboard */}

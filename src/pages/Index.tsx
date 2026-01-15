@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 // Landing page sections
 import Header from "@/components/landing/Header";
 import HeroSection from "@/components/landing/HeroSection";
-import LogoWall from "@/components/landing/LogoWall";
 import BusinessTypeSelector from "@/components/landing/BusinessTypeSelector";
 import DemoAudioSection from "@/components/landing/DemoAudioSection";
 import ProblemSection from "@/components/landing/ProblemSection";
@@ -35,7 +34,6 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header />
       <HeroSection />
-      <LogoWall />
       <BusinessTypeSelector />
       <DemoAudioSection />
       <ProblemSection />
