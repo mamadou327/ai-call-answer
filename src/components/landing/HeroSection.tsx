@@ -1,8 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Play } from "lucide-react";
+import { Play, Headphones } from "lucide-react";
 import DemoDashboard from "./DemoDashboard";
 import HowItWorksDialog from "@/components/HowItWorksDialog";
+import DemoRequestDialog from "./DemoRequestDialog";
+
 const HeroSection = () => {
   const navigate = useNavigate();
 
@@ -22,12 +24,15 @@ const HeroSection = () => {
           AI that answers your phone, books appointments, and takes orders — so you never miss another customer again.
         </p>
 
-        {/* Risk Reducer Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary border border-border mb-8">
-          <span className="text-sm text-muted-foreground">
-            Free 14-day trial • No credit card required
-          </span>
-        </div>
+        {/* Demo CTA Badge */}
+        <DemoRequestDialog>
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary border border-border mb-8 cursor-pointer hover:bg-secondary/80 transition-colors">
+            <Headphones className="w-4 h-4 text-primary" />
+            <span className="text-sm text-muted-foreground">
+              Want to hear a demo? <span className="text-primary font-medium">Click here</span>
+            </span>
+          </div>
+        </DemoRequestDialog>
 
         {/* Dual CTAs */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">

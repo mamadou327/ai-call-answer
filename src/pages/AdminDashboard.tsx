@@ -23,7 +23,8 @@ import { BusinessNotificationServicesDialog } from "@/components/admin/BusinessN
 import { ServiceRequestsTab } from "@/components/admin/ServiceRequestsTab";
 import { AdminMessagesTab } from "@/components/admin/AdminMessagesTab";
 import { AdminCallsTab } from "@/components/admin/AdminCallsTab";
-import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare, Mail, Sparkles } from "lucide-react";
+import { AdminDemoRequestsTab } from "@/components/admin/AdminDemoRequestsTab";
+import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare, Mail, Sparkles, Headphones } from "lucide-react";
 import { AiviaSalesKitTab } from "@/components/admin/AiviaSalesKitTab";
 
 // Super admin emails that cannot be deactivated
@@ -105,7 +106,7 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "messages" | "calls" | "aivia">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "messages" | "demos" | "calls" | "aivia">("analytics");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
     can_manage_business_numbers: false,
@@ -697,6 +698,13 @@ const AdminDashboard = () => {
             <MessageSquare className="w-4 h-4 mr-2" />
             Messages
           </Button>
+          <Button
+            variant={activeTab === "demos" ? "default" : "outline"}
+            onClick={() => setActiveTab("demos")}
+          >
+            <Headphones className="w-4 h-4 mr-2" />
+            Demo Requests
+          </Button>
           {(isSuperAdmin || userPermissions.can_view_calls_messages) && (
             <Button
               variant={activeTab === "calls" ? "default" : "outline"}
@@ -887,6 +895,10 @@ const AdminDashboard = () => {
 
         {activeTab === "messages" && (
           <AdminMessagesTab />
+        )}
+
+        {activeTab === "demos" && (
+          <AdminDemoRequestsTab />
         )}
 
         {activeTab === "calls" && (isSuperAdmin || userPermissions.can_view_calls_messages) && (
