@@ -46,9 +46,12 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
       <header className="border-b-2 border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto flex h-20 items-center justify-between px-4">
           {/* Logo */}
-          <div className="flex items-center">
+          <button 
+            onClick={() => navigate("/")} 
+            className="flex items-center hover:opacity-80 transition-opacity"
+          >
             <img src={aiviaLogo} alt="AIVIA" className="h-12 w-auto" />
-          </div>
+          </button>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6">
