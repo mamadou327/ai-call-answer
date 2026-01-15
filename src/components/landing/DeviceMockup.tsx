@@ -1,130 +1,179 @@
 const DeviceMockup = () => {
   return (
-    <div className="relative w-full max-w-5xl mx-auto mt-16 px-4">
-      {/* Laptop Frame */}
+    <div className="relative w-full max-w-6xl mx-auto mt-16 px-4">
+      {/* Laptop/Desktop Frame - Main Device */}
       <div className="relative animate-float">
-        {/* Screen */}
-        <div className="relative bg-muted border-4 border-foreground rounded-t-lg overflow-hidden shadow-lg">
-          {/* Browser Chrome */}
-          <div className="bg-secondary border-b-2 border-foreground px-4 py-2 flex items-center gap-2">
-            <div className="flex gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-destructive border border-foreground" />
-              <div className="w-3 h-3 rounded-full bg-warning border border-foreground" />
-              <div className="w-3 h-3 rounded-full bg-success border border-foreground" />
-            </div>
-            <div className="flex-1 mx-4">
-              <div className="bg-background border-2 border-foreground px-3 py-1 text-xs text-muted-foreground font-mono">
-                dashboard.aivia.app
+        {/* Screen Bezel */}
+        <div className="bg-[#1a1a1a] rounded-t-2xl p-3 shadow-2xl">
+          {/* Screen */}
+          <div className="relative bg-muted rounded-lg overflow-hidden shadow-inner">
+            {/* Browser Chrome */}
+            <div className="bg-[#2a2a2a] px-4 py-2.5 flex items-center gap-3">
+              <div className="flex gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#ff5f57] shadow-sm" />
+                <div className="w-3 h-3 rounded-full bg-[#ffbd2e] shadow-sm" />
+                <div className="w-3 h-3 rounded-full bg-[#28ca41] shadow-sm" />
               </div>
-            </div>
-          </div>
-          
-          {/* Dashboard Content */}
-          <div className="bg-background p-4 md:p-6 min-h-[280px] md:min-h-[320px]">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4 md:mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-foreground rounded" />
-                <span className="font-bold text-sm md:text-base">AIVIA Dashboard</span>
+              <div className="flex-1 mx-4">
+                <div className="bg-[#3a3a3a] rounded-md px-4 py-1.5 text-xs text-gray-400 font-mono flex items-center gap-2">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  dashboard.aivia.app
+                </div>
               </div>
               <div className="flex gap-2">
-                <div className="px-3 py-1 bg-muted border-2 border-foreground text-xs font-medium">Bookings</div>
-                <div className="px-3 py-1 bg-muted border-2 border-foreground text-xs font-medium hidden sm:block">Calls</div>
-                <div className="px-3 py-1 bg-muted border-2 border-foreground text-xs font-medium hidden md:block">Settings</div>
+                <div className="w-4 h-4 rounded bg-[#3a3a3a]" />
+                <div className="w-4 h-4 rounded bg-[#3a3a3a]" />
               </div>
             </div>
             
-            {/* Stats Grid */}
-            <div className="grid grid-cols-3 gap-3 md:gap-4 mb-4 md:mb-6">
-              <div className="bg-secondary border-2 border-foreground p-3 md:p-4 shadow-xs">
-                <div className="text-xs text-muted-foreground mb-1">Today's Calls</div>
-                <div className="text-xl md:text-2xl font-bold">127</div>
-                <div className="text-xs text-success mt-1">↑ 23%</div>
+            {/* Dashboard Content */}
+            <div className="bg-background p-5 md:p-8 min-h-[320px] md:min-h-[380px]">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                    <span className="text-primary-foreground font-bold text-sm">A</span>
+                  </div>
+                  <span className="font-bold text-base md:text-lg">AIVIA Dashboard</span>
+                </div>
+                <div className="flex gap-2">
+                  <div className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-medium shadow-sm">Bookings</div>
+                  <div className="px-4 py-2 bg-muted rounded-lg text-xs font-medium hidden sm:block">Calls</div>
+                  <div className="px-4 py-2 bg-muted rounded-lg text-xs font-medium hidden md:block">Settings</div>
+                </div>
               </div>
-              <div className="bg-secondary border-2 border-foreground p-3 md:p-4 shadow-xs">
-                <div className="text-xs text-muted-foreground mb-1">Revenue</div>
-                <div className="text-xl md:text-2xl font-bold">£2.4k</div>
-                <div className="text-xs text-success mt-1">↑ 18%</div>
+              
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-4 md:gap-6 mb-6">
+                <div className="bg-card border border-border rounded-xl p-4 md:p-5 shadow-sm">
+                  <div className="text-xs text-muted-foreground mb-2">Today's Calls</div>
+                  <div className="text-2xl md:text-3xl font-bold">127</div>
+                  <div className="text-xs text-green-500 mt-2 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                    23%
+                  </div>
+                </div>
+                <div className="bg-card border border-border rounded-xl p-4 md:p-5 shadow-sm">
+                  <div className="text-xs text-muted-foreground mb-2">Revenue</div>
+                  <div className="text-2xl md:text-3xl font-bold">£2.4k</div>
+                  <div className="text-xs text-green-500 mt-2 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                    18%
+                  </div>
+                </div>
+                <div className="bg-card border border-border rounded-xl p-4 md:p-5 shadow-sm">
+                  <div className="text-xs text-muted-foreground mb-2">Answered</div>
+                  <div className="text-2xl md:text-3xl font-bold">95%</div>
+                  <div className="text-xs text-green-500 mt-2 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                    12%
+                  </div>
+                </div>
               </div>
-              <div className="bg-secondary border-2 border-foreground p-3 md:p-4 shadow-xs">
-                <div className="text-xs text-muted-foreground mb-1">Answered</div>
-                <div className="text-xl md:text-2xl font-bold">95%</div>
-                <div className="text-xs text-success mt-1">↑ 12%</div>
+              
+              {/* Chart */}
+              <div className="bg-card border border-border rounded-xl p-5 h-24 md:h-28 flex items-end gap-1.5">
+                {[40, 65, 45, 80, 55, 70, 90, 60, 75, 85, 50, 95].map((height, i) => (
+                  <div 
+                    key={i} 
+                    className="flex-1 bg-primary/80 rounded-t transition-all hover:bg-primary"
+                    style={{ height: `${height}%` }}
+                  />
+                ))}
               </div>
-            </div>
-            
-            {/* Chart Placeholder */}
-            <div className="bg-muted border-2 border-foreground p-4 h-20 md:h-24 flex items-end gap-1">
-              {[40, 65, 45, 80, 55, 70, 90, 60, 75, 85, 50, 95].map((height, i) => (
-                <div 
-                  key={i} 
-                  className="flex-1 bg-foreground transition-all"
-                  style={{ height: `${height}%` }}
-                />
-              ))}
             </div>
           </div>
         </div>
         
-        {/* Laptop Base */}
+        {/* Laptop Base / Stand */}
         <div className="relative">
-          <div className="h-4 bg-secondary border-x-4 border-b-4 border-foreground rounded-b-lg" />
-          <div className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-1/4 h-1 bg-muted border-2 border-foreground rounded-b" />
+          {/* Hinge */}
+          <div className="h-3 bg-gradient-to-b from-[#2a2a2a] to-[#1a1a1a] rounded-b-sm" />
+          {/* Base */}
+          <div className="h-5 bg-gradient-to-b from-[#3a3a3a] to-[#2a2a2a] rounded-b-xl mx-8 shadow-lg" />
+          {/* Bottom edge */}
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-0 w-1/3 h-1 bg-[#4a4a4a] rounded-b" />
         </div>
+        
+        {/* Reflection effect */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-2xl pointer-events-none" />
       </div>
       
       {/* Phone Frame - Positioned to the right */}
-      <div className="absolute -right-2 md:right-8 bottom-8 md:bottom-12 w-28 md:w-36 animate-float-delayed">
+      <div className="absolute -right-4 md:right-4 lg:right-12 bottom-12 md:bottom-16 w-32 md:w-40 lg:w-44 animate-float-delayed z-10">
         {/* Phone Body */}
-        <div className="bg-foreground rounded-2xl p-1.5 shadow-md">
+        <div className="bg-[#1a1a1a] rounded-[2rem] p-2 shadow-2xl">
           {/* Phone Screen */}
-          <div className="bg-background rounded-xl overflow-hidden">
-            {/* Status Bar */}
-            <div className="bg-secondary px-3 py-1.5 flex justify-between items-center text-[8px] border-b border-foreground">
-              <span>9:41</span>
-              <div className="flex gap-1">
-                <div className="w-3 h-1.5 bg-foreground rounded-sm" />
+          <div className="bg-background rounded-[1.5rem] overflow-hidden">
+            {/* Dynamic Island / Notch */}
+            <div className="h-8 bg-background flex justify-center items-center pt-2">
+              <div className="w-20 h-5 bg-[#1a1a1a] rounded-full flex items-center justify-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[#2a2a2a]" />
+                <div className="w-1.5 h-1.5 rounded-full bg-[#3a3a3a]" />
               </div>
             </div>
             
             {/* Phone Content */}
-            <div className="p-2 space-y-2">
-              <div className="text-[10px] font-bold">AIVIA</div>
+            <div className="p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-bold">AIVIA</div>
+                <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                  <span className="text-primary-foreground text-[8px] font-bold">A</span>
+                </div>
+              </div>
               
               {/* Mini Stats */}
-              <div className="grid grid-cols-2 gap-1.5">
-                <div className="bg-muted border border-foreground p-1.5">
-                  <div className="text-[7px] text-muted-foreground">Calls</div>
-                  <div className="text-xs font-bold">127</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-card border border-border rounded-lg p-2">
+                  <div className="text-[8px] text-muted-foreground">Calls</div>
+                  <div className="text-sm font-bold">127</div>
+                  <div className="text-[7px] text-green-500">↑ 23%</div>
                 </div>
-                <div className="bg-muted border border-foreground p-1.5">
-                  <div className="text-[7px] text-muted-foreground">Revenue</div>
-                  <div className="text-xs font-bold">£2.4k</div>
+                <div className="bg-card border border-border rounded-lg p-2">
+                  <div className="text-[8px] text-muted-foreground">Revenue</div>
+                  <div className="text-sm font-bold">£2.4k</div>
+                  <div className="text-[7px] text-green-500">↑ 18%</div>
                 </div>
               </div>
               
               {/* Mini Chart */}
-              <div className="bg-muted border border-foreground p-1.5 h-12 flex items-end gap-0.5">
-                {[40, 65, 80, 55, 90, 60].map((height, i) => (
+              <div className="bg-card border border-border rounded-lg p-2 h-14 flex items-end gap-1">
+                {[40, 65, 80, 55, 90, 60, 75].map((height, i) => (
                   <div 
                     key={i} 
-                    className="flex-1 bg-foreground"
+                    className="flex-1 bg-primary/80 rounded-t"
                     style={{ height: `${height}%` }}
                   />
                 ))}
               </div>
               
               {/* Booking Preview */}
-              <div className="bg-secondary border border-foreground p-1.5">
-                <div className="text-[7px] text-muted-foreground">Next Booking</div>
-                <div className="text-[9px] font-medium">Sarah M. - 2:30 PM</div>
+              <div className="bg-card border border-border rounded-lg p-2">
+                <div className="text-[8px] text-muted-foreground">Next Booking</div>
+                <div className="text-[10px] font-medium">Sarah M. - 2:30 PM</div>
+                <div className="text-[8px] text-muted-foreground mt-0.5">Haircut & Style</div>
+              </div>
+              
+              {/* Bottom nav hint */}
+              <div className="flex justify-center pt-2">
+                <div className="w-24 h-1 bg-foreground/20 rounded-full" />
               </div>
             </div>
           </div>
         </div>
         
-        {/* Phone Notch */}
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1 bg-foreground rounded-full" />
+        {/* Phone side buttons */}
+        <div className="absolute -left-0.5 top-20 w-0.5 h-8 bg-[#2a2a2a] rounded-l" />
+        <div className="absolute -left-0.5 top-32 w-0.5 h-12 bg-[#2a2a2a] rounded-l" />
+        <div className="absolute -right-0.5 top-24 w-0.5 h-10 bg-[#2a2a2a] rounded-r" />
       </div>
     </div>
   );
