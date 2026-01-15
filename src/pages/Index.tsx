@@ -6,12 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import Header, { ActiveSection } from "@/components/landing/Header";
 import HeroSection from "@/components/landing/HeroSection";
 import BusinessTypeSelector from "@/components/landing/BusinessTypeSelector";
-import DemoAudioSection from "@/components/landing/DemoAudioSection";
 import ProblemSection from "@/components/landing/ProblemSection";
-import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import FeatureShowcase from "@/components/landing/FeatureShowcase";
 import PricingSection from "@/components/landing/PricingSection";
-import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import FAQSection from "@/components/landing/FAQSection";
 import ComparisonTable from "@/components/landing/ComparisonTable";
 import FinalCTA from "@/components/landing/FinalCTA";
@@ -60,28 +57,15 @@ const Index = () => {
           </div>
         )}
 
-        {activeSection === 'how-it-works' && (
-          <div id="how-it-works" className="animate-fade-in">
-            <HowItWorksSection />
-          </div>
-        )}
-
         {activeSection === 'pricing' && (
           <div id="pricing" className="animate-fade-in">
             <PricingSection />
             <ComparisonTable />
           </div>
         )}
-
-        {activeSection === 'demo' && (
-          <div id="demo" className="animate-fade-in">
-            <DemoAudioSection />
-          </div>
-        )}
       </div>
 
       {/* Always visible sections */}
-      <TestimonialsSection />
       <FAQSection />
       <FinalCTA />
       <Footer />

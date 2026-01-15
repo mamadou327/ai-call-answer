@@ -20,9 +20,7 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
 
   const navLinks: { label: string; section: ActiveSection }[] = [
     { label: "Features", section: "features" },
-    { label: "How It Works", section: "how-it-works" },
     { label: "Pricing", section: "pricing" },
-    { label: "Demo", section: "demo" },
   ];
 
   const handleNavClick = (section: ActiveSection) => {
@@ -47,9 +45,8 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
       <header className="border-b-2 border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto flex h-20 items-center justify-between px-4">
           {/* Logo */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center">
             <img src={aiviaLogo} alt="AIVIA" className="h-12 w-auto" />
-            <span className="text-2xl font-bold text-foreground">AIVIA</span>
           </div>
 
           {/* Desktop Navigation */}
