@@ -11,6 +11,7 @@ import ProblemSection from "@/components/landing/ProblemSection";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
 import FeatureShowcase from "@/components/landing/FeatureShowcase";
 import MidPageCTA from "@/components/landing/MidPageCTA";
+import PricingSection from "@/components/landing/PricingSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import FAQSection from "@/components/landing/FAQSection";
 import ComparisonTable from "@/components/landing/ComparisonTable";
@@ -40,6 +41,7 @@ const Index = () => {
       <HowItWorksSection />
       <FeatureShowcase />
       <MidPageCTA />
+      <PricingSection />
       <TestimonialsSection />
       <ComparisonTable />
       <FAQSection />
