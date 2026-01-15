@@ -307,7 +307,7 @@ const PublicBookingPage = () => {
             .eq("business_id", businessData.id)
             .order("category", { ascending: true }),
           supabase
-            .from("business_settings")
+            .from("public_business_settings")
             .select("currency, min_booking_notice_hours, max_days_advance, min_cancellation_notice_hours, min_reschedule_notice_hours, cancellation_policy")
             .eq("business_id", businessData.id)
             .single(),

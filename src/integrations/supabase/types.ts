@@ -2258,6 +2258,54 @@ export type Database = {
       }
     }
     Views: {
+      public_business_settings: {
+        Row: {
+          business_id: string | null
+          cancellation_policy: string | null
+          currency: string | null
+          max_days_advance: number | null
+          min_booking_notice_hours: number | null
+          min_cancellation_notice_hours: number | null
+          min_reschedule_notice_hours: number | null
+          primary_language: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          cancellation_policy?: string | null
+          currency?: string | null
+          max_days_advance?: number | null
+          min_booking_notice_hours?: number | null
+          min_cancellation_notice_hours?: number | null
+          min_reschedule_notice_hours?: number | null
+          primary_language?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          cancellation_policy?: string | null
+          currency?: string | null
+          max_days_advance?: number | null
+          min_booking_notice_hours?: number | null
+          min_cancellation_notice_hours?: number | null
+          min_reschedule_notice_hours?: number | null
+          primary_language?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       public_businesses: {
         Row: {
           address: string | null
