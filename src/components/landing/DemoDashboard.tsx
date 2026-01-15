@@ -35,8 +35,7 @@ import {
   DEMO_RESTAURANT_STATS,
   DEMO_DINEIN_CALLS,
   DEMO_DINEIN_MESSAGES,
-  DEMO_RESERVATION_STATS,
-  DEMO_CALLS_STATS
+  DEMO_RESERVATION_STATS
 } from "@/lib/demoData";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -168,6 +167,16 @@ const DemoDashboard = () => {
   // Get calls and messages based on type
   const calls = selectedType === "dinein" ? DEMO_DINEIN_CALLS : DEMO_RESTAURANT_CALLS;
   const messages = selectedType === "dinein" ? DEMO_DINEIN_MESSAGES : DEMO_RESTAURANT_MESSAGES;
+  
+  // Calculate call stats dynamically based on actual call data
+  const callStats = {
+    totalCalls: calls.length,
+    bookingsCreated: calls.filter(c => 
+      c.call_type === "new_order" || c.call_type === "new_reservation" || c.call_type === "new_booking"
+    ).length,
+    enquiries: calls.filter(c => c.call_type === "question").length,
+    cancellations: calls.filter(c => c.call_type === "cancel").length,
+  };
   
   // Show orders for takeaway and hybrid
   const showOrders = selectedType === "takeaway" || selectedType === "hybrid";
@@ -574,7 +583,7 @@ const DemoDashboard = () => {
                           <Phone className="w-3 h-3 text-muted-foreground" />
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
-                          <div className="text-lg font-bold">{DEMO_CALLS_STATS.totalCalls}</div>
+                          <div className="text-lg font-bold">{callStats.totalCalls}</div>
                           <p className="text-[9px] text-muted-foreground">This Month</p>
                         </CardContent>
                       </Card>
@@ -587,7 +596,7 @@ const DemoDashboard = () => {
                           <CalendarCheck className="w-3 h-3 text-primary" />
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
-                          <div className="text-lg font-bold text-primary">{DEMO_CALLS_STATS.bookingsCreated}</div>
+                          <div className="text-lg font-bold text-primary">{callStats.bookingsCreated}</div>
                           <p className="text-[9px] text-muted-foreground">This Month</p>
                         </CardContent>
                       </Card>
@@ -598,7 +607,7 @@ const DemoDashboard = () => {
                           <HelpCircle className="w-3 h-3 text-muted-foreground" />
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
-                          <div className="text-lg font-bold">{DEMO_CALLS_STATS.enquiries}</div>
+                          <div className="text-lg font-bold">{callStats.enquiries}</div>
                           <p className="text-[9px] text-muted-foreground">This Month</p>
                         </CardContent>
                       </Card>
@@ -609,7 +618,7 @@ const DemoDashboard = () => {
                           <XCircle className="w-3 h-3 text-destructive" />
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
-                          <div className="text-lg font-bold text-destructive">{DEMO_CALLS_STATS.cancellations}</div>
+                          <div className="text-lg font-bold text-destructive">{callStats.cancellations}</div>
                           <p className="text-[9px] text-muted-foreground">This Month</p>
                         </CardContent>
                       </Card>
