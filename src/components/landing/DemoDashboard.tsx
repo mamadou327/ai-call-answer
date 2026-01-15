@@ -1014,7 +1014,7 @@ const DemoDashboard = () => {
         </div>
 
         {/* Floating Phone Mockup - Desktop */}
-        <div className="flex-shrink-0 hidden lg:block relative mt-8">
+        <div className="flex-shrink-0 relative mt-8 scale-90 lg:scale-100 origin-top">
           {/* Realistic iPhone-style frame */}
           <div className="bg-gradient-to-b from-zinc-800 to-zinc-900 rounded-[40px] p-[10px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.1)_inset]">
             {/* Side buttons - Volume */}
