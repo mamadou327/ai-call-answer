@@ -14,7 +14,11 @@ import {
   Users,
   Plus,
   UtensilsCrossed,
-  Shuffle
+  Shuffle,
+  CalendarCheck,
+  HelpCircle,
+  ChevronRight,
+  Calendar
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,9 +35,33 @@ import {
   DEMO_RESTAURANT_STATS,
   DEMO_DINEIN_CALLS,
   DEMO_DINEIN_MESSAGES,
-  DEMO_RESERVATION_STATS
+  DEMO_RESERVATION_STATS,
+  DEMO_CALLS_STATS
 } from "@/lib/demoData";
 import { format, formatDistanceToNow } from "date-fns";
+
+// Call type configuration matching real CallsTab
+const callTypeLabels: Record<string, string> = {
+  new_booking: "Booking Created",
+  new_order: "Order Created",
+  new_reservation: "Reservation",
+  reschedule: "Reschedule",
+  cancel: "Cancellation",
+  question: "General Enquiry",
+  complaint: "Complaint",
+  other: "Other",
+};
+
+const callTypeBadgeVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  new_booking: "default",
+  new_order: "default",
+  new_reservation: "default",
+  reschedule: "secondary",
+  cancel: "destructive",
+  question: "outline",
+  complaint: "destructive",
+  other: "outline",
+};
 
 type DemoOrder = typeof DEMO_ORDERS[0];
 type DemoReservation = typeof DEMO_RESERVATIONS[0];
@@ -536,28 +564,101 @@ const DemoDashboard = () => {
                     </TabsContent>
                   )}
 
-                  {/* Calls Tab */}
-                  <TabsContent value="calls" className="mt-0 space-y-2">
-                    {calls.slice(0, 4).map((call) => (
-                      <Card key={call.id} className="border-border/50">
-                        <CardContent className="p-3">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="font-medium text-sm">{call.caller_name || call.caller_phone}</p>
-                              <p className="text-xs text-muted-foreground">{call.summary}</p>
-                            </div>
-                            <Badge variant="secondary" className="text-[10px]">
-                              {call.call_type}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3" />
-                            <span>{Math.floor(call.duration_ms / 1000)}s</span>
-                            <span className="ml-auto">{format(new Date(call.created_at), 'HH:mm')}</span>
-                          </div>
+                  {/* Calls Tab - Matching real CallsTab */}
+                  <TabsContent value="calls" className="mt-0 space-y-3">
+                    {/* Analytics Cards */}
+                    <div className="grid grid-cols-4 gap-2">
+                      <Card className="border-border/50">
+                        <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
+                          <CardTitle className="text-[10px] font-medium">Total Calls</CardTitle>
+                          <Phone className="w-3 h-3 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent className="p-2 pt-0">
+                          <div className="text-lg font-bold">{DEMO_CALLS_STATS.totalCalls}</div>
+                          <p className="text-[9px] text-muted-foreground">This Month</p>
                         </CardContent>
                       </Card>
-                    ))}
+
+                      <Card className="border-border/50">
+                        <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
+                          <CardTitle className="text-[10px] font-medium">
+                            {selectedType === "dinein" ? "Reservations" : "Orders"}
+                          </CardTitle>
+                          <CalendarCheck className="w-3 h-3 text-primary" />
+                        </CardHeader>
+                        <CardContent className="p-2 pt-0">
+                          <div className="text-lg font-bold text-primary">{DEMO_CALLS_STATS.bookingsCreated}</div>
+                          <p className="text-[9px] text-muted-foreground">This Month</p>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-border/50">
+                        <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
+                          <CardTitle className="text-[10px] font-medium">Enquiries</CardTitle>
+                          <HelpCircle className="w-3 h-3 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent className="p-2 pt-0">
+                          <div className="text-lg font-bold">{DEMO_CALLS_STATS.enquiries}</div>
+                          <p className="text-[9px] text-muted-foreground">This Month</p>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-border/50">
+                        <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
+                          <CardTitle className="text-[10px] font-medium">Cancellations</CardTitle>
+                          <XCircle className="w-3 h-3 text-destructive" />
+                        </CardHeader>
+                        <CardContent className="p-2 pt-0">
+                          <div className="text-lg font-bold text-destructive">{DEMO_CALLS_STATS.cancellations}</div>
+                          <p className="text-[9px] text-muted-foreground">This Month</p>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Recent Calls List */}
+                    <Card className="border-border/50">
+                      <CardHeader className="p-2 pb-1">
+                        <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                          <Phone className="w-3.5 h-3.5" />
+                          Recent Calls
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-2 pt-0 space-y-1.5">
+                        {calls.slice(0, 3).map((call) => (
+                          <div
+                            key={call.id}
+                            className="flex items-center gap-2 p-2 border rounded-md hover:bg-muted/50 transition-colors cursor-pointer group"
+                          >
+                            <div className="bg-primary/10 p-1.5 rounded-md shrink-0">
+                              <Phone className="w-3 h-3 text-primary" />
+                            </div>
+                            
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-xs truncate">{call.caller_name || call.caller_phone}</p>
+                              <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                                <Calendar className="w-2.5 h-2.5" />
+                                {format(new Date(call.created_at), "MMM d, h:mm a")}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Badge 
+                                variant={callTypeBadgeVariants[call.call_type] || "outline"} 
+                                className="text-[8px] px-1.5 py-0"
+                              >
+                                {callTypeLabels[call.call_type] || call.call_type}
+                              </Badge>
+                              {call.needs_review && (
+                                <Badge variant="destructive" className="text-[8px] px-1 py-0">
+                                  Review
+                                </Badge>
+                              )}
+                              <ChevronRight className="w-3 h-3 text-muted-foreground group-hover:text-foreground transition-colors" />
+                            </div>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
                   </TabsContent>
 
                   {/* Messages Tab */}
