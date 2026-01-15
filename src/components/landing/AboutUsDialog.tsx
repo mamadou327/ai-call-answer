@@ -32,7 +32,7 @@ const AboutUsDialog = ({ open, onOpenChange }: AboutUsDialogProps) => {
           <p>
             AIVIA is an AI-powered phone assistant created specifically for restaurants. It answers 
             your phone 24/7, speaks naturally with your customers, and handles multiple calls at the 
-            same time — so no customer is ever left on hold. Whether it's taking pickup orders, booking 
+            same time so no customer is ever left on hold. Whether it's taking pickup orders, booking 
             tables, answering common questions, or leaving messages for your team, AIVIA manages it all 
             automatically.
           </p>
@@ -47,12 +47,12 @@ const AboutUsDialog = ({ open, onOpenChange }: AboutUsDialogProps) => {
           <p>
             AIVIA works like a reliable front-of-house assistant that never gets overwhelmed, never misses 
             a call, and never makes customers wait. It understands your menu, opening hours, and how your 
-            restaurant operates — ensuring every interaction feels smooth, professional, and consistent.
+            restaurant operates, ensuring every interaction feels smooth, professional, and consistent.
           </p>
 
           <p className="text-foreground font-medium border-l-4 border-primary pl-4 py-2 bg-primary/5 rounded-r">
             Our mission is simple: help restaurants increase orders, fill more tables, reduce staff stress, 
-            and never miss another opportunity — without hiring extra staff or changing the way they work.
+            and never miss another opportunity without hiring extra staff or changing the way they work.
           </p>
         </div>
       </DialogContent>
