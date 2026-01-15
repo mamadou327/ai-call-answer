@@ -427,19 +427,17 @@ const DemoDashboard = () => {
                       </Card>
                     </div>
                     
-                    {/* Active Section */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold">
-                          {showOrders ? "Active Orders" : "Today's Tables"}
-                        </span>
-                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
-                          {showOrders ? `${activeOrders.length} active` : `${DEMO_RESERVATIONS.length} bookings`}
-                        </Badge>
-                      </div>
-                      {showOrders ? (
+                    {/* Active Section - Orders for takeaway/hybrid */}
+                    {showOrders && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold">Active Orders</span>
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
+                            {activeOrders.length} active
+                          </Badge>
+                        </div>
                         <div className="space-y-1.5">
-                          {activeOrders.slice(0, 2).map((order) => (
+                          {activeOrders.slice(0, selectedType === "hybrid" ? 1 : 2).map((order) => (
                             <Card key={order.id} className={`p-2 border ${orderStatusConfig[order.status].bgColor}`}>
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -454,9 +452,20 @@ const DemoDashboard = () => {
                             </Card>
                           ))}
                         </div>
-                      ) : (
+                      </div>
+                    )}
+
+                    {/* Reservations Section - for dinein/hybrid */}
+                    {showReservations && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold">Today's Tables</span>
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
+                            {DEMO_RESERVATIONS.length} bookings
+                          </Badge>
+                        </div>
                         <div className="space-y-1.5">
-                          {DEMO_RESERVATIONS.slice(0, 2).map((res, i) => (
+                          {DEMO_RESERVATIONS.slice(0, selectedType === "hybrid" ? 1 : 2).map((res, i) => (
                             <Card key={i} className="border-border/50 p-2">
                               <div className="flex items-center justify-between">
                                 <div className="text-xs font-medium">{res.customer_name}</div>
@@ -470,8 +479,8 @@ const DemoDashboard = () => {
                             </Card>
                           ))}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1175,19 +1184,17 @@ const DemoDashboard = () => {
                         </Card>
                       </div>
                       
-                      {/* Active Section */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold">
-                            {showOrders ? "Active Orders" : "Today's Tables"}
-                          </span>
-                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
-                            {showOrders ? `${activeOrders.length} active` : `${DEMO_RESERVATIONS.length} bookings`}
-                          </Badge>
-                        </div>
-                        {showOrders ? (
+                      {/* Active Section - Orders for takeaway/hybrid */}
+                      {showOrders && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold">Active Orders</span>
+                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
+                              {activeOrders.length} active
+                            </Badge>
+                          </div>
                           <div className="space-y-1.5">
-                            {activeOrders.slice(0, 2).map((order) => (
+                            {activeOrders.slice(0, selectedType === "hybrid" ? 1 : 2).map((order) => (
                               <Card key={order.id} className={`p-2 border ${orderStatusConfig[order.status].bgColor}`}>
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
@@ -1202,9 +1209,20 @@ const DemoDashboard = () => {
                               </Card>
                             ))}
                           </div>
-                        ) : (
+                        </div>
+                      )}
+
+                      {/* Reservations Section - for dinein/hybrid */}
+                      {showReservations && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold">Today's Tables</span>
+                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
+                              {DEMO_RESERVATIONS.length} bookings
+                            </Badge>
+                          </div>
                           <div className="space-y-1.5">
-                            {DEMO_RESERVATIONS.slice(0, 2).map((res, i) => (
+                            {DEMO_RESERVATIONS.slice(0, selectedType === "hybrid" ? 1 : 2).map((res, i) => (
                               <Card key={i} className="border-border/50 p-2">
                                 <div className="flex items-center justify-between">
                                   <div className="text-xs font-medium">{res.customer_name}</div>
@@ -1218,8 +1236,8 @@ const DemoDashboard = () => {
                               </Card>
                             ))}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   
