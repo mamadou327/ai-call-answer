@@ -107,45 +107,45 @@ const DeviceMockup = () => {
         <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-2xl pointer-events-none" />
       </div>
       
-      {/* Phone Frame - Positioned to the right */}
-      <div className="absolute -right-4 md:right-4 lg:right-12 bottom-12 md:bottom-16 w-32 md:w-40 lg:w-44 animate-float-delayed z-10">
+      {/* Phone Frame - Floating overlay on the laptop */}
+      <div className="absolute right-8 md:right-16 lg:right-24 -bottom-4 md:bottom-4 w-28 md:w-36 lg:w-40 animate-float-delayed z-20 drop-shadow-2xl">
         {/* Phone Body */}
-        <div className="bg-[#1a1a1a] rounded-[2rem] p-2 shadow-2xl">
+        <div className="bg-[#1a1a1a] rounded-[2rem] p-2 shadow-2xl ring-1 ring-white/10">
           {/* Phone Screen */}
           <div className="bg-background rounded-[1.5rem] overflow-hidden">
             {/* Dynamic Island / Notch */}
-            <div className="h-8 bg-background flex justify-center items-center pt-2">
-              <div className="w-20 h-5 bg-[#1a1a1a] rounded-full flex items-center justify-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-[#2a2a2a]" />
-                <div className="w-1.5 h-1.5 rounded-full bg-[#3a3a3a]" />
+            <div className="h-7 bg-background flex justify-center items-center pt-2">
+              <div className="w-16 h-4 bg-[#1a1a1a] rounded-full flex items-center justify-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#2a2a2a]" />
+                <div className="w-1 h-1 rounded-full bg-[#3a3a3a]" />
               </div>
             </div>
             
             {/* Phone Content */}
-            <div className="p-3 space-y-3">
+            <div className="p-2.5 space-y-2.5">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-bold">AIVIA</div>
-                <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                  <span className="text-primary-foreground text-[8px] font-bold">A</span>
+                <div className="text-xs font-bold">AIVIA</div>
+                <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center">
+                  <span className="text-primary-foreground text-[7px] font-bold">A</span>
                 </div>
               </div>
               
               {/* Mini Stats */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-card border border-border rounded-lg p-2">
-                  <div className="text-[8px] text-muted-foreground">Calls</div>
-                  <div className="text-sm font-bold">127</div>
-                  <div className="text-[7px] text-green-500">↑ 23%</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="bg-card border border-border rounded-lg p-1.5">
+                  <div className="text-[7px] text-muted-foreground">Calls</div>
+                  <div className="text-xs font-bold">127</div>
+                  <div className="text-[6px] text-green-500">↑ 23%</div>
                 </div>
-                <div className="bg-card border border-border rounded-lg p-2">
-                  <div className="text-[8px] text-muted-foreground">Revenue</div>
-                  <div className="text-sm font-bold">£2.4k</div>
-                  <div className="text-[7px] text-green-500">↑ 18%</div>
+                <div className="bg-card border border-border rounded-lg p-1.5">
+                  <div className="text-[7px] text-muted-foreground">Revenue</div>
+                  <div className="text-xs font-bold">£2.4k</div>
+                  <div className="text-[6px] text-green-500">↑ 18%</div>
                 </div>
               </div>
               
               {/* Mini Chart */}
-              <div className="bg-card border border-border rounded-lg p-2 h-14 flex items-end gap-1">
+              <div className="bg-card border border-border rounded-lg p-1.5 h-10 flex items-end gap-0.5">
                 {[40, 65, 80, 55, 90, 60, 75].map((height, i) => (
                   <div 
                     key={i} 
@@ -156,24 +156,24 @@ const DeviceMockup = () => {
               </div>
               
               {/* Booking Preview */}
-              <div className="bg-card border border-border rounded-lg p-2">
-                <div className="text-[8px] text-muted-foreground">Next Booking</div>
-                <div className="text-[10px] font-medium">Sarah M. - 2:30 PM</div>
-                <div className="text-[8px] text-muted-foreground mt-0.5">Haircut & Style</div>
+              <div className="bg-card border border-border rounded-lg p-1.5">
+                <div className="text-[7px] text-muted-foreground">Next Booking</div>
+                <div className="text-[9px] font-medium">Sarah M. - 2:30 PM</div>
+                <div className="text-[7px] text-muted-foreground mt-0.5">Haircut & Style</div>
               </div>
               
               {/* Bottom nav hint */}
-              <div className="flex justify-center pt-2">
-                <div className="w-24 h-1 bg-foreground/20 rounded-full" />
+              <div className="flex justify-center pt-1">
+                <div className="w-16 h-1 bg-foreground/20 rounded-full" />
               </div>
             </div>
           </div>
         </div>
         
         {/* Phone side buttons */}
-        <div className="absolute -left-0.5 top-20 w-0.5 h-8 bg-[#2a2a2a] rounded-l" />
-        <div className="absolute -left-0.5 top-32 w-0.5 h-12 bg-[#2a2a2a] rounded-l" />
-        <div className="absolute -right-0.5 top-24 w-0.5 h-10 bg-[#2a2a2a] rounded-r" />
+        <div className="absolute -left-0.5 top-16 w-0.5 h-6 bg-[#2a2a2a] rounded-l" />
+        <div className="absolute -left-0.5 top-24 w-0.5 h-10 bg-[#2a2a2a] rounded-l" />
+        <div className="absolute -right-0.5 top-20 w-0.5 h-8 bg-[#2a2a2a] rounded-r" />
       </div>
     </div>
   );
