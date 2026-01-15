@@ -397,7 +397,7 @@ const DemoDashboard = () => {
                     </div>
                     {showOrders ? (
                       <div className="space-y-1">
-                        {DEMO_ORDERS.slice(0, 2).map((order, i) => (
+                        {activeOrders.slice(0, 2).map((order, i) => (
                           <Card key={i} className="border-border/50 p-1.5 flex items-center justify-between">
                             <div className="flex items-center gap-1.5">
                               <div className={`w-1.5 h-1.5 rounded-full ${
@@ -452,7 +452,7 @@ const DemoDashboard = () => {
                     {showOrders ? "All Orders" : "Reservations"}
                   </div>
                   {showOrders ? (
-                    DEMO_ORDERS.slice(0, 4).map((order, i) => (
+                    activeOrders.slice(0, 4).map((order, i) => (
                       <Card key={i} className="border-border/50 p-1.5 flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <div className={`w-1.5 h-1.5 rounded-full ${
