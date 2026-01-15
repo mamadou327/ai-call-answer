@@ -87,7 +87,7 @@ const Index = () => {
 
       {/* Always visible sections */}
       <FinalCTA />
-      <Footer />
+      <Footer onFaqClick={() => handleSectionChange('faq')} />
     </div>
   );
 };

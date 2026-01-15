@@ -5,15 +5,20 @@ import PricingDialog from "./PricingDialog";
 import ContactDialog from "./ContactDialog";
 import AboutUsDialog from "./AboutUsDialog";
 
-const Footer = () => {
+interface FooterProps {
+  onFaqClick?: () => void;
+}
+
+const Footer = ({ onFaqClick }: FooterProps) => {
   const [featuresOpen, setFeaturesOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
 
-  const scrollToFaq = () => {
-    const faqSection = document.getElementById('faq');
-    faqSection?.scrollIntoView({ behavior: 'smooth' });
+  const handleFaqClick = () => {
+    if (onFaqClick) {
+      onFaqClick();
+    }
   };
 
   return (
@@ -77,7 +82,7 @@ const Footer = () => {
                 </li>
                 <li>
                   <button 
-                    onClick={scrollToFaq}
+                    onClick={handleFaqClick}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     FAQ
