@@ -1013,8 +1013,8 @@ const DemoDashboard = () => {
           <div className="h-2 bg-muted/50 border border-t-0 border-border/50 rounded-b-lg mx-16" />
         </div>
 
-        {/* Floating Phone Mockup - Overlays on right side */}
-        <div className="absolute -right-4 md:right-4 lg:right-8 top-12 z-20 scale-75 md:scale-[0.65] lg:scale-75 origin-top-right">
+        {/* Floating Phone Mockup - Bottom right overlay */}
+        <div className="absolute -right-8 md:-right-4 lg:right-0 bottom-8 z-20 scale-[0.6] md:scale-[0.55] lg:scale-[0.65] origin-bottom-right">
           {/* Realistic iPhone-style frame */}
           <div className="bg-gradient-to-b from-zinc-800 to-zinc-900 rounded-[40px] p-[10px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.1)_inset]">
             {/* Side buttons - Volume */}
@@ -1032,11 +1032,11 @@ const DemoDashboard = () => {
               </div>
               
               {/* Screen content */}
-              <div className="bg-background rounded-[32px] overflow-hidden w-[260px]">
+              <div className="bg-background rounded-[32px] overflow-hidden w-[280px]">
                 {/* Status Bar */}
                 <div className="px-6 pt-3 pb-1 flex justify-between items-center text-[11px]">
                   <span className="font-semibold">9:41</span>
-                  <div className="w-[90px]" /> {/* Space for dynamic island */}
+                  <div className="w-[90px]" />
                   <div className="flex gap-1.5 items-center">
                     <svg className="w-4 h-3" viewBox="0 0 17 10" fill="currentColor">
                       <rect x="0" y="3" width="3" height="7" rx="0.5" fillOpacity="0.3"/>
@@ -1070,89 +1070,164 @@ const DemoDashboard = () => {
                     </Badge>
                   </div>
                   
-                  {/* Quick Stats */}
-                  <div className="space-y-3">
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <Card className="border-border/50 p-2.5">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            {selectedType === "dinein" ? "Reservations" : "Orders"}
-                          </span>
-                          <Package className="w-3.5 h-3.5 text-muted-foreground" />
-                        </div>
-                        <div className="text-lg font-bold">
-                          {selectedType === "dinein" 
-                            ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount 
-                            : (stats as typeof DEMO_RESTAURANT_STATS).ordersCount}
-                        </div>
-                      </Card>
-                      <Card className="border-border/50 p-2.5">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            {selectedType === "dinein" ? "Seated" : "Completed"}
-                          </span>
-                          <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                        </div>
-                        <div className="text-lg font-bold text-green-600">
-                          {selectedType === "dinein" 
-                            ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount - (stats as typeof DEMO_RESERVATION_STATS).cancelledCount
-                            : (stats as typeof DEMO_RESTAURANT_STATS).completedCount}
-                        </div>
-                      </Card>
-                      <Card className="border-border/50 p-2.5">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground">Cancelled</span>
-                          <XCircle className="w-3.5 h-3.5 text-destructive" />
-                        </div>
-                        <div className="text-lg font-bold text-destructive">
-                          {selectedType === "dinein" 
-                            ? (stats as typeof DEMO_RESERVATION_STATS).cancelledCount 
-                            : (stats as typeof DEMO_RESTAURANT_STATS).cancelledCount}
-                        </div>
-                      </Card>
-                      <Card className="border-border/50 p-2.5">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            {selectedType === "dinein" ? "Covers" : "Revenue"}
-                          </span>
-                          {selectedType === "dinein" ? (
-                            <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                          ) : (
-                            <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
-                          )}
-                        </div>
-                        <div className="text-lg font-bold">
-                          {selectedType === "dinein" 
-                            ? (stats as typeof DEMO_RESERVATION_STATS).totalCovers
-                            : `£${(stats as typeof DEMO_RESTAURANT_STATS).revenue.toFixed(0)}`}
-                        </div>
-                      </Card>
-                    </div>
-                    
-                    {/* Recent Activity */}
-                    <div>
-                      <p className="text-[10px] font-medium text-muted-foreground mb-2">Recent Calls</p>
-                      <div className="space-y-2">
-                        {calls.slice(0, 3).map((call) => (
-                          <Card key={call.id} className="border-border/50 p-2">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-[11px] font-medium">{call.caller_name}</p>
-                                <p className="text-[9px] text-muted-foreground">{call.caller_phone}</p>
-                              </div>
-                              <Badge 
-                                variant={callTypeBadgeVariants[call.call_type] || "outline"} 
-                                className="text-[8px] px-1.5 py-0.5"
-                              >
-                                {callTypeLabels[call.call_type] || call.call_type}
-                              </Badge>
-                            </div>
-                          </Card>
-                        ))}
+                  {/* Interactive Tab Bar */}
+                  <div className="flex gap-1 bg-muted rounded-lg p-1">
+                    <button 
+                      onClick={() => setPhoneTab("dashboard")}
+                      className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "dashboard" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5 mx-auto mb-0.5" />
+                      <span>Home</span>
+                    </button>
+                    <button 
+                      onClick={() => setPhoneTab("orders")}
+                      className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "orders" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      {showOrders ? <ShoppingBag className="w-3.5 h-3.5 mx-auto mb-0.5" /> : <CalendarDays className="w-3.5 h-3.5 mx-auto mb-0.5" />}
+                      <span>{showOrders ? "Orders" : "Bookings"}</span>
+                    </button>
+                    <button 
+                      onClick={() => setPhoneTab("calls")}
+                      className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "calls" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <Phone className="w-3.5 h-3.5 mx-auto mb-0.5" />
+                      <span>Calls</span>
+                    </button>
+                    <button 
+                      onClick={() => setPhoneTab("messages")}
+                      className={`flex-1 rounded-md text-[10px] text-center py-1.5 transition-all ${phoneTab === "messages" ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 mx-auto mb-0.5" />
+                      <span>Msgs</span>
+                    </button>
+                  </div>
+                  
+                  {/* Tab Content */}
+                  {phoneTab === "dashboard" && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Card className="border-border/50 p-2.5">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-muted-foreground">
+                              {selectedType === "dinein" ? "Reservations" : "Orders"}
+                            </span>
+                            <Package className="w-3.5 h-3.5 text-muted-foreground" />
+                          </div>
+                          <div className="text-lg font-bold">
+                            {selectedType === "dinein" 
+                              ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount 
+                              : (stats as typeof DEMO_RESTAURANT_STATS).ordersCount}
+                          </div>
+                        </Card>
+                        <Card className="border-border/50 p-2.5">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-muted-foreground">
+                              {selectedType === "dinein" ? "Seated" : "Completed"}
+                            </span>
+                            <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                          </div>
+                          <div className="text-lg font-bold text-green-600">
+                            {selectedType === "dinein" 
+                              ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount - (stats as typeof DEMO_RESERVATION_STATS).cancelledCount
+                              : (stats as typeof DEMO_RESTAURANT_STATS).completedCount}
+                          </div>
+                        </Card>
+                        <Card className="border-border/50 p-2.5">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-muted-foreground">Cancelled</span>
+                            <XCircle className="w-3.5 h-3.5 text-destructive" />
+                          </div>
+                          <div className="text-lg font-bold text-destructive">
+                            {selectedType === "dinein" 
+                              ? (stats as typeof DEMO_RESERVATION_STATS).cancelledCount 
+                              : (stats as typeof DEMO_RESTAURANT_STATS).cancelledCount}
+                          </div>
+                        </Card>
+                        <Card className="border-border/50 p-2.5">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-muted-foreground">
+                              {selectedType === "dinein" ? "Covers" : "Revenue"}
+                            </span>
+                            {selectedType === "dinein" ? (
+                              <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                            ) : (
+                              <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div className="text-lg font-bold">
+                            {selectedType === "dinein" 
+                              ? (stats as typeof DEMO_RESERVATION_STATS).totalCovers
+                              : `£${(stats as typeof DEMO_RESTAURANT_STATS).revenue.toFixed(0)}`}
+                          </div>
+                        </Card>
                       </div>
                     </div>
-                  </div>
+                  )}
+                  
+                  {phoneTab === "orders" && (
+                    <div className="space-y-2">
+                      {showOrders ? (
+                        activeOrders.slice(0, 4).map((order) => (
+                          <Card key={order.id} className={`border p-2 ${orderStatusConfig[order.status]?.bgColor || ''}`}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold">#{order.order_number}</span>
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                                {orderStatusConfig[order.status]?.label}
+                              </Badge>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground truncate">{order.customer_name}</p>
+                          </Card>
+                        ))
+                      ) : (
+                        DEMO_RESERVATIONS.slice(0, 4).map((res) => (
+                          <Card key={res.id} className="border-border/50 p-2">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium">{res.customer_name}</span>
+                              <span className="text-[10px] text-muted-foreground">{res.party_size} guests</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">Table {res.table.table_number}</p>
+                          </Card>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  
+                  {phoneTab === "calls" && (
+                    <div className="space-y-2">
+                      {calls.slice(0, 4).map((call) => (
+                        <Card key={call.id} className="border-border/50 p-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-[11px] font-medium">{call.caller_name}</p>
+                              <p className="text-[9px] text-muted-foreground">{call.caller_phone}</p>
+                            </div>
+                            <Badge 
+                              variant={callTypeBadgeVariants[call.call_type] || "outline"} 
+                              className="text-[8px] px-1.5 py-0.5"
+                            >
+                              {callTypeLabels[call.call_type] || call.call_type}
+                            </Badge>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {phoneTab === "messages" && (
+                    <div className="space-y-2">
+                      {messages.slice(0, 4).map((msg) => (
+                        <Card key={msg.id} className={`border-border/50 p-2 ${msg.is_urgent ? 'border-l-2 border-l-destructive' : ''}`}>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-[11px] font-medium">{msg.caller_name}</span>
+                            {msg.is_urgent && (
+                              <Badge variant="destructive" className="text-[8px] px-1 py-0">Urgent</Badge>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground mt-1 line-clamp-1">{msg.content}</div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Home Indicator */}
