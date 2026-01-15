@@ -24,7 +24,7 @@ const Footer = () => {
               <span className="text-xl font-bold">AIVIA</span>
             </div>
             <p className="text-muted-foreground text-sm max-w-xs">
-              AI-powered phone receptionist for salons, barbershops, and restaurants across the UK.
+              Your AI assistant that answers calls, books appointments, and keeps your business running — even when you can't.
             </p>
           </div>
 
