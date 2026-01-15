@@ -168,14 +168,18 @@ const DemoDashboard = () => {
   const calls = selectedType === "dinein" ? DEMO_DINEIN_CALLS : DEMO_RESTAURANT_CALLS;
   const messages = selectedType === "dinein" ? DEMO_DINEIN_MESSAGES : DEMO_RESTAURANT_MESSAGES;
   
-  // Calculate call stats dynamically based on actual call data
+  // Calculate call stats derived from dashboard stats for consistency
   const callStats = {
-    totalCalls: calls.length,
-    bookingsCreated: calls.filter(c => 
-      c.call_type === "new_order" || c.call_type === "new_reservation" || c.call_type === "new_booking"
-    ).length,
-    enquiries: calls.filter(c => c.call_type === "question").length,
-    cancellations: calls.filter(c => c.call_type === "cancel").length,
+    totalCalls: selectedType === "dinein" 
+      ? Math.round(DEMO_RESERVATION_STATS.reservationsCount * 0.8) // 80% of reservations via phone
+      : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.75),      // 75% of orders via phone
+    bookingsCreated: selectedType === "dinein"
+      ? DEMO_RESERVATION_STATS.reservationsCount
+      : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.85),      // 85% result in orders
+    enquiries: selectedType === "dinein" ? 3 : 4,
+    cancellations: selectedType === "dinein" 
+      ? DEMO_RESERVATION_STATS.cancelledCount 
+      : DEMO_RESTAURANT_STATS.cancelledCount,
   };
   
   // Show orders for takeaway and hybrid
@@ -584,7 +588,7 @@ const DemoDashboard = () => {
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
                           <div className="text-lg font-bold">{callStats.totalCalls}</div>
-                          <p className="text-[9px] text-muted-foreground">This Month</p>
+                          <p className="text-[9px] text-muted-foreground">Today</p>
                         </CardContent>
                       </Card>
 
@@ -597,7 +601,7 @@ const DemoDashboard = () => {
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
                           <div className="text-lg font-bold text-primary">{callStats.bookingsCreated}</div>
-                          <p className="text-[9px] text-muted-foreground">This Month</p>
+                          <p className="text-[9px] text-muted-foreground">Today</p>
                         </CardContent>
                       </Card>
 
@@ -608,7 +612,7 @@ const DemoDashboard = () => {
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
                           <div className="text-lg font-bold">{callStats.enquiries}</div>
-                          <p className="text-[9px] text-muted-foreground">This Month</p>
+                          <p className="text-[9px] text-muted-foreground">Today</p>
                         </CardContent>
                       </Card>
 
@@ -619,7 +623,7 @@ const DemoDashboard = () => {
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
                           <div className="text-lg font-bold text-destructive">{callStats.cancellations}</div>
-                          <p className="text-[9px] text-muted-foreground">This Month</p>
+                          <p className="text-[9px] text-muted-foreground">Today</p>
                         </CardContent>
                       </Card>
                     </div>
