@@ -48,7 +48,7 @@ const HeroSection = () => {
             }}
           >
             <Play className="w-5 h-5" />
-            Hear Demo Call
+            See How It Works
           </Button>
         </div>
 
