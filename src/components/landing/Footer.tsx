@@ -24,7 +24,7 @@ const Footer = () => {
             {/* Logo & Description */}
             <div className="col-span-2">
               <div className="flex items-center gap-2 mb-4">
-                <img src={aiviaLogo} alt="AIVIA" className="h-10 w-auto" width="65" height="40" />
+                <img src={aiviaLogo} alt="AIVIA" className="h-10 w-auto" width="65" height="40" loading="lazy" decoding="async" />
                 <span className="text-xl font-bold">AIVIA</span>
               </div>
               <p className="text-muted-foreground text-sm max-w-xs">
