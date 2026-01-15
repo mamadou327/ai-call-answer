@@ -21,7 +21,7 @@ const HeroSection = () => {
 
         {/* Sub-headline */}
         <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-          AI that answers your phone, books appointments, and takes orders so you never miss another customer again.
+          Your 24/7 AI phone assistant handling unlimited calls at once—taking orders and reservations so no customer is ever on hold.
         </p>
 
         {/* Demo CTA Badge */}
