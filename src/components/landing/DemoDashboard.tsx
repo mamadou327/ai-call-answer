@@ -263,6 +263,111 @@ const DemoDashboard = () => {
         </div>
       </div>
 
+      {/* Phone Mockup - Mobile Dashboard */}
+      <div className="absolute -right-2 md:right-4 lg:right-8 bottom-16 md:bottom-24 w-32 md:w-40 z-10 animate-float hidden sm:block">
+        <div className="bg-foreground rounded-[24px] p-1.5 shadow-2xl">
+          <div className="bg-background rounded-[20px] overflow-hidden">
+            {/* Phone Status Bar */}
+            <div className="bg-muted px-3 py-1.5 flex justify-between items-center text-[8px] border-b border-border">
+              <span className="font-medium">9:41</span>
+              <div className="flex gap-1 items-center">
+                <div className="w-3 h-2 bg-foreground rounded-sm" />
+              </div>
+            </div>
+            
+            {/* Phone Content */}
+            <div className="p-2.5 space-y-2 min-h-[200px]">
+              {/* Mini Header */}
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] font-bold truncate">{businessConfig.name}</div>
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+              </div>
+              
+              {/* Mini Stats Grid */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="bg-muted border border-border rounded p-1.5">
+                  <div className="text-[7px] text-muted-foreground">
+                    {selectedType === "dinein" ? "Tables" : "Orders"}
+                  </div>
+                  <div className="text-sm font-bold">
+                    {selectedType === "dinein" 
+                      ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount 
+                      : (stats as typeof DEMO_RESTAURANT_STATS).ordersCount}
+                  </div>
+                </div>
+                <div className="bg-muted border border-border rounded p-1.5">
+                  <div className="text-[7px] text-muted-foreground">
+                    {selectedType === "dinein" ? "Covers" : "Revenue"}
+                  </div>
+                  <div className="text-sm font-bold">
+                    {selectedType === "dinein" 
+                      ? (stats as typeof DEMO_RESERVATION_STATS).totalCovers 
+                      : `£${(stats as typeof DEMO_RESTAURANT_STATS).revenue.toFixed(0)}`}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Mini Chart */}
+              <div className="bg-muted border border-border rounded p-1.5 h-10 flex items-end gap-0.5">
+                {[40, 65, 80, 55, 90, 60, 75].map((height, i) => (
+                  <div 
+                    key={i} 
+                    className="flex-1 bg-primary rounded-t"
+                    style={{ height: `${height}%` }}
+                  />
+                ))}
+              </div>
+              
+              {/* Mini Active Items */}
+              <div className="space-y-1">
+                <div className="text-[8px] font-medium text-muted-foreground">
+                  {showOrders ? "Active Orders" : "Upcoming"}
+                </div>
+                {showOrders ? (
+                  <>
+                    {DEMO_ORDERS.slice(0, 2).map((order, i) => (
+                      <div key={i} className="bg-secondary border border-border rounded p-1.5 flex items-center justify-between">
+                        <div>
+                          <div className="text-[8px] font-medium truncate max-w-[60px]">{order.customer_name.split(' ')[0]}</div>
+                          <div className="text-[7px] text-muted-foreground">#{order.order_number}</div>
+                        </div>
+                        <Badge variant="outline" className="text-[6px] px-1 py-0 h-3">
+                          {order.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {DEMO_RESERVATIONS.slice(0, 2).map((res, i) => (
+                      <div key={i} className="bg-secondary border border-border rounded p-1.5 flex items-center justify-between">
+                        <div>
+                          <div className="text-[8px] font-medium truncate max-w-[60px]">{res.customer_name.split(' ')[0]}</div>
+                          <div className="text-[7px] text-muted-foreground">{res.party_size} guests</div>
+                        </div>
+                        <div className="text-[7px] text-muted-foreground">
+                          {format(new Date(res.reservation_time), 'HH:mm')}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+            
+            {/* Phone Home Indicator */}
+            <div className="flex justify-center pb-1.5">
+              <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
+            </div>
+          </div>
+        </div>
+        
+        {/* Phone Notch */}
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-14 h-4 bg-foreground rounded-b-xl flex items-center justify-center">
+          <div className="w-2 h-2 rounded-full bg-muted-foreground/50" />
+        </div>
+      </div>
+
       {/* Laptop Frame */}
       <div className="max-w-4xl mx-auto">
         <div className="relative bg-muted border-2 border-border rounded-t-xl pt-4 px-4 pb-0">
