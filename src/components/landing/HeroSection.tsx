@@ -4,6 +4,7 @@ import { Play, Headphones } from "lucide-react";
 import DemoDashboard from "./DemoDashboard";
 import HowItWorksDialog from "@/components/HowItWorksDialog";
 import DemoRequestDialog from "./DemoRequestDialog";
+import { FeatureCarousel } from "./FeatureCarousel";
 
 const HeroSection = () => {
   const navigate = useNavigate();
@@ -59,6 +60,9 @@ const HeroSection = () => {
 
       {/* Interactive Demo Dashboard */}
       <DemoDashboard />
+
+      {/* Feature Carousel */}
+      <FeatureCarousel />
     </section>
   );
 };
