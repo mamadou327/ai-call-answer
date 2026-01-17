@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Phone, Calendar, MessageSquare, Clock, Brain, BarChart3 } from "lucide-react";
+import { Phone, Calendar, MessageSquare, Clock, Brain, BarChart3, Globe, UtensilsCrossed, Bell, Users, Mic, ShieldCheck } from "lucide-react";
 
 interface FeaturesDialogProps {
   open: boolean;
@@ -15,34 +15,64 @@ interface FeaturesDialogProps {
 const FeaturesDialog = ({ open, onOpenChange }: FeaturesDialogProps) => {
   const features = [
     {
-      icon: Phone,
-      title: "AI Phone Answering",
-      description: "Never miss a call. Our AI answers 24/7, handles inquiries, and takes messages professionally."
+      icon: Clock,
+      title: "24/7 Instant Availability",
+      description: "Answers every call in under 2 seconds, day or night. No hold times, no missed calls."
     },
     {
       icon: Calendar,
       title: "Smart Booking",
-      description: "Customers can book appointments directly through phone calls. Seamless calendar integration."
+      description: "Automatically schedules reservations and takes orders while checking real-time availability."
+    },
+    {
+      icon: BarChart3,
+      title: "Live Analytics",
+      description: "Track call volumes, booking rates, and revenue insights from your dashboard in real-time."
+    },
+    {
+      icon: Globe,
+      title: "Multi-language Support",
+      description: "Serve customers in their preferred language with automatic detection and response."
+    },
+    {
+      icon: UtensilsCrossed,
+      title: "Order Taking",
+      description: "Takes food orders accurately with full menu knowledge, including modifications and special requests."
+    },
+    {
+      icon: Bell,
+      title: "Appointment Reminders",
+      description: "Automated SMS and email confirmations reduce no-shows and keep your schedule full."
+    },
+    {
+      icon: Users,
+      title: "CRM Integration",
+      description: "Syncs customer data automatically so you know who's calling and their preferences instantly."
+    },
+    {
+      icon: Mic,
+      title: "Custom Voice & Personality",
+      description: "Tailor AIVIA's voice, tone, and personality to match your brand perfectly."
+    },
+    {
+      icon: ShieldCheck,
+      title: "No-Show Reduction",
+      description: "Deposit collection and confirmation calls ensure customers show up and your revenue is protected."
+    },
+    {
+      icon: Phone,
+      title: "AI Phone Answering",
+      description: "Never miss a call. Our AI answers professionally and handles inquiries seamlessly."
     },
     {
       icon: MessageSquare,
       title: "SMS Notifications",
-      description: "Automatic confirmations, reminders, and follow-ups to reduce no-shows."
-    },
-    {
-      icon: Clock,
-      title: "24/7 Availability",
-      description: "Your business is always reachable, even outside working hours and on holidays."
+      description: "Automatic confirmations, reminders, and follow-ups keep customers informed."
     },
     {
       icon: Brain,
       title: "Natural Conversations",
       description: "Advanced AI that understands context and handles complex customer requests naturally."
-    },
-    {
-      icon: BarChart3,
-      title: "Analytics Dashboard",
-      description: "Track calls, bookings, and customer insights to grow your business."
     }
   ];
 

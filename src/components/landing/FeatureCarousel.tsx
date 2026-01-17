@@ -134,7 +134,7 @@ export function FeatureCarousel() {
               return (
                 <CarouselItem
                   key={feature.title}
-                  className="pl-4 basis-full md:basis-1/2 lg:basis-1/3"
+                  className="pl-4 basis-full sm:basis-1/2 lg:basis-1/4"
                 >
                   <div
                     className={cn(
