@@ -142,10 +142,10 @@ export function FeatureCarousel() {
     <section className="mt-16 md:mt-24 w-full max-w-6xl mx-auto px-4">
       <div className="text-center mb-10">
         <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
-          Why AIVIA
+          Why AIVIA?
         </h2>
         <p className="text-muted-foreground max-w-2xl mx-auto">
-          The smarter way to handle every call, booking, and customer—so you never miss an opportunity
+          The smarter way to handle every call, booking, and customer so you never miss an opportunity
         </p>
       </div>
 
