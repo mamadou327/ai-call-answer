@@ -171,11 +171,14 @@ export function FeatureCarousel() {
                   key={slideIndex}
                   className="pl-4 basis-full"
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
-                    {/* Large card on the left */}
+                  <div className={cn(
+                    "grid grid-cols-1 md:grid-cols-2 gap-4 h-full",
+                    slideIndex % 2 === 1 && "md:flex md:flex-row-reverse"
+                  )}>
+                    {/* Large card */}
                     <div
                       className={cn(
-                        "group relative rounded-2xl border bg-card p-8 transition-all duration-300 flex flex-col justify-center",
+                        "group relative rounded-2xl border bg-card p-8 transition-all duration-300 flex flex-col justify-center md:flex-1",
                         "hover:shadow-lg hover:border-primary/30",
                         isActive && "border-primary/50 shadow-md"
                       )}
@@ -199,8 +202,8 @@ export function FeatureCarousel() {
                       </p>
                     </div>
 
-                    {/* Two small cards stacked on the right */}
-                    <div className="flex flex-col gap-4">
+                    {/* Two small cards stacked */}
+                    <div className="flex flex-col gap-4 md:flex-1">
                       {slide.small.map((feature, featureIndex) => {
                         const SmallIcon = feature.icon;
                         return (
