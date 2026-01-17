@@ -22,7 +22,7 @@ const HeroSection = () => {
 
         {/* Sub-headline */}
         <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-          Your 24/7 AI phone assistant handling unlimited calls at once—taking orders and reservations so no customer is ever on hold.
+          Your 24/7 AI phone assistant handling unlimited calls at once, taking orders and reservations so no customer is ever on hold.
         </p>
 
         {/* Demo CTA Badge */}
