@@ -15,7 +15,7 @@ const slides = [
       icon: Clock,
       title: "24/7 Instant Availability",
       description:
-        "Answers every call in under 2 seconds, day or night. No hold times, no missed calls—even on weekends and holidays.",
+        "Answers every call in under 2 seconds, day or night. No hold times, no missed calls, even on weekends and holidays.",
     },
     small: [
       {
