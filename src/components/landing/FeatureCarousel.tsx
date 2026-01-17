@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Clock, CalendarCheck, BarChart3, Globe } from "lucide-react";
+import { Clock, CalendarCheck, BarChart3, Globe, UtensilsCrossed, Bell, Users, Mic, ShieldCheck } from "lucide-react";
 import {
   Carousel,
   CarouselContent,
@@ -32,6 +32,36 @@ const features = [
     title: "Multi-language Support",
     description:
       "Serve customers in their preferred language with automatic detection and response.",
+  },
+  {
+    icon: UtensilsCrossed,
+    title: "Order Taking",
+    description:
+      "Takes food orders accurately with full menu knowledge, including modifications and special requests.",
+  },
+  {
+    icon: Bell,
+    title: "Appointment Reminders",
+    description:
+      "Automated SMS and email confirmations reduce no-shows and keep your schedule full.",
+  },
+  {
+    icon: Users,
+    title: "CRM Integration",
+    description:
+      "Syncs customer data automatically so you know who's calling and their preferences instantly.",
+  },
+  {
+    icon: Mic,
+    title: "Custom Voice & Personality",
+    description:
+      "Tailor AIVIA's voice, tone, and personality to match your brand perfectly.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "No-Show Reduction",
+    description:
+      "Deposit collection and confirmation calls ensure customers show up and your revenue is protected.",
   },
 ];
 
