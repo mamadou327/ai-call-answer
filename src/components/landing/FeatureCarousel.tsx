@@ -145,7 +145,7 @@ export function FeatureCarousel() {
           Why AIVIA
         </h2>
         <p className="text-muted-foreground max-w-2xl mx-auto">
-          Your AI receptionist that never sleeps, never misses a call, and always delivers
+          The smarter way to handle every call, booking, and customer—so you never miss an opportunity
         </p>
       </div>
 
