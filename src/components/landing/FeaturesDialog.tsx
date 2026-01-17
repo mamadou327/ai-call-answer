@@ -78,7 +78,7 @@ const FeaturesDialog = ({ open, onOpenChange }: FeaturesDialogProps) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">Features</DialogTitle>
           <DialogDescription>
@@ -86,15 +86,15 @@ const FeaturesDialog = ({ open, onOpenChange }: FeaturesDialogProps) => {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
           {features.map((feature, index) => (
-            <div key={index} className="flex gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            <div key={index} className="flex gap-3 p-4 rounded-xl border bg-card hover:bg-muted/50 hover:border-primary/30 transition-all">
+              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center">
                 <feature.icon className="w-5 h-5 text-primary" />
               </div>
               <div>
                 <h4 className="font-semibold text-foreground">{feature.title}</h4>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
               </div>
             </div>
           ))}
