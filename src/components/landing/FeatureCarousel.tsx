@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Clock, CalendarCheck, BarChart3, Globe, UtensilsCrossed, Bell, Users, Mic, ShieldCheck } from "lucide-react";
+import { Clock, CalendarCheck, BarChart3, Globe, UtensilsCrossed, Bell, Users, Mic, ShieldCheck, Phone, MessageSquare, Zap } from "lucide-react";
 import {
   Carousel,
   CarouselContent,
@@ -8,60 +8,95 @@ import {
 } from "@/components/ui/carousel";
 import { cn } from "@/lib/utils";
 
-const features = [
+// Group features into slides: each slide has 1 large (longest desc) + 2 small
+const slides = [
   {
-    icon: Clock,
-    title: "24/7 Instant Availability",
-    description:
-      "Answers every call in under 2 seconds, day or night. No hold times, no missed calls—even on weekends and holidays.",
+    large: {
+      icon: Clock,
+      title: "24/7 Instant Availability",
+      description:
+        "Answers every call in under 2 seconds, day or night. No hold times, no missed calls—even on weekends and holidays.",
+    },
+    small: [
+      {
+        icon: CalendarCheck,
+        title: "Smart Booking",
+        description:
+          "Automatically schedules reservations and takes orders while checking real-time availability.",
+      },
+      {
+        icon: BarChart3,
+        title: "Live Analytics",
+        description:
+          "Track call volumes, booking rates, and revenue insights from your dashboard.",
+      },
+    ],
   },
   {
-    icon: CalendarCheck,
-    title: "Smart Booking",
-    description:
-      "Automatically schedules reservations and takes orders while checking real-time availability.",
+    large: {
+      icon: UtensilsCrossed,
+      title: "Order Taking",
+      description:
+        "Takes food orders accurately with full menu knowledge, including modifications and special requests.",
+    },
+    small: [
+      {
+        icon: Globe,
+        title: "Multi-language Support",
+        description:
+          "Serve customers in their preferred language with automatic detection.",
+      },
+      {
+        icon: Bell,
+        title: "Appointment Reminders",
+        description:
+          "Automated SMS and email confirmations reduce no-shows.",
+      },
+    ],
   },
   {
-    icon: BarChart3,
-    title: "Live Analytics",
-    description:
-      "Track call volumes, booking rates, and revenue insights from your dashboard in real-time.",
+    large: {
+      icon: ShieldCheck,
+      title: "No-Show Reduction",
+      description:
+        "Deposit collection and confirmation calls ensure customers show up and your revenue is protected.",
+    },
+    small: [
+      {
+        icon: Users,
+        title: "CRM Integration",
+        description:
+          "Syncs customer data so you know who's calling instantly.",
+      },
+      {
+        icon: Mic,
+        title: "Custom Voice & Personality",
+        description:
+          "Tailor AIVIA's voice and tone to match your brand.",
+      },
+    ],
   },
   {
-    icon: Globe,
-    title: "Multi-language Support",
-    description:
-      "Serve customers in their preferred language with automatic detection and response.",
-  },
-  {
-    icon: UtensilsCrossed,
-    title: "Order Taking",
-    description:
-      "Takes food orders accurately with full menu knowledge, including modifications and special requests.",
-  },
-  {
-    icon: Bell,
-    title: "Appointment Reminders",
-    description:
-      "Automated SMS and email confirmations reduce no-shows and keep your schedule full.",
-  },
-  {
-    icon: Users,
-    title: "CRM Integration",
-    description:
-      "Syncs customer data automatically so you know who's calling and their preferences instantly.",
-  },
-  {
-    icon: Mic,
-    title: "Custom Voice & Personality",
-    description:
-      "Tailor AIVIA's voice, tone, and personality to match your brand perfectly.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "No-Show Reduction",
-    description:
-      "Deposit collection and confirmation calls ensure customers show up and your revenue is protected.",
+    large: {
+      icon: Phone,
+      title: "AI Phone Answering",
+      description:
+        "Never miss a call again. Our AI answers professionally, handles inquiries, and routes calls seamlessly 24/7.",
+    },
+    small: [
+      {
+        icon: MessageSquare,
+        title: "SMS Notifications",
+        description:
+          "Automatic confirmations and follow-ups keep customers informed.",
+      },
+      {
+        icon: Zap,
+        title: "Instant Response",
+        description:
+          "Zero wait time means happier customers and more bookings.",
+      },
+    ],
   },
 ];
 
@@ -98,7 +133,7 @@ export function FeatureCarousel() {
 
     const interval = setInterval(() => {
       api.scrollNext();
-    }, 5000);
+    }, 6000);
 
     return () => clearInterval(interval);
   }, [api, isPaused]);
@@ -127,39 +162,80 @@ export function FeatureCarousel() {
           className="w-full"
         >
           <CarouselContent className="-ml-4">
-            {features.map((feature, index) => {
-              const Icon = feature.icon;
-              const isActive = current === index;
+            {slides.map((slide, slideIndex) => {
+              const LargeIcon = slide.large.icon;
+              const isActive = current === slideIndex;
 
               return (
                 <CarouselItem
-                  key={feature.title}
-                  className="pl-4 basis-full sm:basis-1/2 lg:basis-1/4"
+                  key={slideIndex}
+                  className="pl-4 basis-full"
                 >
-                  <div
-                    className={cn(
-                      "group relative h-full rounded-2xl border bg-card p-6 transition-all duration-300",
-                      "hover:shadow-lg hover:scale-[1.02] hover:border-primary/30",
-                      isActive && "border-primary/50 shadow-md scale-[1.01]"
-                    )}
-                  >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
+                    {/* Large card on the left */}
                     <div
                       className={cn(
-                        "mb-4 inline-flex items-center justify-center rounded-xl p-3 transition-colors duration-300",
-                        "bg-gradient-to-br from-primary/10 to-primary/5",
-                        "group-hover:from-primary/20 group-hover:to-primary/10"
+                        "group relative rounded-2xl border bg-card p-8 transition-all duration-300 flex flex-col justify-center",
+                        "hover:shadow-lg hover:border-primary/30",
+                        isActive && "border-primary/50 shadow-md"
                       )}
                     >
-                      <Icon className="h-6 w-6 text-primary" />
+                      <div
+                        className={cn(
+                          "mb-5 inline-flex items-center justify-center rounded-xl p-4 transition-colors duration-300 w-fit",
+                          "bg-gradient-to-br from-primary/15 to-primary/5",
+                          "group-hover:from-primary/25 group-hover:to-primary/10"
+                        )}
+                      >
+                        <LargeIcon className="h-8 w-8 text-primary" />
+                      </div>
+
+                      <h3 className="text-xl font-semibold text-foreground mb-3">
+                        {slide.large.title}
+                      </h3>
+
+                      <p className="text-muted-foreground leading-relaxed">
+                        {slide.large.description}
+                      </p>
                     </div>
 
-                    <h3 className="text-lg font-semibold text-foreground mb-2">
-                      {feature.title}
-                    </h3>
+                    {/* Two small cards stacked on the right */}
+                    <div className="flex flex-col gap-4">
+                      {slide.small.map((feature, featureIndex) => {
+                        const SmallIcon = feature.icon;
+                        return (
+                          <div
+                            key={featureIndex}
+                            className={cn(
+                              "group relative flex-1 rounded-2xl border bg-card p-5 transition-all duration-300",
+                              "hover:shadow-md hover:border-primary/30"
+                            )}
+                          >
+                            <div className="flex items-start gap-4">
+                              <div
+                                className={cn(
+                                  "flex-shrink-0 inline-flex items-center justify-center rounded-lg p-3 transition-colors duration-300",
+                                  "bg-gradient-to-br from-primary/10 to-primary/5",
+                                  "group-hover:from-primary/20 group-hover:to-primary/10"
+                                )}
+                              >
+                                <SmallIcon className="h-5 w-5 text-primary" />
+                              </div>
 
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {feature.description}
-                    </p>
+                              <div>
+                                <h3 className="text-base font-semibold text-foreground mb-1">
+                                  {feature.title}
+                                </h3>
+
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                  {feature.description}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </CarouselItem>
               );
@@ -169,7 +245,7 @@ export function FeatureCarousel() {
 
         {/* Navigation Dots */}
         <div className="flex justify-center gap-2 mt-6">
-          {features.map((_, index) => (
+          {slides.map((_, index) => (
             <button
               key={index}
               onClick={() => scrollTo(index)}
