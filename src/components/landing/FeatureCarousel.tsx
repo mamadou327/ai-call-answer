@@ -11,9 +11,9 @@ import { cn } from "@/lib/utils";
 const features = [
   {
     icon: Clock,
-    title: "24/7 Availability",
+    title: "24/7 Instant Availability",
     description:
-      "Never miss a call again. AIVIA answers every call instantly, day or night, weekends and holidays included.",
+      "Answers every call in under 2 seconds, day or night. No hold times, no missed calls—even on weekends and holidays.",
   },
   {
     icon: CalendarCheck,
