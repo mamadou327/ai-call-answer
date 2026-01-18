@@ -53,40 +53,42 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header activeSection={activeSection} onSectionChange={handleSectionChange} />
-      <HeroSection />
-      
-      {/* Dynamic Content Area - Shows based on nav selection */}
-      <div ref={sectionRef}>
-        {activeSection === 'features' && (
-          <Suspense fallback={<SectionLoader />}>
-            <div id="features" className="animate-fade-in">
-              <BusinessTypeSelector />
-              <FeatureShowcase />
-              <ProblemSection />
-            </div>
-          </Suspense>
-        )}
+      <main>
+        <HeroSection />
+        
+        {/* Dynamic Content Area - Shows based on nav selection */}
+        <div ref={sectionRef}>
+          {activeSection === 'features' && (
+            <Suspense fallback={<SectionLoader />}>
+              <div id="features" className="animate-fade-in">
+                <BusinessTypeSelector />
+                <FeatureShowcase />
+                <ProblemSection />
+              </div>
+            </Suspense>
+          )}
 
-        {activeSection === 'pricing' && (
-          <Suspense fallback={<SectionLoader />}>
-            <div id="pricing" className="animate-fade-in">
-              <PricingSection />
-              <ComparisonTable />
-            </div>
-          </Suspense>
-        )}
+          {activeSection === 'pricing' && (
+            <Suspense fallback={<SectionLoader />}>
+              <div id="pricing" className="animate-fade-in">
+                <PricingSection />
+                <ComparisonTable />
+              </div>
+            </Suspense>
+          )}
 
-        {activeSection === 'faq' && (
-          <Suspense fallback={<SectionLoader />}>
-            <div id="faq" className="animate-fade-in">
-              <FAQSection />
-            </div>
-          </Suspense>
-        )}
-      </div>
+          {activeSection === 'faq' && (
+            <Suspense fallback={<SectionLoader />}>
+              <div id="faq" className="animate-fade-in">
+                <FAQSection />
+              </div>
+            </Suspense>
+          )}
+        </div>
 
-      {/* Always visible sections */}
-      <FinalCTA />
+        {/* Always visible sections */}
+        <FinalCTA />
+      </main>
       <Footer onFaqClick={() => handleSectionChange('faq')} />
     </div>
   );
