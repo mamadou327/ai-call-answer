@@ -2321,6 +2321,7 @@ export type Database = {
           delivery_minimum_order: number | null
           delivery_radius_miles: number | null
           deposit_collection_timing: string | null
+          has_stripe: boolean | null
           id: string | null
           logo_url: string | null
           main_phone: string | null
@@ -2330,17 +2331,12 @@ export type Database = {
           online_booking_message: string | null
           payment_methods: string[] | null
           prepayment_type: string | null
-          refund_policy: string | null
-          refund_window_hours: number | null
           require_prepayment: boolean | null
           social_facebook: string | null
           social_instagram: string | null
           social_tiktok: string | null
           social_twitter: string | null
           social_youtube: string | null
-          status: Database["public"]["Enums"]["business_status"] | null
-          stripe_account_id: string | null
-          stripe_connected_at: string | null
           website: string | null
         }
         Insert: {
@@ -2357,6 +2353,7 @@ export type Database = {
           delivery_minimum_order?: number | null
           delivery_radius_miles?: number | null
           deposit_collection_timing?: string | null
+          has_stripe?: never
           id?: string | null
           logo_url?: string | null
           main_phone?: string | null
@@ -2366,17 +2363,12 @@ export type Database = {
           online_booking_message?: string | null
           payment_methods?: string[] | null
           prepayment_type?: string | null
-          refund_policy?: string | null
-          refund_window_hours?: number | null
           require_prepayment?: boolean | null
           social_facebook?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
           social_twitter?: string | null
           social_youtube?: string | null
-          status?: Database["public"]["Enums"]["business_status"] | null
-          stripe_account_id?: string | null
-          stripe_connected_at?: string | null
           website?: string | null
         }
         Update: {
@@ -2393,6 +2385,7 @@ export type Database = {
           delivery_minimum_order?: number | null
           delivery_radius_miles?: number | null
           deposit_collection_timing?: string | null
+          has_stripe?: never
           id?: string | null
           logo_url?: string | null
           main_phone?: string | null
@@ -2402,17 +2395,12 @@ export type Database = {
           online_booking_message?: string | null
           payment_methods?: string[] | null
           prepayment_type?: string | null
-          refund_policy?: string | null
-          refund_window_hours?: number | null
           require_prepayment?: boolean | null
           social_facebook?: string | null
           social_instagram?: string | null
           social_tiktok?: string | null
           social_twitter?: string | null
           social_youtube?: string | null
-          status?: Database["public"]["Enums"]["business_status"] | null
-          stripe_account_id?: string | null
-          stripe_connected_at?: string | null
           website?: string | null
         }
         Relationships: []
