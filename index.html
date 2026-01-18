@@ -32,7 +32,15 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Inline critical loading state for faster FCP -->
+      <div id="initial-loader" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0a0a;">
+        <div style="text-align:center;">
+          <div style="width:48px;height:48px;border:3px solid #333;border-top-color:#8b5cf6;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div>
+        </div>
+      </div>
+      <style>#initial-loader{transition:opacity .2s}@keyframes spin{to{transform:rotate(360deg)}}</style>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
