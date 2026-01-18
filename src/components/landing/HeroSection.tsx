@@ -27,12 +27,12 @@ const HeroSection = () => {
 
         {/* Demo CTA Badge */}
         <DemoRequestDialog>
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary border border-border mb-6 cursor-pointer hover:bg-secondary/80 transition-colors">
+          <button className="inline-flex items-center gap-2 px-4 py-2 bg-secondary border border-border rounded-md mb-6 cursor-pointer hover:bg-secondary/80 transition-colors">
             <Headphones className="w-4 h-4 text-primary" />
             <span className="text-sm text-muted-foreground">
               Want to hear how it works? <span className="text-primary font-medium">Click here</span>
             </span>
-          </div>
+          </button>
         </DemoRequestDialog>
 
         {/* Dual CTAs */}
