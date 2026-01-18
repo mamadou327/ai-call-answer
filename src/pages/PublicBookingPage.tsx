@@ -32,7 +32,6 @@ interface Business {
   website: string | null;
   online_booking_message: string | null;
   deposit_collection_timing: string;
-  stripe_account_id: string | null;
   logo_url: string | null;
   social_instagram: string | null;
   social_facebook: string | null;
@@ -44,6 +43,7 @@ interface Business {
   delivery_fee: number | null;
   delivery_minimum_order: number | null;
   average_prep_time_minutes: number | null;
+  has_stripe: boolean;
 }
 
 interface PolicySettings {
@@ -285,7 +285,7 @@ const PublicBookingPage = () => {
           .from("public_businesses")
           .select(`
             id, business_name, business_type, address, main_phone, website,
-            online_booking_message, deposit_collection_timing, stripe_account_id,
+            online_booking_message, deposit_collection_timing, has_stripe,
             logo_url, social_instagram, social_facebook, social_tiktok, social_twitter, social_youtube,
             minimum_order_amount, delivery_enabled, delivery_fee, delivery_minimum_order, average_prep_time_minutes
           `)
@@ -1048,7 +1048,7 @@ const PublicBookingPage = () => {
             selectedTime={cartItems.length > 0 ? cartItems[0].time : selectedTime}
             currency={currency}
             collectDuringBooking={business.deposit_collection_timing === "during_booking"}
-            hasStripe={!!business.stripe_account_id}
+            hasStripe={business.has_stripe}
             onSubmit={handleBookingSubmit}
             onBack={handleBack}
             onExpressRebook={(serviceId, staffId) => {
@@ -1073,7 +1073,7 @@ const PublicBookingPage = () => {
             currency={currency}
             personCount={groupPersonCount}
             collectDuringBooking={business.deposit_collection_timing === "during_booking"}
-            hasStripe={!!business.stripe_account_id}
+            hasStripe={business.has_stripe}
             onSubmit={handleGroupBookingSubmit}
             onBack={handleBack}
             onAddService={() => {

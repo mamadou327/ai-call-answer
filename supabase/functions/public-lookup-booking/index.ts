@@ -118,11 +118,22 @@ serve(async (req) => {
       .in("status", ["pending", "confirmed"]);
 
     if (bookingCode) {
-      query = query.eq("booking_code", bookingCode.toUpperCase());
+      query = query.eq("booking_code", bookingCode.toUpperCase().trim());
     } else if (customerPhone) {
-      // Normalize phone number (remove spaces, dashes)
-      const normalizedPhone = customerPhone.replace(/[\s\-\(\)]/g, "");
-      query = query.ilike("customer_phone", `%${normalizedPhone.slice(-10)}`);
+      // Sanitize phone: only allow digits, remove all other characters including SQL wildcards
+      const normalizedPhone = customerPhone.replace(/[^0-9]/g, "");
+      
+      // Require minimum 10 digits to prevent broad pattern matching
+      if (normalizedPhone.length < 10) {
+        return new Response(
+          JSON.stringify({ error: "Phone number must be at least 10 digits" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // Use exact match on last 10 digits to prevent data enumeration
+      const last10Digits = normalizedPhone.slice(-10);
+      query = query.like("customer_phone", `%${last10Digits}`);
     }
 
     const { data: bookings, error: bookingsError } = await query;
