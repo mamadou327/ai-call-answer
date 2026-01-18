@@ -247,19 +247,23 @@ export function FeatureCarousel() {
         </Carousel>
 
         {/* Navigation Dots */}
-        <div className="flex justify-center gap-2 mt-6">
+        <div className="flex justify-center gap-1 mt-6">
           {slides.map((_, index) => (
             <button
               key={index}
               onClick={() => scrollTo(index)}
-              className={cn(
-                "h-2 rounded-full transition-all duration-300",
-                current === index
-                  ? "w-6 bg-primary"
-                  : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
-              )}
+              className="relative p-3 flex items-center justify-center"
               aria-label={`Go to slide ${index + 1}`}
-            />
+            >
+              <span
+                className={cn(
+                  "h-2 rounded-full transition-all duration-300",
+                  current === index
+                    ? "w-6 bg-primary"
+                    : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                )}
+              />
+            </button>
           ))}
         </div>
       </div>
