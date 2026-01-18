@@ -10,24 +10,24 @@ const HeroSection = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="container mx-auto px-4 py-16 md:py-24">
+    <section className="container mx-auto px-4 py-10 md:py-16">
       <div className="max-w-4xl mx-auto text-center">
 
         {/* Main Headline */}
-        <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 text-foreground">
+        <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-4 text-foreground">
           Every Call Answered.
           <br />
           <span className="text-muted-foreground">Every Order Taken. Every Table Booked.</span>
         </h1>
 
         {/* Sub-headline */}
-        <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+        <p className="text-lg md:text-xl text-muted-foreground mb-6 max-w-2xl mx-auto">
           Your 24/7 AI phone assistant handling unlimited calls at once, taking orders and reservations so no customer is ever on hold.
         </p>
 
         {/* Demo CTA Badge */}
         <DemoRequestDialog>
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary border border-border mb-8 cursor-pointer hover:bg-secondary/80 transition-colors">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-secondary border border-border mb-6 cursor-pointer hover:bg-secondary/80 transition-colors">
             <Headphones className="w-4 h-4 text-primary" />
             <span className="text-sm text-muted-foreground">
               Want to hear how it works? <span className="text-primary font-medium">Click here</span>
@@ -36,7 +36,7 @@ const HeroSection = () => {
         </DemoRequestDialog>
 
         {/* Dual CTAs */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
           <Button 
             size="lg" 
             onClick={() => navigate("/auth")} 
