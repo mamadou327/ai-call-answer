@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useNavigate } from "react-router-dom";
+import DemoDashboard from "@/components/landing/DemoDashboard";
 
 interface HowItWorksDialogProps {
   children: React.ReactNode;
@@ -96,30 +97,12 @@ const HowItWorksDialog = ({ children }: HowItWorksDialogProps) => {
               <p className="text-muted-foreground leading-relaxed pl-11">
                 Every call, order, and reservation appears in your Aivia dashboard. You can see today's bookings, upcoming orders, table availability, and simple analytics like how many calls Aivia answered and how much revenue was generated.
               </p>
-              {/* Mini Dashboard */}
-              <div className="bg-muted/50 rounded-xl p-4 ml-11">
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  <div className="bg-background rounded-lg p-2.5 text-center">
-                    <PhoneCall className="w-4 h-4 text-accent mx-auto mb-1" />
-                    <div className="text-base font-bold">47</div>
-                    <div className="text-xs text-muted-foreground">Calls</div>
-                  </div>
-                  <div className="bg-background rounded-lg p-2.5 text-center">
-                    <Calendar className="w-4 h-4 text-accent mx-auto mb-1" />
-                    <div className="text-base font-bold">32</div>
-                    <div className="text-xs text-muted-foreground">Orders</div>
-                  </div>
-                  <div className="bg-background rounded-lg p-2.5 text-center">
-                    <TrendingUp className="w-4 h-4 text-accent mx-auto mb-1" />
-                    <div className="text-base font-bold">£1,240</div>
-                    <div className="text-xs text-muted-foreground">Revenue</div>
-                  </div>
-                </div>
-                <div className="bg-background rounded-lg p-2.5">
-                  <div className="text-xs font-medium text-muted-foreground mb-1.5">Today's Reservations</div>
-                  <div className="space-y-1 text-xs">
-                    <div className="flex justify-between"><span>19:00 - Sarah (4 guests)</span><span className="text-accent">Window</span></div>
-                    <div className="flex justify-between"><span>20:30 - James (2 guests)</span><span className="text-accent">Booth</span></div>
+              {/* Actual Dashboard Preview */}
+              <div className="ml-11 -mx-2 md:mx-0">
+                <div className="bg-muted/30 rounded-xl p-2 md:p-4 border border-border/50">
+                  <p className="text-xs text-muted-foreground mb-2 text-center">👆 This is exactly what you'll see when you get an account</p>
+                  <div className="transform scale-[0.85] md:scale-100 origin-top">
+                    <DemoDashboard />
                   </div>
                 </div>
               </div>
