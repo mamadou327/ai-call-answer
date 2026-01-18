@@ -39,7 +39,7 @@ const Footer = ({ onFaqClick }: FooterProps) => {
 
             {/* Product Links */}
             <div>
-              <h4 className="font-semibold mb-4">Product</h4>
+              <div className="font-semibold mb-4" role="heading" aria-level={2}>Product</div>
               <ul className="space-y-2">
                 <li>
                   <button 
@@ -62,7 +62,7 @@ const Footer = ({ onFaqClick }: FooterProps) => {
 
             {/* Company Links */}
             <div>
-              <h4 className="font-semibold mb-4">Company</h4>
+              <div className="font-semibold mb-4" role="heading" aria-level={2}>Company</div>
               <ul className="space-y-2">
                 <li>
                   <button 
