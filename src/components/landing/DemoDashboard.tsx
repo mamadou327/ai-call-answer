@@ -675,7 +675,7 @@ const DemoDashboard = () => {
                           </Button>
                         )}
                         <Select value={dateRange} onValueChange={setDateRange}>
-                          <SelectTrigger className="w-[100px] h-7 text-xs">
+                          <SelectTrigger className="w-[100px] h-7 text-xs" aria-label="Select date range">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
