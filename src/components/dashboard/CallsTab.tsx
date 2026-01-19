@@ -43,8 +43,11 @@ interface CallLog {
 
 const callTypeLabels: Record<string, string> = {
   new_booking: "Booking Created",
+  new_order: "Order Taken",
+  new_reservation: "Reservation Made",
   reschedule: "Reschedule",
   cancel: "Cancellation",
+  cancel_order: "Order Cancelled",
   question: "General Enquiry",
   complaint: "Complaint",
   other: "Other",
@@ -52,8 +55,11 @@ const callTypeLabels: Record<string, string> = {
 
 const callTypeBadgeVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   new_booking: "default",
+  new_order: "default",
+  new_reservation: "default",
   reschedule: "secondary",
   cancel: "destructive",
+  cancel_order: "destructive",
   question: "outline",
   complaint: "destructive",
   other: "outline",
@@ -67,11 +73,24 @@ export const CallsTab = ({ businessId, isDemoMode = false, businessType }: Calls
   const [selectedCall, setSelectedCall] = useState<CallLog | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   
+  // Business type helpers for dynamic labels
+  const isRestaurant = businessType?.startsWith('restaurant_');
+  const isPickupOnly = businessType === 'restaurant_pickup';
+  const isDineInOnly = businessType === 'restaurant_dine_in';
+  
+  // Dynamic label for the success metric
+  const getSuccessLabel = () => {
+    if (isPickupOnly) return "Orders Taken";
+    if (isDineInOnly) return "Reservations";
+    if (isRestaurant) return "Orders/Reservations";
+    return "Bookings Created";
+  };
+  
   // Analytics state
   const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "custom">("month");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>();
   const [totalCalls, setTotalCalls] = useState(isDemoMode ? DEMO_CALLS_STATS.totalCalls : 0);
-  const [bookingsCreated, setBookingsCreated] = useState(isDemoMode ? DEMO_CALLS_STATS.bookingsCreated : 0);
+  const [successMetric, setSuccessMetric] = useState(isDemoMode ? DEMO_CALLS_STATS.bookingsCreated : 0);
   const [enquiries, setEnquiries] = useState(isDemoMode ? DEMO_CALLS_STATS.enquiries : 0);
   const [cancellations, setCancellations] = useState(isDemoMode ? DEMO_CALLS_STATS.cancellations : 0);
 
@@ -174,18 +193,28 @@ export const CallsTab = ({ businessId, isDemoMode = false, businessType }: Calls
     
     const { start, end } = getDateRange();
     
-    const [totalResult, bookingsResult, enquiriesResult, cancellationsResult] = await Promise.all([
+    // Determine which call types to count for success metric based on business type
+    const getSuccessCallTypes = (): Array<"new_booking" | "new_order" | "new_reservation"> => {
+      if (isPickupOnly) return ["new_order"];
+      if (isDineInOnly) return ["new_reservation"];
+      if (isRestaurant) return ["new_order", "new_reservation"];
+      return ["new_booking"];
+    };
+    
+    // Determine which call types to count for cancellations based on business type
+    const getCancellationCallTypes = (): Array<"cancel" | "cancel_order"> => {
+      if (isRestaurant) return ["cancel", "cancel_order"];
+      return ["cancel"];
+    };
+    
+    const successTypes = getSuccessCallTypes();
+    const cancelTypes = getCancellationCallTypes();
+    
+    const [totalResult, enquiriesResult] = await Promise.all([
       supabase
         .from("calls_log")
         .select("*", { count: "exact", head: true })
         .eq("business_id", businessId)
-        .gte("created_at", start.toISOString())
-        .lte("created_at", end.toISOString()),
-      supabase
-        .from("calls_log")
-        .select("*", { count: "exact", head: true })
-        .eq("business_id", businessId)
-        .eq("call_type", "new_booking")
         .gte("created_at", start.toISOString())
         .lte("created_at", end.toISOString()),
       supabase
@@ -195,17 +224,28 @@ export const CallsTab = ({ businessId, isDemoMode = false, businessType }: Calls
         .eq("call_type", "question")
         .gte("created_at", start.toISOString())
         .lte("created_at", end.toISOString()),
-      supabase
-        .from("calls_log")
-        .select("*", { count: "exact", head: true })
-        .eq("business_id", businessId)
-        .eq("call_type", "cancel")
-        .gte("created_at", start.toISOString())
-        .lte("created_at", end.toISOString()),
     ]);
+    
+    // Query success metrics (bookings/orders/reservations)
+    const successResult = await supabase
+      .from("calls_log")
+      .select("*", { count: "exact", head: true })
+      .eq("business_id", businessId)
+      .in("call_type", successTypes)
+      .gte("created_at", start.toISOString())
+      .lte("created_at", end.toISOString());
+    
+    // Query cancellation metrics
+    const cancellationsResult = await supabase
+      .from("calls_log")
+      .select("*", { count: "exact", head: true })
+      .eq("business_id", businessId)
+      .in("call_type", cancelTypes)
+      .gte("created_at", start.toISOString())
+      .lte("created_at", end.toISOString());
 
     setTotalCalls(totalResult.count || 0);
-    setBookingsCreated(bookingsResult.count || 0);
+    setSuccessMetric(successResult.count || 0);
     setEnquiries(enquiriesResult.count || 0);
     setCancellations(cancellationsResult.count || 0);
   };
@@ -276,11 +316,11 @@ export const CallsTab = ({ businessId, isDemoMode = false, businessType }: Calls
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 p-3 sm:p-6">
-            <CardTitle className="text-xs sm:text-sm font-medium">Bookings Created</CardTitle>
+            <CardTitle className="text-xs sm:text-sm font-medium">{getSuccessLabel()}</CardTitle>
             <CalendarCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
           </CardHeader>
           <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-xl sm:text-2xl font-bold text-primary">{bookingsCreated}</div>
+            <div className="text-xl sm:text-2xl font-bold text-primary">{successMetric}</div>
             <p className="text-[10px] sm:text-xs text-muted-foreground">{getPeriodLabel()}</p>
           </CardContent>
         </Card>

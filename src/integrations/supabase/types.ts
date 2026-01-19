@@ -2502,6 +2502,9 @@ export type Database = {
         | "question"
         | "complaint"
         | "other"
+        | "new_order"
+        | "new_reservation"
+        | "cancel_order"
       number_selection_type: "aivia_provided" | "port_existing" | "do_later"
       payment_status: "unpaid" | "deposit_paid" | "paid_in_full"
       service_category_type:
@@ -2662,6 +2665,9 @@ export const Constants = {
         "question",
         "complaint",
         "other",
+        "new_order",
+        "new_reservation",
+        "cancel_order",
       ],
       number_selection_type: ["aivia_provided", "port_existing", "do_later"],
       payment_status: ["unpaid", "deposit_paid", "paid_in_full"],

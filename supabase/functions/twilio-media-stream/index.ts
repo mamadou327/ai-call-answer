@@ -1223,9 +1223,16 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
   // (We only set tags for booking actions; other intents remain 'other' unless handled elsewhere.)
   try {
     const callTypeByToolName: Record<string, string> = {
+      // Salon/Service business actions
       create_booking: "new_booking",
       cancel_booking: "cancel",
       reschedule_booking: "reschedule",
+      // Restaurant pickup/delivery actions
+      create_pickup_order: "new_order",
+      cancel_order: "cancel_order",
+      // Restaurant dine-in actions
+      create_reservation: "new_reservation",
+      cancel_reservation: "cancel",
     };
 
     const nextCallType = result?.success ? callTypeByToolName[name] : undefined;
