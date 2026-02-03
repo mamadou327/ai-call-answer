@@ -333,6 +333,7 @@ export type Database = {
           auto_cancel_hours: number | null
           auto_cancel_unpaid_bookings: boolean | null
           business_id: string
+          business_name_phonetic: string | null
           cancellation_policy: string | null
           country: string | null
           created_at: string | null
@@ -358,6 +359,7 @@ export type Database = {
           auto_cancel_hours?: number | null
           auto_cancel_unpaid_bookings?: boolean | null
           business_id: string
+          business_name_phonetic?: string | null
           cancellation_policy?: string | null
           country?: string | null
           created_at?: string | null
@@ -383,6 +385,7 @@ export type Database = {
           auto_cancel_hours?: number | null
           auto_cancel_unpaid_bookings?: boolean | null
           business_id?: string
+          business_name_phonetic?: string | null
           cancellation_policy?: string | null
           country?: string | null
           created_at?: string | null

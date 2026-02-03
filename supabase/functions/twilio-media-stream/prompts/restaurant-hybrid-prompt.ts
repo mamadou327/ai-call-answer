@@ -3,6 +3,7 @@
 
 interface RestaurantHybridPromptData {
   businessName: string;
+  businessNamePhonetic?: string;
   businessAddress: string;
   assistantName: string;
   tone: string;
@@ -41,6 +42,7 @@ interface RestaurantHybridPromptData {
 export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptData): string {
   const {
     businessName,
+    businessNamePhonetic,
     businessAddress,
     assistantName,
     tone,
@@ -239,6 +241,7 @@ ${speedGuide}
 
 BUSINESS INFORMATION:
 - Name: ${businessName}
+${businessNamePhonetic ? `- PRONUNCIATION: When saying the business name aloud, pronounce it as: "${businessNamePhonetic}"` : ""}
 - Address: ${businessAddress}
 ${twilioPhoneNumber ? `- Phone: ${twilioPhoneNumber}` : ""}
 ${restaurantSettings.menuLink ? `- Menu: ${restaurantSettings.menuLink}` : ""}

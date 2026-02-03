@@ -30,6 +30,7 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
     voice_speed: "normal" as "slow" | "normal" | "fast",
     elevenlabs_voice_id: null as string | null,
     opening_context: "" as string,
+    business_name_phonetic: "" as string,
   });
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
         voice_speed: (data.voice_speed || "normal") as "slow" | "normal" | "fast",
         elevenlabs_voice_id: (data as any).elevenlabs_voice_id || null,
         opening_context: (data as any).opening_context || "",
+        business_name_phonetic: (data as any).business_name_phonetic || "",
       });
     }
   };
@@ -107,6 +109,18 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
                 onChange={(e) => setSettingsData({ ...settingsData, assistant_name: e.target.value })}
                 required
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Phonetic Business Name</Label>
+              <Input
+                value={settingsData.business_name_phonetic}
+                onChange={(e) => setSettingsData({ ...settingsData, business_name_phonetic: e.target.value })}
+                placeholder='e.g., "Peet-zuh Nah-poh-lee" for Pizza Napoli'
+              />
+              <p className="text-xs text-muted-foreground">
+                Write out how your business name should be pronounced. Leave blank if the spelling is straightforward.
+              </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">

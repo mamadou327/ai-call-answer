@@ -3,6 +3,7 @@
 
 interface RestaurantPickupPromptData {
   businessName: string;
+  businessNamePhonetic?: string;
   businessAddress: string;
   assistantName: string;
   tone: string;
@@ -40,6 +41,7 @@ interface RestaurantPickupPromptData {
 export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptData): string {
   const {
     businessName,
+    businessNamePhonetic,
     businessAddress,
     assistantName,
     tone,
@@ -252,6 +254,7 @@ ${speedGuide}
 
 BUSINESS INFORMATION:
 - Name: ${businessName}
+${businessNamePhonetic ? `- PRONUNCIATION: When saying the business name aloud, pronounce it as: "${businessNamePhonetic}"` : ""}
 - Address: ${businessAddress}
 ${twilioPhoneNumber ? `- Phone: ${twilioPhoneNumber}` : ""}
 ${restaurantSettings.menuLink ? `- Online Menu: ${restaurantSettings.menuLink}` : ""}

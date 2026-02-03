@@ -188,6 +188,7 @@ interface BusinessSettings {
   cancellation_policy: string | null;
   currency: string;
   opening_context?: string | null;
+  business_name_phonetic?: string | null;
 }
 
 interface OpeningHour {
@@ -4047,7 +4048,7 @@ async function buildFullSystemPrompt(
     supabase.from("staff").select("id, name, role, title, phone, ai_enabled, is_business_owner, working_hours").eq("business_id", businessId),
     supabase.from("services").select("id, name, duration_minutes, price, category, description, deposit_required, deposit_amount").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
-    supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours, min_reschedule_notice_hours, opening_context").eq("business_id", businessId).maybeSingle(),
+    supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours, min_reschedule_notice_hours, opening_context, business_name_phonetic").eq("business_id", businessId).maybeSingle(),
     supabase.from("staff_time_off")
       .select("staff_id, start_time, end_time, reason, staff:staff_id(name)")
       .eq("business_id", businessId)
@@ -4850,6 +4851,7 @@ ${openingContextSection}
 - Today: ${currentDay}, ${currentDate} at ${currentTime}
 - Business Status: ${todayStatus}
 - Business Address: ${businessAddress}
+${businessSettings?.business_name_phonetic ? `- PRONUNCIATION: When saying the business name aloud, pronounce it as: "${businessSettings.business_name_phonetic}"` : ""}
 - Business Phone Number: ${businessPhoneForSpeech || "(not available)"}
 - ${callerContext}
 - Caller Phone: ${callerPhone} (use this for booking unless they request otherwise)
@@ -4917,6 +4919,7 @@ ${dataCollectionRules}${faqContext}`;
     const restaurantPrompt = buildSystemPromptForBusinessType({
       businessType,
       businessName,
+      businessNamePhonetic: businessSettings?.business_name_phonetic || undefined,
       businessAddress,
       assistantName,
       tone,

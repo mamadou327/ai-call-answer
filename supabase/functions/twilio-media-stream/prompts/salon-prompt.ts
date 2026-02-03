@@ -3,6 +3,7 @@
 
 interface SalonPromptData {
   businessName: string;
+  businessNamePhonetic?: string;
   businessAddress: string;
   assistantName: string;
   tone: string;
@@ -24,6 +25,7 @@ interface SalonPromptData {
 export function buildSalonSystemPrompt(data: SalonPromptData): string {
   const {
     businessName,
+    businessNamePhonetic,
     businessAddress,
     assistantName,
     tone,
@@ -146,6 +148,7 @@ ${speedGuide}
 
 BUSINESS INFORMATION:
 - Name: ${businessName}
+${businessNamePhonetic ? `- PRONUNCIATION: When saying the business name aloud, pronounce it as: "${businessNamePhonetic}"` : ""}
 - Address: ${businessAddress}
 ${twilioPhoneNumber ? `- Phone: ${twilioPhoneNumber}` : ""}
 ${websiteKnowledge ? `\nWEBSITE KNOWLEDGE:\n${websiteKnowledge}` : ""}
