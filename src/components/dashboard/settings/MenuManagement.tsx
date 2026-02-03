@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, UtensilsCrossed, FolderPlus, Loader2, GripVertical, Settings2 } from "lucide-react";
+import { Plus, Pencil, Trash2, UtensilsCrossed, FolderPlus, Loader2, GripVertical, Settings2, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { MenuItemOptionsDialog } from "./MenuItemOptionsDialog";
+import { MenuImportDialog } from "./MenuImportDialog";
 
 interface MenuManagementProps {
   businessId: string;
@@ -97,6 +98,9 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
   // Post-creation options prompt
   const [showOptionsPrompt, setShowOptionsPrompt] = useState(false);
   const [newlyCreatedItem, setNewlyCreatedItem] = useState<MenuItem | null>(null);
+  
+  // Import dialog state
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
 
@@ -634,11 +638,25 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
 
           <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" onClick={() => handleOpenItemDialog()}>
+              <Button variant="outline" size="sm" onClick={() => handleOpenItemDialog()}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Item
               </Button>
             </DialogTrigger>
+          
+          <Button size="sm" onClick={() => setImportDialogOpen(true)}>
+            <Sparkles className="w-4 h-4 mr-2" />
+            Import Menu
+          </Button>
+          
+          <MenuImportDialog
+            open={importDialogOpen}
+            onOpenChange={setImportDialogOpen}
+            businessId={businessId}
+            currency={currency}
+            existingCategories={categories.map(c => ({ id: c.id, name: c.name }))}
+            onImportComplete={loadMenu}
+          />
             <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>{editingItem ? "Edit Item" : "Add Menu Item"}</DialogTitle>

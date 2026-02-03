@@ -155,3 +155,6 @@ verify_jwt = true
 
 [functions.send-txt-record-instructions]
 verify_jwt = true
+
+[functions.parse-menu]
+verify_jwt = true
