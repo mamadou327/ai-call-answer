@@ -1179,8 +1179,11 @@ export type Database = {
       }
       menu_items: {
         Row: {
+          ai_description: string | null
           business_id: string
           category_id: string | null
+          common_aliases: string[] | null
+          cooking_method: string | null
           created_at: string | null
           description: string | null
           dietary_tags: string[] | null
@@ -1188,15 +1191,21 @@ export type Database = {
           has_sizes: boolean | null
           id: string
           image_url: string | null
+          ingredients: string[] | null
           is_available: boolean | null
           name: string
+          pairs_well_with: string[] | null
           preparation_time_minutes: number | null
           price: number
+          spice_level: string | null
           updated_at: string | null
         }
         Insert: {
+          ai_description?: string | null
           business_id: string
           category_id?: string | null
+          common_aliases?: string[] | null
+          cooking_method?: string | null
           created_at?: string | null
           description?: string | null
           dietary_tags?: string[] | null
@@ -1204,15 +1213,21 @@ export type Database = {
           has_sizes?: boolean | null
           id?: string
           image_url?: string | null
+          ingredients?: string[] | null
           is_available?: boolean | null
           name: string
+          pairs_well_with?: string[] | null
           preparation_time_minutes?: number | null
           price: number
+          spice_level?: string | null
           updated_at?: string | null
         }
         Update: {
+          ai_description?: string | null
           business_id?: string
           category_id?: string | null
+          common_aliases?: string[] | null
+          cooking_method?: string | null
           created_at?: string | null
           description?: string | null
           dietary_tags?: string[] | null
@@ -1220,10 +1235,13 @@ export type Database = {
           has_sizes?: boolean | null
           id?: string
           image_url?: string | null
+          ingredients?: string[] | null
           is_available?: boolean | null
           name?: string
+          pairs_well_with?: string[] | null
           preparation_time_minutes?: number | null
           price?: number
+          spice_level?: string | null
           updated_at?: string | null
         }
         Relationships: [

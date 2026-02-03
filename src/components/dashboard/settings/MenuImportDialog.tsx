@@ -36,6 +36,13 @@ interface ParsedMenuItem {
   has_sizes: boolean;
   sizes: Array<{ name: string; price: number }>;
   option_groups: ParsedOptionGroup[];
+  // Enhanced semantic fields for voice AI
+  ingredients: string[];
+  cooking_method: string | null;
+  spice_level: string | null;
+  common_aliases: string[];
+  pairs_well_with: string[];
+  ai_description: string | null;
   selected: boolean;
 }
 
@@ -166,13 +173,15 @@ export const MenuImportDialog = ({
       setParsedItems(itemsWithSelection);
       setShowPreview(true);
 
-      // Count option groups for the toast
+      // Count stats for the toast
       const totalOptionGroups = itemsWithSelection.reduce((acc: number, item: ParsedMenuItem) => 
         acc + (item.option_groups?.length || 0), 0);
+      const itemsWithAI = itemsWithSelection.filter((item: ParsedMenuItem) => 
+        item.ai_description || item.ingredients?.length > 0).length;
 
       toast({
         title: "Menu analyzed!",
-        description: `Found ${data.items.length} items in ${data.categories.length} categories${totalOptionGroups > 0 ? `, ${totalOptionGroups} option groups` : ""}`,
+        description: `Found ${data.items.length} items${totalOptionGroups > 0 ? `, ${totalOptionGroups} option groups` : ""}${itemsWithAI > 0 ? ` - ${itemsWithAI} with AI insights` : ""}`,
       });
     } catch (err: any) {
       console.error("Analyze error:", err);
@@ -253,7 +262,7 @@ export const MenuImportDialog = ({
         });
       }
 
-      // Insert menu items
+      // Insert menu items with semantic AI fields
       const itemsToInsert = selectedItems.map((item, idx) => ({
         business_id: businessId,
         name: item.name,
@@ -264,6 +273,13 @@ export const MenuImportDialog = ({
         has_sizes: item.has_sizes,
         is_available: true,
         display_order: idx,
+        // Semantic AI fields for voice assistant understanding
+        ingredients: item.ingredients || [],
+        cooking_method: item.cooking_method || null,
+        spice_level: item.spice_level || null,
+        common_aliases: item.common_aliases || [],
+        pairs_well_with: item.pairs_well_with || [],
+        ai_description: item.ai_description || null,
       }));
 
       const { data: insertedItems, error: itemsError } = await supabase
@@ -399,7 +415,7 @@ export const MenuImportDialog = ({
             Import Menu with AI
           </DialogTitle>
           <DialogDescription>
-            Paste your menu text or upload a photo, and AI will extract all items including customization options.
+            Paste your menu or upload a photo - AI will deeply understand each dish: ingredients, cooking methods, and how customers might ask about them.
           </DialogDescription>
         </DialogHeader>
 
@@ -557,6 +573,8 @@ export const MenuImportDialog = ({
                 <TableBody>
                   {parsedItems.map((item, index) => {
                     const hasOptions = item.option_groups && item.option_groups.length > 0;
+                    const hasSemanticInfo = item.ai_description || item.ingredients?.length > 0 || item.common_aliases?.length > 0;
+                    const hasExpandableContent = hasOptions || hasSemanticInfo;
                     const isExpanded = expandedItems.has(index);
 
                     return (
@@ -571,7 +589,7 @@ export const MenuImportDialog = ({
                             </TableCell>
                             <TableCell>
                               <div className="flex items-start gap-2">
-                                {hasOptions && (
+                                {hasExpandableContent && (
                                   <CollapsibleTrigger asChild>
                                     <Button
                                       variant="ghost"
@@ -589,14 +607,21 @@ export const MenuImportDialog = ({
                                 )}
                                 <div>
                                   <p className="font-medium">{item.name}</p>
-                                  {item.description && (
+                                  {item.ai_description && !isExpanded && (
+                                    <p className="text-xs text-muted-foreground line-clamp-1 italic">
+                                      {item.ai_description}
+                                    </p>
+                                  )}
+                                  {!item.ai_description && item.description && (
                                     <p className="text-xs text-muted-foreground line-clamp-1">
                                       {item.description}
                                     </p>
                                   )}
-                                  {hasOptions && !isExpanded && (
+                                  {hasExpandableContent && !isExpanded && (
                                     <p className="text-xs text-primary mt-1">
-                                      {item.option_groups.length} option group{item.option_groups.length > 1 ? "s" : ""}
+                                      {hasOptions && `${item.option_groups.length} option${item.option_groups.length > 1 ? "s" : ""}`}
+                                      {hasOptions && hasSemanticInfo && " • "}
+                                      {hasSemanticInfo && "AI enhanced"}
                                     </p>
                                   )}
                                 </div>
@@ -625,43 +650,93 @@ export const MenuImportDialog = ({
                                     {tag}
                                   </Badge>
                                 ))}
+                                {item.spice_level && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    🌶️ {item.spice_level}
+                                  </Badge>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
                           
-                          {hasOptions && (
+                          {hasExpandableContent && (
                             <CollapsibleContent asChild>
                               <TableRow className="bg-muted/30">
-                                <TableCell colSpan={5} className="py-2 px-4">
+                                <TableCell colSpan={5} className="py-3 px-4">
                                   <div className="space-y-3 pl-8">
-                                    {item.option_groups.map((og, ogIdx) => (
-                                      <div key={ogIdx} className="text-sm">
-                                        <div className="flex items-center gap-2 font-medium text-muted-foreground">
-                                          <span>↳ {og.name}</span>
-                                          <Badge variant="outline" className="text-xs font-normal">
-                                            {formatSelectionRule(og)}
-                                          </Badge>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2 mt-1 ml-4">
-                                          {og.options.map((opt, optIdx) => (
-                                            <span key={optIdx} className="text-xs text-muted-foreground">
-                                              {opt.name}
-                                              {opt.price_adjustment > 0 && (
-                                                <span className="text-primary ml-1">
-                                                  +{currencySymbol}{opt.price_adjustment.toFixed(2)}
-                                                </span>
-                                              )}
-                                              {opt.dietary_tags.length > 0 && (
-                                                <span className="text-secondary-foreground ml-1">
-                                                  ({opt.dietary_tags.join(", ")})
-                                                </span>
-                                              )}
-                                              {optIdx < og.options.length - 1 && ","}
-                                            </span>
-                                          ))}
-                                        </div>
+                                    {/* AI Description */}
+                                    {item.ai_description && (
+                                      <div className="text-sm">
+                                        <span className="font-medium text-muted-foreground">🤖 AI Description: </span>
+                                        <span className="italic">{item.ai_description}</span>
                                       </div>
-                                    ))}
+                                    )}
+                                    
+                                    {/* Ingredients */}
+                                    {item.ingredients && item.ingredients.length > 0 && (
+                                      <div className="text-sm">
+                                        <span className="font-medium text-muted-foreground">🥗 Ingredients: </span>
+                                        <span>{item.ingredients.join(", ")}</span>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Cooking Method */}
+                                    {item.cooking_method && (
+                                      <div className="text-sm">
+                                        <span className="font-medium text-muted-foreground">👨‍🍳 Cooking: </span>
+                                        <span className="capitalize">{item.cooking_method}</span>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Common Aliases */}
+                                    {item.common_aliases && item.common_aliases.length > 0 && (
+                                      <div className="text-sm">
+                                        <span className="font-medium text-muted-foreground">🗣️ Also known as: </span>
+                                        <span>{item.common_aliases.join(", ")}</span>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Pairs Well With */}
+                                    {item.pairs_well_with && item.pairs_well_with.length > 0 && (
+                                      <div className="text-sm">
+                                        <span className="font-medium text-muted-foreground">🍷 Pairs with: </span>
+                                        <span>{item.pairs_well_with.join(", ")}</span>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Option Groups */}
+                                    {hasOptions && (
+                                      <div className="pt-2 border-t">
+                                        {item.option_groups.map((og, ogIdx) => (
+                                          <div key={ogIdx} className="text-sm mt-2">
+                                            <div className="flex items-center gap-2 font-medium text-muted-foreground">
+                                              <span>↳ {og.name}</span>
+                                              <Badge variant="outline" className="text-xs font-normal">
+                                                {formatSelectionRule(og)}
+                                              </Badge>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 mt-1 ml-4">
+                                              {og.options.map((opt, optIdx) => (
+                                                <span key={optIdx} className="text-xs text-muted-foreground">
+                                                  {opt.name}
+                                                  {opt.price_adjustment > 0 && (
+                                                    <span className="text-primary ml-1">
+                                                      +{currencySymbol}{opt.price_adjustment.toFixed(2)}
+                                                    </span>
+                                                  )}
+                                                  {opt.dietary_tags.length > 0 && (
+                                                    <span className="text-secondary-foreground ml-1">
+                                                      ({opt.dietary_tags.join(", ")})
+                                                    </span>
+                                                  )}
+                                                  {optIdx < og.options.length - 1 && ","}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>
