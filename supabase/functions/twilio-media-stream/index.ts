@@ -18,6 +18,15 @@ const SILENCE_THRESHOLD_MS = 15000; // If no audio for 15 seconds, check connect
 const MAX_OPENAI_RECONNECT_ATTEMPTS = 5; // Increased from 3 for better resilience
 const BASE_RECONNECT_DELAY_MS = 1500; // Increased from 700ms for more stable reconnects
 
+// =========================================================================
+// ORDER CONFIRMATION GUARDRAILS
+// =========================================================================
+// If the AI starts verbally confirming an order without having successfully
+// called create_pickup_order recently, we cancel the response and force a
+// tool call first. This prevents “verbal confirmation but no saved order”.
+const PICKUP_ORDER_GUARD_WINDOW_MS = 120_000; // 2 minutes
+const PICKUP_ORDER_GUARD_COOLDOWN_MS = 5_000; // prevent rapid-fire loops
+
 // ============================================================================
 // COUNTRY TO TIMEZONE MAPPING
 // ============================================================================
@@ -145,6 +154,16 @@ interface StreamSession {
   silenceCheckIntervalId: number | null;
   lastAudioReceivedAt: number;
   lastKeepaliveSentAt: number | null;
+
+  // Guardrails: prevent confirming orders without tool success
+  assistantTranscriptBuffer: string;
+  enforcingPickupOrderCreation: boolean;
+  pickupOrderEnforcementStartedAt: number | null;
+  pickupOrderEnforcementToolCalled: boolean;
+  lastSuccessfulPickupOrderAt: number | null;
+  lastPickupOrderNumber: string | null;
+  lastPickupOrderId: string | null;
+  lastPickupGuardTriggeredAt: number | null;
 }
 
 interface BusinessSettings {
@@ -484,6 +503,16 @@ Deno.serve(async (req) => {
     silenceCheckIntervalId: null,
     lastAudioReceivedAt: Date.now(),
     lastKeepaliveSentAt: null,
+
+    // Guardrails
+    assistantTranscriptBuffer: "",
+    enforcingPickupOrderCreation: false,
+    pickupOrderEnforcementStartedAt: null,
+    pickupOrderEnforcementToolCalled: false,
+    lastSuccessfulPickupOrderAt: null,
+    lastPickupOrderNumber: null,
+    lastPickupOrderId: null,
+    lastPickupGuardTriggeredAt: null,
   };
 
   twilioWs.onopen = () => {
@@ -706,6 +735,119 @@ function stopSilenceDetection(session: StreamSession) {
   }
 }
 
+function isRestaurantPickupFlow(session: StreamSession): boolean {
+  return session.businessType === "restaurant_pickup" || session.businessType === "restaurant_hybrid";
+}
+
+function shouldTriggerPickupOrderGuard(session: StreamSession, transcriptSoFar: string): boolean {
+  if (!isRestaurantPickupFlow(session)) return false;
+  if (session.enforcingPickupOrderCreation) return false;
+
+  const now = Date.now();
+  const lastOk = session.lastSuccessfulPickupOrderAt;
+  const hasRecentToolSuccess = !!(lastOk && now - lastOk < PICKUP_ORDER_GUARD_WINDOW_MS);
+  if (hasRecentToolSuccess) return false;
+
+  const t = (transcriptSoFar || "").toLowerCase();
+  if (t.length < 40) return false;
+
+  // Phrases that almost always imply the AI is “confirming / finalizing”.
+  // We intentionally keep this list focused to avoid false positives.
+  const triggers = [
+    "your order is confirmed",
+    "order is confirmed",
+    "order number",
+    "text confirmation",
+    "you'll receive a text",
+    "you will receive a text",
+    "ready for pickup",
+    "be ready for pickup",
+    "will be ready",
+    "it'll be ready",
+    "it will be ready",
+    "that'll be ready",
+    "that will be ready",
+    "we'll have that ready",
+    "we will have that ready",
+  ];
+
+  return triggers.some((s) => t.includes(s));
+}
+
+async function enforcePickupOrderCreation(session: StreamSession, supabase: any, transcriptSoFar: string) {
+  const now = Date.now();
+  if (session.lastPickupGuardTriggeredAt && now - session.lastPickupGuardTriggeredAt < PICKUP_ORDER_GUARD_COOLDOWN_MS) {
+    return;
+  }
+
+  session.lastPickupGuardTriggeredAt = now;
+  session.enforcingPickupOrderCreation = true;
+  session.pickupOrderEnforcementStartedAt = now;
+  session.pickupOrderEnforcementToolCalled = false;
+  session.assistantTranscriptBuffer = "";
+
+  console.warn("[MediaStream][Guard] Blocking pickup confirmation without create_pickup_order tool success", {
+    businessId: session.businessId,
+    callSid: session.callSid,
+    transcriptTail: (transcriptSoFar || "").slice(-160),
+  });
+
+  // Log guard intervention for audits/debugging.
+  try {
+    await logConversation(
+      supabase,
+      session.callSid,
+      "system",
+      "[guard] Prevented verbal pickup order confirmation before create_pickup_order succeeded; forcing tool call."
+    );
+  } catch {
+    // non-blocking
+  }
+
+  // Stop any audio currently queued to Twilio (prevents the caller hearing the incorrect confirmation).
+  if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
+    try {
+      session.twilioWs.send(JSON.stringify({ event: "clear", streamSid: session.streamSid }));
+    } catch {
+      // ignore
+    }
+  }
+
+  // Cancel any in-progress model response if present.
+  if (session.hasActiveResponse && session.openAiWs?.readyState === WebSocket.OPEN) {
+    try {
+      session.openAiWs.send(JSON.stringify({ type: "response.cancel" }));
+    } catch {
+      // ignore
+    }
+  }
+
+  session.hasActiveResponse = false;
+  session.isAISpeaking = false;
+  session.lastAudioSentAt = null;
+
+  // Force the model to place the order using tools before confirming.
+  if (session.openAiWs?.readyState === WebSocket.OPEN) {
+    const avgPrep = session.restaurantSettings?.averagePrepTime || 30;
+    session.openAiWs.send(
+      JSON.stringify({
+        type: "response.create",
+        response: {
+          modalities: ["audio", "text"],
+          instructions: [
+            "CRITICAL: You started to verbally confirm a pickup order, but you have NOT successfully called create_pickup_order yet.",
+            "Do NOT confirm the order, do NOT give an order number, and do NOT promise a ready time until create_pickup_order returns success.",
+            "",
+            "First say, verbatim: 'One moment — I'm just placing that order now.'",
+            `Then immediately call the create_pickup_order tool using the full order details from the conversation. Pickup time must be ASAP (current time + ${avgPrep} minutes).`,
+            "If required info is missing (customer name, required option, size), ask the caller for ONLY that missing piece instead of confirming.",
+          ].join("\n"),
+        },
+      })
+    );
+  }
+}
+
 async function connectToOpenAI(session: StreamSession, supabase: any) {
   console.log("[MediaStream] Connecting to OpenAI Realtime API...");
 
@@ -825,6 +967,8 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
         case "response.created":
           // Track active responses so we don't send response.cancel when nothing is running
           session.hasActiveResponse = true;
+          // Reset transcript buffer for the new response
+          session.assistantTranscriptBuffer = "";
           break;
 
         case "response.audio.delta":
@@ -862,9 +1006,20 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           break;
 
         case "response.audio_transcript.delta":
-          // AI is speaking - log for debugging
+          // AI is speaking - accumulate transcript for guardrails + log for debugging
           if (data.delta) {
+            session.assistantTranscriptBuffer += data.delta;
+            // Keep buffer bounded
+            if (session.assistantTranscriptBuffer.length > 4000) {
+              session.assistantTranscriptBuffer = session.assistantTranscriptBuffer.slice(-2000);
+            }
+
             console.log("[MediaStream] AI speaking:", data.delta.substring(0, 100));
+
+            // Guard: block verbal confirmation until create_pickup_order succeeds
+            if (shouldTriggerPickupOrderGuard(session, session.assistantTranscriptBuffer)) {
+              await enforcePickupOrderCreation(session, supabase, session.assistantTranscriptBuffer);
+            }
           }
           break;
 
@@ -981,6 +1136,12 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
 
         case "response.function_call_arguments.done":
           console.log("[MediaStream] Function call complete:", data.name, data.arguments);
+          // If the model is attempting to place an order, release enforcement state.
+          if (data.name === "create_pickup_order") {
+            session.pickupOrderEnforcementToolCalled = true;
+            session.enforcingPickupOrderCreation = false;
+            session.pickupOrderEnforcementStartedAt = null;
+          }
           // Handle tool call
           await handleToolCall(session, supabase, data.call_id, data.name, data.arguments);
           break;
@@ -988,6 +1149,13 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
         case "response.done":
           console.log("[MediaStream] Response complete");
           session.hasActiveResponse = false;
+
+          // If we forced an order placement but no tool call happened in this response,
+          // release the lock so we can guard again later (prevents stuck state).
+          if (session.enforcingPickupOrderCreation && !session.pickupOrderEnforcementToolCalled) {
+            session.enforcingPickupOrderCreation = false;
+            session.pickupOrderEnforcementStartedAt = null;
+          }
           
           // Track tokens for memory management
           if (data.response?.usage?.total_tokens) {
@@ -3325,9 +3493,15 @@ async function executeCreatePickupOrder(supabase: any, session: StreamSession, p
   // Format confirmation message
   const itemsList = validatedItems.map(i => `${i.quantity}x ${i.name}${i.size ? ` (${i.size})` : ""}`).join(", ");
   const pickupTimeFormatted = formatTime(pickupDateTime);
+
+  // Mark tool success so we can safely allow verbal confirmation.
+  session.lastSuccessfulPickupOrderAt = Date.now();
+  session.lastPickupOrderNumber = order.order_number;
+  session.lastPickupOrderId = order.id;
   
   return {
     success: true,
+    order_id: order.id,
     order_number: order.order_number,
     total: orderTotal,
     message: `Your order is confirmed! That's ${itemsList} for ${currencySymbol}${orderTotal.toFixed(2)}. Your order number is ${order.order_number}. It will be ready for pickup at ${pickupTimeFormatted}. You'll receive a text confirmation shortly.`
