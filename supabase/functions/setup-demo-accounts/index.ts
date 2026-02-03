@@ -7,6 +7,14 @@ const corsHeaders = {
 
 const DEMO_ACCOUNTS = [
   {
+    email: 'Bonata@aiviaapp.co.uk',
+    password: 'Bonata123',
+    businessName: 'Bonata Restaurant',
+    businessType: 'restaurant_hybrid',
+    address: '1 Demo Street, London, W1A 1AA',
+    phone: '+44 20 1234 5678',
+  },
+  {
     email: 'demo-salon@aivia.app',
     password: 'AiviaDemo2024!',
     businessName: 'Luxe Hair Studio',
