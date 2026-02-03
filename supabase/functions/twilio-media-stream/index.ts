@@ -3564,9 +3564,38 @@ function escapeXml(text: string): string {
 }
 
 function formatTime(date: Date): string {
+  // ALWAYS use London timezone for customer-facing times
   return date
-    .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+    .toLocaleTimeString("en-GB", { 
+      hour: "numeric", 
+      minute: "2-digit", 
+      hour12: true,
+      timeZone: "Europe/London" 
+    })
     .toLowerCase();
+}
+
+// Helper to get current time in London for pickup calculations
+function getLondonTime(): { time: string; date: Date; dayOfWeek: number } {
+  const now = new Date();
+  
+  // Create formatters for London timezone
+  const timeFormatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  
+  // Get day of week in London (not server time!)
+  const londonDateStr = now.toLocaleString("en-US", { timeZone: "Europe/London" });
+  const londonDate = new Date(londonDateStr);
+  
+  return {
+    time: timeFormatter.format(now),
+    date: now,
+    dayOfWeek: londonDate.getDay(),
+  };
 }
 
 function formatPhoneNumberForSpeech(phone: string | null): string | null {
@@ -3999,21 +4028,38 @@ async function buildFullSystemPrompt(
     }
   }).join(" | ") || "None";
 
-  // Get current date/time context
+  // Get current date/time context IN LONDON TIMEZONE (not server time!)
   const now = new Date();
-  const jsDay = now.getDay();
-  const jsDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const currentDay = jsDayNames[jsDay];
-  const currentTime = formatTime(now);
-  // Include full calendar date to prevent AI from guessing wrong dates
-  const currentDate = now.toLocaleDateString("en-GB", { 
-    day: "numeric", 
-    month: "long", 
-    year: "numeric" 
-  }); // e.g., "20 December 2025"
+  
+  // Use Intl formatters to get correct London time
+  const londonTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  const londonDateFormatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const londonDayFormatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    weekday: "long",
+  });
+  
+  const currentTime = londonTimeFormatter.format(now).toLowerCase();
+  const currentDate = londonDateFormatter.format(now);
+  const currentDay = londonDayFormatter.format(now);
+  
+  // Get day of week in London (not server time!) for opening hours lookup
+  const londonDateStr = now.toLocaleString("en-US", { timeZone: "Europe/London" });
+  const londonDate = new Date(londonDateStr);
+  const londonDayOfWeek = londonDate.getDay();
 
-  // Determine if business is open TODAY
-  const todayHours = hours.find(h => h.day_of_week === jsDay);
+  // Determine if business is open TODAY (using London day)
+  const todayHours = hours.find(h => h.day_of_week === londonDayOfWeek);
   const isOpenToday = todayHours && !todayHours.is_closed;
 
   const todayStatus = isOpenToday 
