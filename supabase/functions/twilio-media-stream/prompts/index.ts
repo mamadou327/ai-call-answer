@@ -10,6 +10,7 @@ export type BusinessType = "salon" | "restaurant_pickup" | "restaurant_dine_in" 
 interface PromptBuilderParams {
   businessType: BusinessType;
   businessName: string;
+  businessNamePhonetic?: string; // Phonetic pronunciation for the AI to use when speaking
   businessAddress: string;
   assistantName: string;
   tone: string;
@@ -58,6 +59,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
     case "salon":
       return buildSalonSystemPrompt({
         businessName: params.businessName,
+        businessNamePhonetic: params.businessNamePhonetic,
         businessAddress: params.businessAddress,
         assistantName: params.assistantName,
         tone: params.tone,
@@ -79,6 +81,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
     case "restaurant_pickup":
       return buildRestaurantPickupSystemPrompt({
         businessName: params.businessName,
+        businessNamePhonetic: params.businessNamePhonetic,
         businessAddress: params.businessAddress,
         assistantName: params.assistantName,
         tone: params.tone,
@@ -104,6 +107,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
     case "restaurant_dine_in":
       return buildRestaurantDineInSystemPrompt({
         businessName: params.businessName,
+        businessNamePhonetic: params.businessNamePhonetic,
         businessAddress: params.businessAddress,
         assistantName: params.assistantName,
         tone: params.tone,
@@ -127,6 +131,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
     case "restaurant_hybrid":
       return buildRestaurantHybridSystemPrompt({
         businessName: params.businessName,
+        businessNamePhonetic: params.businessNamePhonetic,
         businessAddress: params.businessAddress,
         assistantName: params.assistantName,
         tone: params.tone,
@@ -153,6 +158,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
       console.warn(`[PromptRouter] Unknown business type: ${businessType}, defaulting to salon`);
       return buildSalonSystemPrompt({
         businessName: params.businessName,
+        businessNamePhonetic: params.businessNamePhonetic,
         businessAddress: params.businessAddress,
         assistantName: params.assistantName,
         tone: params.tone,

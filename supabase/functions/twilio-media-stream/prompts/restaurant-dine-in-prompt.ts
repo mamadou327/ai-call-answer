@@ -3,6 +3,7 @@
 
 interface RestaurantDineInPromptData {
   businessName: string;
+  businessNamePhonetic?: string;
   businessAddress: string;
   assistantName: string;
   tone: string;
@@ -26,6 +27,7 @@ interface RestaurantDineInPromptData {
 export function buildRestaurantDineInSystemPrompt(data: RestaurantDineInPromptData): string {
   const {
     businessName,
+    businessNamePhonetic,
     businessAddress,
     assistantName,
     tone,
@@ -133,6 +135,7 @@ Remember: You represent a dining establishment. Be gracious and make guests feel
 
 RESTAURANT INFORMATION:
 - Name: ${businessName}
+${businessNamePhonetic ? `- PRONUNCIATION: When saying the business name aloud, pronounce it as: "${businessNamePhonetic}"` : ""}
 - Address: ${businessAddress}
 ${twilioPhoneNumber ? `- Phone: ${twilioPhoneNumber}` : ""}
 ${restaurantSettings.menuLink ? `- Menu: ${restaurantSettings.menuLink}` : ""}
