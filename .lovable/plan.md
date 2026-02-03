@@ -1,161 +1,186 @@
 
 
-# AI Menu Parser Feature
+# AI Menu Parser Enhancement: Options & Modifiers Support
 
-## Overview
-Add an intelligent AI-powered menu import feature that allows restaurant owners to paste or upload their existing menu, and the AI will automatically extract and add all menu items with their categories, prices, descriptions, and dietary tags.
+## Current Situation
 
-## User Value
-- **Time saved**: A restaurant with 40 menu items would take 15-20 minutes to add manually. With AI parsing, this drops to ~30 seconds
-- **Onboarding improvement**: Reduces friction for new restaurant signups significantly
-- **Accuracy**: AI can detect patterns like dietary tags (V, VG, GF), size variants, and category groupings
-- **Competitive advantage**: This is a premium feature most competitors don't offer
+The existing menu parser extracts:
+- Categories
+- Items with name, description, price
+- Dietary tags (V, VG, GF, etc.)
+- Size variants (Small/Large pricing)
 
-## Input Methods Supported
-1. **Text paste** - Copy/paste menu text from any source (website, Word doc, PDF text)
-2. **Image upload** - Take a photo of a physical menu (using AI vision capabilities)
+**What's missing:**
+- Option groups ("Choose your base", "Add toppings", "Pick a side")
+- Individual options with price adjustments ("Extra cheese +£1")
+- Selection rules (required vs optional, pick 1 vs pick many)
 
-## Implementation Details
+## What the AI Can Understand
 
-### 1. Edge Function: `parse-menu`
-Creates a new edge function that:
-- Accepts menu text or base64 image
-- Uses Lovable AI (Gemini 2.5 Pro for vision support) to extract structured menu data
-- Returns categories and items in the correct database format
+Gemini 2.5 Pro's vision capabilities can intelligently parse complex menu structures like:
 
 ```text
-Input: Raw menu text or image
-     ↓
-AI Analysis (Gemini 2.5 Pro)
-     ↓
-Structured JSON output:
-{
-  categories: [{ name, description }],
-  items: [{
-    name, description, price,
-    category_name, dietary_tags,
-    has_sizes, sizes
+BUILD YOUR BURRITO
+Choose your protein (pick 1):
+- Chicken
+- Beef (+£1.50)
+- Carnitas (+£2)
+- Sofritas (V)
+
+Choose your rice:
+- White Rice
+- Brown Rice
+- Cauliflower Rice (+£0.75)
+
+Add extras (optional):
+- Guacamole (+£2)
+- Sour Cream (+£0.50)
+- Extra Cheese (+£0.75)
+```
+
+The AI will interpret this and understand:
+- "Choose your protein" = required option group, pick exactly 1
+- "Add extras" = optional group, pick as many as you want
+- Price adjustments like "+£1.50" for premium options
+- Dietary tags on individual options like "(V)" for Sofritas
+
+## Implementation Changes
+
+### 1. Update Edge Function Schema
+
+Extend the `extract_menu_data` tool to include option groups:
+
+```text
+items: [{
+  name, description, price, category_name, dietary_tags, has_sizes, sizes,
+  // NEW:
+  option_groups: [{
+    name: string,           // "Choose your protein"
+    is_required: boolean,   // true = must pick
+    min_selections: number, // 1 for "pick 1"
+    max_selections: number, // 1 for "pick 1", 10 for "unlimited"
+    options: [{
+      name: string,         // "Beef"
+      price_adjustment: number, // 1.50
+      dietary_tags: string[]    // ["Vegetarian"]
+    }]
   }]
+}]
+```
+
+### 2. Update System Prompt
+
+Add guidance for the AI to:
+- Detect option/choice groups from visual layout
+- Understand selection rules ("pick 1", "choose up to 3", "add as many")
+- Parse price modifiers (+£1, +50p, extra £2)
+- Preserve the relationship between items and their options
+
+### 3. Update Import Dialog
+
+- Show options in the preview table (expandable rows)
+- Allow users to review/modify option groups before import
+- Import option groups and options to database
+
+### 4. Database Insertion
+
+When importing, for each item with option groups:
+1. Insert the menu item
+2. Create option groups linked to that item
+3. Create options linked to each group
+
+## Updated Flow
+
+```text
+User uploads menu
+     |
+AI analyzes (now includes options)
+     |
+Preview shows:
+  - Burrito Bowl - £8.99
+    └── Choose protein (required, pick 1)
+        ├── Chicken
+        ├── Beef (+£1.50)
+        └── Carnitas (+£2)
+    └── Add extras (optional)
+        ├── Guacamole (+£2)
+        └── Sour Cream (+£0.50)
+     |
+User reviews and imports
+     |
+Items + options saved to database
+```
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `supabase/functions/parse-menu/index.ts` | Add option_groups to schema and prompt |
+| `src/components/dashboard/settings/MenuImportDialog.tsx` | Display and import option groups |
+
+## UI Enhancement
+
+The preview table will show nested options:
+
+```text
+┌──┬─────────────────┬─────────┬──────────┬──────┐
+│☑ │ Item            │ Price   │ Category │ Tags │
+├──┼─────────────────┼─────────┼──────────┼──────┤
+│☑ │ Burrito Bowl    │ £8.99   │ Mains    │      │
+│  │  ↳ Choose protein (pick 1)              │
+│  │     Chicken, Beef +£1.50, Carnitas +£2  │
+│  │  ↳ Add extras (optional)                │
+│  │     Guac +£2, Sour Cream +£0.50         │
+├──┼─────────────────┼─────────┼──────────┼──────┤
+│☑ │ Tacos           │ £6.99   │ Mains    │      │
+└──┴─────────────────┴─────────┴──────────┴──────┘
+```
+
+## Technical Details
+
+### AI Prompt Addition
+
+```text
+- Look for customization sections (Choose, Pick, Add, Extras, Sides)
+- Identify selection rules from context:
+  - "Choose one" / "Pick 1" = required, max 1
+  - "Add toppings" / "Optional" = not required, unlimited
+  - "Pick up to 3" = not required, max 3
+- Extract price adjustments (+£1, +50p, add £2, extra £1.50)
+- Some options may have their own dietary tags
+```
+
+### Tool Schema Addition
+
+```typescript
+option_groups: {
+  type: "array",
+  items: {
+    type: "object",
+    properties: {
+      name: { type: "string" },
+      is_required: { type: "boolean" },
+      min_selections: { type: "number" },
+      max_selections: { type: "number" },
+      options: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            price_adjustment: { type: "number" },
+            dietary_tags: { type: "array", items: { type: "string" } }
+          }
+        }
+      }
+    }
+  }
 }
 ```
 
-### 2. Frontend: Import Menu Dialog
-Add a new "Import Menu" button to MenuManagement.tsx that opens a dialog with:
-- Tab 1: **Paste Menu** - Large textarea for pasting menu text
-- Tab 2: **Upload Photo** - Image upload for menu photos
-- Preview of extracted items before importing
-- Ability to review/edit/deselect items before final import
-
-### 3. Database Insertion Logic
-- Creates categories that don't already exist
-- Matches existing categories by name (case-insensitive)
-- Bulk inserts menu items with proper category linking
-- Handles size variants if detected (Small/Large pricing)
-
-## Technical Approach
-
-### Edge Function Structure
-```text
-supabase/functions/parse-menu/index.ts
-├── Validate input (text or image)
-├── Build AI prompt with menu schema context
-├── Call Lovable AI Gateway
-├── Parse structured response
-├── Return validated menu data
-```
-
-### AI Prompt Strategy
-The AI will be given:
-- Expected output schema (matching database structure)
-- Currency context (GBP/USD/EUR)
-- Known dietary tag options
-- Instructions for handling size variants
-- Example of expected output format
-
-### Frontend Flow
-```text
-User clicks "Import Menu"
-     ↓
-Paste text or upload image
-     ↓
-Click "Analyze Menu"
-     ↓
-AI returns parsed items (5-15 seconds)
-     ↓
-User reviews in preview table
-     ↓
-User can edit/remove items
-     ↓
-Click "Import X Items"
-     ↓
-Bulk insert to database
-     ↓
-Refresh menu list
-```
-
-## Files to Create/Modify
-
-| File | Action | Purpose |
-|------|--------|---------|
-| `supabase/functions/parse-menu/index.ts` | Create | AI menu parsing edge function |
-| `supabase/config.toml` | Update | Add parse-menu function config |
-| `src/components/dashboard/settings/MenuManagement.tsx` | Update | Add Import Menu button and dialog |
-| `src/components/dashboard/settings/MenuImportDialog.tsx` | Create | New dialog component for import flow |
-
-## UI Preview
-
-The Import Menu button will appear next to the existing "Add Category" and "Add Item" buttons:
-
-```text
-┌─────────────────────────────────────────────────────┐
-│ Menu Items                                          │
-│                                                     │
-│ [📁 Add Category] [➕ Add Item] [🤖 Import Menu]    │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
-
-The Import Dialog:
-
-```text
-┌─────────────────────────────────────────────────────┐
-│ Import Menu with AI                            [X]  │
-├─────────────────────────────────────────────────────┤
-│ [ Paste Text ]  [ Upload Photo ]                    │
-│                                                     │
-│ ┌─────────────────────────────────────────────────┐ │
-│ │ Paste your menu here...                         │ │
-│ │                                                 │ │
-│ │ Example:                                        │ │
-│ │ Margherita Pizza - £12.99                       │ │
-│ │ Classic tomato and mozzarella (V)               │ │
-│ │                                                 │ │
-│ └─────────────────────────────────────────────────┘ │
-│                                                     │
-│                       [🔍 Analyze Menu]             │
-└─────────────────────────────────────────────────────┘
-```
-
-After analysis:
-
-```text
-┌─────────────────────────────────────────────────────┐
-│ Review Items (12 found)                             │
-├─────────────────────────────────────────────────────┤
-│ ☑️ Margherita Pizza    £12.99    Pizzas      V     │
-│ ☑️ Pepperoni Pizza     £14.99    Pizzas           │
-│ ☑️ Garlic Bread        £4.50     Starters    V    │
-│ ☐ House Salad          £6.99     Starters    V,VG │
-│ ...                                                 │
-├─────────────────────────────────────────────────────┤
-│           [Cancel]      [Import 11 Items]           │
-└─────────────────────────────────────────────────────┘
-```
-
 ## Expected Results
-- Restaurant owners can import entire menus in under 1 minute
-- Works with messy, inconsistent menu formats
-- Handles UK-style pricing (£) and common dietary abbreviations
-- Creates proper category structure automatically
-- Significantly improves onboarding experience
+
+- Restaurants with complex menus (build-your-own bowls, customizable pizzas, etc.) can now import their full menu structure
+- Reduces manual setup time from 30+ minutes to under 2 minutes
+- AI understands menu layouts visually, not just copying text
 
