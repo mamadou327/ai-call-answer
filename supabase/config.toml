@@ -158,3 +158,9 @@ verify_jwt = true
 
 [functions.parse-menu]
 verify_jwt = true
+
+[functions.public-create-order]
+verify_jwt = false
+
+[functions.send-order-sms]
+verify_jwt = false
