@@ -48,6 +48,18 @@ const DEMO_ACCOUNTS = [
   },
 ];
 
+// Staff demo accounts - linked to existing businesses by ID
+const STAFF_DEMO_ACCOUNTS = [
+  {
+    email: 'staffbonata@aiviaapp.co.uk',
+    password: 'Bonata123',
+    firstName: 'Demo',
+    lastName: 'Staff',
+    businessId: '90cd1faf-875e-4cce-ab54-d013cf45ae31', // Bonata (Paddington)
+    position: 'Server',
+  },
+];
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -62,6 +74,7 @@ Deno.serve(async (req) => {
 
     const results = [];
 
+    // Create business owner accounts
     for (const account of DEMO_ACCOUNTS) {
       try {
         // Check if user already exists
@@ -145,6 +158,96 @@ Deno.serve(async (req) => {
         }
       } catch (err) {
         results.push({ email: account.email, status: 'exception', error: String(err) });
+      }
+    }
+
+    // Create staff demo accounts
+    for (const staffAccount of STAFF_DEMO_ACCOUNTS) {
+      try {
+        // Use the business ID directly
+        const businessId = staffAccount.businessId;
+
+        // Check if staff user already exists
+        const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+        let staffUserId: string;
+        const existingStaffUser = existingUsers?.users?.find(u => u.email === staffAccount.email);
+
+        if (existingStaffUser) {
+          staffUserId = existingStaffUser.id;
+          results.push({ email: staffAccount.email, status: 'already exists', userId: staffUserId });
+        } else {
+          // Create staff auth user
+          const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email: staffAccount.email,
+            password: staffAccount.password,
+            email_confirm: true,
+          });
+
+          if (authError) {
+            results.push({ email: staffAccount.email, status: 'auth error', error: authError.message });
+            continue;
+          }
+
+          staffUserId = authData.user.id;
+          results.push({ email: staffAccount.email, status: 'created', userId: staffUserId });
+        }
+
+        // Check if staff membership already exists
+        const { data: existingMembership } = await supabaseAdmin
+          .from('staff_memberships')
+          .select('id')
+          .eq('user_id', staffUserId)
+          .eq('business_id', businessId)
+          .single();
+
+        if (!existingMembership) {
+          // Create staff membership
+          const { error: membershipError } = await supabaseAdmin
+            .from('staff_memberships')
+            .insert({
+              user_id: staffUserId,
+              business_id: businessId,
+              first_name: staffAccount.firstName,
+              last_name: staffAccount.lastName,
+              position: staffAccount.position,
+              status: 'active',
+              role: 'staff',
+              approved_at: new Date().toISOString(),
+            });
+
+          if (membershipError) {
+            results.push({ email: staffAccount.email, membershipStatus: 'error', error: membershipError.message });
+          } else {
+            results.push({ email: staffAccount.email, membershipStatus: 'created' });
+          }
+        } else {
+          results.push({ email: staffAccount.email, membershipStatus: 'already exists' });
+        }
+
+        // Add staff role
+        const { data: existingRole } = await supabaseAdmin
+          .from('user_roles')
+          .select('id')
+          .eq('user_id', staffUserId)
+          .eq('role', 'staff')
+          .single();
+
+        if (!existingRole) {
+          const { error: roleError } = await supabaseAdmin
+            .from('user_roles')
+            .insert({
+              user_id: staffUserId,
+              role: 'staff',
+            });
+
+          if (roleError) {
+            results.push({ email: staffAccount.email, roleStatus: 'error', error: roleError.message });
+          } else {
+            results.push({ email: staffAccount.email, roleStatus: 'created' });
+          }
+        }
+      } catch (err) {
+        results.push({ email: staffAccount.email, status: 'exception', error: String(err) });
       }
     }
 
