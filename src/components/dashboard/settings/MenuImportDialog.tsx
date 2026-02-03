@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Upload, Sparkles, ImageIcon, FileText, AlertCircle } from "lucide-react";
+import { Loader2, Upload, Sparkles, ImageIcon, FileText, AlertCircle, File } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -49,10 +49,11 @@ export const MenuImportDialog = ({
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [activeTab, setActiveTab] = useState<"text" | "image">("text");
+  const [activeTab, setActiveTab] = useState<"text" | "file">("text");
   const [menuText, setMenuText] = useState("");
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [fileType, setFileType] = useState<"image" | "pdf" | null>(null);
   
   const [analyzing, setAnalyzing] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -66,8 +67,9 @@ export const MenuImportDialog = ({
 
   const resetState = () => {
     setMenuText("");
-    setSelectedImage(null);
-    setImagePreview(null);
+    setSelectedFile(null);
+    setFilePreview(null);
+    setFileType(null);
     setAnalyzing(false);
     setImporting(false);
     setError(null);
@@ -82,23 +84,28 @@ export const MenuImportDialog = ({
     onOpenChange(false);
   };
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "Error", description: "Please select an image file", variant: "destructive" });
+    const isImage = file.type.startsWith("image/");
+    const isPdf = file.type === "application/pdf";
+
+    if (!isImage && !isPdf) {
+      toast({ title: "Error", description: "Please select an image or PDF file", variant: "destructive" });
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ title: "Error", description: "Image must be under 10MB", variant: "destructive" });
+    if (file.size > 15 * 1024 * 1024) {
+      toast({ title: "Error", description: "File must be under 15MB", variant: "destructive" });
       return;
     }
 
-    setSelectedImage(file);
+    setSelectedFile(file);
+    setFileType(isPdf ? "pdf" : "image");
+    
     const reader = new FileReader();
-    reader.onload = (e) => setImagePreview(e.target?.result as string);
+    reader.onload = (e) => setFilePreview(e.target?.result as string);
     reader.readAsDataURL(file);
   };
 
@@ -107,7 +114,7 @@ export const MenuImportDialog = ({
     setError(null);
 
     try {
-      let payload: { menuText?: string; menuImage?: string; currency: string } = { currency };
+      let payload: { menuText?: string; menuImage?: string; menuPdf?: string; currency: string } = { currency };
 
       if (activeTab === "text") {
         if (!menuText.trim()) {
@@ -115,10 +122,14 @@ export const MenuImportDialog = ({
         }
         payload.menuText = menuText;
       } else {
-        if (!imagePreview) {
-          throw new Error("Please upload a menu image first");
+        if (!filePreview) {
+          throw new Error("Please upload a menu file first");
         }
-        payload.menuImage = imagePreview;
+        if (fileType === "pdf") {
+          payload.menuPdf = filePreview;
+        } else {
+          payload.menuImage = filePreview;
+        }
       }
 
       const { data, error: fnError } = await supabase.functions.invoke("parse-menu", {
@@ -292,15 +303,15 @@ export const MenuImportDialog = ({
 
         {!showPreview ? (
           <>
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "text" | "image")} className="flex-1">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "text" | "file")} className="flex-1">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="text" className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
                   Paste Text
                 </TabsTrigger>
-                <TabsTrigger value="image" className="flex items-center gap-2">
-                  <ImageIcon className="h-4 w-4" />
-                  Upload Photo
+                <TabsTrigger value="file" className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Upload File
                 </TabsTrigger>
               </TabsList>
 
@@ -317,45 +328,58 @@ export const MenuImportDialog = ({
                 </div>
               </TabsContent>
 
-              <TabsContent value="image" className="flex-1 mt-4">
+              <TabsContent value="file" className="flex-1 mt-4">
                 <div className="space-y-4">
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
-                    onChange={handleImageSelect}
+                    accept="image/*,.pdf,application/pdf"
+                    onChange={handleFileSelect}
                     className="hidden"
                   />
                   
-                  {!imagePreview ? (
+                  {!filePreview ? (
                     <div
                       onClick={() => fileInputRef.current?.click()}
                       className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
                     >
                       <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
                       <p className="text-sm text-muted-foreground">
-                        Click to upload a menu photo
+                        Click to upload a menu photo or PDF
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        JPG, PNG up to 10MB
+                        JPG, PNG, PDF up to 15MB
                       </p>
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      <img
-                        src={imagePreview}
-                        alt="Menu preview"
-                        className="max-h-[250px] mx-auto rounded-lg border"
-                      />
+                      {fileType === "pdf" ? (
+                        <div className="flex items-center gap-3 p-4 border rounded-lg bg-muted/50">
+                          <File className="h-10 w-10 text-primary" />
+                          <div>
+                            <p className="font-medium">{selectedFile?.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {selectedFile && (selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <img
+                          src={filePreview}
+                          alt="Menu preview"
+                          className="max-h-[250px] mx-auto rounded-lg border"
+                        />
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setSelectedImage(null);
-                          setImagePreview(null);
+                          setSelectedFile(null);
+                          setFilePreview(null);
+                          setFileType(null);
                         }}
                       >
-                        Remove Image
+                        Remove File
                       </Button>
                     </div>
                   )}
@@ -376,7 +400,7 @@ export const MenuImportDialog = ({
               </Button>
               <Button
                 onClick={handleAnalyze}
-                disabled={analyzing || (activeTab === "text" ? !menuText.trim() : !imagePreview)}
+                disabled={analyzing || (activeTab === "text" ? !menuText.trim() : !filePreview)}
               >
                 {analyzing ? (
                   <>
