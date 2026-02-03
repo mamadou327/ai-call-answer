@@ -6,9 +6,10 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Globe, Loader2 } from "lucide-react";
+import { Copy, ExternalLink, Globe, Loader2, ChevronDown, Palette, Share2, Image } from "lucide-react";
 import { LogoUpload } from "./LogoUpload";
 import { SocialMediaSettings } from "./SocialMediaSettings";
 import { GalleryManagement } from "./GalleryManagement";
@@ -30,6 +31,18 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
     online_booking_message: business?.online_booking_message || "",
     deposit_collection_timing: business?.deposit_collection_timing || "after_booking",
   });
+
+  // Collapsible state
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    customDomain: false,
+    branding: false,
+    socialMedia: false,
+    gallery: false,
+  });
+
+  const toggleSection = (section: string) => {
+    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
 
   useEffect(() => {
     if (business) {
@@ -93,7 +106,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -156,13 +169,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
             )}
           </div>
 
-          <CustomDomainWizard
-            domain={settings.custom_booking_domain}
-            onDomainChange={(domain) => setSettings({ ...settings, custom_booking_domain: domain })}
-            bookingUrl={aiviaBookingUrl}
-            onCopyUrl={copyLink}
-          />
-
           <div className="space-y-2">
             <Label>Deposit Collection</Label>
             <Select
@@ -210,38 +216,121 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Branding</CardTitle>
-          <CardDescription>Customize your booking page appearance</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <LogoUpload
-            businessId={businessId}
-            currentLogoUrl={business?.logo_url}
-            onUpdate={onUpdate}
-          />
-        </CardContent>
-      </Card>
+      {/* Custom Domain - Collapsible */}
+      <Collapsible open={openSections.customDomain} onOpenChange={() => toggleSection("customDomain")}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-5 w-5" />
+                  <div>
+                    <CardTitle className="text-base">Custom Domain</CardTitle>
+                    <CardDescription className="text-sm">Use your own domain for the booking page</CardDescription>
+                  </div>
+                </div>
+                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${openSections.customDomain ? "rotate-180" : ""}`} />
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              <CustomDomainWizard
+                domain={settings.custom_booking_domain}
+                onDomainChange={(domain) => setSettings({ ...settings, custom_booking_domain: domain })}
+                bookingUrl={aiviaBookingUrl}
+                onCopyUrl={copyLink}
+              />
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
-      <Card>
-        <CardContent className="pt-6">
-          <SocialMediaSettings
-            businessId={businessId}
-            business={business}
-            onUpdate={onUpdate}
-          />
-        </CardContent>
-      </Card>
+      {/* Branding - Collapsible */}
+      <Collapsible open={openSections.branding} onOpenChange={() => toggleSection("branding")}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Palette className="h-5 w-5" />
+                  <div>
+                    <CardTitle className="text-base">Branding</CardTitle>
+                    <CardDescription className="text-sm">Customize your booking page appearance</CardDescription>
+                  </div>
+                </div>
+                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${openSections.branding ? "rotate-180" : ""}`} />
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              <LogoUpload
+                businessId={businessId}
+                currentLogoUrl={business?.logo_url}
+                onUpdate={onUpdate}
+              />
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
-      <Card>
-        <CardContent className="pt-6">
-          <GalleryManagement
-            businessId={businessId}
-            onUpdate={onUpdate}
-          />
-        </CardContent>
-      </Card>
+      {/* Social Media - Collapsible */}
+      <Collapsible open={openSections.socialMedia} onOpenChange={() => toggleSection("socialMedia")}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Share2 className="h-5 w-5" />
+                  <div>
+                    <CardTitle className="text-base">Social Media Links</CardTitle>
+                    <CardDescription className="text-sm">Add links to your social media profiles</CardDescription>
+                  </div>
+                </div>
+                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${openSections.socialMedia ? "rotate-180" : ""}`} />
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              <SocialMediaSettings
+                businessId={businessId}
+                business={business}
+                onUpdate={onUpdate}
+              />
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Gallery - Collapsible */}
+      <Collapsible open={openSections.gallery} onOpenChange={() => toggleSection("gallery")}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Image className="h-5 w-5" />
+                  <div>
+                    <CardTitle className="text-base">Gallery</CardTitle>
+                    <CardDescription className="text-sm">Upload photos to showcase your work</CardDescription>
+                  </div>
+                </div>
+                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${openSections.gallery ? "rotate-180" : ""}`} />
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              <GalleryManagement
+                businessId={businessId}
+                onUpdate={onUpdate}
+              />
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
     </div>
   );
 };
