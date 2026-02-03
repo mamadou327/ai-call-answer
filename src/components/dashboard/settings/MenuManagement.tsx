@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, UtensilsCrossed, FolderPlus, Loader2, GripVertical, Settings2, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, UtensilsCrossed, FolderPlus, Loader2, GripVertical, Settings2, Sparkles, ImagePlus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { MenuItemOptionsDialog } from "./MenuItemOptionsDialog";
@@ -38,6 +38,7 @@ interface MenuItem {
   is_available: boolean;
   dietary_tags: string[];
   display_order: number;
+  image_url: string | null;
   hasOptions?: boolean;
   optionsSummary?: string;
   has_sizes?: boolean;
@@ -87,8 +88,10 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
     is_available: true,
     has_sizes: false,
     sizes: [] as { name: string; price: string; is_default: boolean }[],
+    image_url: "" as string,
   });
   const [savingItem, setSavingItem] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [sizeQuickEntry, setSizeQuickEntry] = useState("");
   
   // Options dialog state
@@ -291,6 +294,7 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
         is_available: item.is_available,
         has_sizes: item.has_sizes || false,
         sizes: formSizes,
+        image_url: item.image_url || "",
       });
     } else {
       setEditingItem(null);
@@ -304,10 +308,56 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
         is_available: true,
         has_sizes: false,
         sizes: [],
+        image_url: "",
       });
     }
     setSizeQuickEntry("");
     setItemDialogOpen(true);
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Error", description: "Please select an image file", variant: "destructive" });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Error", description: "Image must be less than 5MB", variant: "destructive" });
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${businessId}/${crypto.randomUUID()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("menu-images")
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("menu-images")
+        .getPublicUrl(fileName);
+
+      setItemForm(prev => ({ ...prev, image_url: publicUrl }));
+      toast({ title: "Image uploaded" });
+    } catch (error: any) {
+      console.error("Error uploading image:", error);
+      toast({ title: "Error", description: "Failed to upload image", variant: "destructive" });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setItemForm(prev => ({ ...prev, image_url: "" }));
   };
 
   const handleSaveItem = async () => {
@@ -348,6 +398,7 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
         dietary_tags: itemForm.dietary_tags,
         is_available: itemForm.is_available,
         has_sizes: itemForm.has_sizes,
+        image_url: itemForm.image_url || null,
       };
 
       let savedItemId: string;
@@ -678,6 +729,50 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                     placeholder="Describe the dish..."
                     rows={2}
                   />
+                </div>
+                
+                {/* Image upload - for public customers to see */}
+                <div className="space-y-2">
+                  <Label>Item Image (optional)</Label>
+                  <p className="text-xs text-muted-foreground">Customers will see this when ordering online</p>
+                  {itemForm.image_url ? (
+                    <div className="relative w-32 h-32">
+                      <img 
+                        src={itemForm.image_url} 
+                        alt="Menu item" 
+                        className="w-full h-full object-cover rounded-lg border"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-6 w-6"
+                        onClick={handleRemoveImage}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <label className="cursor-pointer">
+                        <div className="flex items-center gap-2 px-3 py-2 border border-dashed rounded-lg hover:bg-muted transition-colors">
+                          {uploadingImage ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ImagePlus className="h-4 w-4" />
+                          )}
+                          <span className="text-sm">{uploadingImage ? "Uploading..." : "Upload image"}</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleImageUpload}
+                          disabled={uploadingImage}
+                        />
+                      </label>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Sizes quick-add or toggle */}
