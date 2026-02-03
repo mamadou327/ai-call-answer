@@ -1,186 +1,151 @@
 
 
-# AI Menu Parser Enhancement: Options & Modifiers Support
+# Fix: Phone Call Stability - Prevent 2-Minute Dropouts
 
-## Current Situation
+## Problem Identified
 
-The existing menu parser extracts:
-- Categories
-- Items with name, description, price
-- Dietary tags (V, VG, GF, etc.)
-- Size variants (Small/Large pricing)
+Based on today's call logs, I can see exactly what's happening:
 
-**What's missing:**
-- Option groups ("Choose your base", "Add toppings", "Pick a side")
-- Individual options with price adjustments ("Extra cheese +£1")
-- Selection rules (required vs optional, pick 1 vs pick many)
+- Calls are dropping/becoming unstable around the 2-minute mark
+- OpenAI WebSocket connections are closing unexpectedly
+- The system enters a reconnect loop (in-place OpenAI reconnect, then stream reconnect)
+- During reconnects, the AI stops responding and the caller experiences silence
 
-## What the AI Can Understand
-
-Gemini 2.5 Pro's vision capabilities can intelligently parse complex menu structures like:
-
-```text
-BUILD YOUR BURRITO
-Choose your protein (pick 1):
-- Chicken
-- Beef (+£1.50)
-- Carnitas (+£2)
-- Sofritas (V)
-
-Choose your rice:
-- White Rice
-- Brown Rice
-- Cauliflower Rice (+£0.75)
-
-Add extras (optional):
-- Guacamole (+£2)
-- Sour Cream (+£0.50)
-- Extra Cheese (+£0.75)
+**Today's Example:**
+```
+17:17:11 - AI responds "Yoghurt Sauce, excellent choice!"
+17:17:13 - [reconnect] Stream reconnecting (attempt 1/4)
+17:17:25 - [reconnect] In-place OpenAI reconnect attempt 1/3
+17:17:26 - [reconnect] Stream reconnecting (attempt 2/4)
 ```
 
-The AI will interpret this and understand:
-- "Choose your protein" = required option group, pick exactly 1
-- "Add extras" = optional group, pick as many as you want
-- Price adjustments like "+£1.50" for premium options
-- Dietary tags on individual options like "(V)" for Sofritas
+## Root Causes
 
-## Implementation Changes
+1. **OpenAI Realtime API WebSocket instability** - The connection drops after ~2 minutes of continuous streaming
+2. **No heartbeat/keepalive mechanism** - Nothing is pinging the OpenAI connection to keep it alive
+3. **Aggressive token limits** - The summarization threshold may be triggering during active conversation
+4. **Reconnect delay too short** - 700ms delay between reconnect attempts may not be enough for the server to stabilize
 
-### 1. Update Edge Function Schema
+## Solution
 
-Extend the `extract_menu_data` tool to include option groups:
+### 1. Add WebSocket Keepalive Pings
 
-```text
-items: [{
-  name, description, price, category_name, dietary_tags, has_sizes, sizes,
-  // NEW:
-  option_groups: [{
-    name: string,           // "Choose your protein"
-    is_required: boolean,   // true = must pick
-    min_selections: number, // 1 for "pick 1"
-    max_selections: number, // 1 for "pick 1", 10 for "unlimited"
-    options: [{
-      name: string,         // "Beef"
-      price_adjustment: number, // 1.50
-      dietary_tags: string[]    // ["Vegetarian"]
-    }]
-  }]
-}]
+Send periodic "ping" events to OpenAI to keep the connection alive. OpenAI's Realtime API supports this.
+
+```typescript
+// Send keepalive every 30 seconds
+const KEEPALIVE_INTERVAL_MS = 30000;
+let keepaliveInterval: number | null = null;
+
+function startKeepalive(ws: WebSocket) {
+  stopKeepalive();
+  keepaliveInterval = setInterval(() => {
+    if (ws.readyState === WebSocket.OPEN) {
+      // Send empty input_audio_buffer.commit as keepalive
+      // Or use response.cancel which is a no-op if nothing is running
+      ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
+      console.log("[MediaStream] Keepalive sent");
+    }
+  }, KEEPALIVE_INTERVAL_MS);
+}
 ```
 
-### 2. Update System Prompt
+### 2. Increase Reconnect Resilience
 
-Add guidance for the AI to:
-- Detect option/choice groups from visual layout
-- Understand selection rules ("pick 1", "choose up to 3", "add as many")
-- Parse price modifiers (+£1, +50p, extra £2)
-- Preserve the relationship between items and their options
+- Increase delay between reconnect attempts from 700ms to 1500ms
+- Add exponential backoff for reconnect attempts
+- Increase max in-place reconnects from 3 to 5
 
-### 3. Update Import Dialog
+### 3. Handle Long Silences Better
 
-- Show options in the preview table (expandable rows)
-- Allow users to review/modify option groups before import
-- Import option groups and options to database
+If no audio is received for 10+ seconds, proactively check the connection and prompt the caller:
 
-### 4. Database Insertion
-
-When importing, for each item with option groups:
-1. Insert the menu item
-2. Create option groups linked to that item
-3. Create options linked to each group
-
-## Updated Flow
-
-```text
-User uploads menu
-     |
-AI analyzes (now includes options)
-     |
-Preview shows:
-  - Burrito Bowl - £8.99
-    └── Choose protein (required, pick 1)
-        ├── Chicken
-        ├── Beef (+£1.50)
-        └── Carnitas (+£2)
-    └── Add extras (optional)
-        ├── Guacamole (+£2)
-        └── Sour Cream (+£0.50)
-     |
-User reviews and imports
-     |
-Items + options saved to database
+```typescript
+// If no audio events for 10 seconds, check health
+if (timeSinceLastAudio > 10000 && !session.isAISpeaking) {
+  sendProactivePrompt("Are you still there?");
+}
 ```
+
+### 4. Session Timeout Extension
+
+OpenAI Realtime sessions may have an implicit timeout. We'll add periodic "activity" to prevent server-side timeouts:
+
+- Commit empty audio buffers periodically
+- Log connection health metrics
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/parse-menu/index.ts` | Add option_groups to schema and prompt |
-| `src/components/dashboard/settings/MenuImportDialog.tsx` | Display and import option groups |
+| `supabase/functions/twilio-media-stream/index.ts` | Add keepalive pings, improve reconnect logic, add silence detection |
 
-## UI Enhancement
+## Technical Implementation
 
-The preview table will show nested options:
-
-```text
-┌──┬─────────────────┬─────────┬──────────┬──────┐
-│☑ │ Item            │ Price   │ Category │ Tags │
-├──┼─────────────────┼─────────┼──────────┼──────┤
-│☑ │ Burrito Bowl    │ £8.99   │ Mains    │      │
-│  │  ↳ Choose protein (pick 1)              │
-│  │     Chicken, Beef +£1.50, Carnitas +£2  │
-│  │  ↳ Add extras (optional)                │
-│  │     Guac +£2, Sour Cream +£0.50         │
-├──┼─────────────────┼─────────┼──────────┼──────┤
-│☑ │ Tacos           │ £6.99   │ Mains    │      │
-└──┴─────────────────┴─────────┴──────────┴──────┘
-```
-
-## Technical Details
-
-### AI Prompt Addition
-
-```text
-- Look for customization sections (Choose, Pick, Add, Extras, Sides)
-- Identify selection rules from context:
-  - "Choose one" / "Pick 1" = required, max 1
-  - "Add toppings" / "Optional" = not required, unlimited
-  - "Pick up to 3" = not required, max 3
-- Extract price adjustments (+£1, +50p, add £2, extra £1.50)
-- Some options may have their own dietary tags
-```
-
-### Tool Schema Addition
+### Keepalive Mechanism
 
 ```typescript
-option_groups: {
-  type: "array",
-  items: {
-    type: "object",
-    properties: {
-      name: { type: "string" },
-      is_required: { type: "boolean" },
-      min_selections: { type: "number" },
-      max_selections: { type: "number" },
-      options: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            price_adjustment: { type: "number" },
-            dietary_tags: { type: "array", items: { type: "string" } }
-          }
-        }
-      }
+const KEEPALIVE_INTERVAL = 25000; // 25 seconds
+
+let keepaliveTimer: number | null = null;
+
+function startKeepalive() {
+  stopKeepalive();
+  keepaliveTimer = setInterval(() => {
+    if (session.openAiWs?.readyState === WebSocket.OPEN) {
+      session.openAiWs.send(JSON.stringify({ 
+        type: "input_audio_buffer.commit" 
+      }));
+      console.log("[MediaStream] Keepalive ping sent");
     }
+  }, KEEPALIVE_INTERVAL);
+}
+
+function stopKeepalive() {
+  if (keepaliveTimer) {
+    clearInterval(keepaliveTimer);
+    keepaliveTimer = null;
   }
 }
 ```
 
+### Improved Reconnect Logic
+
+```typescript
+const MAX_OPENAI_RECONNECT_ATTEMPTS = 5; // Increased from 3
+const BASE_DELAY_MS = 1500; // Increased from 700
+
+// Exponential backoff
+const delayMs = BASE_DELAY_MS * Math.pow(1.5, session.openAiReconnectAttempts);
+```
+
+### Silence Detection
+
+```typescript
+// Track last audio activity
+session.lastAudioReceivedAt = Date.now();
+
+// In media event handler
+case "media":
+  session.lastAudioReceivedAt = Date.now();
+  break;
+
+// Periodic check (every 5 seconds)
+setInterval(() => {
+  const silenceDuration = Date.now() - (session.lastAudioReceivedAt || Date.now());
+  if (silenceDuration > 10000 && !session.isAISpeaking) {
+    // Connection may be stale, proactively check
+    if (session.openAiWs?.readyState !== WebSocket.OPEN) {
+      scheduleOpenAiReconnect("stale_connection");
+    }
+  }
+}, 5000);
+```
+
 ## Expected Results
 
-- Restaurants with complex menus (build-your-own bowls, customizable pizzas, etc.) can now import their full menu structure
-- Reduces manual setup time from 30+ minutes to under 2 minutes
-- AI understands menu layouts visually, not just copying text
+- Calls should stay stable for 10+ minutes instead of dropping at 2 minutes
+- Keepalive pings will prevent server-side connection timeouts
+- Better reconnect logic will recover faster when issues do occur
+- Silence detection will catch stale connections before the caller notices
 
