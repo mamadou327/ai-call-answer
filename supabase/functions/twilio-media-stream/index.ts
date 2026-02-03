@@ -9,6 +9,15 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // Supported OpenAI Realtime voices
 const OPENAI_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"];
 
+// ============================================================================
+// CALL STABILITY CONSTANTS
+// ============================================================================
+const KEEPALIVE_INTERVAL_MS = 25000; // Send keepalive every 25 seconds
+const SILENCE_CHECK_INTERVAL_MS = 5000; // Check for stale connections every 5 seconds
+const SILENCE_THRESHOLD_MS = 15000; // If no audio for 15 seconds, check connection health
+const MAX_OPENAI_RECONNECT_ATTEMPTS = 5; // Increased from 3 for better resilience
+const BASE_RECONNECT_DELAY_MS = 1500; // Increased from 700ms for more stable reconnects
+
 interface StreamSession {
   businessId: string;
   businessName: string;
@@ -55,6 +64,11 @@ interface StreamSession {
   estimatedTokens: number;
   isReconnect: boolean;
   reconnectCount: number;
+  // NEW: Keepalive and silence detection
+  keepaliveIntervalId: number | null;
+  silenceCheckIntervalId: number | null;
+  lastAudioReceivedAt: number;
+  lastKeepaliveSentAt: number | null;
 }
 
 interface BusinessSettings {
@@ -387,6 +401,11 @@ Deno.serve(async (req) => {
     estimatedTokens: 0,
     isReconnect: false,
     reconnectCount: 0,
+    // Keepalive and silence detection
+    keepaliveIntervalId: null,
+    silenceCheckIntervalId: null,
+    lastAudioReceivedAt: Date.now(),
+    lastKeepaliveSentAt: null,
   };
 
   twilioWs.onopen = () => {
@@ -478,6 +497,9 @@ Deno.serve(async (req) => {
           break;
 
         case "media":
+          // Track audio activity for silence detection
+          session.lastAudioReceivedAt = Date.now();
+          
           // Forward audio to OpenAI
           if (session.openAiWs?.readyState === WebSocket.OPEN) {
             const audioMessage = {
@@ -490,6 +512,9 @@ Deno.serve(async (req) => {
 
         case "stop":
           console.log("[MediaStream] Stream stopped");
+          // Clean up keepalive and silence detection intervals
+          stopKeepalive(session);
+          stopSilenceDetection(session);
           if (session.openAiWs) {
             session.openAiWs.close();
           }
@@ -515,6 +540,9 @@ Deno.serve(async (req) => {
 
   twilioWs.onclose = () => {
     console.log("[MediaStream] Twilio WebSocket closed");
+    // Clean up keepalive and silence detection intervals
+    stopKeepalive(session);
+    stopSilenceDetection(session);
     if (session.openAiWs) {
       session.openAiWs.close();
     }
@@ -526,6 +554,78 @@ Deno.serve(async (req) => {
 
   return response;
 });
+
+// ============================================================================
+// KEEPALIVE AND SILENCE DETECTION
+// ============================================================================
+
+function startKeepalive(session: StreamSession, supabase: any) {
+  stopKeepalive(session); // Clear any existing
+  
+  session.keepaliveIntervalId = setInterval(() => {
+    if (session.openAiWs?.readyState === WebSocket.OPEN) {
+      // Send a lightweight keepalive - commit empty audio buffer
+      // This keeps the OpenAI connection alive without disrupting conversation
+      try {
+        session.openAiWs.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
+        session.lastKeepaliveSentAt = Date.now();
+        console.log("[MediaStream] Keepalive ping sent");
+      } catch (err) {
+        console.warn("[MediaStream] Failed to send keepalive:", err);
+      }
+    }
+  }, KEEPALIVE_INTERVAL_MS) as unknown as number;
+  
+  console.log(`[MediaStream] Keepalive started (every ${KEEPALIVE_INTERVAL_MS / 1000}s)`);
+}
+
+function stopKeepalive(session: StreamSession) {
+  if (session.keepaliveIntervalId !== null) {
+    clearInterval(session.keepaliveIntervalId);
+    session.keepaliveIntervalId = null;
+    console.log("[MediaStream] Keepalive stopped");
+  }
+}
+
+function startSilenceDetection(session: StreamSession, supabase: any, scheduleOpenAiReconnectFn: (reason: string, meta?: Record<string, unknown>) => void) {
+  stopSilenceDetection(session); // Clear any existing
+  
+  session.silenceCheckIntervalId = setInterval(() => {
+    const now = Date.now();
+    const silenceDuration = now - session.lastAudioReceivedAt;
+    
+    // Only check if we're not in the middle of AI speaking
+    if (silenceDuration > SILENCE_THRESHOLD_MS && !session.isAISpeaking) {
+      console.log(`[MediaStream] Silence detected (${Math.round(silenceDuration / 1000)}s) - checking connection health`);
+      
+      // Check if OpenAI connection is still alive
+      if (session.openAiWs?.readyState !== WebSocket.OPEN) {
+        console.warn("[MediaStream] OpenAI connection stale during silence - triggering reconnect");
+        scheduleOpenAiReconnectFn("stale_connection_silence", { silenceDuration });
+      } else {
+        // Connection is open but no audio - could be caller on hold
+        // Send a keepalive to ensure the connection stays fresh
+        try {
+          session.openAiWs.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
+          console.log("[MediaStream] Silence keepalive sent");
+        } catch (err) {
+          console.warn("[MediaStream] Failed to send silence keepalive:", err);
+          scheduleOpenAiReconnectFn("keepalive_failed", { error: String(err) });
+        }
+      }
+    }
+  }, SILENCE_CHECK_INTERVAL_MS) as unknown as number;
+  
+  console.log(`[MediaStream] Silence detection started (check every ${SILENCE_CHECK_INTERVAL_MS / 1000}s, threshold ${SILENCE_THRESHOLD_MS / 1000}s)`);
+}
+
+function stopSilenceDetection(session: StreamSession) {
+  if (session.silenceCheckIntervalId !== null) {
+    clearInterval(session.silenceCheckIntervalId);
+    session.silenceCheckIntervalId = null;
+    console.log("[MediaStream] Silence detection stopped");
+  }
+}
 
 async function connectToOpenAI(session: StreamSession, supabase: any) {
   console.log("[MediaStream] Connecting to OpenAI Realtime API...");
@@ -543,17 +643,27 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
 
   openAiWs.onopen = () => {
     console.log("[MediaStream] OpenAI WebSocket connected");
+    // Reset reconnect attempts on successful connection
+    session.openAiReconnectAttempts = 0;
+    // Start keepalive and silence detection
+    startKeepalive(session, supabase);
+    startSilenceDetection(session, supabase, scheduleOpenAiReconnect);
     // Session config will be sent after receiving session.created
   };
 
   function scheduleOpenAiReconnect(reason: string, meta: Record<string, unknown> = {}) {
     const now = Date.now();
 
-    // If we had a long stable period, forgive previous reconnect attempts
+    // If we had a long stable period (60+ seconds), forgive previous reconnect attempts
     if (session.lastOpenAiDisconnectAt && now - session.lastOpenAiDisconnectAt > 60_000) {
+      console.log("[MediaStream] Long stable period detected - resetting reconnect attempts");
       session.openAiReconnectAttempts = 0;
     }
     session.lastOpenAiDisconnectAt = now;
+
+    // Stop keepalive and silence detection during reconnect
+    stopKeepalive(session);
+    stopSilenceDetection(session);
 
     // Avoid multiple timers
     if (session.openAiReconnectTimeoutId !== null) return;
@@ -564,8 +674,8 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
       return;
     }
 
-    const MAX_OPENAI_RECONNECT_ATTEMPTS = 3;
-    const delayMs = 700;
+    // Use exponential backoff for delay
+    const delayMs = BASE_RECONNECT_DELAY_MS * Math.pow(1.5, session.openAiReconnectAttempts);
 
     if (session.openAiReconnectAttempts >= MAX_OPENAI_RECONNECT_ATTEMPTS) {
       console.warn("[MediaStream] OpenAI reconnect attempts exhausted - falling back to Twilio stream reconnect", {
@@ -594,7 +704,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
     session.isReconnect = true;
 
     const attempt = session.openAiReconnectAttempts;
-    console.log(`[MediaStream] Scheduling in-place OpenAI reconnect (${attempt}/${MAX_OPENAI_RECONNECT_ATTEMPTS}) in ${delayMs}ms`, {
+    console.log(`[MediaStream] Scheduling in-place OpenAI reconnect (${attempt}/${MAX_OPENAI_RECONNECT_ATTEMPTS}) in ${Math.round(delayMs)}ms`, {
       reason,
       ...meta,
     });
@@ -603,7 +713,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
       supabase,
       session.callSid,
       "system",
-      `[reconnect] In-place OpenAI reconnect attempt ${attempt}/${MAX_OPENAI_RECONNECT_ATTEMPTS}`
+      `[reconnect] In-place OpenAI reconnect attempt ${attempt}/${MAX_OPENAI_RECONNECT_ATTEMPTS} (delay: ${Math.round(delayMs)}ms)`
     ).catch(() => {});
 
     session.openAiReconnectTimeoutId = setTimeout(() => {
@@ -616,7 +726,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
       connectToOpenAI(session, supabase).catch((err) => {
         console.error("[MediaStream] Failed to start OpenAI reconnect:", err);
       });
-    }, delayMs);
+    }, delayMs) as unknown as number;
   }
 
   openAiWs.onmessage = async (event) => {
