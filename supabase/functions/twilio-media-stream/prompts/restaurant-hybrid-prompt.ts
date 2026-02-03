@@ -206,16 +206,20 @@ Work this information smoothly into your greeting without making it sound like a
 `
     : "";
 
-  // Time context section
+  // Time context section - CRITICAL for pickup time calculations
   const isBusinessOpen = businessStatus?.includes("OPEN");
   const timeContextSection = currentTime && currentDate && currentDay
     ? `
 ═══════════════════════════════════════
-⏰ CURRENT TIME CONTEXT (CRITICAL!):
+⏰ CURRENT TIME CONTEXT (CRITICAL FOR PICKUP TIMES!):
 ═══════════════════════════════════════
 - Today: ${currentDay}, ${currentDate}
-- Current Time: ${currentTime} (London timezone)
+- Current Time RIGHT NOW: ${currentTime} (UK/London timezone)
 - Business Status: ${businessStatus || "Unknown"}
+
+⚠️ PICKUP TIME CALCULATION:
+When calculating pickup ready time, add ${data.restaurantSettings.averagePrepTime || 30} minutes to ${currentTime}.
+For example: if it's ${currentTime} now and prep time is ${data.restaurantSettings.averagePrepTime || 30} mins, the order will be ready around [calculate by adding prep time to current time].
 
 ${isBusinessOpen 
   ? `✅ WE ARE OPEN - Accept pickup orders for TODAY. Dine-in reservations can be for today or future dates.` 
