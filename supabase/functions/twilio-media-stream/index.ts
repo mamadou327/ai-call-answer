@@ -18,10 +18,86 @@ const SILENCE_THRESHOLD_MS = 15000; // If no audio for 15 seconds, check connect
 const MAX_OPENAI_RECONNECT_ATTEMPTS = 5; // Increased from 3 for better resilience
 const BASE_RECONNECT_DELAY_MS = 1500; // Increased from 700ms for more stable reconnects
 
+// ============================================================================
+// COUNTRY TO TIMEZONE MAPPING
+// ============================================================================
+const COUNTRY_TO_TIMEZONE: Record<string, string> = {
+  // Europe
+  "United Kingdom": "Europe/London",
+  "UK": "Europe/London",
+  "England": "Europe/London",
+  "Scotland": "Europe/London",
+  "Wales": "Europe/London",
+  "Ireland": "Europe/Dublin",
+  "France": "Europe/Paris",
+  "Germany": "Europe/Berlin",
+  "Spain": "Europe/Madrid",
+  "Italy": "Europe/Rome",
+  "Netherlands": "Europe/Amsterdam",
+  "Belgium": "Europe/Brussels",
+  "Portugal": "Europe/Lisbon",
+  "Poland": "Europe/Warsaw",
+  "Sweden": "Europe/Stockholm",
+  "Norway": "Europe/Oslo",
+  "Denmark": "Europe/Copenhagen",
+  "Finland": "Europe/Helsinki",
+  "Austria": "Europe/Vienna",
+  "Switzerland": "Europe/Zurich",
+  "Greece": "Europe/Athens",
+  // North America
+  "United States": "America/New_York",
+  "USA": "America/New_York",
+  "US": "America/New_York",
+  "Canada": "America/Toronto",
+  "Mexico": "America/Mexico_City",
+  // Asia
+  "United Arab Emirates": "Asia/Dubai",
+  "UAE": "Asia/Dubai",
+  "Dubai": "Asia/Dubai",
+  "Saudi Arabia": "Asia/Riyadh",
+  "Qatar": "Asia/Qatar",
+  "India": "Asia/Kolkata",
+  "Singapore": "Asia/Singapore",
+  "Japan": "Asia/Tokyo",
+  "China": "Asia/Shanghai",
+  "Hong Kong": "Asia/Hong_Kong",
+  "South Korea": "Asia/Seoul",
+  "Thailand": "Asia/Bangkok",
+  "Malaysia": "Asia/Kuala_Lumpur",
+  "Indonesia": "Asia/Jakarta",
+  "Philippines": "Asia/Manila",
+  "Vietnam": "Asia/Ho_Chi_Minh",
+  "Pakistan": "Asia/Karachi",
+  "Bangladesh": "Asia/Dhaka",
+  "Turkey": "Europe/Istanbul",
+  "Israel": "Asia/Jerusalem",
+  // Oceania
+  "Australia": "Australia/Sydney",
+  "New Zealand": "Pacific/Auckland",
+  // Africa
+  "South Africa": "Africa/Johannesburg",
+  "Nigeria": "Africa/Lagos",
+  "Egypt": "Africa/Cairo",
+  "Kenya": "Africa/Nairobi",
+  "Morocco": "Africa/Casablanca",
+  // South America
+  "Brazil": "America/Sao_Paulo",
+  "Argentina": "America/Buenos_Aires",
+  "Chile": "America/Santiago",
+  "Colombia": "America/Bogota",
+  "Peru": "America/Lima",
+};
+
+function getTimezoneForCountry(country: string | null | undefined): string {
+  if (!country) return "Europe/London"; // Default to UK
+  return COUNTRY_TO_TIMEZONE[country] || "Europe/London";
+}
+
 interface StreamSession {
   businessId: string;
   businessName: string;
   businessType: BusinessType;
+  businessTimezone: string; // NEW: Dynamic timezone based on business country
   twilioPhoneNumber: string | null;
   callSid: string;
   callerPhone: string;
@@ -321,11 +397,11 @@ Deno.serve(async (req) => {
     return new Response("Invalid token", { status: 401 });
   }
 
-  // Get business AI settings
+  // Get business AI settings (including country for timezone)
   const { data: settings } = await supabase
     .from("business_settings")
     .select(
-      "assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id, opening_context"
+      "assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id, opening_context, country"
     )
     .eq("business_id", business.id)
     .maybeSingle();
@@ -335,6 +411,7 @@ Deno.serve(async (req) => {
   const voiceGender = settings?.voice_gender || "female";
   const voiceSpeed = settings?.voice_speed || "normal";
   const selectedVoice = settings?.elevenlabs_voice_id;
+  const businessTimezone = getTimezoneForCountry(settings?.country);
 
   // Use selected OpenAI voice, or fallback to gender-based default
   const openAiVoice = selectedVoice && OPENAI_VOICES.includes(selectedVoice) 
@@ -350,6 +427,7 @@ Deno.serve(async (req) => {
     businessId: business.id,
     businessName: business.business_name,
     businessType,
+    businessTimezone, // Dynamic timezone based on country
     twilioPhoneNumber: business.twilio_phone_number || null,
     callSid: "",
     callerPhone: "",
@@ -477,7 +555,8 @@ Deno.serve(async (req) => {
             business.twilio_phone_number,
             business.website_knowledge,
             session.businessType,
-            session.restaurantSettings
+            session.restaurantSettings,
+            session.businessTimezone // Pass business timezone
           );
 
           session.systemPrompt = promptData.prompt;
@@ -3563,39 +3642,44 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
-function formatTime(date: Date): string {
-  // ALWAYS use London timezone for customer-facing times
+function formatTime(date: Date, timezone: string = "Europe/London"): string {
+  // Use business timezone for customer-facing times
   return date
     .toLocaleTimeString("en-GB", { 
       hour: "numeric", 
       minute: "2-digit", 
       hour12: true,
-      timeZone: "Europe/London" 
+      timeZone: timezone 
     })
     .toLowerCase();
 }
 
-// Helper to get current time in London for pickup calculations
-function getLondonTime(): { time: string; date: Date; dayOfWeek: number } {
+// Helper to get current time in business timezone for pickup calculations
+function getBusinessTime(timezone: string = "Europe/London"): { time: string; date: Date; dayOfWeek: number } {
   const now = new Date();
   
-  // Create formatters for London timezone
+  // Create formatters for business timezone
   const timeFormatter = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
+    timeZone: timezone,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
   
-  // Get day of week in London (not server time!)
-  const londonDateStr = now.toLocaleString("en-US", { timeZone: "Europe/London" });
-  const londonDate = new Date(londonDateStr);
+  // Get day of week in business timezone (not server time!)
+  const businessDateStr = now.toLocaleString("en-US", { timeZone: timezone });
+  const businessDate = new Date(businessDateStr);
   
   return {
     time: timeFormatter.format(now),
     date: now,
-    dayOfWeek: londonDate.getDay(),
+    dayOfWeek: businessDate.getDay(),
   };
+}
+
+// DEPRECATED: Kept for backwards compatibility - use getBusinessTime(timezone) instead
+function getLondonTime(): { time: string; date: Date; dayOfWeek: number } {
+  return getBusinessTime("Europe/London");
 }
 
 function formatPhoneNumberForSpeech(phone: string | null): string | null {
@@ -3679,7 +3763,8 @@ async function buildFullSystemPrompt(
   twilioPhoneNumber: string | null,
   websiteKnowledge: string | null,
   businessType: BusinessType,
-  restaurantSettings: any
+  restaurantSettings: any,
+  businessTimezone: string = "Europe/London"
 ): Promise<PromptData> {
   const isRestaurant = businessType.startsWith("restaurant_");
   
@@ -4028,38 +4113,38 @@ async function buildFullSystemPrompt(
     }
   }).join(" | ") || "None";
 
-  // Get current date/time context IN LONDON TIMEZONE (not server time!)
+  // Get current date/time context IN BUSINESS TIMEZONE (not server time!)
   const now = new Date();
   
-  // Use Intl formatters to get correct London time
-  const londonTimeFormatter = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
+  // Use Intl formatters to get correct business timezone time
+  const bizTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: businessTimezone,
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
   });
-  const londonDateFormatter = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
+  const bizDateFormatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: businessTimezone,
     day: "numeric",
     month: "long",
     year: "numeric",
   });
-  const londonDayFormatter = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
+  const bizDayFormatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: businessTimezone,
     weekday: "long",
   });
   
-  const currentTime = londonTimeFormatter.format(now).toLowerCase();
-  const currentDate = londonDateFormatter.format(now);
-  const currentDay = londonDayFormatter.format(now);
+  const currentTime = bizTimeFormatter.format(now).toLowerCase();
+  const currentDate = bizDateFormatter.format(now);
+  const currentDay = bizDayFormatter.format(now);
   
-  // Get day of week in London (not server time!) for opening hours lookup
-  const londonDateStr = now.toLocaleString("en-US", { timeZone: "Europe/London" });
-  const londonDate = new Date(londonDateStr);
-  const londonDayOfWeek = londonDate.getDay();
+  // Get day of week in business timezone (not server time!) for opening hours lookup
+  const bizDateStr = now.toLocaleString("en-US", { timeZone: businessTimezone });
+  const bizDate = new Date(bizDateStr);
+  const bizDayOfWeek = bizDate.getDay();
 
-  // Determine if business is open TODAY (using London day)
-  const todayHours = hours.find(h => h.day_of_week === londonDayOfWeek);
+  // Determine if business is open TODAY (using business timezone day)
+  const todayHours = hours.find(h => h.day_of_week === bizDayOfWeek);
   const isOpenToday = todayHours && !todayHours.is_closed;
 
   const todayStatus = isOpenToday 
@@ -4524,35 +4609,35 @@ ${dataCollectionRules}${faqContext}`;
       };
     });
     
-    // Get current time in London timezone for the AI
-    const now = new Date();
-    const londonFormatter = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/London",
+    // Get current time in business timezone for the AI
+    const restNow = new Date();
+    const bizTimeFormatter2 = new Intl.DateTimeFormat("en-GB", {
+      timeZone: businessTimezone,
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
     });
-    const londonDateFormatter = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/London",
+    const bizDateFormatter2 = new Intl.DateTimeFormat("en-GB", {
+      timeZone: businessTimezone,
       day: "numeric",
       month: "long",
       year: "numeric",
     });
-    const londonDayFormatter = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/London",
+    const bizDayFormatter2 = new Intl.DateTimeFormat("en-GB", {
+      timeZone: businessTimezone,
       weekday: "long",
     });
     
-    const currentTime = londonFormatter.format(now);
-    const currentDate = londonDateFormatter.format(now);
-    const currentDay = londonDayFormatter.format(now);
+    const restCurrentTime = bizTimeFormatter2.format(restNow);
+    const restCurrentDate = bizDateFormatter2.format(restNow);
+    const restCurrentDay = bizDayFormatter2.format(restNow);
     
-    // Determine if business is currently open based on London day
-    const londonDayOfWeek = new Date(now.toLocaleString("en-US", { timeZone: "Europe/London" })).getDay();
-    const todayHours = hours.find((h: any) => h.day_of_week === londonDayOfWeek);
-    const isOpenToday = todayHours && !todayHours.is_closed;
-    const businessStatus = isOpenToday 
-      ? `OPEN (${todayHours.open_time?.slice(0, 5)}-${todayHours.close_time?.slice(0, 5)})`
+    // Determine if business is currently open based on business timezone day
+    const restBizDayOfWeek = new Date(restNow.toLocaleString("en-US", { timeZone: businessTimezone })).getDay();
+    const restTodayHours = hours.find((h: any) => h.day_of_week === restBizDayOfWeek);
+    const restIsOpenToday = restTodayHours && !restTodayHours.is_closed;
+    const businessStatus = restIsOpenToday 
+      ? `OPEN (${restTodayHours.open_time?.slice(0, 5)}-${restTodayHours.close_time?.slice(0, 5)})`
       : "CLOSED";
     
     const restaurantPrompt = buildSystemPromptForBusinessType({
@@ -4575,9 +4660,9 @@ ${dataCollectionRules}${faqContext}`;
       tables,
       restaurantSettings,
       openingContext: businessSettings?.opening_context || undefined,
-      currentTime,
-      currentDate,
-      currentDay,
+      currentTime: restCurrentTime,
+      currentDate: restCurrentDate,
+      currentDay: restCurrentDay,
       businessStatus,
     });
     

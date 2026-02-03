@@ -214,7 +214,7 @@ Work this information smoothly into your greeting without making it sound like a
 ⏰ CURRENT TIME CONTEXT (CRITICAL FOR PICKUP TIMES!):
 ═══════════════════════════════════════
 - Today: ${currentDay}, ${currentDate}
-- Current Time RIGHT NOW: ${currentTime} (UK/London timezone)
+- Current Time RIGHT NOW: ${currentTime} (local business time)
 - Business Status: ${businessStatus || "Unknown"}
 
 ⚠️ PICKUP TIME CALCULATION:
