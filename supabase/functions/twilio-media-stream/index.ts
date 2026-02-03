@@ -18,6 +18,15 @@ const SILENCE_THRESHOLD_MS = 15000; // If no audio for 15 seconds, check connect
 const MAX_OPENAI_RECONNECT_ATTEMPTS = 5; // Increased from 3 for better resilience
 const BASE_RECONNECT_DELAY_MS = 1500; // Increased from 700ms for more stable reconnects
 
+// ============================================================================
+// PROACTIVE STREAM ROTATION (prevents platform-induced WebSocket drops)
+// ============================================================================
+// The Twilio Media Stream WebSocket appears to drop around 2-3 minutes
+// To support 30+ minute calls, we proactively rotate the stream before it drops
+const STREAM_ROTATION_ENABLED = true; // Toggle for testing
+const STREAM_ROTATION_INTERVAL_MS = 110_000; // Rotate every 110 seconds (before ~2-3 min drop)
+const STREAM_ROTATION_CHECK_INTERVAL_MS = 10_000; // Check every 10 seconds
+
 // =========================================================================
 // ORDER CONFIRMATION GUARDRAILS
 // =========================================================================
@@ -154,6 +163,11 @@ interface StreamSession {
   silenceCheckIntervalId: number | null;
   lastAudioReceivedAt: number;
   lastKeepaliveSentAt: number | null;
+  
+  // NEW: Proactive stream rotation
+  streamStartedAt: number;
+  streamRotationCheckIntervalId: number | null;
+  isRotating: boolean;
 
   // Guardrails: prevent confirming orders without tool success
   assistantTranscriptBuffer: string;
@@ -503,6 +517,11 @@ Deno.serve(async (req) => {
     silenceCheckIntervalId: null,
     lastAudioReceivedAt: Date.now(),
     lastKeepaliveSentAt: null,
+    
+    // Proactive stream rotation
+    streamStartedAt: Date.now(),
+    streamRotationCheckIntervalId: null,
+    isRotating: false,
 
     // Guardrails
     assistantTranscriptBuffer: "",
@@ -529,6 +548,10 @@ Deno.serve(async (req) => {
           break;
 
         case "start":
+          // Reset stream tracking for rotation
+          session.streamStartedAt = Date.now();
+          session.isRotating = false;
+          
           console.log("[MediaStream] Stream started:", JSON.stringify(data.start));
           session.streamSid = data.start.streamSid;
           // Get callSid from customParameters (passed from webhook) or fallback to stream's callSid
@@ -556,7 +579,8 @@ Deno.serve(async (req) => {
             "isReconnect:",
             session.isReconnect,
             "reconnectCount:",
-            session.reconnectCount
+            session.reconnectCount,
+            "streamAge:", 0
           );
 
           // Start recording now that call is definitely in-progress (skip on reconnect - recording continues)
@@ -618,15 +642,23 @@ Deno.serve(async (req) => {
           }
           break;
 
-        case "stop":
-          console.log("[MediaStream] Stream stopped");
-          // Clean up keepalive and silence detection intervals
+        case "stop": {
+          const streamAgeSec = Math.round((Date.now() - session.streamStartedAt) / 1000);
+          console.log("[MediaStream] Stream stopped after", streamAgeSec, "seconds", {
+            callSid: session.callSid,
+            streamSid: session.streamSid,
+            isReconnect: session.isReconnect,
+            isRotating: session.isRotating,
+          });
+          // Clean up all intervals
           stopKeepalive(session);
           stopSilenceDetection(session);
+          stopStreamRotationCheck(session);
           if (session.openAiWs) {
             session.openAiWs.close();
           }
           break;
+        }
 
         case "mark":
           // Twilio confirms audio has finished playing
@@ -646,11 +678,17 @@ Deno.serve(async (req) => {
     }
   };
 
-  twilioWs.onclose = () => {
-    console.log("[MediaStream] Twilio WebSocket closed");
-    // Clean up keepalive and silence detection intervals
+  twilioWs.onclose = (ev) => {
+    const streamAgeSec = Math.round((Date.now() - session.streamStartedAt) / 1000);
+    console.log("[MediaStream] Twilio WebSocket closed after", streamAgeSec, "seconds", {
+      code: (ev as any)?.code,
+      reason: (ev as any)?.reason,
+      isRotating: session.isRotating,
+    });
+    // Clean up all intervals
     stopKeepalive(session);
     stopSilenceDetection(session);
+    stopStreamRotationCheck(session);
     if (session.openAiWs) {
       session.openAiWs.close();
     }
@@ -732,6 +770,67 @@ function stopSilenceDetection(session: StreamSession) {
     clearInterval(session.silenceCheckIntervalId);
     session.silenceCheckIntervalId = null;
     console.log("[MediaStream] Silence detection stopped");
+  }
+}
+
+// ============================================================================
+// PROACTIVE STREAM ROTATION
+// ============================================================================
+
+function startStreamRotationCheck(session: StreamSession, supabase: any) {
+  if (!STREAM_ROTATION_ENABLED) {
+    console.log("[MediaStream] Stream rotation is disabled");
+    return;
+  }
+  
+  stopStreamRotationCheck(session); // Clear any existing
+  
+  session.streamStartedAt = Date.now();
+  
+  session.streamRotationCheckIntervalId = setInterval(async () => {
+    const streamAgeMs = Date.now() - session.streamStartedAt;
+    const streamAgeSec = Math.round(streamAgeMs / 1000);
+    
+    // Check if we should rotate
+    if (streamAgeMs >= STREAM_ROTATION_INTERVAL_MS && !session.isRotating) {
+      console.log(`[MediaStream] Stream age ${streamAgeSec}s exceeds threshold - initiating proactive rotation`);
+      
+      session.isRotating = true;
+      
+      // Log rotation event to conversation
+      try {
+        await logConversation(
+          supabase,
+          session.callSid,
+          "system",
+          `[rotation] Proactive stream rotation after ${streamAgeSec}s`
+        );
+      } catch {
+        // non-blocking
+      }
+      
+      // Stop all intervals before closing
+      stopKeepalive(session);
+      stopSilenceDetection(session);
+      stopStreamRotationCheck(session);
+      
+      // Close the Twilio WebSocket to trigger stream-action reconnect
+      // This will cause Twilio to hit the action URL and restart the stream
+      if (session.twilioWs?.readyState === WebSocket.OPEN) {
+        console.log("[MediaStream] Closing Twilio WebSocket for rotation");
+        session.twilioWs.close(1000, "proactive_rotation");
+      }
+    }
+  }, STREAM_ROTATION_CHECK_INTERVAL_MS) as unknown as number;
+  
+  console.log(`[MediaStream] Stream rotation check started (threshold: ${STREAM_ROTATION_INTERVAL_MS / 1000}s, check every ${STREAM_ROTATION_CHECK_INTERVAL_MS / 1000}s)`);
+}
+
+function stopStreamRotationCheck(session: StreamSession) {
+  if (session.streamRotationCheckIntervalId !== null) {
+    clearInterval(session.streamRotationCheckIntervalId);
+    session.streamRotationCheckIntervalId = null;
+    console.log("[MediaStream] Stream rotation check stopped");
   }
 }
 
@@ -866,9 +965,10 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
     console.log("[MediaStream] OpenAI WebSocket connected");
     // Reset reconnect attempts on successful connection
     session.openAiReconnectAttempts = 0;
-    // Start keepalive and silence detection
+    // Start keepalive, silence detection, and stream rotation check
     startKeepalive(session, supabase);
     startSilenceDetection(session, supabase, scheduleOpenAiReconnect);
+    startStreamRotationCheck(session, supabase);
     // Session config will be sent after receiving session.created
   };
 

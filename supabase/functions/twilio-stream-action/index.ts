@@ -84,7 +84,14 @@ function normalizeDialNumber(raw: string): string {
 }
 
 // Maximum reconnect attempts before switching to a fallback flow
-const MAX_RECONNECTS = 4;
+// Increased from 4 to 10 to support 30+ minute calls with proactive rotation
+const MAX_RECONNECTS = 10;
+
+// Calculate pause duration based on reconnect count (exponential backoff)
+function getReconnectPauseDuration(reconnectCount: number): number {
+  // Base 1s + exponential growth up to ~3s max
+  return Math.min(1 + Math.pow(1.3, reconnectCount), 3);
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -196,7 +203,10 @@ Deno.serve(async (req) => {
 
     // No transfer pending - check if we should attempt reconnect
     if (reconnectCount < MAX_RECONNECTS) {
-      console.log(`[StreamAction] No transfer, attempting reconnect (${reconnectCount + 1}/${MAX_RECONNECTS})`);
+      const nextReconnect = reconnectCount + 1;
+      const pauseDuration = getReconnectPauseDuration(reconnectCount);
+      
+      console.log(`[StreamAction] No transfer, attempting reconnect (${nextReconnect}/${MAX_RECONNECTS}) with ${pauseDuration.toFixed(1)}s pause`);
       
       // Get business info to rebuild stream URL
       const { data: business } = await supabase
@@ -206,7 +216,6 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       // Build new stream action URL with incremented reconnect count
-      const nextReconnect = reconnectCount + 1;
       const newStreamActionUrl = `${supabaseUrl}/functions/v1/twilio-stream-action/${token}?callSid=${encodeURIComponent(callSid)}&from=${encodeURIComponent(fromNumber)}&reconnect=${nextReconnect}`;
       const mediaStreamUrl = `wss://${new URL(supabaseUrl).hostname}/functions/v1/twilio-media-stream/${token}`;
       const recordingCallbackUrl = `${supabaseUrl}/functions/v1/twilio-recording-callback/${token}`;
@@ -225,10 +234,18 @@ Deno.serve(async (req) => {
           .eq("id", conversation.id);
       }
       
-      // Return TwiML to restart the stream with a brief pause
+      // Determine if we should play a "please hold" message
+      // Skip spoken message on first reconnect (usually fast), play on subsequent ones
+      const shouldPlayMessage = reconnectCount >= 1;
+      const reconnectMessage = shouldPlayMessage
+        ? `<Say voice="Polly.Amy-Neural" language="en-GB">One moment please.</Say>`
+        : "";
+      
+      // Return TwiML to restart the stream with reconnect message and dynamic pause
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Pause length="1"/>
+  ${reconnectMessage}
+  <Pause length="${Math.ceil(pauseDuration)}"/>
   <Connect action="${escapeXml(newStreamActionUrl)}">
     <Stream url="${escapeXml(mediaStreamUrl)}">
       <Parameter name="callerPhone" value="${escapeXml(fromNumber)}"/>
