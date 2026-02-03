@@ -5,6 +5,20 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+interface ParsedOption {
+  name: string;
+  price_adjustment: number;
+  dietary_tags: string[];
+}
+
+interface ParsedOptionGroup {
+  name: string;
+  is_required: boolean;
+  min_selections: number;
+  max_selections: number;
+  options: ParsedOption[];
+}
+
 interface ParsedMenuItem {
   name: string;
   description: string | null;
@@ -13,6 +27,7 @@ interface ParsedMenuItem {
   dietary_tags: string[];
   has_sizes: boolean;
   sizes: Array<{ name: string; price: number }>;
+  option_groups: ParsedOptionGroup[];
 }
 
 interface ParsedCategory {
@@ -39,10 +54,20 @@ Guidelines:
 - For items with sizes, set the price field to the lowest size price
 - Clean up descriptions - remove prices and dietary tags from the description text
 - If a category seems obvious from context but isn't explicitly stated, infer it
-- Preserve the original order of items as much as possible`;
+- Preserve the original order of items as much as possible
 
-// For PDFs, we'll send them as images to Gemini which supports PDF vision
-// This is simpler and more reliable than text extraction
+IMPORTANT - Option Groups and Customizations:
+- Look for customization sections like "Choose your...", "Pick a...", "Add...", "Extras", "Sides", "Toppings", "Build your..."
+- Identify selection rules from context:
+  - "Choose one" / "Pick 1" / "Select your" = required, min_selections: 1, max_selections: 1
+  - "Add toppings" / "Optional" / "Add extras" = not required, min_selections: 0, max_selections: 10
+  - "Pick up to 3" = not required, min_selections: 0, max_selections: 3
+  - "Required" = is_required: true
+- Extract price adjustments (+£1, +50p, add £2, extra £1.50, +1.50) as numbers
+- Some individual options may have their own dietary tags (e.g., "Sofritas (V)")
+- If an item has customization options, populate the option_groups array
+- Each option group contains a name, selection rules, and array of options
+- Options within a group have a name, price_adjustment (0 if no extra cost), and optional dietary_tags`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -71,8 +96,8 @@ serve(async (req) => {
     const visualContent = menuImage || menuPdf;
     
     const userPrompt = hasVisualContent 
-      ? `Parse this menu ${menuPdf ? "PDF" : "image"} and extract all menu items. The currency is ${currency} (${currencySymbol}).`
-      : `Parse this menu text and extract all menu items. The currency is ${currency} (${currencySymbol}).\n\nMenu text:\n${menuText}`;
+      ? `Parse this menu ${menuPdf ? "PDF" : "image"} and extract all menu items, including any customization options, add-ons, or choice sections. The currency is ${currency} (${currencySymbol}).`
+      : `Parse this menu text and extract all menu items, including any customization options, add-ons, or choice sections. The currency is ${currency} (${currencySymbol}).\n\nMenu text:\n${menuText}`;
 
     const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
@@ -95,7 +120,7 @@ serve(async (req) => {
         type: "function",
         function: {
           name: "extract_menu_data",
-          description: "Extract structured menu data from the provided text or image",
+          description: "Extract structured menu data from the provided text or image, including customization options and modifiers",
           parameters: {
             type: "object",
             properties: {
@@ -120,7 +145,7 @@ serve(async (req) => {
                   properties: {
                     name: { type: "string", description: "Item name" },
                     description: { type: "string", description: "Item description (without price or dietary tags)", nullable: true },
-                    price: { type: "number", description: "Price as a number (e.g., 12.99). For items with sizes, use the lowest size price." },
+                    price: { type: "number", description: "Base price as a number (e.g., 12.99). For items with sizes, use the lowest size price." },
                     category_name: { type: "string", description: "Name of the category this item belongs to" },
                     dietary_tags: { 
                       type: "array", 
@@ -141,8 +166,41 @@ serve(async (req) => {
                         additionalProperties: false,
                       },
                     },
+                    option_groups: {
+                      type: "array",
+                      description: "Customization option groups (e.g., 'Choose your protein', 'Add toppings'). Empty if no options.",
+                      items: {
+                        type: "object",
+                        properties: {
+                          name: { type: "string", description: "Option group name (e.g., 'Choose your protein', 'Add extras')" },
+                          is_required: { type: "boolean", description: "True if customer must make a selection" },
+                          min_selections: { type: "number", description: "Minimum number of selections required (0 for optional)" },
+                          max_selections: { type: "number", description: "Maximum number of selections allowed (use 10 for unlimited)" },
+                          options: {
+                            type: "array",
+                            description: "Available options in this group",
+                            items: {
+                              type: "object",
+                              properties: {
+                                name: { type: "string", description: "Option name (e.g., 'Chicken', 'Extra Cheese')" },
+                                price_adjustment: { type: "number", description: "Additional cost for this option (0 if no extra charge)" },
+                                dietary_tags: {
+                                  type: "array",
+                                  items: { type: "string" },
+                                  description: "Dietary tags specific to this option (e.g., Vegetarian)"
+                                },
+                              },
+                              required: ["name", "price_adjustment", "dietary_tags"],
+                              additionalProperties: false,
+                            },
+                          },
+                        },
+                        required: ["name", "is_required", "min_selections", "max_selections", "options"],
+                        additionalProperties: false,
+                      },
+                    },
                   },
-                  required: ["name", "price", "category_name", "dietary_tags", "has_sizes", "sizes"],
+                  required: ["name", "price", "category_name", "dietary_tags", "has_sizes", "sizes", "option_groups"],
                   additionalProperties: false,
                 },
               },
@@ -217,6 +275,17 @@ serve(async (req) => {
           name: s.name?.trim() || "",
           price: typeof s.price === "number" ? s.price : parseFloat(String(s.price)) || 0,
         })).filter(s => s.name && s.price > 0) : [],
+        option_groups: Array.isArray(item.option_groups) ? item.option_groups.map(og => ({
+          name: og.name?.trim() || "Options",
+          is_required: Boolean(og.is_required),
+          min_selections: typeof og.min_selections === "number" ? og.min_selections : 0,
+          max_selections: typeof og.max_selections === "number" ? og.max_selections : 10,
+          options: Array.isArray(og.options) ? og.options.map(opt => ({
+            name: opt.name?.trim() || "",
+            price_adjustment: typeof opt.price_adjustment === "number" ? opt.price_adjustment : parseFloat(String(opt.price_adjustment)) || 0,
+            dietary_tags: Array.isArray(opt.dietary_tags) ? opt.dietary_tags : [],
+          })).filter(opt => opt.name) : [],
+        })).filter(og => og.options.length > 0) : [],
       })),
     };
 
@@ -229,7 +298,9 @@ serve(async (req) => {
       }
     });
 
-    console.log(`Parsed ${cleanedData.categories.length} categories and ${cleanedData.items.length} items`);
+    // Count option groups for logging
+    const totalOptionGroups = cleanedData.items.reduce((acc, item) => acc + item.option_groups.length, 0);
+    console.log(`Parsed ${cleanedData.categories.length} categories, ${cleanedData.items.length} items, ${totalOptionGroups} option groups`);
 
     return new Response(
       JSON.stringify(cleanedData),

@@ -2,16 +2,30 @@ import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Upload, Sparkles, ImageIcon, FileText, AlertCircle, File } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Loader2, Upload, Sparkles, FileText, AlertCircle, File, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
+interface ParsedOption {
+  name: string;
+  price_adjustment: number;
+  dietary_tags: string[];
+}
+
+interface ParsedOptionGroup {
+  name: string;
+  is_required: boolean;
+  min_selections: number;
+  max_selections: number;
+  options: ParsedOption[];
+}
 
 interface ParsedMenuItem {
   name: string;
@@ -21,6 +35,7 @@ interface ParsedMenuItem {
   dietary_tags: string[];
   has_sizes: boolean;
   sizes: Array<{ name: string; price: number }>;
+  option_groups: ParsedOptionGroup[];
   selected: boolean;
 }
 
@@ -62,6 +77,7 @@ export const MenuImportDialog = ({
   const [parsedCategories, setParsedCategories] = useState<ParsedCategory[]>([]);
   const [parsedItems, setParsedItems] = useState<ParsedMenuItem[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
 
   const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
 
@@ -77,6 +93,7 @@ export const MenuImportDialog = ({
     setParsedItems([]);
     setShowPreview(false);
     setActiveTab("text");
+    setExpandedItems(new Set());
   };
 
   const handleClose = () => {
@@ -141,6 +158,7 @@ export const MenuImportDialog = ({
 
       const itemsWithSelection = data.items.map((item: any) => ({
         ...item,
+        option_groups: item.option_groups || [],
         selected: true,
       }));
 
@@ -148,9 +166,13 @@ export const MenuImportDialog = ({
       setParsedItems(itemsWithSelection);
       setShowPreview(true);
 
+      // Count option groups for the toast
+      const totalOptionGroups = itemsWithSelection.reduce((acc: number, item: ParsedMenuItem) => 
+        acc + (item.option_groups?.length || 0), 0);
+
       toast({
         title: "Menu analyzed!",
-        description: `Found ${data.items.length} items in ${data.categories.length} categories`,
+        description: `Found ${data.items.length} items in ${data.categories.length} categories${totalOptionGroups > 0 ? `, ${totalOptionGroups} option groups` : ""}`,
       });
     } catch (err: any) {
       console.error("Analyze error:", err);
@@ -169,6 +191,18 @@ export const MenuImportDialog = ({
 
   const toggleAllItems = (selected: boolean) => {
     setParsedItems(prev => prev.map(item => ({ ...item, selected })));
+  };
+
+  const toggleExpanded = (index: number) => {
+    setExpandedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
   };
 
   const handleImport = async () => {
@@ -271,9 +305,63 @@ export const MenuImportDialog = ({
         if (sizesError) throw sizesError;
       }
 
+      // Insert option groups and options
+      let totalOptionGroupsCreated = 0;
+      let totalOptionsCreated = 0;
+
+      for (let idx = 0; idx < (insertedItems?.length || 0); idx++) {
+        const dbItem = insertedItems![idx];
+        const sourceItem = selectedItems[idx];
+
+        if (sourceItem.option_groups && sourceItem.option_groups.length > 0) {
+          for (let ogIdx = 0; ogIdx < sourceItem.option_groups.length; ogIdx++) {
+            const og = sourceItem.option_groups[ogIdx];
+
+            // Insert the option group
+            const { data: insertedGroup, error: ogError } = await supabase
+              .from("menu_item_option_groups")
+              .insert({
+                menu_item_id: dbItem.id,
+                name: og.name,
+                is_required: og.is_required,
+                min_selections: og.min_selections,
+                max_selections: og.max_selections,
+                display_order: ogIdx,
+              })
+              .select()
+              .single();
+
+            if (ogError) throw ogError;
+            totalOptionGroupsCreated++;
+
+            // Insert options for this group
+            if (og.options && og.options.length > 0) {
+              const optionsToInsert = og.options.map((opt, optIdx) => ({
+                option_group_id: insertedGroup.id,
+                name: opt.name,
+                price_adjustment: opt.price_adjustment,
+                is_default: optIdx === 0 && og.is_required,
+                display_order: optIdx,
+              }));
+
+              const { error: optError } = await supabase
+                .from("menu_item_options")
+                .insert(optionsToInsert);
+
+              if (optError) throw optError;
+              totalOptionsCreated += optionsToInsert.length;
+            }
+          }
+        }
+      }
+
+      const optionMessage = totalOptionGroupsCreated > 0 
+        ? `, ${totalOptionGroupsCreated} option groups, ${totalOptionsCreated} options`
+        : "";
+
       toast({
         title: "Import complete!",
-        description: `Added ${selectedItems.length} items to your menu`,
+        description: `Added ${selectedItems.length} items${optionMessage} to your menu`,
       });
 
       handleClose();
@@ -287,6 +375,20 @@ export const MenuImportDialog = ({
   };
 
   const selectedCount = parsedItems.filter(i => i.selected).length;
+  const totalOptionGroups = parsedItems.reduce((acc, item) => acc + (item.option_groups?.length || 0), 0);
+
+  const formatSelectionRule = (og: ParsedOptionGroup) => {
+    if (og.is_required && og.min_selections === 1 && og.max_selections === 1) {
+      return "pick 1";
+    }
+    if (!og.is_required && og.max_selections >= 10) {
+      return "optional";
+    }
+    if (og.max_selections > 1) {
+      return `up to ${og.max_selections}`;
+    }
+    return og.is_required ? "required" : "optional";
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -297,7 +399,7 @@ export const MenuImportDialog = ({
             Import Menu with AI
           </DialogTitle>
           <DialogDescription>
-            Paste your menu text or upload a photo, and AI will extract all items automatically.
+            Paste your menu text or upload a photo, and AI will extract all items including customization options.
           </DialogDescription>
         </DialogHeader>
 
@@ -322,7 +424,7 @@ export const MenuImportDialog = ({
                     id="menu-text"
                     value={menuText}
                     onChange={(e) => setMenuText(e.target.value)}
-                    placeholder={`Paste your menu here...\n\nExample:\nMargherita Pizza - ${currencySymbol}12.99\nClassic tomato and mozzarella (V)\n\nPepperoni Pizza - ${currencySymbol}14.99\nWith spicy pepperoni`}
+                    placeholder={`Paste your menu here...\n\nExample:\nBurrito Bowl - ${currencySymbol}8.99\nBuild your own bowl\n\nChoose your protein (pick 1):\n- Chicken\n- Beef (+${currencySymbol}1.50)\n- Carnitas (+${currencySymbol}2)\n\nAdd extras (optional):\n- Guacamole (+${currencySymbol}2)\n- Sour Cream (+${currencySymbol}0.50)`}
                     className="min-h-[250px] font-mono text-sm"
                   />
                 </div>
@@ -421,6 +523,7 @@ export const MenuImportDialog = ({
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm text-muted-foreground">
                 Found {parsedItems.length} items in {parsedCategories.length} categories
+                {totalOptionGroups > 0 && `, ${totalOptionGroups} option groups`}
               </p>
               <div className="flex items-center gap-2">
                 <Button
@@ -452,54 +555,122 @@ export const MenuImportDialog = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {parsedItems.map((item, index) => (
-                    <TableRow
-                      key={index}
-                      className={!item.selected ? "opacity-50" : ""}
-                    >
-                      <TableCell>
-                        <Checkbox
-                          checked={item.selected}
-                          onCheckedChange={() => toggleItemSelection(index)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{item.name}</p>
-                          {item.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-1">
-                              {item.description}
-                            </p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {item.has_sizes && item.sizes.length > 0 ? (
-                          <div className="text-xs">
-                            {item.sizes.map((s, i) => (
-                              <div key={i}>
-                                {s.name}: {currencySymbol}{s.price.toFixed(2)}
+                  {parsedItems.map((item, index) => {
+                    const hasOptions = item.option_groups && item.option_groups.length > 0;
+                    const isExpanded = expandedItems.has(index);
+
+                    return (
+                      <Collapsible key={index} open={isExpanded} asChild>
+                        <>
+                          <TableRow className={!item.selected ? "opacity-50" : ""}>
+                            <TableCell>
+                              <Checkbox
+                                checked={item.selected}
+                                onCheckedChange={() => toggleItemSelection(index)}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-start gap-2">
+                                {hasOptions && (
+                                  <CollapsibleTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 w-6 p-0 shrink-0"
+                                      onClick={() => toggleExpanded(index)}
+                                    >
+                                      {isExpanded ? (
+                                        <ChevronDown className="h-4 w-4" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </CollapsibleTrigger>
+                                )}
+                                <div>
+                                  <p className="font-medium">{item.name}</p>
+                                  {item.description && (
+                                    <p className="text-xs text-muted-foreground line-clamp-1">
+                                      {item.description}
+                                    </p>
+                                  )}
+                                  {hasOptions && !isExpanded && (
+                                    <p className="text-xs text-primary mt-1">
+                                      {item.option_groups.length} option group{item.option_groups.length > 1 ? "s" : ""}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span>{currencySymbol}{item.price.toFixed(2)}</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{item.category_name}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {item.dietary_tags.map((tag, i) => (
-                            <Badge key={i} variant="secondary" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            </TableCell>
+                            <TableCell>
+                              {item.has_sizes && item.sizes.length > 0 ? (
+                                <div className="text-xs">
+                                  {item.sizes.map((s, i) => (
+                                    <div key={i}>
+                                      {s.name}: {currencySymbol}{s.price.toFixed(2)}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span>{currencySymbol}{item.price.toFixed(2)}</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{item.category_name}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {item.dietary_tags.map((tag, i) => (
+                                  <Badge key={i} variant="secondary" className="text-xs">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          
+                          {hasOptions && (
+                            <CollapsibleContent asChild>
+                              <TableRow className="bg-muted/30">
+                                <TableCell colSpan={5} className="py-2 px-4">
+                                  <div className="space-y-3 pl-8">
+                                    {item.option_groups.map((og, ogIdx) => (
+                                      <div key={ogIdx} className="text-sm">
+                                        <div className="flex items-center gap-2 font-medium text-muted-foreground">
+                                          <span>↳ {og.name}</span>
+                                          <Badge variant="outline" className="text-xs font-normal">
+                                            {formatSelectionRule(og)}
+                                          </Badge>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 mt-1 ml-4">
+                                          {og.options.map((opt, optIdx) => (
+                                            <span key={optIdx} className="text-xs text-muted-foreground">
+                                              {opt.name}
+                                              {opt.price_adjustment > 0 && (
+                                                <span className="text-primary ml-1">
+                                                  +{currencySymbol}{opt.price_adjustment.toFixed(2)}
+                                                </span>
+                                              )}
+                                              {opt.dietary_tags.length > 0 && (
+                                                <span className="text-secondary-foreground ml-1">
+                                                  ({opt.dietary_tags.join(", ")})
+                                                </span>
+                                              )}
+                                              {optIdx < og.options.length - 1 && ","}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            </CollapsibleContent>
+                          )}
+                        </>
+                      </Collapsible>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </ScrollArea>
