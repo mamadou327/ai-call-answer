@@ -437,6 +437,12 @@ serve(async (req) => {
       { data: recentBookings },
       { data: customers },
       { data: staffTimeOff }, // Staff time off data
+      { data: menuCategories }, // Restaurant menu categories
+      { data: menuItems }, // Restaurant menu items
+      { data: menuItemOptionGroups }, // Menu item option groups
+      { data: menuItemOptions }, // Menu item options
+      { data: businessGallery }, // Business gallery images
+      { data: recentOrders }, // Recent orders for restaurants
     ] = await Promise.all([
       supabase.from("businesses").select("*").eq("id", validBusinessId).single(),
       supabase.from("business_settings").select("*").eq("business_id", validBusinessId).single(),
@@ -482,6 +488,39 @@ serve(async (req) => {
         .eq("business_id", validBusinessId)
         .eq("status", "approved")
         .gte("end_time", todayStr),
+      // Restaurant menu data
+      supabase
+        .from("menu_categories")
+        .select("id, name, description, display_order, is_active")
+        .eq("business_id", validBusinessId)
+        .order("display_order"),
+      supabase
+        .from("menu_items")
+        .select("id, name, description, price, category_id, dietary_tags, is_available, has_sizes, ingredients, spice_level, ai_description, common_aliases")
+        .eq("business_id", validBusinessId)
+        .order("display_order"),
+      supabase
+        .from("menu_item_option_groups")
+        .select("id, menu_item_id, name, description, is_required, min_selections, max_selections")
+        .order("display_order"),
+      supabase
+        .from("menu_item_options")
+        .select("id, option_group_id, name, price_adjustment, is_available, has_sizes")
+        .order("display_order"),
+      // Business gallery
+      supabase
+        .from("business_gallery")
+        .select("id, image_url, caption, display_order")
+        .eq("business_id", validBusinessId)
+        .order("display_order")
+        .limit(10),
+      // Recent orders (for restaurants)
+      supabase
+        .from("orders")
+        .select("id, order_number, customer_name, items, total, status, order_type, pickup_time, created_at")
+        .eq("business_id", validBusinessId)
+        .order("created_at", { ascending: false })
+        .limit(30),
     ]);
 
     // Extract policy settings - null means policy is disabled (toggle off)
@@ -580,6 +619,108 @@ serve(async (req) => {
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     const dayAfterTomorrow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
 
+    // Determine business type
+    const isRestaurant = business?.business_type?.startsWith("restaurant");
+    
+    // Build menu knowledge for restaurants
+    let menuKnowledge = "";
+    if (isRestaurant && menuItems && menuItems.length > 0) {
+      const currencySymbol = assistantConfig.currency === "GBP" ? "£" : assistantConfig.currency === "EUR" ? "€" : "$";
+      
+      // Group items by category
+      const itemsByCategory: Record<string, any[]> = {};
+      const categoryNames: Record<string, string> = {};
+      
+      (menuCategories || []).forEach((cat: any) => {
+        if (cat.is_active) {
+          itemsByCategory[cat.id] = [];
+          categoryNames[cat.id] = cat.name;
+        }
+      });
+      
+      // Add uncategorized
+      itemsByCategory["uncategorized"] = [];
+      categoryNames["uncategorized"] = "Other Items";
+      
+      (menuItems || []).forEach((item: any) => {
+        if (!item.is_available) return;
+        const catId = item.category_id && itemsByCategory[item.category_id] ? item.category_id : "uncategorized";
+        itemsByCategory[catId].push(item);
+      });
+      
+      // Build menu string
+      const menuLines: string[] = [];
+      Object.keys(categoryNames).forEach(catId => {
+        const items = itemsByCategory[catId];
+        if (items.length === 0) return;
+        
+        menuLines.push(`\n--- ${categoryNames[catId]} ---`);
+        items.forEach((item: any) => {
+          let line = `• ${item.name} | ${currencySymbol}${item.price}`;
+          if (item.dietary_tags && item.dietary_tags.length > 0) {
+            line += ` | ${item.dietary_tags.join(", ")}`;
+          }
+          if (item.description) {
+            line += `\n  ${item.description}`;
+          }
+          if (item.ai_description) {
+            line += `\n  AI Context: ${item.ai_description}`;
+          }
+          if (item.ingredients && item.ingredients.length > 0) {
+            line += `\n  Ingredients: ${item.ingredients.join(", ")}`;
+          }
+          if (item.spice_level) {
+            line += ` | Spice: ${item.spice_level}`;
+          }
+          if (item.common_aliases && item.common_aliases.length > 0) {
+            line += `\n  Also known as: ${item.common_aliases.join(", ")}`;
+          }
+          
+          // Add options for this item
+          const itemOptionGroups = (menuItemOptionGroups || []).filter((g: any) => g.menu_item_id === item.id);
+          if (itemOptionGroups.length > 0) {
+            itemOptionGroups.forEach((group: any) => {
+              const groupOptions = (menuItemOptions || []).filter((o: any) => o.option_group_id === group.id && o.is_available);
+              if (groupOptions.length > 0) {
+                const reqTag = group.is_required ? " (REQUIRED)" : "";
+                line += `\n  → ${group.name}${reqTag}: ${groupOptions.map((o: any) => {
+                  const adj = o.price_adjustment || 0;
+                  return adj !== 0 ? `${o.name} (+${currencySymbol}${adj.toFixed(2)})` : o.name;
+                }).join(", ")}`;
+              }
+            });
+          }
+          
+          menuLines.push(line);
+        });
+      });
+      
+      menuKnowledge = menuLines.join("\n");
+    }
+    
+    // Build social links
+    let socialLinks = "";
+    const socials: string[] = [];
+    if (business?.social_instagram) socials.push(`Instagram: ${business.social_instagram}`);
+    if (business?.social_facebook) socials.push(`Facebook: ${business.social_facebook}`);
+    if (business?.social_twitter) socials.push(`Twitter: ${business.social_twitter}`);
+    if (business?.social_tiktok) socials.push(`TikTok: ${business.social_tiktok}`);
+    if (business?.social_youtube) socials.push(`YouTube: ${business.social_youtube}`);
+    if (socials.length > 0) {
+      socialLinks = socials.join("\n• ");
+    }
+
+    // Build recent orders summary (for restaurants)
+    let recentOrdersSummary = "";
+    if (isRestaurant && recentOrders && recentOrders.length > 0) {
+      const orderLines = recentOrders.slice(0, 10).map((o: any) => {
+        const itemCount = Array.isArray(o.items) ? o.items.length : 0;
+        const pickupTime = o.pickup_time ? new Date(o.pickup_time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "N/A";
+        return `• #${o.order_number} | ${o.customer_name} | ${itemCount} items | ${assistantConfig.currency === "GBP" ? "£" : "$"}${o.total || 0} | ${o.status} | Pickup: ${pickupTime}`;
+      });
+      recentOrdersSummary = orderLines.join("\n");
+    }
+
     // =========== SYSTEM PROMPT ===========
     const systemPrompt = `You are ${assistantConfig.name}, an intelligent AI booking assistant for "${business?.business_name || "this business"}".
 You help ${role === "owner" ? "the business owner" : "staff"} manage bookings efficiently and naturally.
@@ -607,10 +748,14 @@ DAY AFTER: ${dayAfterTomorrow.toISOString().split("T")[0]}
 BUSINESS DETAILS (YOU KNOW THIS BUSINESS!)
 ═══════════════════════════════════════════════════════════════
 • Business Name: ${business?.business_name}
+• Business Type: ${business?.business_type || "salon"}
 • Address: ${business?.address}
 • Main Phone: ${business?.main_phone}
 ${business?.secondary_phone ? `• Secondary Phone: ${business.secondary_phone}` : ""}
 ${business?.website ? `• Website: ${business.website}` : ""}
+${business?.cuisine_type ? `• Cuisine: ${business.cuisine_type}` : ""}
+${business?.menu_link ? `• Online Menu: ${business.menu_link}` : ""}
+${socialLinks ? `• Social Media:\n  • ${socialLinks}` : ""}
 
 CRITICAL: If any other text (including Website Knowledge) conflicts with the address or opening days above, treat BUSINESS DETAILS + OPENING HOURS as the source of truth.
 
@@ -619,6 +764,20 @@ ${businessKnowledge ? `
 WEBSITE KNOWLEDGE (Learned from business website)
 ═══════════════════════════════════════════════════════════════
 ${businessKnowledge}
+` : ""}
+
+${menuKnowledge ? `
+═══════════════════════════════════════════════════════════════
+MENU (COMPLETE KNOWLEDGE - YOU CAN ANSWER ANY MENU QUESTION!)
+═══════════════════════════════════════════════════════════════
+${menuKnowledge}
+
+Use this knowledge to:
+• Answer questions about menu items, ingredients, prices
+• Recommend dishes based on dietary preferences
+• Explain what's in each dish
+• Suggest popular items or combos
+• Handle allergen inquiries using ingredient lists
 ` : ""}
 
 ═══════════════════════════════════════════════════════════════
@@ -637,6 +796,13 @@ OPENING HOURS (STRICTLY ENFORCE THESE!)
 ${formattedHours.map((h: any) => `• ${h.day}: ${h.isClosed ? "CLOSED" : `${h.open} - ${h.close}`}`).join("\n") || "Not configured - ask business owner to set opening hours"}
 
 CRITICAL: Do NOT allow bookings outside these hours! If a day shows CLOSED, the business is NOT open!
+
+${recentOrdersSummary ? `
+═══════════════════════════════════════════════════════════════
+RECENT ORDERS (Last 10)
+═══════════════════════════════════════════════════════════════
+${recentOrdersSummary}
+` : ""}
 
 ═══════════════════════════════════════════════════════════════
 CUSTOMER DATA COLLECTION RULES
@@ -733,47 +899,48 @@ OR if rejecting:
 → Here's what I can offer instead: [alternative staff who ARE available]"
 
 ═══════════════════════════════════════════════════════════════
-YOUR CAPABILITIES
+YOUR CAPABILITIES - YOU CAN ANSWER ANY QUESTION ABOUT THIS BUSINESS!
 ═══════════════════════════════════════════════════════════════
 
-1. CREATE BOOKING
-   - Book appointments with validation
-   - Prevent double-booking
-   - Check opening hours
+🔹 BOOKING MANAGEMENT:
+   1. CREATE BOOKING - Book appointments with full validation
+   2. CANCEL BOOKING - Find by code, name, phone, date
+   3. RESCHEDULE BOOKING - Move to new date/time
+   4. CHECK AVAILABILITY - "What times are free tomorrow?"
+   5. VIEW SCHEDULE - Show bookings for a date/range
+
+🔹 CUSTOMER MANAGEMENT:
+   6. CUSTOMER LOOKUP - Find preferences, history
+   7. REVENUE/STATS - "How many bookings this week?" (owner only)
+
+🔹 GENERAL BUSINESS KNOWLEDGE (USE THE DATA ABOVE!):
+   8. MENU QUESTIONS - What's in a dish? Ingredients? Prices? Allergens? Recommendations?
+   9. SERVICE QUESTIONS - What services do you offer? How much? How long?
+   10. HOURS & LOCATION - When are you open? Where are you located? How do I get there?
+   11. STAFF INFO - Who works here? What are their specialties?
+   12. POLICIES - What's your cancellation policy? Do you take deposits?
+   13. DIETARY/ALLERGEN INFO - Is this dish vegan? Gluten-free options?
+   14. RECOMMENDATIONS - What's popular? What do you recommend?
+   15. ORDERING INFO - How do I order? Do you deliver? Minimum order?
+   16. SOCIAL MEDIA - Where can I follow you? Do you have Instagram?
+   17. ANY OTHER QUESTION - Use Website Knowledge + business data to answer!
+
+IMPORTANT: You have COMPLETE knowledge of this business. Answer ANY question using:
+- Menu data (items, prices, ingredients, dietary info, options)
+- Services and pricing
+- Staff info
+- Opening hours
+- Address and contact info
+- Social media links
+- Website knowledge
+- Policies and settings
+
+If you don't have specific info, say so honestly, but try your best to help!
+
+🔹 BOOKING POLICY ENFORCEMENT:
    - ENFORCE minimum ${policies.minBookingNoticeHours} hours notice
    - ENFORCE maximum ${policies.maxDaysAdvance} days in advance
-
-2. CANCEL BOOKING
-   - Find by code, name, phone, date
-   - Always confirm before cancelling
    - ENFORCE minimum ${policies.minCancellationNoticeHours} hours cancellation notice
-   - If within notice period, explain the policy and refuse
-
-3. RESCHEDULE BOOKING
-   - Move to new date/time
-   - Validate new slot
-   - Check both original cancellation policy AND new booking policy
-
-4. CHECK AVAILABILITY
-   - "What times are free tomorrow?"
-   - "When is [staff] available on [date]?"
-   - Suggest open slots
-
-5. VIEW SCHEDULE
-   - Show bookings for a date/range
-   - Filter by staff
-
-6. CUSTOMER LOOKUP
-   - "Book Sarah's usual" → Find her preferences
-   - Update customer info
-
-7. BUSINESS QUESTIONS
-   - Services, pricing, hours
-   - Staff info
-
-8. REVENUE/STATS (owner only)
-   - "How many bookings this week?"
-   - Basic stats
 
 ═══════════════════════════════════════════════════════════════
 CRITICAL RULES - READ CAREFULLY!
@@ -880,34 +1047,66 @@ answer:
 EXAMPLES WITH REASONING
 ═══════════════════════════════════════════════════════════════
 
+--- BOOKING EXAMPLES ---
+
 User: "Can I book for 3pm today?" (Current time: 2:30pm, min notice: 1 hour)
 REASONING: 3pm is only 30 minutes away. 30 mins < 1 hour minimum notice.
 → {"action":"answer","params":{},"message":"I'm sorry, but I can't book for 3pm today. That's only 30 minutes from now, and we require at least 1 hour's notice for bookings. The earliest I can book you in today would be 3:30pm. Would that work?"}
 
-User: "Book me for February 13th 2026" (Today: December 15th 2025, max advance: 30 days)
-REASONING: Feb 13th 2026 is ~60 days away. 60 days > 30 days max advance. Also need to check what day that is.
-→ {"action":"answer","params":{},"message":"I'm sorry, but we can only take bookings up to 30 days in advance. February 13th is about 60 days away. Would you like to book for a date within the next 30 days instead?"}
-
-User: "Cancel James booking" (booking is tomorrow at 10am, current time 9am, min cancel notice: ${policies.minCancellationNoticeHours} hours)
-REASONING: James has booking tomorrow 10am. Current time is today 9am. That's 25 hours from now. ${policies.minCancellationNoticeHours} hour minimum required. 25 > ${policies.minCancellationNoticeHours} ✓ Can cancel.
-→ {"action":"cancel_booking","params":{"customer_name":"James"},"message":"Let me find James's booking. His appointment is tomorrow at 10am, which is 25 hours from now. Since we require ${policies.minCancellationNoticeHours} hours notice for cancellations, this is within policy and I can cancel it for you."}
-
-User: "Cancel my appointment" (booking is today at 4pm, current time 2pm, min cancel notice: ${policies.minCancellationNoticeHours} hours)
-REASONING: Booking is at 4pm today. Current time is 2pm. That's only 2 hours from now. ${policies.minCancellationNoticeHours} hour minimum required. 2 < ${policies.minCancellationNoticeHours} ✗ Cannot cancel.
-→ {"action":"answer","params":{},"message":"I'm sorry, but I can't cancel your 4pm appointment. It's only 2 hours away, and our cancellation policy requires at least ${policies.minCancellationNoticeHours} hours notice. ${policies.cancellationPolicy}. If this is an emergency, please call the business directly."}
-
 User: "What times are free tomorrow?"
 → {"action":"check_availability","params":{"date":"${tomorrow.toISOString().split("T")[0]}"},"message":"Let me check availability for tomorrow. First I'll verify we're open and then find free slots..."}
 
-User: "Book me for Sunday at 2pm" (Sunday is CLOSED)
-REASONING: Check opening hours - Sunday shows CLOSED.
-→ {"action":"answer","params":{},"message":"I'm sorry, but we're closed on Sundays. We're open Monday through Saturday. Would you like to book for another day?"}
+--- GENERAL BUSINESS QUESTIONS (USE action: "answer") ---
+
+User: "What's in the chicken wrap?"
+REASONING: Check MENU data for chicken wrap, look at ingredients/description.
+→ {"action":"answer","params":{},"message":"Our Chicken Wrap contains [ingredients from menu data]. It's [price]. Would you like to add anything to your order?"}
+
+User: "Do you have anything gluten-free?"
+REASONING: Check MENU for items with "gluten-free" dietary tag.
+→ {"action":"answer","params":{},"message":"Yes! We have several gluten-free options: [list from menu with GF tag]. Would you like more details on any of these?"}
+
+User: "Where are you located?"
+REASONING: Use BUSINESS DETAILS address.
+→ {"action":"answer","params":{},"message":"We're located at ${business?.address}. You can find us on Google Maps or call us at ${business?.main_phone} for directions!"}
+
+User: "What time do you close on Saturday?"
+REASONING: Check OPENING HOURS for Saturday.
+→ {"action":"answer","params":{},"message":"[Saturday hours from opening hours data]"}
+
+User: "Do you have an Instagram?"
+REASONING: Check social media links.
+→ {"action":"answer","params":{},"message":"${business?.social_instagram ? `Yes! Follow us at ${business.social_instagram}` : "We don't have an Instagram listed, but you can reach us at " + business?.main_phone}"}
+
+User: "What's your most popular dish?"
+REASONING: Use menu knowledge + AI judgment to recommend.
+→ {"action":"answer","params":{},"message":"Based on our menu, [make intelligent recommendation from menu items]. It's really popular with our customers!"}
+
+User: "Is the falafel vegan?"
+REASONING: Check menu item dietary_tags for "vegan".
+→ {"action":"answer","params":{},"message":"[Answer based on dietary_tags and ingredients in menu data]"}
+
+User: "How much is a large smoothie?"
+REASONING: Check menu for smoothie, look for sizes/pricing.
+→ {"action":"answer","params":{},"message":"[Price from menu data, including size options if available]"}
+
+--- POLICY QUESTIONS ---
 
 User: "I want a refund"
 REASONING: Check cancellation policy to provide accurate answer.
 → {"action":"answer","params":{},"message":"${policies.cancellationPolicy}. Is there anything else I can help you with?"}
 
-REMEMBER: ALWAYS respond with JSON. Never plain text.`;
+User: "Do you take reservations?"
+REASONING: Business is set up for bookings.
+→ {"action":"answer","params":{},"message":"Yes, we do! Would you like me to help you make a reservation?"}
+
+REMEMBER: 
+- ALWAYS respond with JSON - never plain text!
+- For general questions, use action: "answer" with your response in the message field
+- Use ALL the business data provided above to give accurate, helpful answers!`;
+
+    // Upgrade to more powerful model for better reasoning
+    const aiModel = "google/gemini-3-flash-preview";
 
     // =========== CALL AI ===========
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -917,7 +1116,7 @@ REMEMBER: ALWAYS respond with JSON. Never plain text.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: aiModel,
         messages: [
           { role: "system", content: systemPrompt },
           ...messages.map((m) => ({ role: m.role, content: m.content })),
