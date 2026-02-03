@@ -41,17 +41,20 @@ Guidelines:
 - If a category seems obvious from context but isn't explicitly stated, infer it
 - Preserve the original order of items as much as possible`;
 
+// For PDFs, we'll send them as images to Gemini which supports PDF vision
+// This is simpler and more reliable than text extraction
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { menuText, menuImage, currency = "GBP" } = await req.json();
+    const { menuText, menuImage, menuPdf, currency = "GBP" } = await req.json();
 
-    if (!menuText && !menuImage) {
+    if (!menuText && !menuImage && !menuPdf) {
       return new Response(
-        JSON.stringify({ error: "Either menuText or menuImage is required" }),
+        JSON.stringify({ error: "menuText, menuImage, or menuPdf is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -63,20 +66,24 @@ serve(async (req) => {
 
     const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
     
-    const userPrompt = menuImage 
-      ? `Parse this menu image and extract all menu items. The currency is ${currency} (${currencySymbol}).`
+    // Determine content type
+    const hasVisualContent = menuImage || menuPdf;
+    const visualContent = menuImage || menuPdf;
+    
+    const userPrompt = hasVisualContent 
+      ? `Parse this menu ${menuPdf ? "PDF" : "image"} and extract all menu items. The currency is ${currency} (${currencySymbol}).`
       : `Parse this menu text and extract all menu items. The currency is ${currency} (${currencySymbol}).\n\nMenu text:\n${menuText}`;
 
     const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
     ];
 
-    if (menuImage) {
+    if (hasVisualContent) {
       messages.push({
         role: "user",
         content: [
           { type: "text", text: userPrompt },
-          { type: "image_url", image_url: { url: menuImage } },
+          { type: "image_url", image_url: { url: visualContent } },
         ],
       });
     } else {
