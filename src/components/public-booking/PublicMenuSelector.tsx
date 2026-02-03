@@ -19,6 +19,7 @@ export interface MenuItem {
   is_available: boolean;
   has_sizes: boolean;
   preparation_time_minutes: number | null;
+  image_url: string | null;
   sizes?: MenuItemSize[];
   option_groups?: MenuItemOptionGroup[];
 }
@@ -324,41 +325,53 @@ export const PublicMenuSelector = ({
         {items.map(item => (
           <Card 
             key={item.id} 
-            className="cursor-pointer hover:border-primary transition-colors"
+            className="cursor-pointer hover:border-primary transition-colors overflow-hidden"
             onClick={() => handleItemClick(item)}
           >
-            <CardContent className="p-4">
-              <div className="flex justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-semibold">{item.name}</h3>
-                    {item.dietary_tags?.map(tag => (
-                      <Badge key={tag} variant="outline" className="text-xs flex items-center gap-1">
-                        {getDietaryIcon(tag)}
-                        {tag}
-                      </Badge>
-                    ))}
+            <CardContent className="p-0">
+              <div className="flex">
+                {/* Item image - shown to customers */}
+                {item.image_url && (
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0">
+                    <img 
+                      src={item.image_url} 
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                  {item.description && (
-                    <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
-                  )}
-                  {item.preparation_time_minutes && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
-                      <Clock className="h-3 w-3" />
-                      {item.preparation_time_minutes} min
+                )}
+                <div className="flex-1 p-4 flex justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold">{item.name}</h3>
+                      {item.dietary_tags?.map(tag => (
+                        <Badge key={tag} variant="outline" className="text-xs flex items-center gap-1">
+                          {getDietaryIcon(tag)}
+                          {tag}
+                        </Badge>
+                      ))}
                     </div>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold">
-                    {item.has_sizes && item.sizes?.length 
-                      ? `from ${formatCurrency(Math.min(...item.sizes.map(s => s.price)), currency)}`
-                      : formatCurrency(item.price, currency)
-                    }
-                  </p>
-                  {item.option_groups && item.option_groups.length > 0 && (
-                    <p className="text-xs text-muted-foreground">Customizable</p>
-                  )}
+                    {item.description && (
+                      <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
+                    )}
+                    {item.preparation_time_minutes && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
+                        <Clock className="h-3 w-3" />
+                        {item.preparation_time_minutes} min
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-semibold">
+                      {item.has_sizes && item.sizes?.length 
+                        ? `from ${formatCurrency(Math.min(...item.sizes.map(s => s.price)), currency)}`
+                        : formatCurrency(item.price, currency)
+                      }
+                    </p>
+                    {item.option_groups && item.option_groups.length > 0 && (
+                      <p className="text-xs text-muted-foreground">Customizable</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -375,6 +388,17 @@ export const PublicMenuSelector = ({
           
           {customizeItem && (
             <div className="space-y-6">
+              {/* Item image in modal */}
+              {customizeItem.image_url && (
+                <div className="w-full h-40 -mt-2 rounded-lg overflow-hidden">
+                  <img 
+                    src={customizeItem.image_url} 
+                    alt={customizeItem.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+              
               {customizeItem.description && (
                 <p className="text-sm text-muted-foreground">{customizeItem.description}</p>
               )}
