@@ -51,6 +51,7 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
           <button 
             onClick={() => navigate("/")} 
             className="flex items-center hover:opacity-80 transition-opacity"
+            aria-label="AIVIA - Go to homepage"
           >
             <img src={aiviaLogo} alt="AIVIA" className="h-12 w-auto" width="78" height="48" loading="eager" fetchPriority="high" decoding="async" />
           </button>
@@ -101,7 +102,7 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
           <div className="md:hidden flex items-center gap-2">
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" aria-label="Open navigation menu">
                   <Menu className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
