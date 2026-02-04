@@ -217,6 +217,13 @@ export type Database = {
             foreignKeyName: "bookings_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
+            referencedRelation: "public_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -273,6 +280,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_gallery_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "public_staff"
             referencedColumns: ["id"]
           },
           {
@@ -903,6 +917,13 @@ export type Database = {
             foreignKeyName: "customers_preferred_staff_id_fkey"
             columns: ["preferred_staff_id"]
             isOneToOne: false
+            referencedRelation: "public_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customers_preferred_staff_id_fkey"
+            columns: ["preferred_staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -1334,6 +1355,13 @@ export type Database = {
             columns: ["call_id"]
             isOneToOne: false
             referencedRelation: "calls_log"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_recipient_staff_id_fkey"
+            columns: ["recipient_staff_id"]
+            isOneToOne: false
+            referencedRelation: "public_staff"
             referencedColumns: ["id"]
           },
           {
@@ -1935,6 +1963,13 @@ export type Database = {
             foreignKeyName: "fk_staff_account"
             columns: ["staff_id"]
             isOneToOne: true
+            referencedRelation: "public_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_staff_account"
+            columns: ["staff_id"]
+            isOneToOne: true
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -2056,6 +2091,13 @@ export type Database = {
             foreignKeyName: "staff_memberships_linked_staff_id_fkey"
             columns: ["linked_staff_id"]
             isOneToOne: false
+            referencedRelation: "public_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_memberships_linked_staff_id_fkey"
+            columns: ["linked_staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -2086,6 +2128,13 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_services_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "public_staff"
             referencedColumns: ["id"]
           },
           {
@@ -2169,6 +2218,13 @@ export type Database = {
             foreignKeyName: "staff_tasks_assigned_to_staff_id_fkey"
             columns: ["assigned_to_staff_id"]
             isOneToOne: false
+            referencedRelation: "public_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_tasks_assigned_to_staff_id_fkey"
+            columns: ["assigned_to_staff_id"]
+            isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
           },
@@ -2245,6 +2301,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_staff_timeoff"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "public_staff"
             referencedColumns: ["id"]
           },
           {
@@ -2425,6 +2488,54 @@ export type Database = {
           website?: string | null
         }
         Relationships: []
+      }
+      public_staff: {
+        Row: {
+          ai_enabled: boolean | null
+          business_id: string | null
+          chair: string | null
+          color: string | null
+          id: string | null
+          name: string | null
+          title: string | null
+          working_hours: Json | null
+        }
+        Insert: {
+          ai_enabled?: boolean | null
+          business_id?: string | null
+          chair?: string | null
+          color?: string | null
+          id?: string | null
+          name?: string | null
+          title?: string | null
+          working_hours?: Json | null
+        }
+        Update: {
+          ai_enabled?: boolean | null
+          business_id?: string | null
+          chair?: string | null
+          color?: string | null
+          id?: string | null
+          name?: string | null
+          title?: string | null
+          working_hours?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
