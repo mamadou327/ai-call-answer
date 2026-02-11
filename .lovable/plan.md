@@ -1,100 +1,33 @@
 
+# Fix: Replace Lovable Logo in Search Results with Aivia Logo
 
-## Goal
-Allow business owners to specify how their restaurant name should be pronounced by the AI voice assistant, fixing mispronunciation issues for non-English or unusual names.
+## Why This Happens
+Google search results show a **favicon** next to your site URL. Your site has two favicon files:
+- `public/favicon.png` — likely your Aivia logo (referenced in HTML)
+- `public/favicon.ico` — likely the **default Lovable logo** that Google is picking up
 
-## The Problem
-When the AI says the business name (e.g., "Thanks for calling [Restaurant Name]"), it may mispronounce it because:
-- The name has a non-English origin (French, Italian, etc.)
-- The spelling doesn't match the pronunciation
-- It's a unique or creative name
+Google's crawler often prefers the `.ico` file at the root, which is why the Lovable logo appears instead of Aivia's.
 
-Currently there's no way for business owners to guide the AI on pronunciation.
+Additionally, the `og:image` meta tag in `index.html` points to `/favicon.jpg`, which doesn't exist.
 
-## Solution
-Add a **"Phonetic Name"** field in the AI Settings that lets the business owner write out how their name should be pronounced. The AI prompts will use this phonetic version when speaking, while the actual business name is used for display purposes.
+## What Needs to Change
 
-**Example:**
-- Business Name: "Phở Việt Nam"
-- Phonetic Name: "Fuh Vee-et Nahm"
+### 1. Replace `favicon.ico` with Aivia branding
+- Convert the Aivia logo (`public/favicon.png`) into a proper `.ico` format and replace `public/favicon.ico`
+- Alternatively, since you already have `favicon.png` set up, we can ensure the `.ico` file is also the Aivia logo by copying the PNG over it
 
-The AI will say "Thanks for calling Fuh Vee-et Nahm" instead of trying to read the original spelling.
+### 2. Fix `og:image` meta tag
+- Update `index.html` to point `og:image` and `twitter:image` to `/favicon.png` (which actually exists) instead of `/favicon.jpg` (which does not exist)
 
-## Files to change
-
-### 1. Database: Add `business_name_phonetic` column
-Add a new column to `business_settings` table to store the phonetic pronunciation.
-
-### 2. `src/components/dashboard/settings/AISettingsTab.tsx`
-Add a new input field for "Phonetic Business Name" with:
-- Placeholder showing an example
-- Helper text explaining what it's for
-- The field saves to `business_name_phonetic` in `business_settings`
-
-### 3. `supabase/functions/twilio-media-stream/index.ts`
-When building the prompt, fetch the `business_name_phonetic` from business_settings and pass it to the prompt builders.
-
-### 4. All prompt builder files:
-- `prompts/restaurant-pickup-prompt.ts`
-- `prompts/restaurant-hybrid-prompt.ts`
-- `prompts/restaurant-dine-in-prompt.ts`
-- `prompts/salon-prompt.ts`
-
-For each, add a new parameter `businessNamePhonetic` and update the prompts to:
-- Use the phonetic name when the AI speaks (greeting, confirmations)
-- Add a note in the prompt telling the AI to pronounce the name as specified
-
-**Example prompt update:**
-```
-BUSINESS INFORMATION:
-- Name: ${businessName}
-${businessNamePhonetic ? `- SAY THE NAME AS: "${businessNamePhonetic}" (this is how to pronounce it)` : ""}
-```
-
-## UI Design (in AI Settings)
-```
-┌─────────────────────────────────────────────┐
-│ Phonetic Business Name                      │
-│ ┌─────────────────────────────────────────┐ │
-│ │ e.g., "Fuh Vee-et Nahm"                 │ │
-│ └─────────────────────────────────────────┘ │
-│ Write out how your business name should be  │
-│ pronounced. Leave blank if the spelling is  │
-│ straightforward.                            │
-└─────────────────────────────────────────────┘
-```
+### 3. Wait for Google to re-crawl
+- After publishing, it can take **days to weeks** for Google to update the favicon in search results
+- You can speed this up by requesting a re-crawl via [Google Search Console](https://search.google.com/search-console)
 
 ## Technical Details
 
-### Database migration:
-```sql
-ALTER TABLE business_settings 
-ADD COLUMN IF NOT EXISTS business_name_phonetic TEXT;
-```
+**File: `index.html`**
+- Change `<meta property="og:image" content="/favicon.jpg" />` to `<meta property="og:image" content="/favicon.png" />`
+- Change `<meta name="twitter:image" content="/favicon.jpg" />` to `<meta name="twitter:image" content="/favicon.png" />`
 
-### Prompt interface update:
-```typescript
-interface RestaurantPickupPromptData {
-  businessName: string;
-  businessNamePhonetic?: string;  // NEW
-  // ... other fields
-}
-```
-
-### Prompt usage:
-```typescript
-// In the system prompt:
-BUSINESS INFORMATION:
-- Name: ${businessName}
-${businessNamePhonetic 
-  ? `- PRONUNCIATION: When saying the business name aloud, pronounce it as: "${businessNamePhonetic}"` 
-  : ""}
-```
-
-## Expected outcome
-After implementation:
-1. Business owner goes to Settings → AI Settings
-2. Enters their phonetic spelling (e.g., "Peet-zuh Nah-poh-lee" for "Pizza Napoli")
-3. When AI answers calls, it pronounces the name correctly
-4. The actual business name still appears correctly in the dashboard, confirmations, etc.
-
+**File: `public/favicon.ico`**
+- Replace with the Aivia logo so that any crawler requesting `/favicon.ico` gets the correct branding
