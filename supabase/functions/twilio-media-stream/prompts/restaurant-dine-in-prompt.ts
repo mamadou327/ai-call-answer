@@ -42,6 +42,7 @@ export function buildRestaurantDineInSystemPrompt(data: RestaurantDineInPromptDa
     restaurantSettings,
     callerInfo,
     openingContext,
+    recentCallContext,
   } = data;
 
   // Format opening hours
