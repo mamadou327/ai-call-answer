@@ -4984,7 +4984,7 @@ ${dataCollectionRules}${faqContext}`;
   };
 }
 
-async function getCallerInfo(supabase: any, businessId: string, callerPhone: string): Promise<CallerInfo> {
+async function getCallerInfo(supabase: any, businessId: string, callerPhone: string, currentCallSid?: string): Promise<CallerInfo> {
   if (!callerPhone) {
     return { isReturning: false };
   }
