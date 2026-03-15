@@ -129,6 +129,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         },
         callerInfo: params.callerInfo,
         openingContext: params.openingContext,
+        recentCallContext: params.recentCallContext,
       });
 
     case "restaurant_hybrid":
