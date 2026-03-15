@@ -22,6 +22,7 @@ interface RestaurantDineInPromptData {
   };
   callerInfo: any;
   openingContext?: string;
+  recentCallContext?: string;
 }
 
 export function buildRestaurantDineInSystemPrompt(data: RestaurantDineInPromptData): string {
