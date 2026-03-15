@@ -4856,6 +4856,16 @@ ${businessSettings?.business_name_phonetic ? `- PRONUNCIATION: When saying the b
 - Business Phone Number: ${businessPhoneForSpeech || "(not available)"}
 - ${callerContext}
 - Caller Phone: ${callerPhone} (use this for booking unless they request otherwise)
+${callerInfo.recentCallContext ? `
+═══════════════════════════════════════
+📞 RECENT CALL MEMORY (< 30 min ago)
+═══════════════════════════════════════
+The caller spoke with you very recently. Here's what was discussed:
+${callerInfo.recentCallContext}
+
+INSTRUCTIONS: Acknowledge naturally if the caller references the previous call.
+Do NOT repeat the entire summary — just use the context to help.
+` : ""}
 
 ## STAFF (⚠️ CHECK [CAN ONLY BOOK FOR:] BEFORE BOOKING - service must be listed or booking WILL FAIL):
 ${staffList}
