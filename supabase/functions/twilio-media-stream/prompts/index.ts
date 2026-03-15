@@ -21,7 +21,8 @@ interface PromptBuilderParams {
   openingHours: any[];
   businessSettings: any;
   callerInfo: any;
-  openingContext?: string; // New: context to naturally incorporate into greeting
+  openingContext?: string;
+  recentCallContext?: string;
   // Time context for AI awareness
   currentTime?: string;     // Current time in business timezone (e.g., "14:30")
   currentDate?: string;     // Full date (e.g., "14 January 2026")
