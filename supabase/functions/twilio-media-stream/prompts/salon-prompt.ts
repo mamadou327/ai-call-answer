@@ -43,6 +43,7 @@ export function buildSalonSystemPrompt(data: SalonPromptData): string {
     callerInfo,
     customerSettings,
     openingContext,
+    recentCallContext,
   } = data;
 
   // Format opening hours
