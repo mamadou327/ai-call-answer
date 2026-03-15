@@ -151,6 +151,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         restaurantSettings: params.restaurantSettings || getDefaultRestaurantSettings(),
         callerInfo: params.callerInfo,
         openingContext: params.openingContext,
+        recentCallContext: params.recentCallContext,
         currentTime: params.currentTime,
         currentDate: params.currentDate,
         currentDay: params.currentDay,
