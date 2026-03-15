@@ -5045,8 +5045,45 @@ async function getCallerInfo(supabase: any, businessId: string, callerPhone: str
       service: upcomingBooking.service?.name || "appointment",
       date: new Date(upcomingBooking.start_time).toLocaleDateString("en-GB"),
       time: formatTime(new Date(upcomingBooking.start_time))
-    } : undefined
+    } : undefined,
+    recentCallContext: await getRecentCallContext(supabase, businessId, callerPhone, normalizedPhone, currentCallSid)
   };
+}
+
+async function getRecentCallContext(supabase: any, businessId: string, callerPhone: string, normalizedPhone: string, currentCallSid?: string): Promise<string | undefined> {
+  try {
+    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    
+    let query = supabase
+      .from("call_conversations")
+      .select("messages, call_sid, created_at")
+      .eq("business_id", businessId)
+      .or(`caller_phone.ilike.%${normalizedPhone}%,caller_phone.eq.${callerPhone}`)
+      .gte("created_at", thirtyMinAgo)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    
+    if (currentCallSid) {
+      query = query.neq("call_sid", currentCallSid);
+    }
+    
+    const { data: recentCall } = await query.maybeSingle();
+    
+    if (!recentCall || !recentCall.messages || !Array.isArray(recentCall.messages) || recentCall.messages.length === 0) {
+      return undefined;
+    }
+    
+    // Take the last 8 messages for context
+    const recentMessages = recentCall.messages.slice(-8);
+    const summary = recentMessages
+      .map((msg: any) => `${msg.role === "user" ? "Caller" : "Assistant"}: ${msg.content}`)
+      .join("\n");
+    
+    return summary;
+  } catch (error) {
+    console.error("[MediaStream] Error fetching recent call context:", error);
+    return undefined;
+  }
 }
 
 async function logConversation(supabase: any, callSid: string, role: string, content: string) {
