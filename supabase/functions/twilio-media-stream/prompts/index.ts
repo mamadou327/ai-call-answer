@@ -180,6 +180,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         callerInfo: params.callerInfo,
         customerSettings: params.customerSettings || {},
         openingContext: params.openingContext,
+        recentCallContext: params.recentCallContext,
       });
   }
 }

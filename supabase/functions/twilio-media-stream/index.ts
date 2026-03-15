@@ -4948,6 +4948,7 @@ ${dataCollectionRules}${faqContext}`;
       tables,
       restaurantSettings,
       openingContext: businessSettings?.opening_context || undefined,
+      recentCallContext: callerInfo.recentCallContext,
       currentTime: restCurrentTime,
       currentDate: restCurrentDate,
       currentDay: restCurrentDay,
