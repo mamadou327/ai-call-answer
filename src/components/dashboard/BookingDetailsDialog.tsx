@@ -74,7 +74,7 @@ export const BookingDetailsDialog = ({ booking, open, onOpenChange, onDelete, is
     }
 
     // Set up polling interval while dialog is open for unpaid deposits
-    let intervalId: NodeJS.Timeout | null = null;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
     if (shouldPoll) {
       intervalId = setInterval(() => {
         handleCheckPaymentStatusRef.current?.(true);
