@@ -20,6 +20,7 @@ interface SalonPromptData {
   callerInfo: any;
   customerSettings: any;
   openingContext?: string;
+  recentCallContext?: string;
 }
 
 export function buildSalonSystemPrompt(data: SalonPromptData): string {
