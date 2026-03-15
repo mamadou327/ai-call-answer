@@ -31,6 +31,7 @@ interface RestaurantPickupPromptData {
   };
   callerInfo: any;
   openingContext?: string;
+  recentCallContext?: string;
   // Time context for AI awareness
   currentTime?: string;     // Current time in business timezone (e.g., "14:30")
   currentDate?: string;     // Full date (e.g., "14 January 2026")
@@ -278,6 +279,16 @@ CANCELLATION POLICY:
 ${refundInfo}
 ${openingContextSection}
 ${callerContext}
+${data.recentCallContext ? `
+═══════════════════════════════════════
+📞 RECENT CALL MEMORY (< 30 min ago)
+═══════════════════════════════════════
+The caller spoke with you very recently. Here's what was discussed:
+${data.recentCallContext}
+
+INSTRUCTIONS: Acknowledge naturally if the caller references the previous call.
+Do NOT repeat the entire summary — just use the context to help.
+` : ""}
 
 PROFESSIONAL ORDER TAKING FLOW:
 1. **GREETING** (warm and welcoming):

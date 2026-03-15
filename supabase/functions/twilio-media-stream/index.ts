@@ -262,6 +262,7 @@ interface CallerInfo {
     date: string;
     time: string;
   };
+  recentCallContext?: string;
 }
 
 // Start recording via Twilio REST API - called when call is in-progress
@@ -4239,7 +4240,7 @@ async function buildFullSystemPrompt(
   });
 
   // Get caller info
-  const callerInfo = await getCallerInfo(supabase, businessId, callerPhone);
+  const callerInfo = await getCallerInfo(supabase, businessId, callerPhone, session.callSid);
 
   // Create a map of service ID to name for display
   const serviceNameMap: Record<string, string> = {};
@@ -4855,6 +4856,16 @@ ${businessSettings?.business_name_phonetic ? `- PRONUNCIATION: When saying the b
 - Business Phone Number: ${businessPhoneForSpeech || "(not available)"}
 - ${callerContext}
 - Caller Phone: ${callerPhone} (use this for booking unless they request otherwise)
+${callerInfo.recentCallContext ? `
+═══════════════════════════════════════
+📞 RECENT CALL MEMORY (< 30 min ago)
+═══════════════════════════════════════
+The caller spoke with you very recently. Here's what was discussed:
+${callerInfo.recentCallContext}
+
+INSTRUCTIONS: Acknowledge naturally if the caller references the previous call.
+Do NOT repeat the entire summary — just use the context to help.
+` : ""}
 
 ## STAFF (⚠️ CHECK [CAN ONLY BOOK FOR:] BEFORE BOOKING - service must be listed or booking WILL FAIL):
 ${staffList}
@@ -4937,6 +4948,7 @@ ${dataCollectionRules}${faqContext}`;
       tables,
       restaurantSettings,
       openingContext: businessSettings?.opening_context || undefined,
+      recentCallContext: callerInfo.recentCallContext,
       currentTime: restCurrentTime,
       currentDate: restCurrentDate,
       currentDay: restCurrentDay,
@@ -4973,7 +4985,7 @@ ${dataCollectionRules}${faqContext}`;
   };
 }
 
-async function getCallerInfo(supabase: any, businessId: string, callerPhone: string): Promise<CallerInfo> {
+async function getCallerInfo(supabase: any, businessId: string, callerPhone: string, currentCallSid?: string): Promise<CallerInfo> {
   if (!callerPhone) {
     return { isReturning: false };
   }
@@ -5034,8 +5046,45 @@ async function getCallerInfo(supabase: any, businessId: string, callerPhone: str
       service: upcomingBooking.service?.name || "appointment",
       date: new Date(upcomingBooking.start_time).toLocaleDateString("en-GB"),
       time: formatTime(new Date(upcomingBooking.start_time))
-    } : undefined
+    } : undefined,
+    recentCallContext: await getRecentCallContext(supabase, businessId, callerPhone, normalizedPhone, currentCallSid)
   };
+}
+
+async function getRecentCallContext(supabase: any, businessId: string, callerPhone: string, normalizedPhone: string, currentCallSid?: string): Promise<string | undefined> {
+  try {
+    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    
+    let query = supabase
+      .from("call_conversations")
+      .select("messages, call_sid, created_at")
+      .eq("business_id", businessId)
+      .or(`caller_phone.ilike.%${normalizedPhone}%,caller_phone.eq.${callerPhone}`)
+      .gte("created_at", thirtyMinAgo)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    
+    if (currentCallSid) {
+      query = query.neq("call_sid", currentCallSid);
+    }
+    
+    const { data: recentCall } = await query.maybeSingle();
+    
+    if (!recentCall || !recentCall.messages || !Array.isArray(recentCall.messages) || recentCall.messages.length === 0) {
+      return undefined;
+    }
+    
+    // Take the last 8 messages for context
+    const recentMessages = recentCall.messages.slice(-8);
+    const summary = recentMessages
+      .map((msg: any) => `${msg.role === "user" ? "Caller" : "Assistant"}: ${msg.content}`)
+      .join("\n");
+    
+    return summary;
+  } catch (error) {
+    console.error("[MediaStream] Error fetching recent call context:", error);
+    return undefined;
+  }
 }
 
 async function logConversation(supabase: any, callSid: string, role: string, content: string) {

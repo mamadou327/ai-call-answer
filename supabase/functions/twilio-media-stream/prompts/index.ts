@@ -21,7 +21,8 @@ interface PromptBuilderParams {
   openingHours: any[];
   businessSettings: any;
   callerInfo: any;
-  openingContext?: string; // New: context to naturally incorporate into greeting
+  openingContext?: string;
+  recentCallContext?: string;
   // Time context for AI awareness
   currentTime?: string;     // Current time in business timezone (e.g., "14:30")
   currentDate?: string;     // Full date (e.g., "14 January 2026")
@@ -76,6 +77,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         callerInfo: params.callerInfo,
         customerSettings: params.customerSettings || {},
         openingContext: params.openingContext,
+        recentCallContext: params.recentCallContext,
       });
 
     case "restaurant_pickup":
@@ -98,6 +100,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         restaurantSettings: params.restaurantSettings || getDefaultRestaurantSettings(),
         callerInfo: params.callerInfo,
         openingContext: params.openingContext,
+        recentCallContext: params.recentCallContext,
         currentTime: params.currentTime,
         currentDate: params.currentDate,
         currentDay: params.currentDay,
@@ -126,6 +129,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         },
         callerInfo: params.callerInfo,
         openingContext: params.openingContext,
+        recentCallContext: params.recentCallContext,
       });
 
     case "restaurant_hybrid":
@@ -147,6 +151,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         restaurantSettings: params.restaurantSettings || getDefaultRestaurantSettings(),
         callerInfo: params.callerInfo,
         openingContext: params.openingContext,
+        recentCallContext: params.recentCallContext,
         currentTime: params.currentTime,
         currentDate: params.currentDate,
         currentDay: params.currentDay,
@@ -175,6 +180,7 @@ export function buildSystemPromptForBusinessType(params: PromptBuilderParams): s
         callerInfo: params.callerInfo,
         customerSettings: params.customerSettings || {},
         openingContext: params.openingContext,
+        recentCallContext: params.recentCallContext,
       });
   }
 }
