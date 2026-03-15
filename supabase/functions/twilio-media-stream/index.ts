@@ -4240,7 +4240,7 @@ async function buildFullSystemPrompt(
   });
 
   // Get caller info
-  const callerInfo = await getCallerInfo(supabase, businessId, callerPhone);
+  const callerInfo = await getCallerInfo(supabase, businessId, callerPhone, session.callSid);
 
   // Create a map of service ID to name for display
   const serviceNameMap: Record<string, string> = {};
