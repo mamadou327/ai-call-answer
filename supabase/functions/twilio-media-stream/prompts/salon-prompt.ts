@@ -174,10 +174,16 @@ BOOKING RULES:
 - Cancellation policy: ${cancellationPolicy}
 ${openingContextSection}
 ${callerContext}
-- Cancellation notice required: ${businessSettings?.min_cancellation_notice_hours || 24} hours
-- Cancellation policy: ${cancellationPolicy}
+${recentCallContext ? `
+═══════════════════════════════════════
+📞 RECENT CALL MEMORY (< 30 min ago)
+═══════════════════════════════════════
+The caller spoke with you very recently. Here's what was discussed:
+${recentCallContext}
 
-${callerContext}
+INSTRUCTIONS: Acknowledge naturally if the caller references the previous call.
+Do NOT repeat the entire summary — just use the context to help.
+` : ""}
 
 CRITICAL RULES:
 1. ALWAYS use check_availability tool BEFORE confirming any time is available

@@ -158,6 +158,16 @@ RESERVATION POLICY:
 ${cancellationInfo}
 ${openingContextSection}
 ${callerContext}
+${recentCallContext ? `
+═══════════════════════════════════════
+📞 RECENT CALL MEMORY (< 30 min ago)
+═══════════════════════════════════════
+The caller spoke with you very recently. Here's what was discussed:
+${recentCallContext}
+
+INSTRUCTIONS: Acknowledge naturally if the caller references the previous call.
+Do NOT repeat the entire summary — just use the context to help.
+` : ""}
 
 RESERVATION FLOW:
 1. Greet the guest warmly
