@@ -612,7 +612,8 @@ Deno.serve(async (req) => {
             business.website_knowledge,
             session.businessType,
             session.restaurantSettings,
-            session.businessTimezone // Pass business timezone
+            session.businessTimezone, // Pass business timezone
+            session.callSid // Pass callSid for caller info lookup
           );
 
           session.systemPrompt = promptData.prompt;
@@ -4046,7 +4047,8 @@ async function buildFullSystemPrompt(
   websiteKnowledge: string | null,
   businessType: BusinessType,
   restaurantSettings: any,
-  businessTimezone: string = "Europe/London"
+  businessTimezone: string = "Europe/London",
+  callSid?: string
 ): Promise<PromptData> {
   const isRestaurant = businessType.startsWith("restaurant_");
   
@@ -4246,7 +4248,7 @@ async function buildFullSystemPrompt(
   });
 
   // Get caller info
-  const callerInfo = await getCallerInfo(supabase, businessId, callerPhone, session.callSid);
+  const callerInfo = await getCallerInfo(supabase, businessId, callerPhone, callSid);
 
   // Create a map of service ID to name for display
   const serviceNameMap: Record<string, string> = {};
