@@ -612,7 +612,8 @@ Deno.serve(async (req) => {
             business.website_knowledge,
             session.businessType,
             session.restaurantSettings,
-            session.businessTimezone // Pass business timezone
+            session.businessTimezone, // Pass business timezone
+            session.callSid // Pass callSid for caller info lookup
           );
 
           session.systemPrompt = promptData.prompt;
