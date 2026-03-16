@@ -5067,6 +5067,7 @@ async function getCallerInfo(supabase: any, businessId: string, callerPhone: str
     totalVisits: customer.total_visits,
     preferredStaff: customer.preferred_staff?.name,
     preferredStaffId: customer.preferred_staff?.id,
+    preferredLanguage: customer.preferred_language || undefined,
     lastBooking: lastBooking ? {
       service: lastBooking.service?.name || "appointment",
       serviceId: lastBooking.service?.id,
