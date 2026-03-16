@@ -4990,6 +4990,34 @@ ${dataCollectionRules}${faqContext}`;
   };
 }
 
+async function executeUpdateCustomerLanguage(supabase: any, session: StreamSession, args: any): Promise<any> {
+  const { detected_language } = args;
+  if (!detected_language) {
+    return { success: false, message: "No language provided" };
+  }
+
+  const normalizedPhone = session.callerPhone.replace(/\D/g, "").slice(-10);
+  
+  try {
+    const { error } = await supabase
+      .from("customers")
+      .update({ preferred_language: detected_language })
+      .eq("business_id", session.businessId)
+      .or(`phone.ilike.%${normalizedPhone}%,phone.eq.${session.callerPhone}`);
+
+    if (error) {
+      console.error("[MediaStream] Error updating customer language:", error);
+      return { success: false, message: "Could not update language preference" };
+    }
+
+    console.log(`[MediaStream] Updated customer language to: ${detected_language}`);
+    return { success: true, message: `Language preference saved: ${detected_language}` };
+  } catch (err) {
+    console.error("[MediaStream] Error in executeUpdateCustomerLanguage:", err);
+    return { success: false, message: "Error updating language" };
+  }
+}
+
 async function getCallerInfo(supabase: any, businessId: string, callerPhone: string, currentCallSid?: string): Promise<CallerInfo> {
   if (!callerPhone) {
     return { isReturning: false };
@@ -4997,10 +5025,10 @@ async function getCallerInfo(supabase: any, businessId: string, callerPhone: str
 
   const normalizedPhone = callerPhone.replace(/\D/g, "").slice(-10);
   
-  // Try to find customer by phone
+  // Try to find customer by phone (include preferred_language)
   const { data: customer } = await supabase
     .from("customers")
-    .select("id, name, total_visits, preferred_staff_id, preferred_staff:preferred_staff_id(id, name)")
+    .select("id, name, total_visits, preferred_staff_id, preferred_language, preferred_staff:preferred_staff_id(id, name)")
     .eq("business_id", businessId)
     .or(`phone.ilike.%${normalizedPhone}%,phone.eq.${callerPhone}`)
     .limit(1)
