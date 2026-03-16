@@ -858,6 +858,7 @@ export type Database = {
           name: string
           notes_preferences: string | null
           phone: string | null
+          preferred_language: string | null
           preferred_staff_id: string | null
           total_visits: number
           updated_at: string
@@ -876,6 +877,7 @@ export type Database = {
           name: string
           notes_preferences?: string | null
           phone?: string | null
+          preferred_language?: string | null
           preferred_staff_id?: string | null
           total_visits?: number
           updated_at?: string
@@ -894,6 +896,7 @@ export type Database = {
           name?: string
           notes_preferences?: string | null
           phone?: string | null
+          preferred_language?: string | null
           preferred_staff_id?: string | null
           total_visits?: number
           updated_at?: string

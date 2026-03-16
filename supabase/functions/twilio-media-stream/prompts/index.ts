@@ -204,6 +204,18 @@ export function getToolsForBusinessType(businessType: BusinessType): any[] {
   const commonTools = [
     {
       type: "function",
+      name: "update_customer_language",
+      description: "Log the detected language of the caller for future calls. Call this once after detecting the caller's language.",
+      parameters: {
+        type: "object",
+        properties: {
+          detected_language: { type: "string", description: "The language the caller is speaking (e.g., English, Spanish, French, Arabic, etc.)" },
+        },
+        required: ["detected_language"],
+      },
+    },
+    {
+      type: "function",
       name: "leave_message",
       description: "Leave a message for the business.",
       parameters: {

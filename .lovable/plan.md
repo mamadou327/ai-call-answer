@@ -1,51 +1,33 @@
 
+# Fix: Replace Lovable Logo in Search Results with Aivia Logo
 
-# Fix Multilingual Claims — Implementation Plan
+## Why This Happens
+Google search results show a **favicon** next to your site URL. Your site has two favicon files:
+- `public/favicon.png` — likely your Aivia logo (referenced in HTML)
+- `public/favicon.ico` — likely the **default Lovable logo** that Google is picking up
 
-## Problem
-Your LinkedIn posts claim AIVIA can detect a caller's language and switch mid-conversation, plus log language preference to CRM. Currently, OpenAI Realtime *can* handle multiple languages naturally, but AIVIA has no explicit instructions to do so, and there's no language tracking in the database.
+Google's crawler often prefers the `.ico` file at the root, which is why the Lovable logo appears instead of Aivia's.
 
-## Changes
+Additionally, the `og:image` meta tag in `index.html` points to `/favicon.jpg`, which doesn't exist.
 
-### 1. Add `preferred_language` column to `customers` table
-- Database migration: `ALTER TABLE customers ADD COLUMN preferred_language text;`
-- No RLS changes needed (existing policies cover it)
+## What Needs to Change
 
-### 2. Add multilingual instructions to all 4 prompt builders
-In each prompt file (salon, restaurant-pickup, restaurant-dine-in, restaurant-hybrid), add a `MULTILINGUAL SUPPORT` block to the system prompt instructing the AI to:
-- Detect the caller's language from their first few words
-- Respond in that same language automatically
-- If the caller switches language mid-call, switch with them seamlessly
-- Never ask "what language do you speak?" — just detect and match
-- Use the business's `primary_language` setting as the default/fallback
+### 1. Replace `favicon.ico` with Aivia branding
+- Convert the Aivia logo (`public/favicon.png`) into a proper `.ico` format and replace `public/favicon.ico`
+- Alternatively, since you already have `favicon.png` set up, we can ensure the `.ico` file is also the Aivia logo by copying the PNG over it
 
-### 3. Add `update_customer_language` tool to tool definitions
-Add a new function tool in `prompts/index.ts` → `getToolsForBusinessType()` as a common tool (all business types):
-```
-name: "update_customer_language"
-description: "Log the detected language of the caller"
-parameters: { detected_language: string }
-```
+### 2. Fix `og:image` meta tag
+- Update `index.html` to point `og:image` and `twitter:image` to `/favicon.png` (which actually exists) instead of `/favicon.jpg` (which does not exist)
 
-### 4. Handle the tool call in `index.ts`
-In the function call handler section, add a case for `update_customer_language` that updates the `customers` table:
-```sql
-UPDATE customers SET preferred_language = $1 
-WHERE business_id = $2 AND phone = $3
-```
+### 3. Wait for Google to re-crawl
+- After publishing, it can take **days to weeks** for Google to update the favicon in search results
+- You can speed this up by requesting a re-crawl via [Google Search Console](https://search.google.com/search-console)
 
-### 5. Inject known language preference into caller context
-When `getCallerInfo` finds an existing customer with `preferred_language` set, include it in the caller info. The prompt will instruct the AI to greet in that language by default.
+## Technical Details
 
-## Files Modified
-- `supabase/functions/twilio-media-stream/index.ts` — tool handler + caller info query
-- `supabase/functions/twilio-media-stream/prompts/index.ts` — new common tool
-- `supabase/functions/twilio-media-stream/prompts/salon-prompt.ts` — multilingual block
-- `supabase/functions/twilio-media-stream/prompts/restaurant-pickup-prompt.ts` — same
-- `supabase/functions/twilio-media-stream/prompts/restaurant-dine-in-prompt.ts` — same
-- `supabase/functions/twilio-media-stream/prompts/restaurant-hybrid-prompt.ts` — same
-- Database migration: add `preferred_language` to `customers`
+**File: `index.html`**
+- Change `<meta property="og:image" content="/favicon.jpg" />` to `<meta property="og:image" content="/favicon.png" />`
+- Change `<meta name="twitter:image" content="/favicon.jpg" />` to `<meta name="twitter:image" content="/favicon.png" />`
 
-## Result
-After this, AIVIA will genuinely detect caller language, respond in it, switch mid-conversation, and persist the preference for future calls — making all your LinkedIn claims fully true.
-
+**File: `public/favicon.ico`**
+- Replace with the Aivia logo so that any crawler requesting `/favicon.ico` gets the correct branding
