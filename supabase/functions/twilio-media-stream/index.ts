@@ -1672,6 +1672,11 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
       case "cancel_reservation":
         result = await executeCancelReservation(supabase, session, args);
         break;
+      
+      // Common tools
+      case "update_customer_language":
+        result = await executeUpdateCustomerLanguage(supabase, session, args);
+        break;
     }
   } catch (error) {
     console.error("[MediaStream] Tool execution error:", error);
