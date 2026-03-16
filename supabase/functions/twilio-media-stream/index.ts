@@ -263,6 +263,7 @@ interface CallerInfo {
     time: string;
   };
   recentCallContext?: string;
+  preferredLanguage?: string;
 }
 
 // Start recording via Twilio REST API - called when call is in-progress
