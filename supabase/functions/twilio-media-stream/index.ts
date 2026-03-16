@@ -4046,7 +4046,8 @@ async function buildFullSystemPrompt(
   websiteKnowledge: string | null,
   businessType: BusinessType,
   restaurantSettings: any,
-  businessTimezone: string = "Europe/London"
+  businessTimezone: string = "Europe/London",
+  callSid?: string
 ): Promise<PromptData> {
   const isRestaurant = businessType.startsWith("restaurant_");
   
