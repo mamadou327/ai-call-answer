@@ -91,6 +91,7 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
     category_id: "",
     preparation_time_minutes: "15",
     dietary_tags: [] as string[],
+    allergens: [] as string[],
     is_available: true,
     has_sizes: false,
     sizes: [] as { name: string; price: string; is_default: boolean }[],
