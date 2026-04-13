@@ -405,6 +405,7 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
         category_id: itemForm.category_id || null,
         preparation_time_minutes: parseInt(itemForm.preparation_time_minutes) || 15,
         dietary_tags: itemForm.dietary_tags,
+        allergens: itemForm.allergens,
         is_available: itemForm.is_available,
         has_sizes: itemForm.has_sizes,
         image_url: itemForm.image_url || null,
