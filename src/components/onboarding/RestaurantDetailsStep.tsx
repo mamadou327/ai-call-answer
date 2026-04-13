@@ -23,6 +23,7 @@ interface RestaurantDetailsStepProps {
     minimumOrderAmount: number;
     refundPolicy: string;
     refundWindowHours: number;
+    reservationPlatform?: string;
   };
   updateFormData: (updates: any) => void;
   onNext: () => void;
@@ -79,6 +80,7 @@ const RestaurantDetailsStep = ({
           minimum_order_amount: formData.minimumOrderAmount || null,
           refund_policy: formData.refundPolicy || "full_refund",
           refund_window_hours: formData.refundWindowHours || 2,
+          reservation_platform: formData.reservationPlatform || "none",
         })
         .eq("id", businessId);
 
