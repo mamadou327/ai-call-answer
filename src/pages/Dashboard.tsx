@@ -552,7 +552,18 @@ const Dashboard = () => {
                   <TabsContent value="messages">
                     <MessagesTab businessId={business.id} isDemoMode={isDemoMode} businessType={business.business_type} />
                   </TabsContent>
+
+                  <TabsContent value="missed-calls">
+                    <MissedCallsTab businessId={business.id} />
+                  </TabsContent>
                 </>}
+
+              {/* Fallback reservations for restaurants using external platforms */}
+              {business.reservation_platform && business.reservation_platform !== "none" && (
+                <TabsContent value="fallback-reservations">
+                  <FallbackReservationsTab businessId={business.id} reservationPlatform={business.reservation_platform} />
+                </TabsContent>
+              )}
 
               {!isStaffView && <TabsContent value="settings">
                   <SettingsTab businessId={business.id} business={business} activeSection={activeSettingsSection} onUpdate={handleSettingsUpdate} currency={settings?.currency || "GBP"} />
