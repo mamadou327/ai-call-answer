@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import FeaturesDialog from "./FeaturesDialog";
 import PricingDialog from "./PricingDialog";
@@ -85,8 +86,24 @@ const Footer = ({ onFaqClick }: FooterProps) => {
                     onClick={handleFaqClick}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    FAQ
-                  </button>
+                  FAQ
+                </button>
+                </li>
+                <li>
+                  <Link
+                    to="/privacy"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/terms"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Terms of Service
+                  </Link>
                 </li>
               </ul>
             </div>
