@@ -964,6 +964,30 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                     ))}
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label>Allergens</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {allergenOptions.map((allergen) => (
+                      <Badge
+                        key={allergen}
+                        variant={itemForm.allergens.includes(allergen) ? "destructive" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => {
+                          const current = itemForm.allergens;
+                          setItemForm({
+                            ...itemForm,
+                            allergens: current.includes(allergen)
+                              ? current.filter(a => a !== allergen)
+                              : [...current, allergen],
+                          });
+                        }}
+                      >
+                        {allergen}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Select all allergens present in this item</p>
+                </div>
                 <div className="flex items-center justify-between">
                   <Label>Available for ordering</Label>
                   <Switch
