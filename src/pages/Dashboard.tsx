@@ -485,6 +485,10 @@ const Dashboard = () => {
                         </span>
                       )}
                     </TabsTrigger>
+                    <TabsTrigger value="missed-calls" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                      <PhoneMissed className="w-4 h-4 shrink-0" />
+                      <span className="hidden sm:inline truncate">Missed</span>
+                    </TabsTrigger>
                   </>}
                 {!isStaffView && <TabsTrigger value="settings" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
                     <Settings className="w-4 h-4 shrink-0" />
