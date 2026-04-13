@@ -137,8 +137,34 @@ const RestaurantDetailsStep = ({
                   </SelectItem>
                 ))}
               </SelectContent>
-            </Select>
+          </Select>
           </div>
+
+          {/* Reservation Platform */}
+          {showDineIn && (
+            <div className="space-y-2">
+              <Label>Current Reservation System</Label>
+              <Select
+                value={formData.reservationPlatform || "none"}
+                onValueChange={(value) => updateFormData({ reservationPlatform: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your current system" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None — I'll use AIVIA</SelectItem>
+                  <SelectItem value="opentable">OpenTable</SelectItem>
+                  <SelectItem value="sevenrooms">SevenRooms</SelectItem>
+                  <SelectItem value="resy">Resy</SelectItem>
+                  <SelectItem value="tock">Tock</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                If you use an external system, AIVIA will capture reservations and notify you to enter them manually
+              </p>
+            </div>
+          )
 
           {/* Menu Link */}
           <div className="space-y-2">
