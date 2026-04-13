@@ -164,7 +164,7 @@ const RestaurantDetailsStep = ({
                 If you use an external system, AIVIA will capture reservations and notify you to enter them manually
               </p>
             </div>
-          )
+          )}
 
           {/* Menu Link */}
           <div className="space-y-2">
