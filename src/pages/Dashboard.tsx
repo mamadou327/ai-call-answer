@@ -40,6 +40,7 @@ interface Business {
   owner_id: string;
   business_type: string | null;
   average_prep_time_minutes?: number | null;
+  reservation_platform?: string | null;
 }
 const Dashboard = () => {
   const navigate = useNavigate();
