@@ -482,6 +482,7 @@ export type Database = {
           refund_policy: string | null
           refund_window_hours: number | null
           require_prepayment: boolean | null
+          reservation_platform: string | null
           secondary_phone: string | null
           sms_on_cancellation: boolean
           sms_on_confirmation: boolean
@@ -549,6 +550,7 @@ export type Database = {
           refund_policy?: string | null
           refund_window_hours?: number | null
           require_prepayment?: boolean | null
+          reservation_platform?: string | null
           secondary_phone?: string | null
           sms_on_cancellation?: boolean
           sms_on_confirmation?: boolean
@@ -616,6 +618,7 @@ export type Database = {
           refund_policy?: string | null
           refund_window_hours?: number | null
           require_prepayment?: boolean | null
+          reservation_platform?: string | null
           secondary_phone?: string | null
           sms_on_cancellation?: boolean
           sms_on_confirmation?: boolean
@@ -974,6 +977,88 @@ export type Database = {
         }
         Relationships: []
       }
+      fallback_reservations: {
+        Row: {
+          allergen_info: string | null
+          business_id: string
+          call_id: string | null
+          created_at: string
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          duration_minutes: number | null
+          entered_at: string | null
+          id: string
+          notes: string | null
+          notified_at: string | null
+          party_size: number
+          reservation_time: string
+          special_requests: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          allergen_info?: string | null
+          business_id: string
+          call_id?: string | null
+          created_at?: string
+          customer_email?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          duration_minutes?: number | null
+          entered_at?: string | null
+          id?: string
+          notes?: string | null
+          notified_at?: string | null
+          party_size?: number
+          reservation_time: string
+          special_requests?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          allergen_info?: string | null
+          business_id?: string
+          call_id?: string | null
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          duration_minutes?: number | null
+          entered_at?: string | null
+          id?: string
+          notes?: string | null
+          notified_at?: string | null
+          party_size?: number
+          reservation_time?: string
+          special_requests?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fallback_reservations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fallback_reservations_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fallback_reservations_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls_log"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_categories: {
         Row: {
           business_id: string
@@ -1207,6 +1292,7 @@ export type Database = {
       menu_items: {
         Row: {
           ai_description: string | null
+          allergens: string[] | null
           business_id: string
           category_id: string | null
           common_aliases: string[] | null
@@ -1229,6 +1315,7 @@ export type Database = {
         }
         Insert: {
           ai_description?: string | null
+          allergens?: string[] | null
           business_id: string
           category_id?: string | null
           common_aliases?: string[] | null
@@ -1251,6 +1338,7 @@ export type Database = {
         }
         Update: {
           ai_description?: string | null
+          allergens?: string[] | null
           business_id?: string
           category_id?: string | null
           common_aliases?: string[] | null
@@ -1372,6 +1460,69 @@ export type Database = {
             columns: ["recipient_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      missed_calls: {
+        Row: {
+          business_id: string
+          call_sid: string | null
+          call_time: string
+          caller_name: string | null
+          caller_phone: string
+          created_at: string
+          followed_up: boolean
+          followed_up_at: string | null
+          id: string
+          notes: string | null
+          notified: boolean
+          notified_at: string | null
+          reason: string | null
+        }
+        Insert: {
+          business_id: string
+          call_sid?: string | null
+          call_time?: string
+          caller_name?: string | null
+          caller_phone: string
+          created_at?: string
+          followed_up?: boolean
+          followed_up_at?: string | null
+          id?: string
+          notes?: string | null
+          notified?: boolean
+          notified_at?: string | null
+          reason?: string | null
+        }
+        Update: {
+          business_id?: string
+          call_sid?: string | null
+          call_time?: string
+          caller_name?: string | null
+          caller_phone?: string
+          created_at?: string
+          followed_up?: boolean
+          followed_up_at?: string | null
+          id?: string
+          notes?: string | null
+          notified?: boolean
+          notified_at?: string | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "missed_calls_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "missed_calls_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
             referencedColumns: ["id"]
           },
         ]

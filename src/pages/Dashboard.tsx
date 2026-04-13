@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings, Package, CalendarDays, Menu } from "lucide-react";
+import { LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings, Package, CalendarDays, Menu, PhoneMissed, ExternalLink } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { useTranslation } from "react-i18next";
 import { SetupChecklist, type ChecklistItem } from "@/components/SetupChecklist";
@@ -16,6 +16,8 @@ import { CalendarTab } from "@/components/dashboard/CalendarTab";
 import { SettingsTab } from "@/components/dashboard/SettingsTab";
 import { OrdersTab } from "@/components/dashboard/OrdersTab";
 import { ReservationsTab } from "@/components/dashboard/ReservationsTab";
+import { FallbackReservationsTab } from "@/components/dashboard/FallbackReservationsTab";
+import { MissedCallsTab } from "@/components/dashboard/MissedCallsTab";
 import { AccountMenu } from "@/components/AccountMenu";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
@@ -38,6 +40,7 @@ interface Business {
   owner_id: string;
   business_type: string | null;
   average_prep_time_minutes?: number | null;
+  reservation_platform?: string | null;
 }
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -466,6 +469,13 @@ const Dashboard = () => {
                     </TabsTrigger>
                   </>
                 )}
+                {/* Fallback reservations tab for restaurants using external platforms */}
+                {business.reservation_platform && business.reservation_platform !== "none" && (
+                  <TabsTrigger value="fallback-reservations" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                    <ExternalLink className="w-4 h-4 shrink-0" />
+                    <span className="hidden sm:inline truncate">Forwarded</span>
+                  </TabsTrigger>
+                )}
 
                 {/* Calls tab for all business types (restaurants included) */}
                 {!isStaffView && <>
@@ -481,6 +491,10 @@ const Dashboard = () => {
                           {unreadMessagesCount > 99 ? "99+" : unreadMessagesCount}
                         </span>
                       )}
+                    </TabsTrigger>
+                    <TabsTrigger value="missed-calls" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                      <PhoneMissed className="w-4 h-4 shrink-0" />
+                      <span className="hidden sm:inline truncate">Missed</span>
                     </TabsTrigger>
                   </>}
                 {!isStaffView && <TabsTrigger value="settings" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
@@ -545,7 +559,18 @@ const Dashboard = () => {
                   <TabsContent value="messages">
                     <MessagesTab businessId={business.id} isDemoMode={isDemoMode} businessType={business.business_type} />
                   </TabsContent>
+
+                  <TabsContent value="missed-calls">
+                    <MissedCallsTab businessId={business.id} />
+                  </TabsContent>
                 </>}
+
+              {/* Fallback reservations for restaurants using external platforms */}
+              {business.reservation_platform && business.reservation_platform !== "none" && (
+                <TabsContent value="fallback-reservations">
+                  <FallbackReservationsTab businessId={business.id} reservationPlatform={business.reservation_platform} />
+                </TabsContent>
+              )}
 
               {!isStaffView && <TabsContent value="settings">
                   <SettingsTab businessId={business.id} business={business} activeSection={activeSettingsSection} onUpdate={handleSettingsUpdate} currency={settings?.currency || "GBP"} />

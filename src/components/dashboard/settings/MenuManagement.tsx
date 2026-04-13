@@ -39,6 +39,7 @@ interface MenuItem {
   dietary_tags: string[];
   display_order: number;
   image_url: string | null;
+  allergens?: string[];
   hasOptions?: boolean;
   optionsSummary?: string;
   has_sizes?: boolean;
@@ -63,6 +64,11 @@ const SIZE_PRESETS = [
 
 const dietaryOptions = ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "Kosher", "Dairy-Free", "Nut-Free"];
 
+const allergenOptions = [
+  "Nuts", "Peanuts", "Dairy", "Gluten", "Shellfish", "Eggs", "Soy", "Sesame",
+  "Fish", "Celery", "Mustard", "Sulphites", "Lupin", "Molluscs",
+];
+
 export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuManagementProps) => {
   const { toast } = useToast();
   const [categories, setCategories] = useState<MenuCategory[]>([]);
@@ -85,6 +91,7 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
     category_id: "",
     preparation_time_minutes: "15",
     dietary_tags: [] as string[],
+    allergens: [] as string[],
     is_available: true,
     has_sizes: false,
     sizes: [] as { name: string; price: string; is_default: boolean }[],
@@ -291,6 +298,7 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
         category_id: item.category_id || "",
         preparation_time_minutes: item.preparation_time_minutes.toString(),
         dietary_tags: item.dietary_tags || [],
+        allergens: item.allergens || [],
         is_available: item.is_available,
         has_sizes: item.has_sizes || false,
         sizes: formSizes,
@@ -305,6 +313,7 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
         category_id: categories[0]?.id || "",
         preparation_time_minutes: "15",
         dietary_tags: [],
+        allergens: [],
         is_available: true,
         has_sizes: false,
         sizes: [],
@@ -396,6 +405,7 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
         category_id: itemForm.category_id || null,
         preparation_time_minutes: parseInt(itemForm.preparation_time_minutes) || 15,
         dietary_tags: itemForm.dietary_tags,
+        allergens: itemForm.allergens,
         is_available: itemForm.is_available,
         has_sizes: itemForm.has_sizes,
         image_url: itemForm.image_url || null,
@@ -953,6 +963,30 @@ export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuM
                       </Badge>
                     ))}
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Allergens</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {allergenOptions.map((allergen) => (
+                      <Badge
+                        key={allergen}
+                        variant={itemForm.allergens.includes(allergen) ? "destructive" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => {
+                          const current = itemForm.allergens;
+                          setItemForm({
+                            ...itemForm,
+                            allergens: current.includes(allergen)
+                              ? current.filter(a => a !== allergen)
+                              : [...current, allergen],
+                          });
+                        }}
+                      >
+                        {allergen}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Select all allergens present in this item</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <Label>Available for ordering</Label>
