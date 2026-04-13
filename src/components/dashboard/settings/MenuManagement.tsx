@@ -39,6 +39,7 @@ interface MenuItem {
   dietary_tags: string[];
   display_order: number;
   image_url: string | null;
+  allergens?: string[];
   hasOptions?: boolean;
   optionsSummary?: string;
   has_sizes?: boolean;
@@ -62,6 +63,11 @@ const SIZE_PRESETS = [
 ];
 
 const dietaryOptions = ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "Kosher", "Dairy-Free", "Nut-Free"];
+
+const allergenOptions = [
+  "Nuts", "Peanuts", "Dairy", "Gluten", "Shellfish", "Eggs", "Soy", "Sesame",
+  "Fish", "Celery", "Mustard", "Sulphites", "Lupin", "Molluscs",
+];
 
 export const MenuManagement = ({ businessId, onUpdate, currency = "GBP" }: MenuManagementProps) => {
   const { toast } = useToast();
