@@ -17,6 +17,11 @@ if (!ELEVENLABS_API_KEY) {
   );
 }
 
+console.log(
+  "[MediaStream] Boot — ElevenLabs integration build 2026-04-21, ELEVENLABS_API_KEY present:",
+  !!ELEVENLABS_API_KEY
+);
+
 // Supported OpenAI Realtime voices
 const OPENAI_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"];
 
