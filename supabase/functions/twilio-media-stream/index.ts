@@ -458,7 +458,7 @@ Deno.serve(async (req) => {
   const { data: settings } = await supabase
     .from("business_settings")
     .select(
-      "assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id, opening_context, country"
+      "assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id, opening_context, country, use_elevenlabs_voice"
     )
     .eq("business_id", business.id)
     .maybeSingle();
@@ -470,10 +470,31 @@ Deno.serve(async (req) => {
   const selectedVoice = settings?.elevenlabs_voice_id;
   const businessTimezone = getTimezoneForCountry(settings?.country);
 
-  // Use selected OpenAI voice, or fallback to gender-based default
+  // Use selected OpenAI voice, or fallback to gender-based default.
+  // The same `elevenlabs_voice_id` column is reused for both providers — for
+  // the OpenAI path we only accept it if it's a valid OpenAI voice id.
   const openAiVoice = selectedVoice && OPENAI_VOICES.includes(selectedVoice) 
     ? selectedVoice 
     : (voiceGender === "male" ? "ash" : "coral");
+
+  // Premium voice routing. We default OFF and auto-fall-back to the OpenAI
+  // path if the API key is missing so a misconfigured business never drops
+  // a call.
+  const useElevenLabsRequested = settings?.use_elevenlabs_voice === true;
+  const useElevenLabs = useElevenLabsRequested && !!ELEVENLABS_API_KEY;
+  if (useElevenLabsRequested && !ELEVENLABS_API_KEY) {
+    console.error(
+      "[MediaStream] use_elevenlabs_voice is ON for business but ELEVENLABS_API_KEY missing — falling back to OpenAI voice"
+    );
+  }
+  // For ElevenLabs, accept whatever voice id the business chose. If it
+  // happens to also be a valid OpenAI voice id, fall back to a sensible
+  // default ElevenLabs voice instead.
+  const elevenLabsVoiceId = useElevenLabs
+    ? (selectedVoice && !OPENAI_VOICES.includes(selectedVoice)
+        ? selectedVoice
+        : DEFAULT_ELEVENLABS_VOICE_ID)
+    : null;
 
   // Upgrade to WebSocket
   const { socket: twilioWs, response } = Deno.upgradeWebSocket(req);
@@ -556,7 +577,19 @@ Deno.serve(async (req) => {
     lastPickupOrderNumber: null,
     lastPickupOrderId: null,
     lastPickupGuardTriggeredAt: null,
+
+    // Premium voice (ElevenLabs Flash v2.5)
+    useElevenLabs,
+    elevenLabsVoiceId,
+    elevenLabs: null,
   };
+
+  if (useElevenLabs) {
+    console.log("[MediaStream] Premium voice ENABLED for business", {
+      businessId: business.id,
+      voiceId: elevenLabsVoiceId,
+    });
+  }
 
   twilioWs.onopen = () => {
     console.log("[MediaStream] Twilio WebSocket connected");
