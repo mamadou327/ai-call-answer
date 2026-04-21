@@ -1594,6 +1594,87 @@ async function summarizeAndPrune(session: StreamSession, supabase: any): Promise
   }
 }
 
+// ============================================================================
+// ELEVENLABS PREMIUM VOICE HELPERS
+// ============================================================================
+// These two helpers own the lifecycle of the per-session ElevenLabs WS so
+// the OpenAI text->TTS pipeline never leaks across calls. They are no-ops
+// when session.useElevenLabs is false.
+
+function initializeElevenLabsAdapter(session: StreamSession): void {
+  if (!session.useElevenLabs || session.elevenLabs || !ELEVENLABS_API_KEY || !session.elevenLabsVoiceId) {
+    return;
+  }
+  console.log("[MediaStream] Initializing ElevenLabs Flash v2.5 adapter", {
+    voiceId: session.elevenLabsVoiceId,
+    callSid: session.callSid,
+  });
+
+  session.elevenLabs = new ElevenLabsTTS({
+    apiKey: ELEVENLABS_API_KEY,
+    voiceId: session.elevenLabsVoiceId,
+    onAudioChunk: (base64Payload) => {
+      // Forward μ-law 8kHz audio chunks to Twilio in the same envelope the
+      // OpenAI audio path uses.
+      if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
+        try {
+          session.twilioWs.send(JSON.stringify({
+            event: "media",
+            streamSid: session.streamSid,
+            media: { payload: base64Payload },
+          }));
+        } catch (err) {
+          console.warn("[MediaStream] Failed forwarding ElevenLabs audio to Twilio:", err);
+        }
+      }
+    },
+    onResponseComplete: () => {
+      // Send Twilio a mark so existing audio_complete bookkeeping still works.
+      if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
+        try {
+          session.twilioWs.send(JSON.stringify({
+            event: "mark",
+            streamSid: session.streamSid,
+            mark: { name: "audio_complete" },
+          }));
+        } catch {
+          // ignore
+        }
+      }
+    },
+    onLog: (message, meta) => {
+      console.log(message, meta ?? {});
+    },
+    onFatalError: (err) => {
+      console.error("[MediaStream] ElevenLabs fatal error — call will continue but voice may degrade:", err);
+    },
+  });
+}
+
+async function finalizeElevenLabsForSession(session: StreamSession, supabase: any): Promise<void> {
+  const adapter = session.elevenLabs;
+  if (!adapter) return;
+
+  const totalChars = adapter.getTotalCharsUsed();
+  adapter.close();
+  session.elevenLabs = null;
+
+  if (totalChars > 0 && session.callSid) {
+    try {
+      await supabase
+        .from("calls_log")
+        .update({ elevenlabs_chars_used: totalChars })
+        .eq("twilio_call_sid", session.callSid);
+      console.log("[MediaStream] Persisted ElevenLabs char usage", {
+        callSid: session.callSid,
+        chars: totalChars,
+      });
+    } catch (err) {
+      console.warn("[MediaStream] Failed to persist elevenlabs_chars_used:", err);
+    }
+  }
+}
+
 async function sendSessionConfig(session: StreamSession, supabase: any) {
   if (!session.openAiWs || session.openAiWs.readyState !== WebSocket.OPEN) {
     console.error("[MediaStream] Cannot send config - WebSocket not open");
