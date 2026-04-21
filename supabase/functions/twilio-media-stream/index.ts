@@ -1585,33 +1585,57 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
   
   console.log(`[MediaStream] Using ${tools.length} tools for business type: ${session.businessType}`);
 
-  const config = {
-    type: "session.update",
-    session: {
-      modalities: ["text", "audio"],
-      instructions: session.systemPrompt,
-      voice: session.voice,
-      input_audio_format: "g711_ulaw",
-      output_audio_format: "g711_ulaw",
-      input_audio_transcription: {
-        model: "whisper-1",
-      },
-      turn_detection: {
-        type: "server_vad",
-        threshold: 0.75,           // Slightly lower for better detection of quiet speakers
-        prefix_padding_ms: 300,    // Standard pre-speech buffer
-        silence_duration_ms: 1000, // Slightly longer pauses for natural conversation
-        create_response: true,     // Auto-create response when speech ends
-      },
-      tools,
-      tool_choice: "auto",
-      temperature: 0.75,           // Higher for more natural variation in responses
-      max_response_output_tokens: 600, // Increased for more complete responses in long calls
+  // Modalities, voice, and output format depend on whether the premium
+  // ElevenLabs path is active. ElevenLabs path = OpenAI text-only; we
+  // synthesize audio downstream.
+  const sessionConfig: Record<string, unknown> = {
+    instructions: session.systemPrompt,
+    input_audio_format: "g711_ulaw",
+    input_audio_transcription: {
+      model: "whisper-1",
     },
+    turn_detection: {
+      type: "server_vad",
+      threshold: 0.75,           // Slightly lower for better detection of quiet speakers
+      prefix_padding_ms: 300,    // Standard pre-speech buffer
+      silence_duration_ms: 1000, // Slightly longer pauses for natural conversation
+      create_response: true,     // Auto-create response when speech ends
+    },
+    tools,
+    tool_choice: "auto",
+    temperature: 0.75,           // Higher for more natural variation in responses
+    max_response_output_tokens: 600, // Increased for more complete responses in long calls
   };
 
-  console.log("[MediaStream] Sending session config with voice:", session.voice, "isReconnect:", session.isReconnect);
+  if (session.useElevenLabs) {
+    sessionConfig.modalities = ["text"];
+    // No `voice` or `output_audio_format` — OpenAI emits text only.
+  } else {
+    sessionConfig.modalities = ["text", "audio"];
+    sessionConfig.voice = session.voice;
+    sessionConfig.output_audio_format = "g711_ulaw";
+  }
+
+  const config = {
+    type: "session.update",
+    session: sessionConfig,
+  };
+
+  console.log(
+    "[MediaStream] Sending session config",
+    {
+      voice: session.useElevenLabs ? `[ElevenLabs:${session.elevenLabsVoiceId}]` : session.voice,
+      modalities: sessionConfig.modalities,
+      isReconnect: session.isReconnect,
+    }
+  );
   session.openAiWs.send(JSON.stringify(config));
+
+  // Spin up the ElevenLabs WS now (warm) so it's ready when the first text
+  // delta arrives. Safe to call repeatedly — adapter no-ops if already open.
+  if (session.useElevenLabs && !session.elevenLabs) {
+    initializeElevenLabsAdapter(session);
+  }
 
   // For reconnects, rehydrate context before triggering response
   if (session.isReconnect) {
@@ -1624,7 +1648,7 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
       const responseConfig: any = {
         type: "response.create",
         response: {
-          modalities: ["audio", "text"],
+          modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
         },
       };
 
