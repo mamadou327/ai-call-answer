@@ -364,6 +364,7 @@ export type Database = {
           sms_reminder_hours: number | null
           tone: Database["public"]["Enums"]["tone_type"] | null
           updated_at: string | null
+          use_elevenlabs_voice: boolean
           voice_gender: Database["public"]["Enums"]["voice_gender"] | null
           voice_speed: Database["public"]["Enums"]["voice_speed"] | null
         }
@@ -390,6 +391,7 @@ export type Database = {
           sms_reminder_hours?: number | null
           tone?: Database["public"]["Enums"]["tone_type"] | null
           updated_at?: string | null
+          use_elevenlabs_voice?: boolean
           voice_gender?: Database["public"]["Enums"]["voice_gender"] | null
           voice_speed?: Database["public"]["Enums"]["voice_speed"] | null
         }
@@ -416,6 +418,7 @@ export type Database = {
           sms_reminder_hours?: number | null
           tone?: Database["public"]["Enums"]["tone_type"] | null
           updated_at?: string | null
+          use_elevenlabs_voice?: boolean
           voice_gender?: Database["public"]["Enums"]["voice_gender"] | null
           voice_speed?: Database["public"]["Enums"]["voice_speed"] | null
         }
@@ -717,6 +720,7 @@ export type Database = {
           caller_phone: string
           created_at: string | null
           duration_ms: number | null
+          elevenlabs_chars_used: number
           id: string
           needs_review: boolean | null
           provider: string | null
@@ -736,6 +740,7 @@ export type Database = {
           caller_phone: string
           created_at?: string | null
           duration_ms?: number | null
+          elevenlabs_chars_used?: number
           id?: string
           needs_review?: boolean | null
           provider?: string | null
@@ -755,6 +760,7 @@ export type Database = {
           caller_phone?: string
           created_at?: string | null
           duration_ms?: number | null
+          elevenlabs_chars_used?: number
           id?: string
           needs_review?: boolean | null
           provider?: string | null
