@@ -990,9 +990,7 @@ async function enforcePickupOrderCreation(session: StreamSession, supabase: any,
       JSON.stringify({
         type: "response.create",
         response: {
-          modalities: ["audio", "text"],
-          instructions: [
-            "CRITICAL: You started to verbally confirm a pickup order, but you have NOT successfully called create_pickup_order yet.",
+          modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
             "Do NOT confirm the order, do NOT give an order number, and do NOT promise a ready time until create_pickup_order returns success.",
             "",
             "First say, verbatim: 'One moment — I'm just placing that order now.'",
@@ -1261,9 +1259,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
               JSON.stringify({
                 type: "response.create",
                 response: {
-                  modalities: ["audio", "text"],
-                  instructions:
-                    "Sorry — I didn't catch that clearly. Could you repeat that last bit for me?",
+                  modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
                 },
               })
             );
@@ -1814,7 +1810,7 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
       JSON.stringify({
         type: "response.create",
         response: {
-          modalities: ["audio", "text"],
+          modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
         },
       })
     );
