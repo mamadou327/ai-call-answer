@@ -1,13 +1,27 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { buildSystemPromptForBusinessType, getToolsForBusinessType, type BusinessType } from "./prompts/index.ts";
+import { ElevenLabsTTS } from "./elevenlabs-tts.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// ElevenLabs Flash v2.5 — used only when business has use_elevenlabs_voice=true.
+// We read it once at module load alongside other API keys.
+const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
+if (!ELEVENLABS_API_KEY) {
+  console.error(
+    "[FATAL] ELEVENLABS_API_KEY is not set. The premium voice path " +
+    "(use_elevenlabs_voice=true) will automatically fall back to OpenAI voice."
+  );
+}
+
 // Supported OpenAI Realtime voices
 const OPENAI_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"];
+
+// Default ElevenLabs voice when a business hasn't picked one yet (Sarah — warm female).
+const DEFAULT_ELEVENLABS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL";
 
 // ============================================================================
 // CALL STABILITY CONSTANTS
