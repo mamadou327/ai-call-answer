@@ -1,13 +1,27 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { buildSystemPromptForBusinessType, getToolsForBusinessType, type BusinessType } from "./prompts/index.ts";
+import { ElevenLabsTTS } from "./elevenlabs-tts.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// ElevenLabs Flash v2.5 — used only when business has use_elevenlabs_voice=true.
+// We read it once at module load alongside other API keys.
+const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
+if (!ELEVENLABS_API_KEY) {
+  console.error(
+    "[FATAL] ELEVENLABS_API_KEY is not set. The premium voice path " +
+    "(use_elevenlabs_voice=true) will automatically fall back to OpenAI voice."
+  );
+}
+
 // Supported OpenAI Realtime voices
 const OPENAI_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"];
+
+// Default ElevenLabs voice when a business hasn't picked one yet (Sarah — warm female).
+const DEFAULT_ELEVENLABS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL";
 
 // ============================================================================
 // CALL STABILITY CONSTANTS
@@ -178,6 +192,13 @@ interface StreamSession {
   lastPickupOrderNumber: string | null;
   lastPickupOrderId: string | null;
   lastPickupGuardTriggeredAt: number | null;
+
+  // Premium voice (ElevenLabs Flash v2.5) — gated by business_settings.use_elevenlabs_voice.
+  // When false (default), the existing OpenAI audio output path runs unchanged.
+  // When true, OpenAI runs in text-only mode and `elevenLabs` synthesizes speech.
+  useElevenLabs: boolean;
+  elevenLabsVoiceId: string | null;
+  elevenLabs: ElevenLabsTTS | null;
 }
 
 interface BusinessSettings {
@@ -437,7 +458,7 @@ Deno.serve(async (req) => {
   const { data: settings } = await supabase
     .from("business_settings")
     .select(
-      "assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id, opening_context, country"
+      "assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id, opening_context, country, use_elevenlabs_voice"
     )
     .eq("business_id", business.id)
     .maybeSingle();
@@ -449,10 +470,31 @@ Deno.serve(async (req) => {
   const selectedVoice = settings?.elevenlabs_voice_id;
   const businessTimezone = getTimezoneForCountry(settings?.country);
 
-  // Use selected OpenAI voice, or fallback to gender-based default
+  // Use selected OpenAI voice, or fallback to gender-based default.
+  // The same `elevenlabs_voice_id` column is reused for both providers — for
+  // the OpenAI path we only accept it if it's a valid OpenAI voice id.
   const openAiVoice = selectedVoice && OPENAI_VOICES.includes(selectedVoice) 
     ? selectedVoice 
     : (voiceGender === "male" ? "ash" : "coral");
+
+  // Premium voice routing. We default OFF and auto-fall-back to the OpenAI
+  // path if the API key is missing so a misconfigured business never drops
+  // a call.
+  const useElevenLabsRequested = settings?.use_elevenlabs_voice === true;
+  const useElevenLabs = useElevenLabsRequested && !!ELEVENLABS_API_KEY;
+  if (useElevenLabsRequested && !ELEVENLABS_API_KEY) {
+    console.error(
+      "[MediaStream] use_elevenlabs_voice is ON for business but ELEVENLABS_API_KEY missing — falling back to OpenAI voice"
+    );
+  }
+  // For ElevenLabs, accept whatever voice id the business chose. If it
+  // happens to also be a valid OpenAI voice id, fall back to a sensible
+  // default ElevenLabs voice instead.
+  const elevenLabsVoiceId = useElevenLabs
+    ? (selectedVoice && !OPENAI_VOICES.includes(selectedVoice)
+        ? selectedVoice
+        : DEFAULT_ELEVENLABS_VOICE_ID)
+    : null;
 
   // Upgrade to WebSocket
   const { socket: twilioWs, response } = Deno.upgradeWebSocket(req);
@@ -535,7 +577,19 @@ Deno.serve(async (req) => {
     lastPickupOrderNumber: null,
     lastPickupOrderId: null,
     lastPickupGuardTriggeredAt: null,
+
+    // Premium voice (ElevenLabs Flash v2.5)
+    useElevenLabs,
+    elevenLabsVoiceId,
+    elevenLabs: null,
   };
+
+  if (useElevenLabs) {
+    console.log("[MediaStream] Premium voice ENABLED for business", {
+      businessId: business.id,
+      voiceId: elevenLabsVoiceId,
+    });
+  }
 
   twilioWs.onopen = () => {
     console.log("[MediaStream] Twilio WebSocket connected");
@@ -658,6 +712,10 @@ Deno.serve(async (req) => {
           stopKeepalive(session);
           stopSilenceDetection(session);
           stopStreamRotationCheck(session);
+          // Close ElevenLabs adapter and persist char usage (if any)
+          finalizeElevenLabsForSession(session, supabase).catch((err) =>
+            console.warn("[MediaStream] finalizeElevenLabsForSession error:", err)
+          );
           if (session.openAiWs) {
             session.openAiWs.close();
           }
@@ -693,6 +751,9 @@ Deno.serve(async (req) => {
     stopKeepalive(session);
     stopSilenceDetection(session);
     stopStreamRotationCheck(session);
+    finalizeElevenLabsForSession(session, supabase).catch((err) =>
+      console.warn("[MediaStream] finalizeElevenLabsForSession error:", err)
+    );
     if (session.openAiWs) {
       session.openAiWs.close();
     }
@@ -936,9 +997,7 @@ async function enforcePickupOrderCreation(session: StreamSession, supabase: any,
       JSON.stringify({
         type: "response.create",
         response: {
-          modalities: ["audio", "text"],
-          instructions: [
-            "CRITICAL: You started to verbally confirm a pickup order, but you have NOT successfully called create_pickup_order yet.",
+          modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
             "Do NOT confirm the order, do NOT give an order number, and do NOT promise a ready time until create_pickup_order returns success.",
             "",
             "First say, verbatim: 'One moment — I'm just placing that order now.'",
@@ -1076,6 +1135,10 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           break;
 
         case "response.audio.delta":
+          // ElevenLabs path: OpenAI is text-only, so this event should never
+          // fire. Drop it defensively.
+          if (session.useElevenLabs) break;
+
           // Forward audio to Twilio
           // Mark the *start* of playback so we can allow barge-in after a short grace period
           if (!session.isAISpeaking) {
@@ -1092,6 +1155,27 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
               },
             };
             session.twilioWs.send(JSON.stringify(audioMessage));
+          }
+          break;
+
+        case "response.text.delta":
+          // ElevenLabs path: pipe OpenAI text deltas straight into ElevenLabs.
+          if (session.useElevenLabs && data.delta) {
+            if (!session.elevenLabs) initializeElevenLabsAdapter(session);
+            // Mark AI as speaking on first text delta so barge-in logic works
+            if (!session.isAISpeaking) {
+              session.isAISpeaking = true;
+              session.lastAudioSentAt = Date.now();
+            }
+            session.elevenLabs?.pushText(data.delta);
+          }
+          break;
+
+        case "response.text.done":
+          // Tell ElevenLabs the current utterance is complete so it flushes
+          // any remaining audio.
+          if (session.useElevenLabs) {
+            session.elevenLabs?.endUtterance();
           }
           break;
 
@@ -1160,6 +1244,12 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
             );
           }
 
+          // ElevenLabs path: also kill the in-flight TTS stream so its
+          // queued audio doesn't keep arriving after the clear.
+          if (session.useElevenLabs) {
+            session.elevenLabs?.interrupt();
+          }
+
           // Cancel any in-progress response (only if one is active)
           if (session.hasActiveResponse && session.openAiWs?.readyState === WebSocket.OPEN) {
             session.openAiWs.send(JSON.stringify({ type: "response.cancel" }));
@@ -1207,9 +1297,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
               JSON.stringify({
                 type: "response.create",
                 response: {
-                  modalities: ["audio", "text"],
-                  instructions:
-                    "Sorry — I didn't catch that clearly. Could you repeat that last bit for me?",
+                  modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
                 },
               })
             );
@@ -1506,6 +1594,87 @@ async function summarizeAndPrune(session: StreamSession, supabase: any): Promise
   }
 }
 
+// ============================================================================
+// ELEVENLABS PREMIUM VOICE HELPERS
+// ============================================================================
+// These two helpers own the lifecycle of the per-session ElevenLabs WS so
+// the OpenAI text->TTS pipeline never leaks across calls. They are no-ops
+// when session.useElevenLabs is false.
+
+function initializeElevenLabsAdapter(session: StreamSession): void {
+  if (!session.useElevenLabs || session.elevenLabs || !ELEVENLABS_API_KEY || !session.elevenLabsVoiceId) {
+    return;
+  }
+  console.log("[MediaStream] Initializing ElevenLabs Flash v2.5 adapter", {
+    voiceId: session.elevenLabsVoiceId,
+    callSid: session.callSid,
+  });
+
+  session.elevenLabs = new ElevenLabsTTS({
+    apiKey: ELEVENLABS_API_KEY,
+    voiceId: session.elevenLabsVoiceId,
+    onAudioChunk: (base64Payload) => {
+      // Forward μ-law 8kHz audio chunks to Twilio in the same envelope the
+      // OpenAI audio path uses.
+      if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
+        try {
+          session.twilioWs.send(JSON.stringify({
+            event: "media",
+            streamSid: session.streamSid,
+            media: { payload: base64Payload },
+          }));
+        } catch (err) {
+          console.warn("[MediaStream] Failed forwarding ElevenLabs audio to Twilio:", err);
+        }
+      }
+    },
+    onResponseComplete: () => {
+      // Send Twilio a mark so existing audio_complete bookkeeping still works.
+      if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
+        try {
+          session.twilioWs.send(JSON.stringify({
+            event: "mark",
+            streamSid: session.streamSid,
+            mark: { name: "audio_complete" },
+          }));
+        } catch {
+          // ignore
+        }
+      }
+    },
+    onLog: (message, meta) => {
+      console.log(message, meta ?? {});
+    },
+    onFatalError: (err) => {
+      console.error("[MediaStream] ElevenLabs fatal error — call will continue but voice may degrade:", err);
+    },
+  });
+}
+
+async function finalizeElevenLabsForSession(session: StreamSession, supabase: any): Promise<void> {
+  const adapter = session.elevenLabs;
+  if (!adapter) return;
+
+  const totalChars = adapter.getTotalCharsUsed();
+  adapter.close();
+  session.elevenLabs = null;
+
+  if (totalChars > 0 && session.callSid) {
+    try {
+      await supabase
+        .from("calls_log")
+        .update({ elevenlabs_chars_used: totalChars })
+        .eq("twilio_call_sid", session.callSid);
+      console.log("[MediaStream] Persisted ElevenLabs char usage", {
+        callSid: session.callSid,
+        chars: totalChars,
+      });
+    } catch (err) {
+      console.warn("[MediaStream] Failed to persist elevenlabs_chars_used:", err);
+    }
+  }
+}
+
 async function sendSessionConfig(session: StreamSession, supabase: any) {
   if (!session.openAiWs || session.openAiWs.readyState !== WebSocket.OPEN) {
     console.error("[MediaStream] Cannot send config - WebSocket not open");
@@ -1531,33 +1700,57 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
   
   console.log(`[MediaStream] Using ${tools.length} tools for business type: ${session.businessType}`);
 
-  const config = {
-    type: "session.update",
-    session: {
-      modalities: ["text", "audio"],
-      instructions: session.systemPrompt,
-      voice: session.voice,
-      input_audio_format: "g711_ulaw",
-      output_audio_format: "g711_ulaw",
-      input_audio_transcription: {
-        model: "whisper-1",
-      },
-      turn_detection: {
-        type: "server_vad",
-        threshold: 0.75,           // Slightly lower for better detection of quiet speakers
-        prefix_padding_ms: 300,    // Standard pre-speech buffer
-        silence_duration_ms: 1000, // Slightly longer pauses for natural conversation
-        create_response: true,     // Auto-create response when speech ends
-      },
-      tools,
-      tool_choice: "auto",
-      temperature: 0.75,           // Higher for more natural variation in responses
-      max_response_output_tokens: 600, // Increased for more complete responses in long calls
+  // Modalities, voice, and output format depend on whether the premium
+  // ElevenLabs path is active. ElevenLabs path = OpenAI text-only; we
+  // synthesize audio downstream.
+  const sessionConfig: Record<string, unknown> = {
+    instructions: session.systemPrompt,
+    input_audio_format: "g711_ulaw",
+    input_audio_transcription: {
+      model: "whisper-1",
     },
+    turn_detection: {
+      type: "server_vad",
+      threshold: 0.75,           // Slightly lower for better detection of quiet speakers
+      prefix_padding_ms: 300,    // Standard pre-speech buffer
+      silence_duration_ms: 1000, // Slightly longer pauses for natural conversation
+      create_response: true,     // Auto-create response when speech ends
+    },
+    tools,
+    tool_choice: "auto",
+    temperature: 0.75,           // Higher for more natural variation in responses
+    max_response_output_tokens: 600, // Increased for more complete responses in long calls
   };
 
-  console.log("[MediaStream] Sending session config with voice:", session.voice, "isReconnect:", session.isReconnect);
+  if (session.useElevenLabs) {
+    sessionConfig.modalities = ["text"];
+    // No `voice` or `output_audio_format` — OpenAI emits text only.
+  } else {
+    sessionConfig.modalities = ["text", "audio"];
+    sessionConfig.voice = session.voice;
+    sessionConfig.output_audio_format = "g711_ulaw";
+  }
+
+  const config = {
+    type: "session.update",
+    session: sessionConfig,
+  };
+
+  console.log(
+    "[MediaStream] Sending session config",
+    {
+      voice: session.useElevenLabs ? `[ElevenLabs:${session.elevenLabsVoiceId}]` : session.voice,
+      modalities: sessionConfig.modalities,
+      isReconnect: session.isReconnect,
+    }
+  );
   session.openAiWs.send(JSON.stringify(config));
+
+  // Spin up the ElevenLabs WS now (warm) so it's ready when the first text
+  // delta arrives. Safe to call repeatedly — adapter no-ops if already open.
+  if (session.useElevenLabs && !session.elevenLabs) {
+    initializeElevenLabsAdapter(session);
+  }
 
   // For reconnects, rehydrate context before triggering response
   if (session.isReconnect) {
@@ -1570,7 +1763,7 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
       const responseConfig: any = {
         type: "response.create",
         response: {
-          modalities: ["audio", "text"],
+          modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
         },
       };
 
@@ -1736,7 +1929,7 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
       JSON.stringify({
         type: "response.create",
         response: {
-          modalities: ["audio", "text"],
+          modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
         },
       })
     );
