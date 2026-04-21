@@ -501,6 +501,15 @@ Deno.serve(async (req) => {
         : DEFAULT_ELEVENLABS_VOICE_ID)
     : null;
 
+  console.log("[MediaStream] ElevenLabs decision", {
+    businessId: business.id,
+    use_elevenlabs_voice_from_db: settings?.use_elevenlabs_voice,
+    api_key_present: !!ELEVENLABS_API_KEY,
+    resolved_useElevenLabs: useElevenLabs,
+    elevenLabsVoiceId,
+    selectedVoice,
+  });
+
   // Upgrade to WebSocket
   const { socket: twilioWs, response } = Deno.upgradeWebSocket(req);
 
