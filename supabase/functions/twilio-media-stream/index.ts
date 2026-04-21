@@ -192,6 +192,13 @@ interface StreamSession {
   lastPickupOrderNumber: string | null;
   lastPickupOrderId: string | null;
   lastPickupGuardTriggeredAt: number | null;
+
+  // Premium voice (ElevenLabs Flash v2.5) — gated by business_settings.use_elevenlabs_voice.
+  // When false (default), the existing OpenAI audio output path runs unchanged.
+  // When true, OpenAI runs in text-only mode and `elevenLabs` synthesizes speech.
+  useElevenLabs: boolean;
+  elevenLabsVoiceId: string | null;
+  elevenLabs: ElevenLabsTTS | null;
 }
 
 interface BusinessSettings {
