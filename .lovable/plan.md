@@ -1,103 +1,136 @@
 
 
-# AIVIA Pre-Client Readiness Plan
+# Plan: Swap OpenAI Voice for ElevenLabs Flash v2.5 (with Safety Rails)
 
-Everything you need built NOW so restaurants can start using AIVIA immediately. This excludes OAuth flows, developer docs, sandbox environments, and API adapter patterns — those are only needed when you're ready to approach OpenTable, SevenRooms, etc.
+Same architecture as last revision, with Claude's two additions baked in.
 
----
+## The Architecture
 
-## What This Plan Covers (7 Items)
+Keep OpenAI Realtime as the brain (STT + LLM + tool calls + turn detection). Disable its audio output. Pipe its text deltas into ElevenLabs Flash v2.5 over WebSocket. Forward the resulting μ-law 8kHz audio straight to Twilio.
 
-### 1. Fallback Booking Mode
-**What it is:** When a restaurant already uses OpenTable or another system, AIVIA captures the guest's details (name, party size, date, time, allergies, special requests) and sends an SMS + email to the restaurant saying "Please add this reservation to your system."
+```text
+Caller ↔ Twilio ↔ twilio-media-stream ↔ OpenAI Realtime
+                          │              (text + tools only)
+                          ▼
+                  ElevenLabs Flash v2.5 WS
+                  (streaming TTS, μ-law 8kHz)
+                          │
+                          ▼
+                  Audio frames → Twilio
+```
 
-**Work involved:**
-- New database table: `fallback_reservations` (guest name, phone, email, party size, date/time, special requests, status, business_id)
-- New field on `businesses` table: `reservation_platform` (none / opentable / sevenrooms / resy / tock / other)
-- New edge function: `create-fallback-reservation` — saves the data and triggers SMS/email to the restaurant owner
-- Update the voice AI prompts to use this flow when the business has an external platform set
-- Dashboard UI: new tab or section showing fallback reservations with status (pending / entered / confirmed)
-
-### 2. Privacy Policy & Terms of Service Pages
-**What it is:** Public-facing legal pages that any serious business needs. Covers how guest data is stored, GDPR compliance, and data handling.
-
-**Work involved:**
-- New route `/privacy` with a Privacy Policy page
-- New route `/terms` with a Terms of Service page
-- Footer links to both pages
-- Content covering: data collection, storage, guest rights, GDPR, cookie policy
-
-### 3. Missed-Call Alert System
-**What it is:** If the AI fails to answer a call, or the caller hangs up before completion, the restaurant owner gets an SMS/email with the caller's number so they can call back.
-
-**Work involved:**
-- New database table: `missed_calls` (business_id, caller_phone, call_time, reason, notified, followed_up)
-- New edge function: `notify-missed-call` — sends SMS + email to the business owner
-- Update Twilio webhook handlers to detect failed/abandoned calls and trigger the alert
-- Dashboard UI: missed calls list with "Mark as followed up" button
-
-### 4. Structured Allergen Data on Menu Items
-**What it is:** Right now the AI guesses about allergens from descriptions. This adds proper allergen fields so the AI can give accurate answers like "Yes, the pad thai contains peanuts."
-
-**Work involved:**
-- Add `allergens` column (text array) to `menu_items` table
-- Add `ingredients` column (text) to `menu_items` table
-- Update MenuManagement UI: allergen checkboxes (nuts, dairy, gluten, shellfish, eggs, soy, sesame, fish, celery, mustard, sulphites, lupin, molluscs)
-- Update voice AI prompts to reference allergen data when answering dietary questions
-
-### 5. Restaurant-Specific Onboarding Improvements
-**What it is:** The onboarding already has restaurant steps, but needs polish for the "AI front desk" use case.
-
-**Work involved:**
-- Add a step asking "What reservation system do you currently use?" (None / OpenTable / SevenRooms / Resy / Tock / Other)
-- Add a step for table layout setup (number of tables, sizes, indoor/outdoor)
-- Add a prompt to upload menu or enter menu link
-- Save the reservation platform choice to the `businesses` table
-
-### 6. Demo/Sandbox Mode for Sales
-**What it is:** A way to show potential restaurant clients what AIVIA looks like without creating a real account. A pre-built demo restaurant with fake data.
-
-**Work involved:**
-- New edge function: `setup-demo-restaurant` — creates a demo business with sample menu, tables, hours, and fake call history
-- Demo mode flag on the dashboard that shows a banner "This is a demo — sign up to get started"
-- Accessible via a special URL like `/demo/restaurant`
-
-### 7. Restaurant Dashboard Polish
-**What it is:** Making the existing dashboard work better for restaurants specifically.
-
-**Work involved:**
-- Reservation calendar view (table map with time slots)
-- Today's reservations summary card on the dashboard tab
-- Guest count and cover tracking (how many people served today/this week)
-- Quick-action buttons: confirm reservation, mark as seated, mark as no-show
+Expected latency: ~400ms today → ~475ms (Flash v2.5 first-audio ~75ms).
 
 ---
 
-## Priority Order
+## Safety Rails
 
-| Order | Item | Why First |
-|-------|------|-----------|
-| 1 | Fallback Booking Mode | Lets you onboard ANY restaurant regardless of their current system |
-| 2 | Missed-Call Alerts | Essential trust feature — restaurants need to know nothing falls through the cracks |
-| 3 | Allergen Data | Food safety is non-negotiable for restaurants |
-| 4 | Restaurant Onboarding | Smooth first impression for new clients |
-| 5 | Privacy & Terms Pages | Professional credibility |
-| 6 | Restaurant Dashboard Polish | Better daily experience for active clients |
-| 7 | Demo/Sandbox Mode | Sales tool for getting more clients |
+1. **Per-business feature flag, defaulted OFF.** New `use_elevenlabs_voice boolean default false` on `business_settings`. Existing OpenAI voice path stays the default for everyone.
+2. **No auto-rollout.** Only your test business gets the flag enabled first.
+3. **Side-by-side code paths.** New ElevenLabs pipeline lives behind `if (useElevenLabsVoice)`. Existing OpenAI audio output code is **preserved, not deleted** — instant rollback.
+4. **Deploy summary before go-live.** After the rewrite I will list every modified section in `twilio-media-stream/index.ts` (greeting, response handler, interruption handler, stream rotation, etc.) for your review.
+5. **Aggressive logging on the new path.** Every interruption event, ElevenLabs WS open/close, audio chunk count, and latency measurement logged for fast debugging.
 
 ---
 
-## Technical Summary
+## Environment Variable Handling (Claude's addition)
 
-**New database tables:** 2 (fallback_reservations, missed_calls)
+- `ELEVENLABS_API_KEY` is already set as a Supabase secret ✅ (confirmed)
+- At the top of `twilio-media-stream/index.ts`, alongside the existing `OPENAI_API_KEY` read, add:
+  ```ts
+  const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
+  if (!ELEVENLABS_API_KEY) {
+    console.error("[FATAL] ELEVENLABS_API_KEY is required when use_elevenlabs_voice is enabled");
+  }
+  ```
+- Treat as **required** when the per-business flag is on. If the flag is on but the key is missing at call start, log a fatal error and **fall back to the OpenAI voice path automatically** rather than dropping the call.
 
-**Modified tables:** 2 (businesses — add reservation_platform; menu_items — add allergens + ingredients)
+---
 
-**New edge functions:** 3 (create-fallback-reservation, notify-missed-call, setup-demo-restaurant)
+## What Changes
 
-**Modified edge functions:** 2 (twilio voice webhooks for missed call detection, voice AI prompts for fallback flow)
+### 1. `twilio-media-stream/index.ts` — gated rewrite of voice output
 
-**New pages/routes:** 4 (/privacy, /terms, /demo/restaurant, dashboard missed-calls section)
+- Read `use_elevenlabs_voice` from `business_settings` at call start
+- If **false** → existing OpenAI audio output path (unchanged)
+- If **true** → new path:
+  - OpenAI session opens with `modalities: ["text"]` (no audio out)
+  - Open ElevenLabs WS: `wss://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream-input?model_id=eleven_flash_v2_5&output_format=ulaw_8000`
+  - Stream OpenAI text deltas straight into ElevenLabs as they arrive
+  - Forward ElevenLabs μ-law audio chunks directly to Twilio `media` events (no transcoding)
 
-**Modified pages:** 3 (Onboarding, MenuManagement, Dashboard)
+### 2. Interruption handling — match current behavior exactly
+
+When `input_audio_buffer.speech_started` fires from OpenAI:
+- Send `flush` + close current ElevenLabs stream
+- Send Twilio a `clear` event (drops queued audio in Twilio's buffer — what makes the AI stop mid-word)
+- Send `response.cancel` to OpenAI
+- Open a fresh ElevenLabs WS for the next response
+
+Keep existing 850ms min interruption delay and VAD threshold 0.80 in OpenAI session config.
+
+**Honest expectation:** first version of manual interruption will need 1–2 tuning rounds on real calls before it matches OpenAI's built-in feel.
+
+### 3. Voice settings — reuse what's there
+
+- `elevenlabs_voice_id` column already exists in `business_settings` ✅
+- `VoiceSelector.tsx` updated to show curated ElevenLabs voices recommended for telephony, grouped by language
+- `generate-openai-voice-preview` repointed to Flash v2.5 so previews match real-call audio
+
+### 4. Stream rotation (110-second reconnect)
+
+- "One moment please" reconnect message switched to the same ElevenLabs Flash stream so audio character is consistent across rotation
+- Rotation logic itself unchanged
+
+### 5. Prompts — one-line tweak
+
+Add to all prompts (`prompts/restaurant-*.ts`, `prompts/salon-prompt.ts`):
+> "Speak naturally with contractions. Keep responses conversational and concise — long monologues feel robotic on the phone."
+
+### 6. Cost & monitoring
+
+- Add `elevenlabs_chars_used integer default 0` to `calls_log` for per-call TTS spend tracking
+- Flash v2.5 ≈ $0.05/1k chars (~$0.03/min of speech)
+
+### 7. UI: per-business toggle
+
+Add "Premium voice (ElevenLabs)" toggle in `AISettingsTab.tsx`. Off by default. Tooltip: *"Higher-quality human-sounding voice. Adds ~75ms latency."*
+
+---
+
+## What Does NOT Change
+
+- `twilio-voice-webhook-realtime` — untouched
+- All booking/order/menu/fallback/recording/missed-call edge functions — untouched
+- All AI tools (`create_booking`, `create_order`, `lookup_menu`, etc.) — untouched
+- Stream rotation, WS keepalive, stale connection detection, signature validation — untouched
+- Cross-call memory, multilingual detection, returning-customer greetings — untouched
+- Existing OpenAI voice path — preserved as fallback
+
+---
+
+## Rollout
+
+1. Deploy with flag OFF for everyone (zero behavior change)
+2. I send you a written summary of every modified section in `twilio-media-stream/index.ts`
+3. You enable flag on your own test number
+4. Make 5–10 real test calls (booking, order, menu Q, mid-sentence interruption, multi-language)
+5. Tune interruption timing if needed (expect 1–2 iterations)
+6. Once satisfied → enable for one pilot client → broader rollout
+
+## Risks (Honest)
+
+1. **Manual interruption will need real-call tuning.** Mitigated by aggressive logging + fallback flag.
+2. **3 concurrent WebSockets per call** (Twilio + OpenAI + ElevenLabs). Should be fine but monitored.
+3. **ElevenLabs WS occasional drops** — handled with same exponential backoff pattern used for OpenAI today.
+4. **First call after deploy** may sound off until tuning settles. Mitigated by flag-gated rollout.
+
+## Files Touched
+
+- `supabase/functions/twilio-media-stream/index.ts` — gated voice-output rewrite + ELEVENLABS_API_KEY read at top
+- `supabase/functions/twilio-media-stream/prompts/*.ts` — one-line natural-speech instruction
+- `supabase/functions/generate-openai-voice-preview/index.ts` — repoint to Flash v2.5
+- `src/components/dashboard/settings/VoiceSelector.tsx` — switch catalog to ElevenLabs voices
+- `src/components/dashboard/settings/AISettingsTab.tsx` — add "Premium voice" toggle
+- New migration: `use_elevenlabs_voice` on `business_settings`, `elevenlabs_chars_used` on `calls_log`
 
