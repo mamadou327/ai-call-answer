@@ -17,6 +17,11 @@ if (!ELEVENLABS_API_KEY) {
   );
 }
 
+console.log(
+  "[MediaStream] Boot — ElevenLabs integration build 2026-04-21, ELEVENLABS_API_KEY present:",
+  !!ELEVENLABS_API_KEY
+);
+
 // Supported OpenAI Realtime voices
 const OPENAI_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"];
 
@@ -495,6 +500,15 @@ Deno.serve(async (req) => {
         ? selectedVoice
         : DEFAULT_ELEVENLABS_VOICE_ID)
     : null;
+
+  console.log("[MediaStream] ElevenLabs decision", {
+    businessId: business.id,
+    use_elevenlabs_voice_from_db: settings?.use_elevenlabs_voice,
+    api_key_present: !!ELEVENLABS_API_KEY,
+    resolved_useElevenLabs: useElevenLabs,
+    elevenLabsVoiceId,
+    selectedVoice,
+  });
 
   // Upgrade to WebSocket
   const { socket: twilioWs, response } = Deno.upgradeWebSocket(req);
