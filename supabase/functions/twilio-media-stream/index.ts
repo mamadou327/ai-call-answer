@@ -712,6 +712,10 @@ Deno.serve(async (req) => {
           stopKeepalive(session);
           stopSilenceDetection(session);
           stopStreamRotationCheck(session);
+          // Close ElevenLabs adapter and persist char usage (if any)
+          finalizeElevenLabsForSession(session, supabase).catch((err) =>
+            console.warn("[MediaStream] finalizeElevenLabsForSession error:", err)
+          );
           if (session.openAiWs) {
             session.openAiWs.close();
           }
@@ -747,6 +751,9 @@ Deno.serve(async (req) => {
     stopKeepalive(session);
     stopSilenceDetection(session);
     stopStreamRotationCheck(session);
+    finalizeElevenLabsForSession(session, supabase).catch((err) =>
+      console.warn("[MediaStream] finalizeElevenLabsForSession error:", err)
+    );
     if (session.openAiWs) {
       session.openAiWs.close();
     }
@@ -1128,6 +1135,10 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           break;
 
         case "response.audio.delta":
+          // ElevenLabs path: OpenAI is text-only, so this event should never
+          // fire. Drop it defensively.
+          if (session.useElevenLabs) break;
+
           // Forward audio to Twilio
           // Mark the *start* of playback so we can allow barge-in after a short grace period
           if (!session.isAISpeaking) {
@@ -1144,6 +1155,27 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
               },
             };
             session.twilioWs.send(JSON.stringify(audioMessage));
+          }
+          break;
+
+        case "response.text.delta":
+          // ElevenLabs path: pipe OpenAI text deltas straight into ElevenLabs.
+          if (session.useElevenLabs && data.delta) {
+            if (!session.elevenLabs) initializeElevenLabsAdapter(session);
+            // Mark AI as speaking on first text delta so barge-in logic works
+            if (!session.isAISpeaking) {
+              session.isAISpeaking = true;
+              session.lastAudioSentAt = Date.now();
+            }
+            session.elevenLabs?.pushText(data.delta);
+          }
+          break;
+
+        case "response.text.done":
+          // Tell ElevenLabs the current utterance is complete so it flushes
+          // any remaining audio.
+          if (session.useElevenLabs) {
+            session.elevenLabs?.endUtterance();
           }
           break;
 
@@ -1210,6 +1242,12 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
                 streamSid: session.streamSid,
               })
             );
+          }
+
+          // ElevenLabs path: also kill the in-flight TTS stream so its
+          // queued audio doesn't keep arriving after the clear.
+          if (session.useElevenLabs) {
+            session.elevenLabs?.interrupt();
           }
 
           // Cancel any in-progress response (only if one is active)
