@@ -216,20 +216,6 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
                 className="pl-9"
               />
             </div>
-            <div className="flex gap-1.5 flex-wrap">
-              {(["All", "British", "American"] as AccentFilter[]).map(f => (
-                <Button
-                  key={f}
-                  type="button"
-                  size="sm"
-                  variant={accentFilter === f ? "default" : "outline"}
-                  className="h-7 text-xs"
-                  onClick={() => setAccentFilter(f)}
-                >
-                  {f}
-                </Button>
-              ))}
-            </div>
           </div>
 
           {loadingVoices ? (
