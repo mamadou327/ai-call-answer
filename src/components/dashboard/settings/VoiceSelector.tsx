@@ -24,14 +24,11 @@ interface VoiceSelectorProps {
   businessName?: string;
 }
 
-type AccentFilter = "All" | "British" | "American";
-
 export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: VoiceSelectorProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(true);
   const [search, setSearch] = useState("");
-  const [accentFilter, setAccentFilter] = useState<AccentFilter>("All");
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
