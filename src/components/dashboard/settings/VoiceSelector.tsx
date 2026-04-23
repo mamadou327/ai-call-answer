@@ -12,21 +12,19 @@ interface Voice {
   name: string;
   description: string;
   gender: "female" | "male";
-  accent: string;
+  accent: "British" | "American";
 }
 
-// Curated ElevenLabs voices — mix of accents and styles
+// Curated ElevenLabs voices — British-first for UK businesses
 const ELEVENLABS_VOICES: Voice[] = [
-  // Female
-  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", description: "Warm, friendly American", gender: "female", accent: "American" },
-  { id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", description: "Bright and upbeat", gender: "female", accent: "American" },
-  { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", description: "Confident British", gender: "female", accent: "British" },
-  { id: "XrExE9yKIg1WjnnlVkGX", name: "Matilda", description: "Calm and professional", gender: "female", accent: "American" },
-  // Male
-  { id: "CwhRBWXzGAHq8TQ4Fs17", name: "Roger", description: "Confident American", gender: "male", accent: "American" },
-  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", description: "Warm British", gender: "male", accent: "British" },
-  { id: "TX3LPaxmHKxFdv7VOQHJ", name: "Liam", description: "Articulate and young", gender: "male", accent: "American" },
-  { id: "nPczCjzI2devNBz1zQrb", name: "Brian", description: "Deep, narrator-style", gender: "male", accent: "American" },
+  // British (recommended)
+  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", description: "Warm, professional British male", gender: "male", accent: "British" },
+  { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", description: "Confident, clear British female", gender: "female", accent: "British" },
+  { id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", description: "Soft, friendly British female", gender: "female", accent: "British" },
+  { id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", description: "Conversational, natural British male", gender: "male", accent: "British" },
+  // American
+  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", description: "Warm, friendly American female", gender: "female", accent: "American" },
+  { id: "nPczCjzI2devNBz1zQrb", name: "Brian", description: "Deep, narrator-style American male", gender: "male", accent: "American" },
 ];
 
 interface VoiceSelectorProps {
@@ -156,8 +154,8 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
     );
   };
 
-  const femaleVoices = ELEVENLABS_VOICES.filter(v => v.gender === "female");
-  const maleVoices = ELEVENLABS_VOICES.filter(v => v.gender === "male");
+  const britishVoices = ELEVENLABS_VOICES.filter(v => v.accent === "British");
+  const americanVoices = ELEVENLABS_VOICES.filter(v => v.accent === "American");
 
   return (
     <div className="space-y-2">
@@ -181,20 +179,23 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-4 space-y-4">
           <p className="text-sm text-muted-foreground">
-            Choose how your AI assistant sounds. Click play to preview a voice greeting your callers, then click the card to select it.
+            British voices recommended for UK businesses. Click play to preview, then click a card to select.
           </p>
 
           <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Female Voices</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-medium text-primary uppercase tracking-wide">British Voices</p>
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">Recommended</Badge>
+            </div>
             <div className="grid gap-2 sm:grid-cols-2">
-              {femaleVoices.map(renderVoiceCard)}
+              {britishVoices.map(renderVoiceCard)}
             </div>
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Male Voices</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Other Voices</p>
             <div className="grid gap-2 sm:grid-cols-2">
-              {maleVoices.map(renderVoiceCard)}
+              {americanVoices.map(renderVoiceCard)}
             </div>
           </div>
         </CollapsibleContent>
