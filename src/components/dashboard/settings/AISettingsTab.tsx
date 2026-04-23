@@ -67,6 +67,8 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
       .upsert([{
         business_id: businessId,
         ...settingsData,
+        // Auto-enable premium voice when an ElevenLabs voice is selected
+        use_elevenlabs_voice: !!settingsData.elevenlabs_voice_id,
       }], {
         onConflict: "business_id"
       });
