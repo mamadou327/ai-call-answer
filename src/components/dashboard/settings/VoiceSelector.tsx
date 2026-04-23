@@ -1,6 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Volume2, ChevronDown, Check, Play, Square, Loader2, Sparkles } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Volume2, ChevronDown, Check, Play, Square, Loader2, Sparkles, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
@@ -9,23 +10,12 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface Voice {
   id: string;
+  voice_id: string;
   name: string;
   description: string;
   gender: "female" | "male";
   accent: "British" | "American";
 }
-
-// Curated ElevenLabs voices — British-first for UK businesses
-const ELEVENLABS_VOICES: Voice[] = [
-  // British (recommended)
-  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", description: "Warm, professional British male", gender: "male", accent: "British" },
-  { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", description: "Confident, clear British female", gender: "female", accent: "British" },
-  { id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", description: "Soft, friendly British female", gender: "female", accent: "British" },
-  { id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", description: "Conversational, natural British male", gender: "male", accent: "British" },
-  // American
-  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", description: "Warm, friendly American female", gender: "female", accent: "American" },
-  { id: "nPczCjzI2devNBz1zQrb", name: "Brian", description: "Deep, narrator-style American male", gender: "male", accent: "American" },
-];
 
 interface VoiceSelectorProps {
   selectedVoiceId: string | null;
@@ -34,13 +24,38 @@ interface VoiceSelectorProps {
   businessName?: string;
 }
 
+type AccentFilter = "All" | "British" | "American";
+
 export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: VoiceSelectorProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [loadingVoices, setLoadingVoices] = useState(true);
+  const [search, setSearch] = useState("");
+  const [accentFilter, setAccentFilter] = useState<AccentFilter>("All");
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const selectedVoice = ELEVENLABS_VOICES.find(v => v.id === selectedVoiceId);
+  useEffect(() => {
+    const load = async () => {
+      const { data, error } = await supabase
+        .from("voice_library")
+        .select("id, voice_id, name, description, gender, accent")
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
+
+      if (error) {
+        console.error("Failed to load voices:", error);
+        toast.error("Could not load voice library");
+      } else if (data) {
+        setVoices(data as Voice[]);
+      }
+      setLoadingVoices(false);
+    };
+    load();
+  }, []);
+
+  const selectedVoice = voices.find(v => v.voice_id === selectedVoiceId);
 
   const playVoicePreview = async (voice: Voice, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -50,17 +65,17 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
       audioRef.current = null;
     }
 
-    if (playingVoiceId === voice.id) {
+    if (playingVoiceId === voice.voice_id) {
       setPlayingVoiceId(null);
       return;
     }
 
-    setLoadingVoiceId(voice.id);
+    setLoadingVoiceId(voice.voice_id);
 
     try {
       const { data, error } = await supabase.functions.invoke('generate-voice-preview', {
         body: {
-          voiceId: voice.id,
+          voiceId: voice.voice_id,
           businessName: businessName || "your business",
         }
       });
@@ -72,7 +87,7 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
       audioRef.current = audio;
 
       audio.onplay = () => {
-        setPlayingVoiceId(voice.id);
+        setPlayingVoiceId(voice.voice_id);
         setLoadingVoiceId(null);
       };
       audio.onended = () => {
@@ -102,10 +117,31 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
     setPlayingVoiceId(null);
   };
 
+  const filteredVoices = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return voices.filter(v => {
+      if (accentFilter !== "All" && v.accent !== accentFilter) return false;
+      if (!q) return true;
+      return v.name.toLowerCase().includes(q) || v.description.toLowerCase().includes(q);
+    });
+  }, [voices, search, accentFilter]);
+
+  const groups = useMemo(() => {
+    const order: Array<{ key: string; label: string; accent: "British" | "American"; gender: "female" | "male" }> = [
+      { key: "bf", label: "British Female", accent: "British", gender: "female" },
+      { key: "bm", label: "British Male", accent: "British", gender: "male" },
+      { key: "af", label: "American Female", accent: "American", gender: "female" },
+      { key: "am", label: "American Male", accent: "American", gender: "male" },
+    ];
+    return order
+      .map(g => ({ ...g, voices: filteredVoices.filter(v => v.accent === g.accent && v.gender === g.gender) }))
+      .filter(g => g.voices.length > 0);
+  }, [filteredVoices]);
+
   const renderVoiceCard = (voice: Voice) => {
-    const isSelected = selectedVoiceId === voice.id;
-    const isPlaying = playingVoiceId === voice.id;
-    const isLoading = loadingVoiceId === voice.id;
+    const isSelected = selectedVoiceId === voice.voice_id;
+    const isPlaying = playingVoiceId === voice.voice_id;
+    const isLoading = loadingVoiceId === voice.voice_id;
 
     return (
       <div
@@ -116,7 +152,7 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/50 hover:bg-muted/50"
         )}
-        onClick={() => onVoiceSelect(voice.id)}
+        onClick={() => onVoiceSelect(voice.voice_id)}
       >
         <div className="h-10 w-10 shrink-0 rounded-full bg-muted flex items-center justify-center">
           <Volume2 className="h-4 w-4 text-muted-foreground" />
@@ -154,9 +190,6 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
     );
   };
 
-  const britishVoices = ELEVENLABS_VOICES.filter(v => v.accent === "British");
-  const americanVoices = ELEVENLABS_VOICES.filter(v => v.accent === "American");
-
   return (
     <div className="space-y-2">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -183,21 +216,57 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
           </p>
 
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <p className="text-xs font-medium text-primary uppercase tracking-wide">British Voices</p>
-              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">Recommended</Badge>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search voices..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {britishVoices.map(renderVoiceCard)}
+            <div className="flex gap-1.5 flex-wrap">
+              {(["All", "British", "American"] as AccentFilter[]).map(f => (
+                <Button
+                  key={f}
+                  type="button"
+                  size="sm"
+                  variant={accentFilter === f ? "default" : "outline"}
+                  className="h-7 text-xs"
+                  onClick={() => setAccentFilter(f)}
+                >
+                  {f}
+                </Button>
+              ))}
             </div>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Other Voices</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {americanVoices.map(renderVoiceCard)}
+          {loadingVoices ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          </div>
+          ) : groups.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">No voices match your filters.</p>
+          ) : (
+            groups.map((group, idx) => (
+              <div key={group.key} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <p className={cn(
+                    "text-xs font-medium uppercase tracking-wide",
+                    group.accent === "British" ? "text-primary" : "text-muted-foreground"
+                  )}>
+                    {group.label}
+                  </p>
+                  {idx === 0 && group.accent === "British" && (
+                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5">Recommended</Badge>
+                  )}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {group.voices.map(renderVoiceCard)}
+                </div>
+              </div>
+            ))
+          )}
         </CollapsibleContent>
       </Collapsible>
     </div>
