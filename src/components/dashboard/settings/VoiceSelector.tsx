@@ -225,18 +225,12 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
           ) : groups.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No voices match your filters.</p>
           ) : (
-            groups.map((group, idx) => (
+            groups.map((group) => (
               <div key={group.key} className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <p className={cn(
-                    "text-xs font-medium uppercase tracking-wide",
-                    group.accent === "British" ? "text-primary" : "text-muted-foreground"
-                  )}>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     {group.label}
                   </p>
-                  {idx === 0 && group.accent === "British" && (
-                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5">Recommended</Badge>
-                  )}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {group.voices.map(renderVoiceCard)}
