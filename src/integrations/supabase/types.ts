@@ -2500,6 +2500,42 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_library: {
+        Row: {
+          accent: string
+          created_at: string
+          description: string
+          display_order: number
+          gender: string
+          id: string
+          is_active: boolean
+          name: string
+          voice_id: string
+        }
+        Insert: {
+          accent: string
+          created_at?: string
+          description: string
+          display_order?: number
+          gender: string
+          id?: string
+          is_active?: boolean
+          name: string
+          voice_id: string
+        }
+        Update: {
+          accent?: string
+          created_at?: string
+          description?: string
+          display_order?: number
+          gender?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          voice_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       public_business_settings: {
