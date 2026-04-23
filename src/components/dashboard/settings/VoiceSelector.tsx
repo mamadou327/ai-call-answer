@@ -117,21 +117,18 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
   const filteredVoices = useMemo(() => {
     const q = search.trim().toLowerCase();
     return voices.filter(v => {
-      if (accentFilter !== "All" && v.accent !== accentFilter) return false;
       if (!q) return true;
       return v.name.toLowerCase().includes(q) || v.description.toLowerCase().includes(q);
     });
-  }, [voices, search, accentFilter]);
+  }, [voices, search]);
 
   const groups = useMemo(() => {
-    const order: Array<{ key: string; label: string; accent: "British" | "American"; gender: "female" | "male" }> = [
-      { key: "bf", label: "British Female", accent: "British", gender: "female" },
-      { key: "bm", label: "British Male", accent: "British", gender: "male" },
-      { key: "af", label: "American Female", accent: "American", gender: "female" },
-      { key: "am", label: "American Male", accent: "American", gender: "male" },
+    const order: Array<{ key: string; label: string; gender: "female" | "male" }> = [
+      { key: "f", label: "Female", gender: "female" },
+      { key: "m", label: "Male", gender: "male" },
     ];
     return order
-      .map(g => ({ ...g, voices: filteredVoices.filter(v => v.accent === g.accent && v.gender === g.gender) }))
+      .map(g => ({ ...g, voices: filteredVoices.filter(v => v.gender === g.gender) }))
       .filter(g => g.voices.length > 0);
   }, [filteredVoices]);
 
@@ -219,20 +216,6 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
                 className="pl-9"
               />
             </div>
-            <div className="flex gap-1.5 flex-wrap">
-              {(["All", "British", "American"] as AccentFilter[]).map(f => (
-                <Button
-                  key={f}
-                  type="button"
-                  size="sm"
-                  variant={accentFilter === f ? "default" : "outline"}
-                  className="h-7 text-xs"
-                  onClick={() => setAccentFilter(f)}
-                >
-                  {f}
-                </Button>
-              ))}
-            </div>
           </div>
 
           {loadingVoices ? (
@@ -242,18 +225,12 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
           ) : groups.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">No voices match your filters.</p>
           ) : (
-            groups.map((group, idx) => (
+            groups.map((group) => (
               <div key={group.key} className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <p className={cn(
-                    "text-xs font-medium uppercase tracking-wide",
-                    group.accent === "British" ? "text-primary" : "text-muted-foreground"
-                  )}>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     {group.label}
                   </p>
-                  {idx === 0 && group.accent === "British" && (
-                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5">Recommended</Badge>
-                  )}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {group.voices.map(renderVoiceCard)}
