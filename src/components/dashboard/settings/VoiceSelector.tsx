@@ -158,10 +158,7 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
           <Volume2 className="h-4 w-4 text-muted-foreground" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="font-medium text-sm">{voice.name}</p>
-            <span className="text-[10px] text-muted-foreground">· {voice.accent}</span>
-          </div>
+          <p className="font-medium text-sm">{voice.name}</p>
           <p className="text-xs text-muted-foreground truncate">{voice.description}</p>
         </div>
         <Button
