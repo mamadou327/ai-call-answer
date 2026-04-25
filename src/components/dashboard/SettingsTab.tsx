@@ -46,7 +46,7 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
     if (["sms", "email"].includes(section)) {
       return "notifications";
     }
-    if (["stripe", "truelayer", "payments"].includes(section)) {
+    if (["stripe", "payments"].includes(section)) {
       return "payments";
     }
     // Map restaurant-specific sections
