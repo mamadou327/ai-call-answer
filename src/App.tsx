@@ -23,7 +23,7 @@ const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const AdminRegister = lazy(() => import("./pages/AdminRegister"));
 const AdminPending = lazy(() => import("./pages/AdminPending"));
-const FontDemo = lazy(() => import("./pages/FontDemo"));
+
 const StripeConnectCallback = lazy(() => import("./pages/StripeConnectCallback"));
 const DepositPayment = lazy(() => import("./pages/DepositPayment"));
 const PublicBookingPage = lazy(() => import("./pages/PublicBookingPage"));
@@ -52,7 +52,7 @@ const App = () => (
             <Route path="/staff/login" element={<StaffLogin />} />
             <Route path="/staff/pending" element={<StaffPendingApproval />} />
             <Route path="/staff/dashboard" element={<StaffDashboard />} />
-            <Route path="/fonts" element={<FontDemo />} />
+            
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/register" element={<AdminRegister />} />
