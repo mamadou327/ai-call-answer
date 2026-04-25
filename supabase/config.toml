@@ -141,14 +141,6 @@ verify_jwt = false
 [functions.generate-polly-preview]
 verify_jwt = true
 
-[functions.truelayer-connect]
-verify_jwt = true
-
-[functions.truelayer-create-payment]
-verify_jwt = false
-
-[functions.truelayer-webhook]
-verify_jwt = false
 
 [functions.verify-custom-domain]
 verify_jwt = true
