@@ -17,7 +17,8 @@ import { DepositSettings } from "./settings/DepositSettings";
 import { OnlineBookingSettings } from "./settings/OnlineBookingSettings";
 import { PaymentProvidersSettings } from "./settings/PaymentProvidersSettings";
 import { MenuManagement } from "./settings/MenuManagement";
-import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe, CreditCard, UtensilsCrossed, Armchair } from "lucide-react";
+import { BillingSettings } from "./settings/BillingSettings";
+import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe, CreditCard, UtensilsCrossed, Armchair, Crown } from "lucide-react";
 
 interface SettingsTabProps {
   businessId: string;
