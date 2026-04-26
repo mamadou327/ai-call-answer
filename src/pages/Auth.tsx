@@ -79,19 +79,19 @@ const Auth = () => {
       if (business.status === "pending") {
         navigate("/pending-approval");
       } else if (business.status === "rejected") {
-        navigate("/onboarding");
+        navigate("/signup");
       } else {
         navigate("/dashboard");
       }
     } else if (isBusinessOwner) {
-      // Has role but no business found - could be RLS issue or they need to complete onboarding
-      navigate("/onboarding");
+      // Has role but no business yet — go finish signup
+      navigate("/signup");
     } else {
-      // New user without any role - assign business_owner and send to onboarding
+      // New user without any role - assign business_owner and send to signup
       await supabase
         .from("user_roles")
         .insert({ user_id: userId, role: "business_owner" });
-      navigate("/onboarding");
+      navigate("/signup");
     }
   };
 
@@ -129,7 +129,7 @@ const Auth = () => {
           email: formData.email,
           password: formData.password,
           options: {
-            emailRedirectTo: `${window.location.origin}/onboarding`,
+            emailRedirectTo: `${window.location.origin}/signup`,
           },
         });
 
