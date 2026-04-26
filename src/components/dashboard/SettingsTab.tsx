@@ -130,6 +130,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
           <Bell className="w-4 h-4" />
           <span className="hidden sm:inline">Notifications</span>
         </TabsTrigger>
+        <TabsTrigger value="billing" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <Crown className="w-4 h-4" />
+          <span className="hidden sm:inline">Billing</span>
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="business">
