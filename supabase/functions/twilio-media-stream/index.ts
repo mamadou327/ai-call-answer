@@ -726,6 +726,10 @@ Deno.serve(async (req) => {
           );
 
           session.systemPrompt = promptData.prompt;
+          // Starter tier: force English-only regardless of caller language.
+          if (tier === "starter") {
+            session.systemPrompt += `\n\nIMPORTANT LANGUAGE RULE (Starter plan): Always respond in English only, regardless of what language the caller speaks. Do not switch languages under any circumstance. If the caller speaks another language, politely continue in English.`;
+          }
           session.businessSettings = promptData.businessSettings;
           session.openingHours = promptData.openingHours;
           session.staffTimeOff = promptData.staffTimeOff;
