@@ -18,7 +18,14 @@ const Auth = () => {
   // Check URL parameter to determine initial mode
   const searchParams = new URLSearchParams(window.location.search);
   const mode = searchParams.get('mode');
-  const [isSignUp, setIsSignUp] = useState(mode !== 'signin');
+  const [isSignUp, setIsSignUp] = useState(false);
+
+  // Redirect to /signup if user lands on /auth in signup mode
+  useEffect(() => {
+    if (mode !== 'signin' && mode === 'signup') {
+      navigate("/signup");
+    }
+  }, [mode, navigate]);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
