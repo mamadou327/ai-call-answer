@@ -362,6 +362,7 @@ export type Database = {
           opening_context: string | null
           primary_language: string | null
           sms_reminder_hours: number | null
+          subscription_tier: Database["public"]["Enums"]["subscription_tier"]
           tone: Database["public"]["Enums"]["tone_type"] | null
           updated_at: string | null
           use_elevenlabs_voice: boolean
@@ -389,6 +390,7 @@ export type Database = {
           opening_context?: string | null
           primary_language?: string | null
           sms_reminder_hours?: number | null
+          subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
           tone?: Database["public"]["Enums"]["tone_type"] | null
           updated_at?: string | null
           use_elevenlabs_voice?: boolean
@@ -416,6 +418,7 @@ export type Database = {
           opening_context?: string | null
           primary_language?: string | null
           sms_reminder_hours?: number | null
+          subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
           tone?: Database["public"]["Enums"]["tone_type"] | null
           updated_at?: string | null
           use_elevenlabs_voice?: boolean
@@ -709,6 +712,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      call_usage_notifications: {
+        Row: {
+          business_id: string
+          id: string
+          month_start: string
+          sent_at: string
+          threshold: number
+        }
+        Insert: {
+          business_id: string
+          id?: string
+          month_start: string
+          sent_at?: string
+          threshold: number
+        }
+        Update: {
+          business_id?: string
+          id?: string
+          month_start?: string
+          sent_at?: string
+          threshold?: number
+        }
+        Relationships: []
       }
       calls_log: {
         Row: {
@@ -2767,6 +2794,10 @@ export type Database = {
         Args: { business_name: string }
         Returns: string
       }
+      get_current_month_call_count: {
+        Args: { p_business_id: string }
+        Returns: number
+      }
       get_invite_by_token: {
         Args: { p_token: string }
         Returns: {
@@ -2844,6 +2875,7 @@ export type Database = {
         | "color"
         | "treatment"
         | "other"
+      subscription_tier: "starter" | "growth" | "scale" | "enterprise"
       task_priority: "low" | "medium" | "high" | "urgent"
       task_status: "pending" | "in_progress" | "completed" | "cancelled"
       tone_type: "casual" | "neutral" | "formal"
@@ -3009,6 +3041,7 @@ export const Constants = {
         "treatment",
         "other",
       ],
+      subscription_tier: ["starter", "growth", "scale", "enterprise"],
       task_priority: ["low", "medium", "high", "urgent"],
       task_status: ["pending", "in_progress", "completed", "cancelled"],
       tone_type: ["casual", "neutral", "formal"],
