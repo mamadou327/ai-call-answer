@@ -211,6 +211,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
         <TwilioSettings business={business} onUpdate={onUpdate} />
         <EmailNotificationSettings business={business} onUpdate={onUpdate} />
       </TabsContent>
+
+      <TabsContent value="billing">
+        <BillingSettings businessId={businessId} businessName={business?.business_name} />
+      </TabsContent>
     </Tabs>
   );
 };
