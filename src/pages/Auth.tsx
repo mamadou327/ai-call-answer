@@ -134,14 +134,48 @@ const Auth = () => {
         });
 
         if (error) {
-          // Check if it's a "user already exists" error
-          if (error.message?.toLowerCase().includes("already") || 
-              error.message?.toLowerCase().includes("exists") ||
-              error.status === 422) {
+          const code = (error as any).code as string | undefined;
+          const msg = error.message?.toLowerCase() || "";
+
+          // Only treat as "email already exists" when the API explicitly says so.
+          // Supabase returns code "user_already_exists" / "email_exists" for true
+          // duplicates. 422 alone is NOT enough — it's also returned for weak
+          // passwords, invalid emails, signup disabled, etc.
+          const isDuplicate =
+            code === "user_already_exists" ||
+            code === "email_exists" ||
+            msg.includes("already registered") ||
+            msg.includes("user already") ||
+            msg.includes("already exists");
+
+          if (isDuplicate) {
             setExistingEmailError(true);
             setIsLoading(false);
             return;
           }
+
+          // Friendlier messages for common validation failures
+          if (code === "weak_password" || msg.includes("weak") || msg.includes("pwned")) {
+            toast({
+              title: "Password too weak",
+              description:
+                "That password has appeared in known data breaches. Please choose a stronger, unique password.",
+              variant: "destructive",
+            });
+            setIsLoading(false);
+            return;
+          }
+
+          if (code === "invalid_email" || msg.includes("invalid") && msg.includes("email")) {
+            toast({
+              title: "Invalid email",
+              description: "Please enter a valid email address.",
+              variant: "destructive",
+            });
+            setIsLoading(false);
+            return;
+          }
+
           throw error;
         }
 
