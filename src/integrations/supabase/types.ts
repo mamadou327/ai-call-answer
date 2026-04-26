@@ -445,6 +445,7 @@ export type Database = {
       businesses: {
         Row: {
           address: string
+          admin_note: string | null
           aivia_active: boolean
           assigned_aivia_number: string | null
           average_prep_time_minutes: number | null
@@ -487,6 +488,7 @@ export type Database = {
           prepayment_type: string | null
           refund_policy: string | null
           refund_window_hours: number | null
+          rejection_reason: string | null
           require_prepayment: boolean | null
           reservation_platform: string | null
           secondary_phone: string | null
@@ -513,6 +515,7 @@ export type Database = {
         }
         Insert: {
           address: string
+          admin_note?: string | null
           aivia_active?: boolean
           assigned_aivia_number?: string | null
           average_prep_time_minutes?: number | null
@@ -555,6 +558,7 @@ export type Database = {
           prepayment_type?: string | null
           refund_policy?: string | null
           refund_window_hours?: number | null
+          rejection_reason?: string | null
           require_prepayment?: boolean | null
           reservation_platform?: string | null
           secondary_phone?: string | null
@@ -581,6 +585,7 @@ export type Database = {
         }
         Update: {
           address?: string
+          admin_note?: string | null
           aivia_active?: boolean
           assigned_aivia_number?: string | null
           average_prep_time_minutes?: number | null
@@ -623,6 +628,7 @@ export type Database = {
           prepayment_type?: string | null
           refund_policy?: string | null
           refund_window_hours?: number | null
+          rejection_reason?: string | null
           require_prepayment?: boolean | null
           reservation_platform?: string | null
           secondary_phone?: string | null

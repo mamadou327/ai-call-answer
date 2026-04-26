@@ -13,7 +13,7 @@ import Index from "./pages/Index";
 const Auth = lazy(() => import("./pages/Auth"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Onboarding = lazy(() => import("./pages/Onboarding"));
+const Signup = lazy(() => import("./pages/Signup"));
 const PendingApproval = lazy(() => import("./pages/PendingApproval"));
 const StaffInvite = lazy(() => import("./pages/StaffInvite"));
 const StaffLogin = lazy(() => import("./pages/StaffLogin"));
@@ -45,7 +45,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/reset-password" element={<ResetPassword />} />
-            <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/onboarding" element={<Signup />} />
             <Route path="/pending-approval" element={<PendingApproval />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/staff/invite" element={<StaffInvite />} />

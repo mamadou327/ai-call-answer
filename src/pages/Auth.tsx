@@ -18,7 +18,14 @@ const Auth = () => {
   // Check URL parameter to determine initial mode
   const searchParams = new URLSearchParams(window.location.search);
   const mode = searchParams.get('mode');
-  const [isSignUp, setIsSignUp] = useState(mode !== 'signin');
+  const [isSignUp, setIsSignUp] = useState(false);
+
+  // Redirect to /signup if user lands on /auth in signup mode
+  useEffect(() => {
+    if (mode !== 'signin' && mode === 'signup') {
+      navigate("/signup");
+    }
+  }, [mode, navigate]);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -79,19 +86,19 @@ const Auth = () => {
       if (business.status === "pending") {
         navigate("/pending-approval");
       } else if (business.status === "rejected") {
-        navigate("/onboarding");
+        navigate("/signup");
       } else {
         navigate("/dashboard");
       }
     } else if (isBusinessOwner) {
-      // Has role but no business found - could be RLS issue or they need to complete onboarding
-      navigate("/onboarding");
+      // Has role but no business yet — go finish signup
+      navigate("/signup");
     } else {
-      // New user without any role - assign business_owner and send to onboarding
+      // New user without any role - assign business_owner and send to signup
       await supabase
         .from("user_roles")
         .insert({ user_id: userId, role: "business_owner" });
-      navigate("/onboarding");
+      navigate("/signup");
     }
   };
 
@@ -129,7 +136,7 @@ const Auth = () => {
           email: formData.email,
           password: formData.password,
           options: {
-            emailRedirectTo: `${window.location.origin}/onboarding`,
+            emailRedirectTo: `${window.location.origin}/signup`,
           },
         });
 
@@ -513,10 +520,7 @@ const Auth = () => {
                 Don't have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsSignUp(true);
-                    setExistingEmailError(false);
-                  }}
+                  onClick={() => navigate("/signup")}
                   className="text-primary hover:underline font-medium"
                 >
                   Sign up

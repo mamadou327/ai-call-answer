@@ -61,6 +61,7 @@ const Dashboard = () => {
   const [isStaffView, setIsStaffView] = useState(false);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [checklistDismissed, setChecklistDismissed] = useState(false);
   
   // Track unread messages count
   useEffect(() => {
@@ -384,6 +385,18 @@ const Dashboard = () => {
     }
   };
   const isSetupComplete = checklistItems.every(item => item.isComplete);
+  // Per-business dismissal persistence
+  useEffect(() => {
+    if (!business?.id) return;
+    setChecklistDismissed(
+      localStorage.getItem(`aivia_setup_checklist_dismissed_${business.id}`) === "1"
+    );
+  }, [business?.id]);
+  const handleDismissChecklist = () => {
+    if (!business?.id) return;
+    localStorage.setItem(`aivia_setup_checklist_dismissed_${business.id}`, "1");
+    setChecklistDismissed(true);
+  };
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate("/");
@@ -411,8 +424,8 @@ const Dashboard = () => {
 
       <main className="px-3 sm:px-4 md:container py-4 sm:py-8">
         {business?.status === "approved" && business && <>
-            {!isStaffView && !isSetupComplete && <div className="mb-6">
-                <SetupChecklist items={checklistItems} onItemClick={handleChecklistItemClick} />
+            {!isStaffView && !isSetupComplete && !checklistDismissed && <div className="mb-6">
+                <SetupChecklist items={checklistItems} onItemClick={handleChecklistItemClick} onDismiss={handleDismissChecklist} />
               </div>}
 
             {isStaffView && <div className="mb-4 p-3 bg-primary/10 rounded-lg text-sm">
