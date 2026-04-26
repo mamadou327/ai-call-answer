@@ -520,10 +520,7 @@ const Auth = () => {
                 Don't have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsSignUp(true);
-                    setExistingEmailError(false);
-                  }}
+                  onClick={() => navigate("/signup")}
                   className="text-primary hover:underline font-medium"
                 >
                   Sign up
