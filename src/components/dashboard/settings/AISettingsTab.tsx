@@ -10,6 +10,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { VoiceSelector } from "./VoiceSelector";
 import { Bot, MessageSquare } from "lucide-react";
+import { useTier } from "@/hooks/use-tier";
+import { tierMeets } from "@/lib/tiers";
+import { LockedFeatureCard } from "@/components/dashboard/LockedFeatureCard";
 
 interface AISettingsTabProps {
   businessId: string;
@@ -21,6 +24,8 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
   const { toast } = useToast();
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  const { tier } = useTier(businessId);
+  const canUseVoiceLibrary = tierMeets(tier, "growth");
   
   const [settingsData, setSettingsData] = useState({
     assistant_name: "Aivia",
@@ -179,14 +184,24 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
               </Select>
             </div>
 
-            {/* Voice Selector with Preview */}
+            {/* Voice Selector with Preview — Growth+ only */}
             <div className="pt-4 border-t">
-              <VoiceSelector
-                selectedVoiceId={settingsData.elevenlabs_voice_id}
-                onVoiceSelect={(voiceId) => setSettingsData({ ...settingsData, elevenlabs_voice_id: voiceId })}
-                primaryLanguage={settingsData.primary_language}
-                businessName={business?.business_name}
-              />
+              {canUseVoiceLibrary ? (
+                <VoiceSelector
+                  selectedVoiceId={settingsData.elevenlabs_voice_id}
+                  onVoiceSelect={(voiceId) => setSettingsData({ ...settingsData, elevenlabs_voice_id: voiceId })}
+                  primaryLanguage={settingsData.primary_language}
+                  businessName={business?.business_name}
+                />
+              ) : (
+                <LockedFeatureCard
+                  featureName="Custom AI Voice"
+                  description="Choose from our full ElevenLabs voice library. Starter uses our default English voice."
+                  requiredTier="growth"
+                  businessId={businessId}
+                  businessName={business?.business_name}
+                />
+              )}
             </div>
 
             <Button type="submit" disabled={loading} className="w-full md:w-auto">
