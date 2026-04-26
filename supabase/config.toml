@@ -156,3 +156,9 @@ verify_jwt = false
 
 [functions.send-order-sms]
 verify_jwt = false
+
+[functions.check-call-usage]
+verify_jwt = false
+
+[functions.send-upgrade-request]
+verify_jwt = true
