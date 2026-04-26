@@ -463,16 +463,57 @@ Deno.serve(async (req) => {
   const { data: settings } = await supabase
     .from("business_settings")
     .select(
-      "assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id, opening_context, country, use_elevenlabs_voice"
+      "assistant_name, tone, primary_language, voice_gender, voice_speed, elevenlabs_voice_id, opening_context, country, use_elevenlabs_voice, subscription_tier"
     )
     .eq("business_id", business.id)
     .maybeSingle();
+
+  // ─── Subscription tier gating ────────────────────────────────────────────
+  // Starter = 300 calls / English-only / fixed default voice.
+  // Growth = 800, Scale = 5000, Enterprise = unlimited.
+  // Block at 100% for non-enterprise tiers; force English + default voice for Starter.
+  const tier = ((settings as any)?.subscription_tier as string) || "starter";
+  const TIER_LIMITS: Record<string, number | null> = {
+    starter: 300, growth: 800, scale: 5000, enterprise: null,
+  };
+  const STARTER_DEFAULT_VOICE_ID = "bm3QvaZ3fUSCRBC3UV1f";
+  const callLimit = TIER_LIMITS[tier];
+
+  if (callLimit !== null && callLimit !== undefined) {
+    const { data: usageCount } = await supabase.rpc(
+      "get_current_month_call_count",
+      { p_business_id: business.id },
+    );
+    const callsThisMonth = typeof usageCount === "number" ? usageCount : 0;
+    if (callsThisMonth >= callLimit) {
+      console.warn(
+        `[MediaStream] Business ${business.id} on tier ${tier} hit limit (${callsThisMonth}/${callLimit}) — refusing call`,
+      );
+      // Fire-and-forget threshold check so the 100% emails go out
+      try {
+        await supabase.functions.invoke("check-call-usage", {
+          body: { businessId: business.id },
+        });
+      } catch (e) {
+        console.error("[MediaStream] check-call-usage invoke failed", e);
+      }
+      return new Response("Call limit reached for this billing period", { status: 503 });
+    }
+  }
+  // Always run the threshold check (async-style, awaited briefly) so 75/90% notifications fire
+  try {
+    supabase.functions.invoke("check-call-usage", { body: { businessId: business.id } });
+  } catch (_) { /* non-blocking */ }
+  // ─────────────────────────────────────────────────────────────────────────
 
   const assistantName = settings?.assistant_name || "Aivia";
   const tone = settings?.tone || "neutral";
   const voiceGender = settings?.voice_gender || "female";
   const voiceSpeed = settings?.voice_speed || "normal";
-  const selectedVoice = settings?.elevenlabs_voice_id;
+  // Starter tier: lock to one fixed default English voice, ignore any custom selection.
+  const selectedVoice = tier === "starter"
+    ? STARTER_DEFAULT_VOICE_ID
+    : (settings as any)?.elevenlabs_voice_id;
   const businessTimezone = getTimezoneForCountry(settings?.country);
 
   // Use selected OpenAI voice, or fallback to gender-based default.
@@ -685,6 +726,10 @@ Deno.serve(async (req) => {
           );
 
           session.systemPrompt = promptData.prompt;
+          // Starter tier: force English-only regardless of caller language.
+          if (tier === "starter") {
+            session.systemPrompt += `\n\nIMPORTANT LANGUAGE RULE (Starter plan): Always respond in English only, regardless of what language the caller speaks. Do not switch languages under any circumstance. If the caller speaks another language, politely continue in English.`;
+          }
           session.businessSettings = promptData.businessSettings;
           session.openingHours = promptData.openingHours;
           session.staffTimeOff = promptData.staffTimeOff;

@@ -17,7 +17,8 @@ import { DepositSettings } from "./settings/DepositSettings";
 import { OnlineBookingSettings } from "./settings/OnlineBookingSettings";
 import { PaymentProvidersSettings } from "./settings/PaymentProvidersSettings";
 import { MenuManagement } from "./settings/MenuManagement";
-import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe, CreditCard, UtensilsCrossed, Armchair } from "lucide-react";
+import { BillingSettings } from "./settings/BillingSettings";
+import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe, CreditCard, UtensilsCrossed, Armchair, Crown } from "lucide-react";
 
 interface SettingsTabProps {
   businessId: string;
@@ -129,6 +130,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
           <Bell className="w-4 h-4" />
           <span className="hidden sm:inline">Notifications</span>
         </TabsTrigger>
+        <TabsTrigger value="billing" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+          <Crown className="w-4 h-4" />
+          <span className="hidden sm:inline">Billing</span>
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="business">
@@ -205,6 +210,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
       <TabsContent value="notifications" className="space-y-6">
         <TwilioSettings business={business} onUpdate={onUpdate} />
         <EmailNotificationSettings business={business} onUpdate={onUpdate} />
+      </TabsContent>
+
+      <TabsContent value="billing">
+        <BillingSettings businessId={businessId} businessName={business?.business_name} />
       </TabsContent>
     </Tabs>
   );
