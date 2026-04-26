@@ -18,6 +18,9 @@ import { OnlineBookingSettings } from "./settings/OnlineBookingSettings";
 import { PaymentProvidersSettings } from "./settings/PaymentProvidersSettings";
 import { MenuManagement } from "./settings/MenuManagement";
 import { BillingSettings } from "./settings/BillingSettings";
+import { LockedFeatureCard } from "./LockedFeatureCard";
+import { useTier } from "@/hooks/use-tier";
+import { tierMeets } from "@/lib/tiers";
 import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe, CreditCard, UtensilsCrossed, Armchair, Crown } from "lucide-react";
 
 interface SettingsTabProps {
@@ -31,6 +34,8 @@ interface SettingsTabProps {
 export const SettingsTab = ({ businessId, business, activeSection, onUpdate, currency = "GBP" }: SettingsTabProps) => {
   const businessType = business?.business_type || "salon";
   const isRestaurant = businessType?.startsWith("restaurant");
+  const { tier } = useTier(businessId);
+  const canCollectDeposits = tierMeets(tier, "growth");
   const isPickup = businessType === "restaurant_pickup" || businessType === "restaurant_hybrid";
   const isDineIn = businessType === "restaurant_dine_in" || businessType === "restaurant_hybrid";
 
@@ -146,7 +151,17 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
 
       <TabsContent value="policies" className="space-y-6">
         <PoliciesTab businessId={businessId} onUpdate={onUpdate} />
-        <DepositSettings businessId={businessId} onUpdate={onUpdate} />
+        {canCollectDeposits ? (
+          <DepositSettings businessId={businessId} onUpdate={onUpdate} />
+        ) : (
+          <LockedFeatureCard
+            featureName="Deposit Collection"
+            description="Take deposits at booking via Stripe to reduce no-shows."
+            requiredTier="growth"
+            businessId={businessId}
+            businessName={business?.business_name}
+          />
+        )}
       </TabsContent>
 
       <TabsContent value="payments">
