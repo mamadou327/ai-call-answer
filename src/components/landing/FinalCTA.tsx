@@ -25,7 +25,7 @@ const FinalCTA = () => {
               <Button 
                 size="lg" 
                 variant="secondary"
-                onClick={() => navigate("/auth")}
+                onClick={() => navigate("/signup")}
                 className="text-lg px-8"
               >
                 Get Started

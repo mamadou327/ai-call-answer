@@ -22,7 +22,7 @@ const MidPageCTA = () => {
             <Button 
               variant="secondary" 
               size="lg"
-              onClick={() => navigate("/auth")}
+              onClick={() => navigate("/signup")}
             >
               Start Free Trial
             </Button>

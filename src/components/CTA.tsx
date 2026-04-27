@@ -15,7 +15,7 @@ const CTA = () => {
           <p className="text-xl text-primary-foreground/80 mb-8">
             Join hundreds of businesses using AI to handle their calls 24/7
           </p>
-          <Link to="/auth">
+          <Link to="/signup">
             <Button size="lg" className="bg-accent hover:bg-accent/90 text-primary font-semibold px-10 h-16 text-lg group">
               Start Free Trial
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
