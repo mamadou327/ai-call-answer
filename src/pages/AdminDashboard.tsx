@@ -7,8 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
-import { LogOut, Clock, CheckCircle2, XCircle, Eye, ChevronRight, ChevronLeft, Phone, Copy, Check } from "lucide-react";
+import { LogOut, Clock, CheckCircle2, XCircle, Eye, ChevronRight, ChevronLeft, Phone, Copy, Check, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
@@ -129,6 +130,8 @@ const AdminDashboard = () => {
     can_manage_billing: false,
     can_view_calls_messages: false,
   });
+  const [businessToDelete, setBusinessToDelete] = useState<Business | null>(null);
+  const [deletingBusiness, setDeletingBusiness] = useState(false);
   
   // Business number assignment state
   const [assignedNumber, setAssignedNumber] = useState("");
@@ -170,6 +173,22 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     checkAdminAccess();
+  }, []);
+
+  // Realtime: auto-refresh when businesses or business_settings change
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-dashboard-refresh")
+      .on("postgres_changes", { event: "*", schema: "public", table: "businesses" }, () => {
+        loadBusinesses();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "business_settings" }, () => {
+        loadBusinesses();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const checkAdminAccess = async () => {
@@ -227,6 +246,32 @@ const AdminDashboard = () => {
     loadBusinesses();
     if (superAdmin) {
       loadPendingAdmins();
+    }
+  };
+
+  const handleDeleteBusiness = async () => {
+    if (!businessToDelete) return;
+    setDeletingBusiness(true);
+    try {
+      const { error } = await supabase
+        .from("businesses")
+        .delete()
+        .eq("id", businessToDelete.id);
+      if (error) throw error;
+      toast({
+        title: "Application deleted",
+        description: `${businessToDelete.business_name} has been removed.`,
+      });
+      setBusinessToDelete(null);
+      loadBusinesses();
+    } catch (err: any) {
+      toast({
+        title: "Failed to delete",
+        description: err.message || "Could not delete this application.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingBusiness(false);
     }
   };
 
@@ -930,25 +975,41 @@ const AdminDashboard = () => {
                             {formatDistanceToNow(new Date(business.created_at), { addSuffix: true })}
                           </TableCell>
                           <TableCell>
-                            {isPending && userPermissions.can_approve_businesses ? (
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => openApprovalDialog(business)}
-                              >
-                                <Eye className="w-4 h-4 mr-1" />
-                                Review
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openBusinessDialog(business)}
-                              >
-                                <Eye className="w-4 h-4 mr-1" />
-                                View
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {isPending && userPermissions.can_approve_businesses ? (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => openApprovalDialog(business)}
+                                >
+                                  <Eye className="w-4 h-4 mr-1" />
+                                  Review
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openBusinessDialog(business)}
+                                >
+                                  <Eye className="w-4 h-4 mr-1" />
+                                  View
+                                </Button>
+                              )}
+                              {userPermissions.can_approve_businesses && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBusinessToDelete(business);
+                                  }}
+                                  title="Delete application"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -1967,6 +2028,30 @@ const AdminDashboard = () => {
           role="admin"
         />
       )}
+
+      <AlertDialog open={!!businessToDelete} onOpenChange={(open) => !open && setBusinessToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this application?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove <strong>{businessToDelete?.business_name}</strong> and all its settings. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingBusiness}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleDeleteBusiness();
+              }}
+              disabled={deletingBusiness}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingBusiness ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
