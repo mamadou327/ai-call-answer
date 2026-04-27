@@ -1809,7 +1809,158 @@ const AdminDashboard = () => {
         onUpdate={loadBusinesses}
       />
 
-      {/* Admin AI Assistant Chat */}
+      {/* Focused Approval Dialog (separate from number-assignment dialog) */}
+      <Dialog open={!!approvalBusiness} onOpenChange={(open) => !open && closeApprovalDialog()}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Review Application</DialogTitle>
+            <DialogDescription>
+              Approve or reject this business application.
+            </DialogDescription>
+          </DialogHeader>
+          {approvalBusiness && (() => {
+            const profile = profiles[approvalBusiness.owner_id];
+            const ownerName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : "—";
+            return (
+              <div className="space-y-4">
+                {/* Read-only summary */}
+                <div className="grid grid-cols-2 gap-3 p-3 bg-muted/40 rounded-md text-sm">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Business</Label>
+                    <p className="font-medium">{approvalBusiness.business_name}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Owner</Label>
+                    <p className="font-medium">{ownerName}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Email</Label>
+                    <p className="break-all">{profile?.email || "—"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Phone</Label>
+                    <p>{approvalBusiness.main_phone}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Type</Label>
+                    <p>{humanizeBusinessType(approvalBusiness.business_type)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Applied</Label>
+                    <p>{new Date(approvalBusiness.created_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+
+                {approvalMode === "review" ? (
+                  <>
+                    <div>
+                      <Label htmlFor="approval-tier" className="text-sm font-medium">
+                        Subscription tier
+                      </Label>
+                      <Select value={approvalTier} onValueChange={(v) => setApprovalTier(v as SubscriptionTier)}>
+                        <SelectTrigger id="approval-tier" className="mt-1.5">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="starter">Starter</SelectItem>
+                          <SelectItem value="growth">Growth</SelectItem>
+                          <SelectItem value="scale">Scale</SelectItem>
+                          <SelectItem value="enterprise">Enterprise</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Prefilled from the plan the owner selected at signup. Override if needed.
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="approval-note" className="text-sm font-medium">
+                        Internal note (optional)
+                      </Label>
+                      <Textarea
+                        id="approval-note"
+                        placeholder="Notes only visible to admins..."
+                        value={approvalNote}
+                        onChange={(e) => setApprovalNote(e.target.value)}
+                        className="mt-1.5"
+                        rows={2}
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        onClick={handleApprovePending}
+                        disabled={!!actionLoading}
+                        className="flex-1"
+                      >
+                        {actionLoading === approvalBusiness.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                        )}
+                        Approve
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => setApprovalMode("rejecting")}
+                        disabled={!!actionLoading}
+                        className="flex-1"
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        Reject
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <Label htmlFor="rejection-reason" className="text-sm font-medium">
+                        Reason for rejection <span className="text-destructive">*</span>
+                      </Label>
+                      <Textarea
+                        id="rejection-reason"
+                        placeholder="Explain why this application is being rejected. The owner will receive this in an email."
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value.slice(0, 1000))}
+                        className="mt-1.5"
+                        rows={4}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {rejectionReason.length}/1000 characters
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setApprovalMode("review")}
+                        disabled={!!actionLoading}
+                      >
+                        <ChevronLeft className="w-4 h-4 mr-2" />
+                        Back
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={handleRejectPending}
+                        disabled={!!actionLoading || !rejectionReason.trim()}
+                        className="flex-1"
+                      >
+                        {actionLoading === approvalBusiness.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        ) : (
+                          <XCircle className="w-4 h-4 mr-2" />
+                        )}
+                        Confirm Reject
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       {currentUserId && (
         <AiviaAssistantChat
           userId={currentUserId}
