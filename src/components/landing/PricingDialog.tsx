@@ -80,7 +80,7 @@ const PricingDialog = ({ open, onOpenChange }: PricingDialogProps) => {
                         setContactOpen(true);
                       } else {
                         onOpenChange(false);
-                        navigate("/auth");
+                        navigate("/signup");
                       }
                     }}
                   >

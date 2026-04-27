@@ -39,7 +39,7 @@ const HeroSection = () => {
         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
           <Button 
             size="lg" 
-            onClick={() => navigate("/auth")} 
+            onClick={() => navigate("/signup")} 
             className="text-lg px-8 shadow-sm hover:shadow-md transition-shadow"
           >
             Start Free Trial

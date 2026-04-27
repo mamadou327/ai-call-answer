@@ -93,7 +93,7 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
             <Button variant="ghost" onClick={() => navigate("/auth?mode=signin")}>
               Sign In
             </Button>
-            <Button onClick={() => navigate("/auth")} className="shadow-sm">
+            <Button onClick={() => navigate("/signup")} className="shadow-sm">
               Try Free
             </Button>
           </div>
@@ -151,7 +151,7 @@ const Header = ({ activeSection, onSectionChange }: HeaderProps) => {
                     <Button 
                       className="w-full"
                       onClick={() => {
-                        navigate("/auth");
+                        navigate("/signup");
                         setMobileMenuOpen(false);
                       }}
                     >

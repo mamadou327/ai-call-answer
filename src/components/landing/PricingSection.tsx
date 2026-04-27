@@ -63,7 +63,7 @@ const PricingSection = () => {
                     className="w-full"
                     variant={plan.popular ? "default" : "outline"}
                     onClick={() =>
-                      isEnterprise ? setContactOpen(true) : navigate("/auth")
+                      isEnterprise ? setContactOpen(true) : navigate("/signup")
                     }
                   >
                     {plan.ctaLabel}

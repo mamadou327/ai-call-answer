@@ -73,7 +73,7 @@ const FeatureShowcase = () => {
                   </li>
                 ))}
               </ul>
-              <Button onClick={() => navigate("/auth")} className="shadow-sm">
+              <Button onClick={() => navigate("/signup")} className="shadow-sm">
                 Start Free Trial
               </Button>
             </div>
