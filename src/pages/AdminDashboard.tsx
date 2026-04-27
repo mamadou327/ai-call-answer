@@ -622,7 +622,117 @@ const AdminDashboard = () => {
     setEmailOnReminder(false);
   };
 
-  const handleTwilioToggle = async (enabled: boolean) => {
+  // ---- Focused approval dialog (for pending businesses) ----
+  const openApprovalDialog = (business: Business) => {
+    setApprovalBusiness(business);
+    setApprovalTier((businessTiers[business.id] as SubscriptionTier) || "starter");
+    setApprovalNote(business.admin_note || "");
+    setApprovalMode("review");
+    setRejectionReason("");
+  };
+
+  const closeApprovalDialog = () => {
+    setApprovalBusiness(null);
+    setApprovalMode("review");
+    setApprovalNote("");
+    setRejectionReason("");
+  };
+
+  const handleApprovePending = async () => {
+    if (!approvalBusiness) return;
+    const business = approvalBusiness;
+    const profile = profiles[business.owner_id];
+    setActionLoading(business.id);
+    try {
+      // 1. Update tier in business_settings
+      const { error: settingsError } = await supabase
+        .from("business_settings")
+        .update({ subscription_tier: approvalTier })
+        .eq("business_id", business.id);
+      if (settingsError) throw settingsError;
+
+      // 2. Update business status + admin note
+      const { error: bizError } = await supabase
+        .from("businesses")
+        .update({
+          status: "approved",
+          admin_note: approvalNote || null,
+        })
+        .eq("id", business.id);
+      if (bizError) throw bizError;
+
+      // 3. Send approval email
+      if (profile?.email) {
+        try {
+          const dashboardUrl = `${window.location.origin}/dashboard`;
+          await supabase.functions.invoke("send-business-approval-email", {
+            body: {
+              businessName: business.business_name,
+              ownerEmail: profile.email,
+              dashboardUrl,
+            },
+          });
+        } catch (e) {
+          console.error("Approval email failed:", e);
+        }
+      }
+
+      toast({ title: "Business approved", description: `${business.business_name} has been approved.` });
+      closeApprovalDialog();
+      loadBusinesses();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectPending = async () => {
+    if (!approvalBusiness) return;
+    if (!rejectionReason.trim()) {
+      toast({ title: "Reason required", description: "Please provide a reason for rejection.", variant: "destructive" });
+      return;
+    }
+    const business = approvalBusiness;
+    const profile = profiles[business.owner_id];
+    setActionLoading(business.id);
+    try {
+      const { error: bizError } = await supabase
+        .from("businesses")
+        .update({
+          status: "rejected",
+          rejection_reason: rejectionReason,
+          admin_note: approvalNote || null,
+        })
+        .eq("id", business.id);
+      if (bizError) throw bizError;
+
+      if (profile?.email) {
+        try {
+          await supabase.functions.invoke("send-business-rejection-email", {
+            body: {
+              businessName: business.business_name,
+              ownerEmail: profile.email,
+              ownerName: profile ? `${profile.first_name} ${profile.last_name}`.trim() : "",
+              reason: rejectionReason,
+              reapplyUrl: `${window.location.origin}/signup`,
+            },
+          });
+        } catch (e) {
+          console.error("Rejection email failed:", e);
+        }
+      }
+
+      toast({ title: "Business rejected", description: `${business.business_name} has been rejected.` });
+      closeApprovalDialog();
+      loadBusinesses();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
     if (!selectedBusiness) return;
     
     setTwilioEnabled(enabled);
