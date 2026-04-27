@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
@@ -31,7 +31,25 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 
-const queryClient = new QueryClient();
+const logQueryError = (error: unknown) => {
+  if (import.meta.env.DEV) {
+    console.error("[QueryClient]", error);
+  }
+};
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30_000,
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+  queryCache: new QueryCache({ onError: logQueryError }),
+  mutationCache: new MutationCache({ onError: logQueryError }),
+});
 
 const App = () => (
   <ErrorBoundary>

@@ -1,29 +1,49 @@
-## Plan
+## Goal
+Two small infra tweaks: harden `.gitignore` and configure the React Query client with sensible defaults plus a dev-only error logger.
 
-Fix the admin application review so it shows the tier the customer actually selected at signup.
+## Changes
 
-### What I’ll change
-1. Add backend read access for admin users to the business settings records they need during application review.
-   - Super admins will be able to read `business_settings`.
-   - Sub-admins with business-approval permission will also be able to read it.
-   - Write access will stay restricted; this only fixes visibility.
+### 1. `.gitignore`
+Append explicit entries (currently only `*.local` covers `.env.local` indirectly, and `.env` is not ignored at all):
+```
+.env
+.env.local
+```
 
-2. Tighten the admin dashboard tier display logic.
-   - Keep loading the chosen tier from `business_settings`.
-   - Stop masking missing/inaccessible data with misleading fallbacks where needed.
-   - Ensure both the table and the “Review Application” dialog show the same tier consistently.
+### 2. `src/App.tsx` — QueryClient configuration
+Replace the bare `new QueryClient()` with explicit defaults applied to both queries and mutations, plus a global `QueryCache` / `MutationCache` error handler that logs only when `import.meta.env.DEV` is true.
 
-3. Verify the latest pending signup path.
-   - The latest test application already has a saved tier in the database.
-   - After the policy fix, the pending/recent applications list and review modal should show that saved value instead of “Not selected”.
+```ts
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 
-### Why this is happening
-The signup flow is already saving the chosen tier correctly. The issue is that the admin dashboard reads the tier from `business_settings`, but current backend access rules only allow business owners/staff to read that table. Admins are blocked, so the UI ends up showing a fallback instead of the real selection.
+const logError = (error: unknown) => {
+  if (import.meta.env.DEV) {
+    console.error("[QueryClient]", error);
+  }
+};
 
-### Technical details
-- Files involved:
-  - `src/pages/AdminDashboard.tsx`
-  - new backend migration for `business_settings` RLS policies
-- No new tables are needed.
-- No public data exposure is needed.
-- Expected result for your latest test signup: the admin should see the selected tier (for the newest record, it is already stored in the backend).
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30_000,
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+  queryCache: new QueryCache({ onError: logError }),
+  mutationCache: new MutationCache({ onError: logError }),
+});
+```
+
+Notes:
+- `onError` on `defaultOptions.queries` is deprecated in React Query v5 — the correct place for a global handler is on `QueryCache`/`MutationCache`, which is what's used above.
+- `staleTime: 30000` (30s) applies to queries only, as intended.
+- Dev gate uses Vite's `import.meta.env.DEV` (no leakage in production builds).
+
+## Files touched
+- `.gitignore` (append 2 lines)
+- `src/App.tsx` (QueryClient setup only; routes untouched)
+
+No other files, no DB changes, no dependency changes.
