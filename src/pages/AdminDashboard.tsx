@@ -1910,13 +1910,19 @@ const AdminDashboard = () => {
                     <Label className="text-xs text-muted-foreground">Applied</Label>
                     <p>{new Date(approvalBusiness.created_at).toLocaleDateString()}</p>
                   </div>
+                  <div className="col-span-2 pt-2 border-t border-border/50">
+                    <Label className="text-xs text-muted-foreground">Customer chose at signup</Label>
+                    <p className="font-semibold text-primary capitalize">
+                      {businessTiers[approvalBusiness.id] || "Not selected"}
+                    </p>
+                  </div>
                 </div>
 
                 {approvalMode === "review" ? (
                   <>
                     <div>
                       <Label htmlFor="approval-tier" className="text-sm font-medium">
-                        Subscription tier
+                        Assign tier (override if needed)
                       </Label>
                       <Select value={approvalTier} onValueChange={(v) => setApprovalTier(v as SubscriptionTier)}>
                         <SelectTrigger id="approval-tier" className="mt-1.5">
@@ -1930,7 +1936,7 @@ const AdminDashboard = () => {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Prefilled from the plan the owner selected at signup. Override if needed.
+                        Defaults to the customer's choice above. Change only if you've agreed a different plan with them.
                       </p>
                     </div>
 
@@ -1940,12 +1946,15 @@ const AdminDashboard = () => {
                       </Label>
                       <Textarea
                         id="approval-note"
-                        placeholder="Notes only visible to admins..."
+                        placeholder="e.g. Why you changed the tier, special pricing agreed, follow-up needed..."
                         value={approvalNote}
                         onChange={(e) => setApprovalNote(e.target.value)}
                         className="mt-1.5"
                         rows={2}
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Private notes about this approval. Only admins can see this — never shown to the customer.
+                      </p>
                     </div>
 
                     <div className="flex gap-2 pt-2">
