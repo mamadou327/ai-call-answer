@@ -234,145 +234,99 @@ const Dashboard = () => {
   };
   const loadSetupChecklist = async (biz: any) => {
     const businessType = biz.business_type || "salon";
-    
-    // Fetch common data
-    const [servicesRes, staffRes, hoursRes, settingsRes, menuItemsRes, tablesRes] = await Promise.all([
+    const isRestaurant = businessType.startsWith("restaurant");
+    const hasTables = businessType === "restaurant_dine_in" || businessType === "restaurant_hybrid";
+
+    // Fetch supporting data in parallel
+    const [servicesRes, hoursRes, tablesRes, customerSettingsRes, numberSelRes] = await Promise.all([
       supabase.from("services").select("id").eq("business_id", biz.id),
-      supabase.from("staff").select("id").eq("business_id", biz.id),
       supabase.from("opening_hours").select("id").eq("business_id", biz.id),
-      supabase.from("business_settings").select("*").eq("business_id", biz.id).single(),
-      supabase.from("menu_items").select("id").eq("business_id", biz.id),
       supabase.from("restaurant_tables").select("id").eq("business_id", biz.id),
+      supabase.from("customer_settings").select("id").eq("business_id", biz.id).maybeSingle(),
+      supabase.from("business_number_selection").select("id").eq("business_id", biz.id).maybeSingle(),
     ]);
 
-    // Check if any notification is enabled (email or SMS)
-    const hasNotificationsEnabled = !!(biz.email_on_confirmation || biz.email_on_cancellation || biz.email_on_reminder || biz.sms_on_confirmation || biz.sms_on_cancellation || biz.sms_on_reminder);
-    
-    // Common items for all business types
-    const commonItems: ChecklistItem[] = [
+    const phoneConfigured = !!(
+      biz.assigned_aivia_number ||
+      biz.twilio_phone_number ||
+      numberSelRes.data
+    );
+
+    const items: ChecklistItem[] = [
+      // Common items
       {
-        label: "Business info complete (name, address, phone)",
-        isComplete: !!(biz.business_name && biz.address && biz.main_phone),
-        action: "business"
+        label: "Business address",
+        isComplete: !!(biz.address && biz.address.trim().length > 0),
+        action: "business",
       },
       {
-        label: "Opening hours set",
+        label: "Website (optional)",
+        isComplete: !!(biz.website && biz.website.trim().length > 0),
+        action: "business",
+      },
+      {
+        label: "Opening hours",
         isComplete: (hoursRes.data?.length || 0) > 0,
-        action: "hours"
+        action: "hours",
       },
       {
-        label: "Cancellation/refund policy set",
-        isComplete: !!settingsRes.data?.cancellation_policy,
-        action: "policies"
+        label: "Phone number setup",
+        isComplete: phoneConfigured,
+        action: "business",
       },
-      {
-        label: "Notifications enabled (email or SMS)",
-        isComplete: hasNotificationsEnabled,
-        action: "notifications"
-      },
-      {
-        label: "Assistant settings configured",
-        isComplete: !!(settingsRes.data?.assistant_name && settingsRes.data?.primary_language && settingsRes.data?.tone),
-        action: "ai"
-      }
     ];
 
-    let items: ChecklistItem[] = [];
-
-    if (businessType === "salon") {
-      // Salon-specific checklist
-      items = [
-        ...commonItems.slice(0, 1), // Business info
+    if (isRestaurant) {
+      items.push(
         {
-          label: "Services configured (at least one service)",
-          isComplete: (servicesRes.data?.length || 0) > 0,
-          action: "services"
+          label: "Cuisine type",
+          isComplete: !!(biz.cuisine_type && biz.cuisine_type.trim().length > 0),
+          action: "business",
         },
         {
-          label: "Staff added (at least one staff member)",
-          isComplete: (staffRes.data?.length || 0) > 0,
-          action: "staff"
-        },
-        ...commonItems.slice(1), // Rest of common items
-      ];
-    } else if (businessType === "restaurant_pickup") {
-      // Restaurant Pickup checklist
-      items = [
-        ...commonItems.slice(0, 1), // Business info
-        {
-          label: "Menu items added (at least one item)",
-          isComplete: (menuItemsRes.data?.length || 0) > 0,
-          action: "menu"
-        },
-        ...commonItems.slice(1, 2), // Opening hours
-        {
-          label: "Order settings configured (prep time)",
-          isComplete: !!biz.average_prep_time_minutes,
-          action: "orders"
+          label: "Menu link",
+          isComplete: !!(biz.menu_link && biz.menu_link.trim().length > 0),
+          action: "business",
         },
         {
-          label: "Payment methods set",
-          isComplete: (biz.payment_methods?.length || 0) > 0,
-          action: "payments"
+          label: "Average prep time",
+          isComplete: biz.average_prep_time_minutes != null && biz.average_prep_time_minutes > 0,
+          action: "orders",
         },
-        ...commonItems.slice(2), // Rest of common items
-      ];
-    } else if (businessType === "restaurant_dine_in") {
-      // Restaurant Dine-in checklist
-      items = [
-        ...commonItems.slice(0, 1), // Business info
-        {
-          label: "Tables configured (at least one table)",
+      );
+      if (hasTables) {
+        items.push({
+          label: "Table count",
           isComplete: (tablesRes.data?.length || 0) > 0,
-          action: "tables"
-        },
-        ...commonItems.slice(1), // Rest of common items
-      ];
-    } else if (businessType === "restaurant_hybrid") {
-      // Restaurant Hybrid checklist
-      items = [
-        ...commonItems.slice(0, 1), // Business info
-        {
-          label: "Menu items added (at least one item)",
-          isComplete: (menuItemsRes.data?.length || 0) > 0,
-          action: "menu"
-        },
-        {
-          label: "Tables configured (at least one table)",
-          isComplete: (tablesRes.data?.length || 0) > 0,
-          action: "tables"
-        },
-        ...commonItems.slice(1, 2), // Opening hours
-        {
-          label: "Order settings configured (prep time)",
-          isComplete: !!biz.average_prep_time_minutes,
-          action: "orders"
-        },
-        {
-          label: "Payment methods set",
-          isComplete: (biz.payment_methods?.length || 0) > 0,
-          action: "payments"
-        },
-        ...commonItems.slice(2), // Rest of common items
-      ];
+          action: "tables",
+        });
+      }
+      items.push({
+        label: "Payment methods accepted",
+        isComplete: Array.isArray(biz.payment_methods) && biz.payment_methods.length > 0,
+        action: "payments",
+      });
     } else {
-      // Default to salon checklist
-      items = [
-        ...commonItems.slice(0, 1),
+      // Salon
+      items.push(
         {
-          label: "Services configured (at least one service)",
+          label: "Services offered",
           isComplete: (servicesRes.data?.length || 0) > 0,
-          action: "services"
+          action: "services",
         },
         {
-          label: "Staff added (at least one staff member)",
-          isComplete: (staffRes.data?.length || 0) > 0,
-          action: "staff"
+          label: "Staff count",
+          isComplete: (biz.staff_count || 0) > 1,
+          action: "staff",
         },
-        ...commonItems.slice(1),
-      ];
+        {
+          label: "Booking preferences",
+          isComplete: !!customerSettingsRes.data,
+          action: "policies",
+        },
+      );
     }
-    
+
     setChecklistItems(items);
   };
   const handleChecklistItemClick = (action: string) => {

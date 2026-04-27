@@ -26,9 +26,21 @@ import { AdminCallsTab } from "@/components/admin/AdminCallsTab";
 import { AdminDemoRequestsTab } from "@/components/admin/AdminDemoRequestsTab";
 import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare, Mail, Sparkles, Headphones } from "lucide-react";
 import { AiviaSalesKitTab } from "@/components/admin/AiviaSalesKitTab";
+import { formatDistanceToNow } from "date-fns";
+import { TIERS, type SubscriptionTier } from "@/lib/tiers";
 
 // Super admin emails that cannot be deactivated
 const PROTECTED_ADMIN_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
+
+const humanizeBusinessType = (t: string | null | undefined) => {
+  switch (t) {
+    case "restaurant_pickup": return "Restaurant — Pickup";
+    case "restaurant_dine_in": return "Restaurant — Dine-in";
+    case "restaurant_hybrid": return "Restaurant — Both";
+    case "salon": return "Salon / Barbershop / Spa";
+    default: return t || "—";
+  }
+};
 
 interface Business {
   id: string;
@@ -60,6 +72,9 @@ interface Business {
   custom_booking_domain: string | null;
   booking_slug: string | null;
   online_booking_enabled: boolean;
+  business_type: string | null;
+  admin_note?: string | null;
+  rejection_reason?: string | null;
 }
 
 interface Profile {
@@ -139,7 +154,17 @@ const AdminDashboard = () => {
   
   // Notification services dialog state
   const [notificationServicesBusiness, setNotificationServicesBusiness] = useState<Business | null>(null);
-  
+
+  // Tier per business (from business_settings)
+  const [businessTiers, setBusinessTiers] = useState<Record<string, SubscriptionTier>>({});
+
+  // Focused approval dialog state (separate from the multi-step number assignment dialog)
+  const [approvalBusiness, setApprovalBusiness] = useState<Business | null>(null);
+  const [approvalTier, setApprovalTier] = useState<SubscriptionTier>("starter");
+  const [approvalNote, setApprovalNote] = useState("");
+  const [approvalMode, setApprovalMode] = useState<"review" | "rejecting">("review");
+  const [rejectionReason, setRejectionReason] = useState("");
+
   // Supabase project ID for webhook URL
   const SUPABASE_PROJECT_ID = "zyqzypyncugihrawhppg";
 
@@ -237,6 +262,20 @@ const AdminDashboard = () => {
         };
       });
       setProfiles(profilesMap);
+
+      // Load tiers for all businesses
+      const businessIds = (data || []).map(b => b.id);
+      if (businessIds.length > 0) {
+        const { data: settingsRows } = await supabase
+          .from("business_settings")
+          .select("business_id, subscription_tier")
+          .in("business_id", businessIds);
+        const tierMap: Record<string, SubscriptionTier> = {};
+        settingsRows?.forEach(s => {
+          tierMap[s.business_id] = (s.subscription_tier as SubscriptionTier) || "starter";
+        });
+        setBusinessTiers(tierMap);
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -583,6 +622,117 @@ const AdminDashboard = () => {
     setEmailOnReminder(false);
   };
 
+  // ---- Focused approval dialog (for pending businesses) ----
+  const openApprovalDialog = (business: Business) => {
+    setApprovalBusiness(business);
+    setApprovalTier((businessTiers[business.id] as SubscriptionTier) || "starter");
+    setApprovalNote(business.admin_note || "");
+    setApprovalMode("review");
+    setRejectionReason("");
+  };
+
+  const closeApprovalDialog = () => {
+    setApprovalBusiness(null);
+    setApprovalMode("review");
+    setApprovalNote("");
+    setRejectionReason("");
+  };
+
+  const handleApprovePending = async () => {
+    if (!approvalBusiness) return;
+    const business = approvalBusiness;
+    const profile = profiles[business.owner_id];
+    setActionLoading(business.id);
+    try {
+      // 1. Update tier in business_settings
+      const { error: settingsError } = await supabase
+        .from("business_settings")
+        .update({ subscription_tier: approvalTier })
+        .eq("business_id", business.id);
+      if (settingsError) throw settingsError;
+
+      // 2. Update business status + admin note
+      const { error: bizError } = await supabase
+        .from("businesses")
+        .update({
+          status: "approved",
+          admin_note: approvalNote || null,
+        })
+        .eq("id", business.id);
+      if (bizError) throw bizError;
+
+      // 3. Send approval email
+      if (profile?.email) {
+        try {
+          const dashboardUrl = `${window.location.origin}/dashboard`;
+          await supabase.functions.invoke("send-business-approval-email", {
+            body: {
+              businessName: business.business_name,
+              ownerEmail: profile.email,
+              dashboardUrl,
+            },
+          });
+        } catch (e) {
+          console.error("Approval email failed:", e);
+        }
+      }
+
+      toast({ title: "Business approved", description: `${business.business_name} has been approved.` });
+      closeApprovalDialog();
+      loadBusinesses();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectPending = async () => {
+    if (!approvalBusiness) return;
+    if (!rejectionReason.trim()) {
+      toast({ title: "Reason required", description: "Please provide a reason for rejection.", variant: "destructive" });
+      return;
+    }
+    const business = approvalBusiness;
+    const profile = profiles[business.owner_id];
+    setActionLoading(business.id);
+    try {
+      const { error: bizError } = await supabase
+        .from("businesses")
+        .update({
+          status: "rejected",
+          rejection_reason: rejectionReason,
+          admin_note: approvalNote || null,
+        })
+        .eq("id", business.id);
+      if (bizError) throw bizError;
+
+      if (profile?.email) {
+        try {
+          await supabase.functions.invoke("send-business-rejection-email", {
+            body: {
+              businessName: business.business_name,
+              ownerEmail: profile.email,
+              ownerName: profile ? `${profile.first_name} ${profile.last_name}`.trim() : "",
+              reason: rejectionReason,
+              reapplyUrl: `${window.location.origin}/signup`,
+            },
+          });
+        } catch (e) {
+          console.error("Rejection email failed:", e);
+        }
+      }
+
+      toast({ title: "Business rejected", description: `${business.business_name} has been rejected.` });
+      closeApprovalDialog();
+      loadBusinesses();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleTwilioToggle = async (enabled: boolean) => {
     if (!selectedBusiness) return;
     
@@ -745,37 +895,60 @@ const AdminDashboard = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Business Name</TableHead>
                       <TableHead>Owner</TableHead>
+                      <TableHead>Business</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Phone</TableHead>
-                      <TableHead>Staff Count</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Plan</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Applied</TableHead>
+                      <TableHead>Waiting</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pendingAndRecentBusinesses.map((business) => {
                       const profile = profiles[business.owner_id];
+                      const tier = businessTiers[business.id] || "starter";
+                      const isPending = business.status === "pending";
                       return (
                         <TableRow key={business.id}>
-                          <TableCell className="font-medium">{business.business_name}</TableCell>
                           <TableCell>
                             {profile ? `${profile.first_name} ${profile.last_name}` : "N/A"}
                           </TableCell>
+                          <TableCell className="font-medium">{business.business_name}</TableCell>
+                          <TableCell>{humanizeBusinessType(business.business_type)}</TableCell>
                           <TableCell>{business.main_phone}</TableCell>
-                          <TableCell>{business.staff_count}</TableCell>
+                          <TableCell className="text-xs">{profile?.email || "—"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{TIERS[tier]?.name || tier}</Badge>
+                          </TableCell>
                           <TableCell>{getStatusBadge(business.status)}</TableCell>
                           <TableCell>{new Date(business.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(business.created_at), { addSuffix: true })}
+                          </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openBusinessDialog(business)}
-                            >
-                              <Eye className="w-4 h-4 mr-1" />
-                              View
-                            </Button>
+                            {isPending && userPermissions.can_approve_businesses ? (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => openApprovalDialog(business)}
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                Review
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openBusinessDialog(business)}
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -1636,7 +1809,158 @@ const AdminDashboard = () => {
         onUpdate={loadBusinesses}
       />
 
-      {/* Admin AI Assistant Chat */}
+      {/* Focused Approval Dialog (separate from number-assignment dialog) */}
+      <Dialog open={!!approvalBusiness} onOpenChange={(open) => !open && closeApprovalDialog()}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Review Application</DialogTitle>
+            <DialogDescription>
+              Approve or reject this business application.
+            </DialogDescription>
+          </DialogHeader>
+          {approvalBusiness && (() => {
+            const profile = profiles[approvalBusiness.owner_id];
+            const ownerName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : "—";
+            return (
+              <div className="space-y-4">
+                {/* Read-only summary */}
+                <div className="grid grid-cols-2 gap-3 p-3 bg-muted/40 rounded-md text-sm">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Business</Label>
+                    <p className="font-medium">{approvalBusiness.business_name}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Owner</Label>
+                    <p className="font-medium">{ownerName}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Email</Label>
+                    <p className="break-all">{profile?.email || "—"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Phone</Label>
+                    <p>{approvalBusiness.main_phone}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Type</Label>
+                    <p>{humanizeBusinessType(approvalBusiness.business_type)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Applied</Label>
+                    <p>{new Date(approvalBusiness.created_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+
+                {approvalMode === "review" ? (
+                  <>
+                    <div>
+                      <Label htmlFor="approval-tier" className="text-sm font-medium">
+                        Subscription tier
+                      </Label>
+                      <Select value={approvalTier} onValueChange={(v) => setApprovalTier(v as SubscriptionTier)}>
+                        <SelectTrigger id="approval-tier" className="mt-1.5">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="starter">Starter</SelectItem>
+                          <SelectItem value="growth">Growth</SelectItem>
+                          <SelectItem value="scale">Scale</SelectItem>
+                          <SelectItem value="enterprise">Enterprise</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Prefilled from the plan the owner selected at signup. Override if needed.
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="approval-note" className="text-sm font-medium">
+                        Internal note (optional)
+                      </Label>
+                      <Textarea
+                        id="approval-note"
+                        placeholder="Notes only visible to admins..."
+                        value={approvalNote}
+                        onChange={(e) => setApprovalNote(e.target.value)}
+                        className="mt-1.5"
+                        rows={2}
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        onClick={handleApprovePending}
+                        disabled={!!actionLoading}
+                        className="flex-1"
+                      >
+                        {actionLoading === approvalBusiness.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                        )}
+                        Approve
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => setApprovalMode("rejecting")}
+                        disabled={!!actionLoading}
+                        className="flex-1"
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        Reject
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <Label htmlFor="rejection-reason" className="text-sm font-medium">
+                        Reason for rejection <span className="text-destructive">*</span>
+                      </Label>
+                      <Textarea
+                        id="rejection-reason"
+                        placeholder="Explain why this application is being rejected. The owner will receive this in an email."
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value.slice(0, 1000))}
+                        className="mt-1.5"
+                        rows={4}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {rejectionReason.length}/1000 characters
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setApprovalMode("review")}
+                        disabled={!!actionLoading}
+                      >
+                        <ChevronLeft className="w-4 h-4 mr-2" />
+                        Back
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={handleRejectPending}
+                        disabled={!!actionLoading || !rejectionReason.trim()}
+                        className="flex-1"
+                      >
+                        {actionLoading === approvalBusiness.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        ) : (
+                          <XCircle className="w-4 h-4 mr-2" />
+                        )}
+                        Confirm Reject
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       {currentUserId && (
         <AiviaAssistantChat
           userId={currentUserId}
