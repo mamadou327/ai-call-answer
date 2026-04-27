@@ -975,25 +975,41 @@ const AdminDashboard = () => {
                             {formatDistanceToNow(new Date(business.created_at), { addSuffix: true })}
                           </TableCell>
                           <TableCell>
-                            {isPending && userPermissions.can_approve_businesses ? (
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => openApprovalDialog(business)}
-                              >
-                                <Eye className="w-4 h-4 mr-1" />
-                                Review
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openBusinessDialog(business)}
-                              >
-                                <Eye className="w-4 h-4 mr-1" />
-                                View
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {isPending && userPermissions.can_approve_businesses ? (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => openApprovalDialog(business)}
+                                >
+                                  <Eye className="w-4 h-4 mr-1" />
+                                  Review
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openBusinessDialog(business)}
+                                >
+                                  <Eye className="w-4 h-4 mr-1" />
+                                  View
+                                </Button>
+                              )}
+                              {userPermissions.can_approve_businesses && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBusinessToDelete(business);
+                                  }}
+                                  title="Delete application"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
