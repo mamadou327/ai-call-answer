@@ -1912,8 +1912,10 @@ const AdminDashboard = () => {
                   </div>
                   <div className="col-span-2 pt-2 border-t border-border/50">
                     <Label className="text-xs text-muted-foreground">Customer chose at signup</Label>
-                    <p className="font-semibold text-primary capitalize">
-                      {businessTiers[approvalBusiness.id] || "Not selected"}
+                    <p className="font-semibold text-primary">
+                      {businessTiers[approvalBusiness.id]
+                        ? (TIERS[businessTiers[approvalBusiness.id]]?.name || businessTiers[approvalBusiness.id])
+                        : "Not selected"}
                     </p>
                   </div>
                 </div>
