@@ -154,7 +154,17 @@ const AdminDashboard = () => {
   
   // Notification services dialog state
   const [notificationServicesBusiness, setNotificationServicesBusiness] = useState<Business | null>(null);
-  
+
+  // Tier per business (from business_settings)
+  const [businessTiers, setBusinessTiers] = useState<Record<string, SubscriptionTier>>({});
+
+  // Focused approval dialog state (separate from the multi-step number assignment dialog)
+  const [approvalBusiness, setApprovalBusiness] = useState<Business | null>(null);
+  const [approvalTier, setApprovalTier] = useState<SubscriptionTier>("starter");
+  const [approvalNote, setApprovalNote] = useState("");
+  const [approvalMode, setApprovalMode] = useState<"review" | "rejecting">("review");
+  const [rejectionReason, setRejectionReason] = useState("");
+
   // Supabase project ID for webhook URL
   const SUPABASE_PROJECT_ID = "zyqzypyncugihrawhppg";
 
