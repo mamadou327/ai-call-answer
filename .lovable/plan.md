@@ -1,30 +1,29 @@
-# Make the customer's chosen plan obvious in the Review dialog
+## Plan
 
-## The problem
+Fix the admin application review so it shows the tier the customer actually selected at signup.
 
-In the Review Application dialog, the "Subscription tier" dropdown is *already* prefilled with the plan the customer selected at signup — but this isn't visually obvious. It looks like a blank choice you have to make, so you can't tell at a glance what they picked when contacting them.
+### What I’ll change
+1. Add backend read access for admin users to the business settings records they need during application review.
+   - Super admins will be able to read `business_settings`.
+   - Sub-admins with business-approval permission will also be able to read it.
+   - Write access will stay restricted; this only fixes visibility.
 
-You also asked what the "Internal note" is for.
+2. Tighten the admin dashboard tier display logic.
+   - Keep loading the chosen tier from `business_settings`.
+   - Stop masking missing/inaccessible data with misleading fallbacks where needed.
+   - Ensure both the table and the “Review Application” dialog show the same tier consistently.
 
-## What will change
+3. Verify the latest pending signup path.
+   - The latest test application already has a saved tier in the database.
+   - After the policy fix, the pending/recent applications list and review modal should show that saved value instead of “Not selected”.
 
-**1. Add the customer's chosen plan to the read-only summary block at the top of the dialog**, right next to Business / Owner / Email / Phone / Type / Applied. This is a clear, non-editable display showing exactly what the customer selected at signup — so you always know what to reference when you contact them, regardless of any override you make below.
+### Why this is happening
+The signup flow is already saving the chosen tier correctly. The issue is that the admin dashboard reads the tier from `business_settings`, but current backend access rules only allow business owners/staff to read that table. Admins are blocked, so the UI ends up showing a fallback instead of the real selection.
 
-```text
-Business: jp                    Owner: james polly
-Email: jp@gmail.com             Phone: 123456789
-Type: Restaurant — Both         Applied: 27/04/2026
-Customer chose: Growth          ← NEW
-```
-
-**2. Relabel the editable dropdown** from "Subscription tier" to **"Assign tier (override if needed)"** so it's clear this is the admin's decision, separate from what the customer picked. Helper text will be updated to:
-> "Defaults to the customer's choice. Change only if you've agreed a different plan with them."
-
-**3. Clarify the Internal note field** with helper text:
-> "Private notes about this approval (e.g. why you changed the tier, special pricing agreed, follow-up needed). Only admins can see this — never shown to the customer."
-
-## Files
-
-- `src/pages/AdminDashboard.tsx` — update the Review Application dialog (around lines 1886–1949): add the "Customer chose" tile to the summary grid, relabel the tier select and its helper text, add helper text under the internal note field.
-
-No database or backend changes needed — the customer's choice is already stored in `business_settings.subscription_tier` and loaded into `businessTiers[business.id]`.
+### Technical details
+- Files involved:
+  - `src/pages/AdminDashboard.tsx`
+  - new backend migration for `business_settings` RLS policies
+- No new tables are needed.
+- No public data exposure is needed.
+- Expected result for your latest test signup: the admin should see the selected tier (for the newest record, it is already stored in the backend).
