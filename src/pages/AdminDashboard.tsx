@@ -733,6 +733,7 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleTwilioToggle = async (enabled: boolean) => {
     if (!selectedBusiness) return;
     
     setTwilioEnabled(enabled);
