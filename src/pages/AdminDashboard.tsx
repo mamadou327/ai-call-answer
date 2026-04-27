@@ -784,37 +784,60 @@ const AdminDashboard = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Business Name</TableHead>
                       <TableHead>Owner</TableHead>
+                      <TableHead>Business</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Phone</TableHead>
-                      <TableHead>Staff Count</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Plan</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Applied</TableHead>
+                      <TableHead>Waiting</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pendingAndRecentBusinesses.map((business) => {
                       const profile = profiles[business.owner_id];
+                      const tier = businessTiers[business.id] || "starter";
+                      const isPending = business.status === "pending";
                       return (
                         <TableRow key={business.id}>
-                          <TableCell className="font-medium">{business.business_name}</TableCell>
                           <TableCell>
                             {profile ? `${profile.first_name} ${profile.last_name}` : "N/A"}
                           </TableCell>
+                          <TableCell className="font-medium">{business.business_name}</TableCell>
+                          <TableCell>{humanizeBusinessType(business.business_type)}</TableCell>
                           <TableCell>{business.main_phone}</TableCell>
-                          <TableCell>{business.staff_count}</TableCell>
+                          <TableCell className="text-xs">{profile?.email || "—"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{TIERS[tier]?.name || tier}</Badge>
+                          </TableCell>
                           <TableCell>{getStatusBadge(business.status)}</TableCell>
                           <TableCell>{new Date(business.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(business.created_at), { addSuffix: true })}
+                          </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openBusinessDialog(business)}
-                            >
-                              <Eye className="w-4 h-4 mr-1" />
-                              View
-                            </Button>
+                            {isPending && userPermissions.can_approve_businesses ? (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => openApprovalDialog(business)}
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                Review
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openBusinessDialog(business)}
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
