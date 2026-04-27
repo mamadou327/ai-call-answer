@@ -26,9 +26,21 @@ import { AdminCallsTab } from "@/components/admin/AdminCallsTab";
 import { AdminDemoRequestsTab } from "@/components/admin/AdminDemoRequestsTab";
 import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare, Mail, Sparkles, Headphones } from "lucide-react";
 import { AiviaSalesKitTab } from "@/components/admin/AiviaSalesKitTab";
+import { formatDistanceToNow } from "date-fns";
+import { TIERS, type SubscriptionTier } from "@/lib/tiers";
 
 // Super admin emails that cannot be deactivated
 const PROTECTED_ADMIN_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
+
+const humanizeBusinessType = (t: string | null | undefined) => {
+  switch (t) {
+    case "restaurant_pickup": return "Restaurant — Pickup";
+    case "restaurant_dine_in": return "Restaurant — Dine-in";
+    case "restaurant_hybrid": return "Restaurant — Both";
+    case "salon": return "Salon / Barbershop / Spa";
+    default: return t || "—";
+  }
+};
 
 interface Business {
   id: string;
