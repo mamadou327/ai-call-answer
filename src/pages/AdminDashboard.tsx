@@ -175,6 +175,22 @@ const AdminDashboard = () => {
     checkAdminAccess();
   }, []);
 
+  // Realtime: auto-refresh when businesses or business_settings change
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-dashboard-refresh")
+      .on("postgres_changes", { event: "*", schema: "public", table: "businesses" }, () => {
+        loadBusinesses();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "business_settings" }, () => {
+        loadBusinesses();
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const checkAdminAccess = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
