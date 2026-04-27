@@ -262,6 +262,20 @@ const AdminDashboard = () => {
         };
       });
       setProfiles(profilesMap);
+
+      // Load tiers for all businesses
+      const businessIds = (data || []).map(b => b.id);
+      if (businessIds.length > 0) {
+        const { data: settingsRows } = await supabase
+          .from("business_settings")
+          .select("business_id, subscription_tier")
+          .in("business_id", businessIds);
+        const tierMap: Record<string, SubscriptionTier> = {};
+        settingsRows?.forEach(s => {
+          tierMap[s.business_id] = (s.subscription_tier as SubscriptionTier) || "starter";
+        });
+        setBusinessTiers(tierMap);
+      }
     } catch (error: any) {
       toast({
         title: "Error",
