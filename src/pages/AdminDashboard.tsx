@@ -249,6 +249,32 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleDeleteBusiness = async () => {
+    if (!businessToDelete) return;
+    setDeletingBusiness(true);
+    try {
+      const { error } = await supabase
+        .from("businesses")
+        .delete()
+        .eq("id", businessToDelete.id);
+      if (error) throw error;
+      toast({
+        title: "Application deleted",
+        description: `${businessToDelete.business_name} has been removed.`,
+      });
+      setBusinessToDelete(null);
+      loadBusinesses();
+    } catch (err: any) {
+      toast({
+        title: "Failed to delete",
+        description: err.message || "Could not delete this application.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingBusiness(false);
+    }
+  };
+
   const loadBusinesses = async () => {
     setIsLoading(true);
     try {
