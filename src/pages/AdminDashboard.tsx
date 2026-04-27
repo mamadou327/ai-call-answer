@@ -72,6 +72,9 @@ interface Business {
   custom_booking_domain: string | null;
   booking_slug: string | null;
   online_booking_enabled: boolean;
+  business_type: string | null;
+  admin_note?: string | null;
+  rejection_reason?: string | null;
 }
 
 interface Profile {
