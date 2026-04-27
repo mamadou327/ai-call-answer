@@ -130,6 +130,8 @@ const AdminDashboard = () => {
     can_manage_billing: false,
     can_view_calls_messages: false,
   });
+  const [businessToDelete, setBusinessToDelete] = useState<Business | null>(null);
+  const [deletingBusiness, setDeletingBusiness] = useState(false);
   
   // Business number assignment state
   const [assignedNumber, setAssignedNumber] = useState("");
