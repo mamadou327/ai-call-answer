@@ -256,6 +256,12 @@ const Dashboard = () => {
     );
 
     const items: ChecklistItem[] = [
+      // Website import — at the very top
+      {
+        label: "Import your business details from your website",
+        isComplete: !!biz.website_last_synced_at,
+        action: "import_website",
+      },
       // Common items
       {
         label: "Business address",
