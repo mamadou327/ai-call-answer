@@ -23,6 +23,7 @@ import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
 import { Badge } from "@/components/ui/badge";
 import { isDemoAccount, DEMO_BUSINESS, DEMO_SETTINGS } from "@/lib/demoData";
+import { WebsiteImportDialog } from "@/components/dashboard/WebsiteImportDialog";
 interface Business {
   id: string;
   business_name: string;
