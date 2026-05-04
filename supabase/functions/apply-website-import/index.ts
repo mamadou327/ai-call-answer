@@ -94,27 +94,91 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 1. Update business website + sync timestamp + clear pending changes
     const newWebsite = url || biz.website || null;
-    await supabase
-      .from("businesses")
-      .update({
-        website: newWebsite,
-        website_last_synced_at: new Date().toISOString(),
-        website_last_synced_url: newWebsite,
-        website_pending_changes: null,
-      })
-      .eq("id", businessId);
 
-    // 2. Cancellation policy on business_settings
-    if (typeof extracted.cancellation_policy === "string" && extracted.cancellation_policy.trim()) {
-      await supabase
-        .from("business_settings")
-        .upsert(
-          { business_id: businessId, cancellation_policy: extracted.cancellation_policy.trim() },
-          { onConflict: "business_id" },
-        );
+    // 1. Update businesses row — only fill fields that are blank, never overwrite
+    const businessUpdates: Record<string, any> = {
+      website: newWebsite,
+      website_last_synced_at: new Date().toISOString(),
+      website_last_synced_url: newWebsite,
+      website_pending_changes: null,
+    };
+
+    const { data: fullBiz } = await supabase
+      .from("businesses")
+      .select("business_name, address, main_phone, business_type, logo_url, social_instagram, social_facebook, social_tiktok, social_twitter, social_youtube, payment_methods")
+      .eq("id", businessId)
+      .maybeSingle();
+
+    const fillIfEmpty = (field: string, value: any) => {
+      if (value == null || value === "") return;
+      const current = (fullBiz as any)?.[field];
+      if (current == null || current === "" || (Array.isArray(current) && current.length === 0)) {
+        businessUpdates[field] = value;
+      }
+    };
+
+    fillIfEmpty("business_name", typeof extracted.business_name === "string" ? extracted.business_name.trim() : null);
+    fillIfEmpty("address", typeof extracted.address === "string" ? extracted.address.trim() : null);
+    fillIfEmpty("main_phone", typeof extracted.phone === "string" ? extracted.phone.trim() : null);
+    fillIfEmpty("logo_url", typeof extracted.logo_url === "string" ? extracted.logo_url.trim() : null);
+    if (typeof extracted.business_type === "string") {
+      const bt = extracted.business_type.toLowerCase().trim();
+      const validTypes = ["salon", "barbershop", "spa", "clinic", "restaurant", "cafe", "bar", "other"];
+      if (validTypes.includes(bt)) fillIfEmpty("business_type", bt);
     }
+    if (extracted.social && typeof extracted.social === "object") {
+      fillIfEmpty("social_instagram", extracted.social.instagram);
+      fillIfEmpty("social_facebook", extracted.social.facebook);
+      fillIfEmpty("social_tiktok", extracted.social.tiktok);
+      fillIfEmpty("social_twitter", extracted.social.twitter);
+      fillIfEmpty("social_youtube", extracted.social.youtube);
+    }
+    if (Array.isArray(extracted.payment_methods) && extracted.payment_methods.length) {
+      const pm = extracted.payment_methods
+        .map((x: any) => String(x).toLowerCase().trim())
+        .filter((x: string) => ["card", "cash", "contactless", "apple_pay", "google_pay", "bank_transfer"].includes(x));
+      if (pm.length) fillIfEmpty("payment_methods", pm);
+    }
+
+    await supabase.from("businesses").update(businessUpdates).eq("id", businessId);
+
+    // 2. business_settings — cancellation policy, window, languages
+    const settingsPayload: Record<string, any> = { business_id: businessId };
+    if (typeof extracted.cancellation_policy === "string" && extracted.cancellation_policy.trim()) {
+      settingsPayload.cancellation_policy = extracted.cancellation_policy.trim();
+    }
+    if (typeof extracted.cancellation_window_hours === "number" && extracted.cancellation_window_hours > 0) {
+      settingsPayload.min_cancellation_notice_hours = Math.round(extracted.cancellation_window_hours);
+    }
+    if (Array.isArray(extracted.languages_spoken) && extracted.languages_spoken.length) {
+      settingsPayload.primary_language = String(extracted.languages_spoken[0]).trim();
+    }
+    if (Object.keys(settingsPayload).length > 1) {
+      await supabase.from("business_settings").upsert(settingsPayload, { onConflict: "business_id" });
+    }
+
+    // 2b. Staff — insert any not already present (case-insensitive name match)
+    if (Array.isArray(extracted.staff) && extracted.staff.length) {
+      const { data: existingStaff } = await supabase
+        .from("staff")
+        .select("name")
+        .eq("business_id", businessId);
+      const existingStaffNames = new Set((existingStaff || []).map((s: any) => String(s.name).toLowerCase().trim()));
+      const staffToInsert = extracted.staff
+        .filter((s: any) => s && typeof s.name === "string" && s.name.trim().length > 1)
+        .filter((s: any) => !existingStaffNames.has(s.name.toLowerCase().trim()))
+        .map((s: any) => ({
+          business_id: businessId,
+          name: String(s.name).trim().slice(0, 100),
+          role: typeof s.role === "string" && s.role.trim() ? s.role.trim().slice(0, 100) : "Staff",
+          title: typeof s.role === "string" && s.role.trim() ? s.role.trim().slice(0, 100) : null,
+        }));
+      if (staffToInsert.length) {
+        await supabase.from("staff").insert(staffToInsert);
+      }
+    }
+
 
     // 3. Services — insert any not already present (case-insensitive name match)
     if (Array.isArray(extracted.services) && extracted.services.length) {

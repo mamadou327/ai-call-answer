@@ -88,14 +88,46 @@ export const WebsiteImportDialog = ({ open, onOpenChange, businessId, initialUrl
 
   const renderPreview = () => {
     if (!extracted) return null;
+    const social = extracted.social || {};
+    const socialLinks = ["instagram", "facebook", "tiktok", "twitter", "youtube"]
+      .map((k) => ({ k, v: social?.[k] }))
+      .filter((x) => x.v);
     return (
       <div className="space-y-4 text-sm">
-        {extracted.business_name && (
-          <div>
-            <div className="font-semibold">Business name</div>
-            <div className="text-muted-foreground">{extracted.business_name}</div>
+        {/* Contact / business info */}
+        {(extracted.business_name || extracted.address || extracted.phone || extracted.email) && (
+          <div className="space-y-1">
+            <div className="font-semibold">Business info</div>
+            {extracted.business_name && <div className="text-muted-foreground">📛 {extracted.business_name}</div>}
+            {extracted.business_type && <div className="text-muted-foreground capitalize">🏷️ {extracted.business_type}</div>}
+            {extracted.address && <div className="text-muted-foreground">📍 {extracted.address}</div>}
+            {extracted.phone && <div className="text-muted-foreground">📞 {extracted.phone}</div>}
+            {extracted.email && <div className="text-muted-foreground">✉️ {extracted.email}</div>}
           </div>
         )}
+
+        {socialLinks.length > 0 && (
+          <div>
+            <div className="font-semibold mb-1">Social</div>
+            <ul className="text-muted-foreground space-y-0.5 text-xs">
+              {socialLinks.map(({ k, v }) => (
+                <li key={k}><span className="capitalize">{k}</span>: {String(v)}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {Array.isArray(extracted.staff) && extracted.staff.length > 0 && (
+          <div>
+            <div className="font-semibold mb-1">Staff ({extracted.staff.length})</div>
+            <ul className="text-muted-foreground space-y-1 max-h-32 overflow-y-auto pr-2 text-xs">
+              {extracted.staff.slice(0, 20).map((s: any, i: number) => (
+                <li key={i}>👤 {s?.name}{s?.role ? ` — ${s.role}` : ""}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {Array.isArray(extracted.services) && extracted.services.length > 0 && (
           <div>
             <div className="font-semibold mb-1">Services ({extracted.services.length})</div>
@@ -109,6 +141,7 @@ export const WebsiteImportDialog = ({ open, onOpenChange, businessId, initialUrl
             </ul>
           </div>
         )}
+
         {extracted.opening_hours && typeof extracted.opening_hours === "object" && (
           <div>
             <div className="font-semibold mb-1">Opening hours</div>
@@ -122,18 +155,44 @@ export const WebsiteImportDialog = ({ open, onOpenChange, businessId, initialUrl
             </ul>
           </div>
         )}
+
+        {(extracted.deposit_required || extracted.deposit_amount || extracted.deposit_percent) && (
+          <div>
+            <div className="font-semibold mb-1">Deposits</div>
+            <p className="text-muted-foreground text-xs">
+              {extracted.deposit_required ? "Required. " : ""}
+              {extracted.deposit_amount ? `Amount: ${extracted.deposit_amount}. ` : ""}
+              {extracted.deposit_percent ? `Percent: ${extracted.deposit_percent}%` : ""}
+            </p>
+          </div>
+        )}
+
         {extracted.cancellation_policy && (
           <div>
-            <div className="font-semibold mb-1">Cancellation policy</div>
+            <div className="font-semibold mb-1">Cancellation policy{extracted.cancellation_window_hours ? ` (${extracted.cancellation_window_hours}h notice)` : ""}</div>
             <p className="text-muted-foreground line-clamp-4">{extracted.cancellation_policy}</p>
           </div>
         )}
+
         {extracted.booking_policy && (
           <div>
             <div className="font-semibold mb-1">Booking policy</div>
             <p className="text-muted-foreground line-clamp-4">{extracted.booking_policy}</p>
           </div>
         )}
+
+        {(extracted.parking_info || extracted.accessibility_info || (Array.isArray(extracted.languages_spoken) && extracted.languages_spoken.length) || (Array.isArray(extracted.payment_methods) && extracted.payment_methods.length)) && (
+          <div>
+            <div className="font-semibold mb-1">Extras</div>
+            <ul className="text-muted-foreground text-xs space-y-0.5">
+              {Array.isArray(extracted.payment_methods) && extracted.payment_methods.length > 0 && <li>💳 {extracted.payment_methods.join(", ")}</li>}
+              {Array.isArray(extracted.languages_spoken) && extracted.languages_spoken.length > 0 && <li>🗣️ {extracted.languages_spoken.join(", ")}</li>}
+              {extracted.parking_info && <li>🅿️ {extracted.parking_info}</li>}
+              {extracted.accessibility_info && <li>♿ {extracted.accessibility_info}</li>}
+            </ul>
+          </div>
+        )}
+
         {Array.isArray(extracted.faqs) && extracted.faqs.length > 0 && (
           <div>
             <div className="font-semibold mb-1">FAQs ({extracted.faqs.length})</div>
@@ -144,6 +203,10 @@ export const WebsiteImportDialog = ({ open, onOpenChange, businessId, initialUrl
             </ul>
           </div>
         )}
+
+        <p className="text-xs text-muted-foreground italic pt-2 border-t">
+          Only blank fields will be filled — your existing settings won't be overwritten.
+        </p>
       </div>
     );
   };

@@ -22,7 +22,7 @@ const EXCLUDE_PATHS = [
   "/tag/*", "/category/*", "/author/*",
 ];
 
-const EXTRACTION_PROMPT = `You extract structured business information from a website. The user content contains MANY pages of one business's website joined together (each delimited by "=== PAGE: <url> ==="). Pages are in clean Markdown — TABLES ARE PRESERVED as Markdown tables (| col | col |). Carefully read EVERY page and merge information.
+const EXTRACTION_PROMPT = `You extract EVERY useful piece of business information from a website so a booking platform can be set up automatically. The user content contains MANY pages of one business's website joined together (each delimited by "=== PAGE: <url> ==="). Pages are in clean Markdown — TABLES ARE PRESERVED as Markdown tables (| col | col |). Carefully read EVERY page and merge information.
 
 CRITICAL RULES for services/prices:
 1. For any price TABLE with multiple columns (e.g. lengths 14"/16"/18"/20"/22", or sizes Filler/Volume/All Out, or First Fit vs Refit), emit ONE entry PER PRICE CELL — never collapse columns into a single entry.
@@ -32,15 +32,34 @@ CRITICAL RULES for services/prices:
 5. Deduplicate exact duplicates only — variants with different prices are NOT duplicates.
 6. Include EVERY service across all pages, even ones outside tables (bullet lists, paragraphs).
 
+RULES for staff: Look on "Team", "Our Team", "Stylists", "Meet the…", "About" pages. Extract every named person with their role/title. Skip generic mentions like "our friendly team".
+
+RULES for contact: Pull the MAIN business address, phone, email shown on contact/footer. Use the most-repeated values across pages.
+
+NEVER invent data. If something is not on the website, return null (or [] for arrays).
+
 Return JSON only with these fields:
 - business_name (string|null)
+- business_type (string|null) — one of: "salon","barbershop","spa","clinic","restaurant","cafe","bar","other"
+- address (string|null) — full single-line address
+- phone (string|null) — main contact phone in original format
+- email (string|null) — main contact email
+- logo_url (string|null) — absolute URL to logo image if visible
+- social: { instagram (string|null), facebook (string|null), tiktok (string|null), twitter (string|null), youtube (string|null) }
+- staff: array of { name, role (string|null), bio (string|null), specialties: array of strings }
 - services: array of { name, category, price (number|null), duration_minutes (number|null) }
 - opening_hours: object keyed by day name with values like "9:00am-5:30pm" or "closed"
 - booking_policy (string|null)
 - cancellation_policy (string|null)
-- faqs: array of { question, answer }
-
-If a field cannot be found return null (or [] for arrays).`;
+- cancellation_window_hours (number|null) — parsed from text like "24 hours notice"
+- deposit_required (boolean|null)
+- deposit_amount (number|null) — fixed amount if mentioned
+- deposit_percent (number|null) — percentage if mentioned
+- payment_methods: array of strings (e.g. ["card","cash"])
+- languages_spoken: array of strings
+- parking_info (string|null)
+- accessibility_info (string|null)
+- faqs: array of { question, answer }`;
 
 function stripHtml(html: string): string {
   return html
