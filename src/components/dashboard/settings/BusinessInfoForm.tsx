@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { MapPin, Store } from "lucide-react";
+import { WebsiteSyncSection } from "./WebsiteSyncSection";
+import { PendingWebsiteChangesBanner } from "./PendingWebsiteChangesBanner";
 
 interface BusinessInfoFormProps {
   businessId: string;
