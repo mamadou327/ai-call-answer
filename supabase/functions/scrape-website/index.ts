@@ -74,6 +74,81 @@ function pickRelevantLinks(links: Array<{ href: string; text: string }>, homepag
   return picked;
 }
 
+function shouldSkipUrl(href: string): boolean {
+  return SKIP_PATH_PATTERNS.some((re) => re.test(href));
+}
+
+function scoreLink(href: string, text: string): number {
+  const blob = (href + " " + text).toLowerCase();
+  let score = 0;
+  for (const k of STRONG_KEYWORDS) if (blob.includes(k)) score += 3;
+  for (const k of MEDIUM_KEYWORDS) if (blob.includes(k)) score += 1;
+  // Bonus for short, "section-y" paths
+  try {
+    const path = new URL(href).pathname.replace(/\/$/, "");
+    const segs = path.split("/").filter(Boolean);
+    if (segs.length === 1 && STRONG_KEYWORDS.some((k) => segs[0].includes(k))) score += 2;
+    // Penalize very deep paths
+    if (segs.length > 4) score -= 1;
+  } catch (_) { /* ignore */ }
+  return score;
+}
+
+function pickRelevantLinks(
+  links: Array<{ href: string; text: string }>,
+  alreadySeen: Set<string>,
+  limit: number,
+): string[] {
+  const scored: Array<{ href: string; score: number }> = [];
+  const dedup = new Set<string>();
+  for (const l of links) {
+    if (alreadySeen.has(l.href) || dedup.has(l.href)) continue;
+    if (shouldSkipUrl(l.href)) continue;
+    const score = scoreLink(l.href, l.text);
+    if (score > 0) {
+      scored.push({ href: l.href, score });
+      dedup.add(l.href);
+    }
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit).map((s) => s.href);
+}
+
+async function fetchSitemapUrls(baseUrl: URL): Promise<string[]> {
+  const candidates = ["/sitemap.xml", "/sitemap_index.xml", "/sitemap-index.xml"];
+  const found: string[] = [];
+  for (const path of candidates) {
+    const xml = await fetchPage(new URL(path, baseUrl).toString());
+    if (!xml) continue;
+    const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/gi)].map((m) => m[1].trim());
+    for (const loc of locs) {
+      try {
+        const u = new URL(loc);
+        if (u.origin === baseUrl.origin && !shouldSkipUrl(u.toString())) {
+          found.push(u.toString().split("#")[0]);
+        }
+      } catch (_) { /* ignore */ }
+    }
+    if (found.length) break;
+  }
+  return Array.from(new Set(found));
+}
+
+async function fetchAll(urls: string[], concurrency: number): Promise<Array<{ url: string; html: string }>> {
+  const out: Array<{ url: string; html: string }> = [];
+  let i = 0;
+  async function worker() {
+    while (i < urls.length) {
+      const idx = i++;
+      const u = urls[idx];
+      const html = await fetchPage(u);
+      if (html) out.push({ url: u, html });
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, urls.length) }, worker));
+  return out;
+}
+
 async function fetchPage(url: string): Promise<string> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
