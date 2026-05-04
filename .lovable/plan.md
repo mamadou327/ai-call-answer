@@ -1,93 +1,113 @@
-# Website Import & Auto Re-sync
+## Goal
 
-Auto-learn business details (services, prices, hours, policies, FAQs) from a website URL during onboarding, with a manual re-sync control and a weekly background check that emails owners when changes are detected and lets them confirm in-app.
+Paste a website URL → Aivia automatically discovers every page, reads every price table, and imports a complete list of services, opening hours, booking policy, cancellation policy and FAQs. No manual cleanup.
 
-## Heads-up on a few requested details
+## Why the current import is incomplete
 
-A couple of small substitutions are needed before we build:
+The existing `scrape-website` edge function does two things that limit it:
 
-1. **OpenAI API key** — the project does not currently have a stored OpenAI key. We have two clean options:
-   - Use **Lovable AI** (`google/gemini-2.5-flash` or `openai/gpt-5-mini`) — no key required, already wired in. **Recommended.**
-   - Add an `OPENAI_API_KEY` secret and use `gpt-4o`. I'll prompt for the secret if you want this.
-2. **Scraping** — raw `fetch()` works for many sites but fails on JS-heavy ones. Firecrawl (already supported as a connector) is dramatically more reliable for "find homepage + 3 linked pages." Plain fetch is the default; I'll note Firecrawl as an upgrade path.
-3. **Resend** — the project's email functions currently use Lovable's built-in email (Resend under the hood, no extra setup). I'll reuse that same pattern, no new secrets needed.
+1. **DIY crawler capped at 15 pages** with a 2-hop link-following heuristic. Sites with deep menu structures or JS-rendered content get partially missed.
+2. **`stripHtml()` flattens `<table>` elements into a run-on string**, then Gemini 2.5 Flash tries to guess which price belongs to which service. On grid pricing (e.g. Vixen & Blush's Tape Sides × 18″/22″/Refit columns), most rows are dropped or merged.
 
-I'll proceed with **Lovable AI (Gemini 2.5 Flash)** + **plain fetch scraping** + **existing email infra** unless you say otherwise after approval.
+## Solution: Firecrawl + Gemini 2.5 Pro
 
-## What gets built
+Swap the homemade crawler for **Firecrawl** (an official Lovable connector built for exactly this) and upgrade the extraction model to **Gemini 2.5 Pro**.
 
-### 1. Database
+- **Firecrawl `/crawl`** walks the entire site recursively, renders JavaScript, and returns each page as clean Markdown — tables stay as `| Service | 18″ | 22″ | Refit |` Markdown tables.
+- **Gemini 2.5 Pro** is significantly stronger than Flash at reading tabular data and emitting one structured row per price column.
+- Firecrawl also has a built-in `json` extraction format with schemas, which we use to enforce the exact output shape we need.
 
-New table `website_sync_log`:
-- `id`, `business_id`, `synced_at`, `url`, `changes_detected` (bool), `changes_summary` (jsonb), `confirmed` (bool), `confirmed_at`
-- RLS: owners can read/update their own rows; service role writes from cron.
+## Plan
 
-Add columns to `businesses`:
-- `website_last_synced_at timestamptz`
-- `website_last_synced_url text`
-- `website_pending_changes jsonb` (set by cron when diff found, cleared on confirm/dismiss)
+### 1. Connect Firecrawl
+- Use the Firecrawl Lovable connector (`standard_connectors--connect` with `connector_id: firecrawl`).
+- This injects `FIRECRAWL_API_KEY` into the edge functions automatically — no manual key entry.
+- Firecrawl is a managed connector; the user can be offered the `LOVABLE50` coupon for 50% off if they hit credit limits.
 
-### 2. Edge functions
+### 2. Rewrite `supabase/functions/scrape-website/index.ts`
+Replace the custom fetch + link scoring + HTML stripping with a two-stage pipeline:
 
-**`scrape-website`** (callable from client and from cron)
-- Input: `{ url, businessId }`
-- Fetches homepage HTML, extracts `<a>` links, picks up to 3 with keywords `services|prices|menu|about|booking|hours|faq` in href or anchor text.
-- Strips scripts/styles, returns concatenated plain text.
-- Sends text to Lovable AI Gateway with the extraction prompt you provided (adapted to ask for valid JSON via `response_format: json_object`).
-- Returns extracted JSON: `{ business_name, services[], opening_hours, booking_policy, cancellation_policy, faqs[] }`.
+**Stage A — Crawl with Firecrawl**
+```
+POST https://api.firecrawl.dev/v2/crawl
+{
+  url,
+  limit: 50,           // up to 50 pages, plenty for any small business site
+  maxDepth: 3,
+  scrapeOptions: { formats: ['markdown'], onlyMainContent: true },
+  excludePaths: ['/blog', '/news', '/cart', '/checkout', '/account', '/wp-admin']
+}
+```
+Poll the returned job ID until `status === 'completed'` (typically 10-60s). Firecrawl handles JS rendering, sitemap discovery, link following, and rate limiting.
 
-**`apply-website-import`**
-- Input: `{ businessId, extracted }`
-- Upserts into `business_settings` (`cancellation_policy`), `services` (insert/skip duplicates by name), `opening_hours` (replace), and updates `businesses.website`, `website_last_synced_at`, `website_last_synced_url`.
-- Inserts a `website_sync_log` row with `confirmed = true`.
+**Stage B — Extract with Gemini 2.5 Pro**
+Concatenate every page's Markdown (now preserving tables) into one document, then send to the Lovable AI Gateway with `google/gemini-2.5-pro` and a tool-calling schema that forces this exact shape:
 
-**`weekly-website-sync`** (scheduled)
-- Loops approved businesses with a `website` set.
-- Calls `scrape-website` per business, compares each field to current DB values (services by name+price, hours per day, policies as text equality).
-- If any diff: writes `website_pending_changes` on the business, inserts a `website_sync_log` row (`changes_detected=true, confirmed=false`), and emails the owner via the existing email function with subject "We noticed your website may have been updated" + a side-by-side summary + CTA link to `/dashboard?tab=settings&section=website-sync`.
-- pg_cron job runs weekly (Mondays 09:00 UTC) via `cron.schedule` + `net.http_post`.
+```json
+{
+  "business_name": "string|null",
+  "services": [
+    {
+      "name": "string",            // e.g. "Tape Sides — Up to 18″ First Fit"
+      "category": "string|null",   // e.g. "Tape", "Micro Bond"
+      "price": "number|null",
+      "duration_minutes": "number|null"
+    }
+  ],
+  "opening_hours": { "monday": "9:00am-5:30pm", ... },
+  "booking_policy": "string|null",
+  "cancellation_policy": "string|null",
+  "faqs": [{ "question": "string", "answer": "string" }]
+}
+```
 
-### 3. UI
+The prompt explicitly instructs: "For any price table with multiple columns (lengths, sizes, refit, etc.), emit ONE entry per cell. Always include the section heading as `category`. Never skip a row."
 
-**Onboarding checklist** (`src/pages/Dashboard.tsx`)
-- New top item: "Import your business details from your website". `isComplete` when `businesses.website_last_synced_at` is set.
-- Clicking opens new component `WebsiteImportDialog`.
+Fallback to `google/gemini-2.5-flash` only on 429/402.
 
-**`src/components/dashboard/WebsiteImportDialog.tsx`** (new)
-- URL input + Import button → calls `scrape-website` → shows preview (services, hours, policies, FAQs) → "Confirm and Save" calls `apply-website-import`; "Edit manually" closes and routes to settings.
+### 3. Update `apply-website-import/index.ts`
+- Honor the AI-returned `category` instead of hardcoding `"Imported"` so services land grouped correctly in Services Management (Tape, Micro Bond, etc.).
+- Honor `duration_minutes` when present (default 30 only if null).
 
-**`src/components/dashboard/settings/WebsiteSyncSection.tsx`** (new) — added inside `BusinessInfoForm` area
-- Shows last synced URL, last synced date, editable URL field, "Re-sync from website" button (reuses the same dialog/flow).
+### 4. Update `WebsiteImportDialog.tsx`
+- Show a richer progress indicator: "Crawling website…" → "Reading X pages…" → "Extracting services…"
+- Surface `pages_scraped` count + `services_found` count before the user confirms.
+- If Firecrawl returns 402 (out of credits), show a friendly message with the upgrade link.
 
-**`src/components/dashboard/settings/PendingWebsiteChangesBanner.tsx`** (new)
-- Renders at top of `BusinessInfoForm` (or `SettingsTab` "business" tab) when `businesses.website_pending_changes` is non-null.
-- Side-by-side old vs new for each changed field. "Confirm Updates" → `apply-website-import` then clears `website_pending_changes`. "Dismiss" → just clears the field.
-- Deep-link support: when route has `?section=website-sync`, scroll into view.
+### 5. Apply the same pipeline to weekly re-sync
+`weekly-website-sync` already calls `scrape-website` internally, so it inherits the upgrade automatically — no changes needed there.
 
-### 4. Files modified / created
+## Technical details
 
-**Created**
-- `supabase/functions/scrape-website/index.ts`
-- `supabase/functions/apply-website-import/index.ts`
-- `supabase/functions/weekly-website-sync/index.ts`
-- `src/components/dashboard/WebsiteImportDialog.tsx`
-- `src/components/dashboard/settings/WebsiteSyncSection.tsx`
-- `src/components/dashboard/settings/PendingWebsiteChangesBanner.tsx`
-- Migration: new table `website_sync_log`, new columns on `businesses`, RLS policies, pg_cron schedule
+- **Firecrawl async pattern**: `/crawl` returns `{ id, url }`; poll `GET /crawl/:id` every 3s for up to 90s. If still running, return a 202 to the client and let them re-poll (or just extend timeout to 90s for now since edge functions allow it).
+- **Cost**: Firecrawl charges 1 credit per page scraped. A 50-page crawl = 50 credits. Free tier includes 500 credits/month, enough for ~10 imports.
+- **Token budget**: 50 pages of Markdown ≈ 200-400k tokens, well within Gemini 2.5 Pro's 2M context.
+- **Fallback**: If `FIRECRAWL_API_KEY` is missing (connector not linked), fall back to the current homemade crawler so existing customers aren't broken.
 
-**Modified**
-- `src/pages/Dashboard.tsx` — add checklist item + dialog wiring
-- `src/components/dashboard/settings/BusinessInfoForm.tsx` — render banner + sync section
+## Files to change
 
-**Untouched** (per your instructions)
-- Call handling, voice settings, tier gating, billing, all other dashboard areas.
+- `supabase/functions/scrape-website/index.ts` — full rewrite to Firecrawl + Gemini 2.5 Pro
+- `supabase/functions/apply-website-import/index.ts` — honor `category` + `duration_minutes`
+- `src/components/dashboard/WebsiteImportDialog.tsx` — better progress UI + 402 handling
 
-### Technical notes
+Nothing else changes: call handling, voice settings, tier gating, billing, weekly re-sync wiring all stay as they are.
 
-- AI extraction uses `response_format: { type: "json_object" }` and a Zod parse to defend against malformed output.
-- `scrape-website` enforces a 10s timeout per page, 200 KB cap on HTML per page, and rejects non-http(s) URLs.
-- All edge functions validate JWT (owner endpoints) except the cron one which uses service-role auth from pg_net.
-- Diff comparison is field-level and stored as `{field: {old, new}}` so the banner renders generically.
-- Cron uses pg_cron + pg_net; the SQL with the project URL/anon key will be inserted via the data tool (not a migration) so it won't run on remixes.
+## Expected result on Vixen & Blush
 
-After approval I'll switch to default mode and implement everything, then list every file changed at the end.
+Instead of ~5 partial entries, you should see ~60 services like:
+
+```
+Tape — Sides — Up to 18″ First Fit       £315
+Tape — Sides — Up to 22″ First Fit       £345
+Tape — Sides — Refit                     £145
+Tape — Boost — Up to 18″ First Fit       £...
+... (all 5 Tape rows × 3 columns)
+Micro Bond — Filler — 14″                £...
+... (all 4 head sizes × 5 lengths)
+Clip In — Set                            £295
+Clip In — Colour Match                   £50
+FeatherLight — ... (all 5 levels × 5 lengths)
+Other Services — ...
+```
+
+Each grouped by `category` so they sort naturally in Services Management.
