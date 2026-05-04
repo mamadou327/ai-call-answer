@@ -221,18 +221,70 @@ Deno.serve(async (req) => {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const links = extractLinks(homepageHtml, baseUrl);
-    const extraUrls = pickRelevantLinks(links, baseUrl.toString());
 
+    const visited = new Set<string>([baseUrl.toString()]);
     const pages: Array<{ url: string; text: string }> = [
-      { url: baseUrl.toString(), text: stripHtml(homepageHtml).slice(0, 15000) },
+      { url: baseUrl.toString(), text: stripHtml(homepageHtml).slice(0, 12000) },
     ];
-    for (const u of extraUrls) {
-      const html = await fetchPage(u);
-      if (html) pages.push({ url: u, text: stripHtml(html).slice(0, 10000) });
+
+    // 1. Try sitemap first — score & pick the most relevant URLs from it.
+    const sitemapUrls = await fetchSitemapUrls(baseUrl);
+    const sitemapPicks = pickRelevantLinks(
+      sitemapUrls.map((u) => ({ href: u, text: u })),
+      visited,
+      MAX_PAGES - 1,
+    );
+
+    // 2. Hop 1: relevant links from the homepage.
+    const homepageLinks = extractLinks(homepageHtml, baseUrl);
+    const hop1Picks = pickRelevantLinks(homepageLinks, visited, MAX_PAGES - 1);
+
+    // Merge sitemap + hop1 candidates, prioritizing overlap (URLs that appear in both).
+    const candidateScores = new Map<string, number>();
+    for (const u of sitemapPicks) candidateScores.set(u, (candidateScores.get(u) || 0) + 2);
+    for (const u of hop1Picks) candidateScores.set(u, (candidateScores.get(u) || 0) + 3);
+    const hop1Final = [...candidateScores.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MAX_PAGES - 1)
+      .map(([u]) => u);
+
+    const hop1Fetched = await fetchAll(hop1Final, FETCH_CONCURRENCY);
+    for (const { url: u, html } of hop1Fetched) {
+      visited.add(u);
+      pages.push({ url: u, text: stripHtml(html).slice(0, 9000) });
     }
 
-    const combined = pages.map((p) => `=== PAGE: ${p.url} ===\n${p.text}`).join("\n\n").slice(0, 60000);
+    // 3. Hop 2: from each strong "services/menu" page, follow its internal links too.
+    const remainingSlots = MAX_PAGES - pages.length;
+    if (remainingSlots > 0) {
+      const hop2Candidates = new Map<string, number>();
+      for (const { url: parentUrl, html } of hop1Fetched) {
+        // Only deepen from pages that look like a services/menu hub.
+        if (!STRONG_KEYWORDS.some((k) => parentUrl.toLowerCase().includes(k))) continue;
+        const innerLinks = extractLinks(html, new URL(parentUrl));
+        for (const l of innerLinks) {
+          if (visited.has(l.href) || shouldSkipUrl(l.href)) continue;
+          const s = scoreLink(l.href, l.text);
+          // Hop-2 links don't need keywords — being a child of a services page is enough.
+          const adjusted = s + 1;
+          hop2Candidates.set(l.href, Math.max(hop2Candidates.get(l.href) || 0, adjusted));
+        }
+      }
+      const hop2Picks = [...hop2Candidates.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, remainingSlots)
+        .map(([u]) => u);
+      const hop2Fetched = await fetchAll(hop2Picks, FETCH_CONCURRENCY);
+      for (const { url: u, html } of hop2Fetched) {
+        visited.add(u);
+        pages.push({ url: u, text: stripHtml(html).slice(0, 7000) });
+      }
+    }
+
+    const combined = pages
+      .map((p) => `=== PAGE: ${p.url} ===\n${p.text}`)
+      .join("\n\n")
+      .slice(0, 120_000);
 
     // Call Lovable AI
     const lovableKey = Deno.env.get("LOVABLE_API_KEY");
