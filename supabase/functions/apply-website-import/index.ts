@@ -126,13 +126,21 @@ Deno.serve(async (req) => {
       const toInsert = extracted.services
         .filter((s: any) => s && typeof s.name === "string" && s.name.trim())
         .filter((s: any) => !existingNames.has(s.name.toLowerCase().trim()))
-        .map((s: any) => ({
-          business_id: businessId,
-          name: String(s.name).trim().slice(0, 200),
-          category: "Imported",
-          duration_minutes: 30,
-          price: priceToNumber(s.price),
-        }));
+        .map((s: any) => {
+          const cat = typeof s.category === "string" && s.category.trim()
+            ? s.category.trim().slice(0, 100)
+            : "Imported";
+          const dur = typeof s.duration_minutes === "number" && s.duration_minutes > 0
+            ? Math.round(s.duration_minutes)
+            : 30;
+          return {
+            business_id: businessId,
+            name: String(s.name).trim().slice(0, 200),
+            category: cat,
+            duration_minutes: dur,
+            price: priceToNumber(s.price),
+          };
+        });
       if (toInsert.length) {
         await supabase.from("services").insert(toInsert);
       }

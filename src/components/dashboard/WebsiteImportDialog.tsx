@@ -22,19 +22,31 @@ export const WebsiteImportDialog = ({ open, onOpenChange, businessId, initialUrl
   const [applying, setApplying] = useState(false);
   const [extracted, setExtracted] = useState<any>(null);
   const [scrapedUrl, setScrapedUrl] = useState<string>("");
+  const [pagesCount, setPagesCount] = useState<number>(0);
+  const [servicesFound, setServicesFound] = useState<number>(0);
 
   const handleImport = async () => {
     if (!url.trim()) return;
     setScraping(true);
     setExtracted(null);
+    setPagesCount(0);
+    setServicesFound(0);
     try {
       const { data, error } = await supabase.functions.invoke("scrape-website", {
         body: { url: url.trim(), businessId },
       });
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      setExtracted((data as any).extracted);
-      setScrapedUrl((data as any).url);
+      const payload = data as any;
+      if (payload?.error) {
+        if (/credits exhausted/i.test(payload.error)) {
+          throw new Error("Website scanner is out of credits. Please try again later or contact support.");
+        }
+        throw new Error(payload.error);
+      }
+      setExtracted(payload.extracted);
+      setScrapedUrl(payload.url);
+      setPagesCount(payload.pages_count || (payload.pages_scraped?.length ?? 0));
+      setServicesFound(payload.services_found || (payload.extracted?.services?.length ?? 0));
     } catch (e: any) {
       toast({
         title: "Import failed",
@@ -169,13 +181,16 @@ export const WebsiteImportDialog = ({ open, onOpenChange, businessId, initialUrl
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              This may take 10–30 seconds while we scan your site.
+              We'll crawl every page (services, menus, FAQs, contact) and read price tables. This usually takes 30–90 seconds.
             </p>
           </div>
         )}
 
         {extracted && (
           <>
+            <div className="text-xs text-muted-foreground -mt-1">
+              Scanned <strong>{pagesCount}</strong> page{pagesCount === 1 ? "" : "s"} · found <strong>{servicesFound}</strong> service{servicesFound === 1 ? "" : "s"}
+            </div>
             <div className="border rounded-lg p-4 bg-muted/30 max-h-96 overflow-y-auto">
               {renderPreview()}
             </div>

@@ -1,5 +1,6 @@
-// Scrape a business website + up to 3 relevant linked pages, then ask Lovable AI
-// to extract structured business info as JSON.
+// Crawl a business website with Firecrawl (renders JS, preserves tables as
+// Markdown), then ask Gemini 2.5 Pro to extract structured business info.
+// Falls back to a simple homemade fetch if FIRECRAWL_API_KEY is missing.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -8,27 +9,38 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// High-priority keywords get a bigger score boost than generic ones.
-const STRONG_KEYWORDS = [
-  "service", "services", "treatment", "treatments", "menu", "price", "prices", "pricing",
-  "price-list", "pricelist", "tariff", "rates", "packages", "package",
+const FIRECRAWL_BASE = "https://api.firecrawl.dev/v2";
+const CRAWL_LIMIT = 50;
+const CRAWL_MAX_DEPTH = 3;
+const CRAWL_POLL_INTERVAL_MS = 3000;
+const CRAWL_MAX_WAIT_MS = 90_000;
+const MAX_COMBINED_CHARS = 400_000;
+const EXCLUDE_PATHS = [
+  "/blog/*", "/news/*", "/press/*", "/article/*", "/post/*",
+  "/cart/*", "/checkout/*", "/account/*", "/login/*", "/signup/*",
+  "/wp-admin/*", "/wp-login*", "/privacy*", "/cookie*", "/gdpr*",
+  "/tag/*", "/category/*", "/author/*",
 ];
-const MEDIUM_KEYWORDS = [
-  "booking", "book", "appointment", "reserve", "reservation",
-  "hours", "opening", "open", "schedule",
-  "faq", "faqs", "policy", "policies", "cancellation", "terms",
-  "about", "contact",
-];
-const SKIP_PATH_PATTERNS = [
-  /\.(pdf|jpg|jpeg|png|gif|svg|webp|mp4|mp3|zip|css|js|ico)(\?|$)/i,
-  /\/(blog|news|press|article|post|tag|category|author|wp-content|wp-admin|wp-login|cart|checkout|account|login|signup|privacy|cookie|gdpr)(\/|$|\?)/i,
-];
-const MAX_PAGES = 15; // homepage + up to 14 internal pages
-const MAX_HTML_BYTES = 250_000;
-const FETCH_TIMEOUT_MS = 8_000;
-const FETCH_CONCURRENCY = 5;
 
-const EXTRACTION_PROMPT = `You are a business data extraction assistant. The user content contains text scraped from MULTIPLE pages of one business's website (each page delimited by "=== PAGE: <url> ==="). Carefully read EVERY page and merge information across them — services and prices are often spread across many pages (one per service, or grouped by category). Extract a COMPLETE list, not just the first few you see. Return valid JSON only with no additional text and these fields: business_name, services (array of objects with name and price; include EVERY distinct service/treatment/menu item you find across all pages, deduplicated by name), opening_hours (object with days and times), booking_policy, cancellation_policy, faqs (array of objects with question and answer). If a field cannot be found return null for that field. Do not invent prices — use null if a price is not stated.`;
+const EXTRACTION_PROMPT = `You extract structured business information from a website. The user content contains MANY pages of one business's website joined together (each delimited by "=== PAGE: <url> ==="). Pages are in clean Markdown — TABLES ARE PRESERVED as Markdown tables (| col | col |). Carefully read EVERY page and merge information.
+
+CRITICAL RULES for services/prices:
+1. For any price TABLE with multiple columns (e.g. lengths 14"/16"/18"/20"/22", or sizes Filler/Volume/All Out, or First Fit vs Refit), emit ONE entry PER PRICE CELL — never collapse columns into a single entry.
+2. ALWAYS attach the section heading the table appeared under (e.g. "Tape", "Micro Bond", "FeatherLight", "Clip In") as the "category" field.
+3. Service "name" should encode the row + column variant, e.g. "Sides — Up to 18" First Fit", "Filler — 14"", "Boost — Refit".
+4. NEVER invent prices. If a cell is empty or unclear, set price to null.
+5. Deduplicate exact duplicates only — variants with different prices are NOT duplicates.
+6. Include EVERY service across all pages, even ones outside tables (bullet lists, paragraphs).
+
+Return JSON only with these fields:
+- business_name (string|null)
+- services: array of { name, category, price (number|null), duration_minutes (number|null) }
+- opening_hours: object keyed by day name with values like "9:00am-5:30pm" or "closed"
+- booking_policy (string|null)
+- cancellation_policy (string|null)
+- faqs: array of { question, answer }
+
+If a field cannot be found return null (or [] for arrays).`;
 
 function stripHtml(html: string): string {
   return html
@@ -40,125 +52,81 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-function extractLinks(html: string, baseUrl: URL): Array<{ href: string; text: string }> {
-  const out: Array<{ href: string; text: string }> = [];
-  const re = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-  let m;
-  while ((m = re.exec(html)) !== null) {
-    try {
-      const url = new URL(m[1], baseUrl);
-      if (url.origin !== baseUrl.origin) continue;
-      if (!/^https?:/.test(url.protocol)) continue;
-      out.push({ href: url.toString().split("#")[0], text: stripHtml(m[2]).toLowerCase() });
-    } catch (_) { /* ignore */ }
+async function startFirecrawlCrawl(url: string, apiKey: string): Promise<string | null> {
+  const res = await fetch(`${FIRECRAWL_BASE}/crawl`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      url,
+      limit: CRAWL_LIMIT,
+      maxDepth: CRAWL_MAX_DEPTH,
+      excludePaths: EXCLUDE_PATHS,
+      scrapeOptions: {
+        formats: ["markdown"],
+        onlyMainContent: true,
+      },
+    }),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    console.error("[scrape-website] firecrawl /crawl start failed", res.status, txt.slice(0, 300));
+    return null;
   }
-  return out;
+  const data = await res.json();
+  return data?.id || data?.jobId || null;
 }
 
-function shouldSkipUrl(href: string): boolean {
-  return SKIP_PATH_PATTERNS.some((re) => re.test(href));
+async function pollFirecrawlCrawl(
+  jobId: string,
+  apiKey: string,
+): Promise<Array<{ url: string; markdown: string }>> {
+  const start = Date.now();
+  let allDocs: Array<{ url: string; markdown: string }> = [];
+  while (Date.now() - start < CRAWL_MAX_WAIT_MS) {
+    const res = await fetch(`${FIRECRAWL_BASE}/crawl/${jobId}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      console.error("[scrape-website] firecrawl poll failed", res.status);
+      break;
+    }
+    const data = await res.json();
+    const docs = Array.isArray(data?.data) ? data.data : [];
+    allDocs = docs
+      .map((d: any) => ({
+        url: d?.metadata?.sourceURL || d?.metadata?.url || d?.url || "",
+        markdown: typeof d?.markdown === "string" ? d.markdown : "",
+      }))
+      .filter((d: any) => d.markdown);
+    if (data?.status === "completed") return allDocs;
+    if (data?.status === "failed" || data?.status === "cancelled") {
+      console.error("[scrape-website] firecrawl crawl ended:", data?.status);
+      return allDocs;
+    }
+    await new Promise((r) => setTimeout(r, CRAWL_POLL_INTERVAL_MS));
+  }
+  console.warn("[scrape-website] firecrawl crawl timed out, returning partial", allDocs.length);
+  return allDocs;
 }
 
-function scoreLink(href: string, text: string): number {
-  const blob = (href + " " + text).toLowerCase();
-  let score = 0;
-  for (const k of STRONG_KEYWORDS) if (blob.includes(k)) score += 3;
-  for (const k of MEDIUM_KEYWORDS) if (blob.includes(k)) score += 1;
-  // Bonus for short, "section-y" paths
+async function fallbackFetchHomepage(url: string): Promise<Array<{ url: string; markdown: string }>> {
   try {
-    const path = new URL(href).pathname.replace(/\/$/, "");
-    const segs = path.split("/").filter(Boolean);
-    if (segs.length === 1 && STRONG_KEYWORDS.some((k) => segs[0].includes(k))) score += 2;
-    // Penalize very deep paths
-    if (segs.length > 4) score -= 1;
-  } catch (_) { /* ignore */ }
-  return score;
-}
-
-function pickRelevantLinks(
-  links: Array<{ href: string; text: string }>,
-  alreadySeen: Set<string>,
-  limit: number,
-): string[] {
-  const scored: Array<{ href: string; score: number }> = [];
-  const dedup = new Set<string>();
-  for (const l of links) {
-    if (alreadySeen.has(l.href) || dedup.has(l.href)) continue;
-    if (shouldSkipUrl(l.href)) continue;
-    const score = scoreLink(l.href, l.text);
-    if (score > 0) {
-      scored.push({ href: l.href, score });
-      dedup.add(l.href);
-    }
-  }
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, limit).map((s) => s.href);
-}
-
-async function fetchSitemapUrls(baseUrl: URL): Promise<string[]> {
-  const candidates = ["/sitemap.xml", "/sitemap_index.xml", "/sitemap-index.xml"];
-  const found: string[] = [];
-  for (const path of candidates) {
-    const xml = await fetchPage(new URL(path, baseUrl).toString());
-    if (!xml) continue;
-    const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/gi)].map((m) => m[1].trim());
-    for (const loc of locs) {
-      try {
-        const u = new URL(loc);
-        if (u.origin === baseUrl.origin && !shouldSkipUrl(u.toString())) {
-          found.push(u.toString().split("#")[0]);
-        }
-      } catch (_) { /* ignore */ }
-    }
-    if (found.length) break;
-  }
-  return Array.from(new Set(found));
-}
-
-async function fetchAll(urls: string[], concurrency: number): Promise<Array<{ url: string; html: string }>> {
-  const out: Array<{ url: string; html: string }> = [];
-  let i = 0;
-  async function worker() {
-    while (i < urls.length) {
-      const idx = i++;
-      const u = urls[idx];
-      const html = await fetchPage(u);
-      if (html) out.push({ url: u, html });
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(concurrency, urls.length) }, worker));
-  return out;
-}
-
-async function fetchPage(url: string): Promise<string> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
-  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: { "User-Agent": "AiviaBot/1.0 (+https://aiviaapp.co.uk)" },
+      headers: { "User-Agent": "AiviaBot/1.0" },
       redirect: "follow",
     });
-    if (!res.ok) return "";
-    const reader = res.body?.getReader();
-    if (!reader) return await res.text();
-    let received = 0;
-    const chunks: Uint8Array[] = [];
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      received += value.byteLength;
-      chunks.push(value);
-      if (received >= MAX_HTML_BYTES) { try { reader.cancel(); } catch (_) {} break; }
-    }
-    const merged = new Uint8Array(received);
-    let offset = 0;
-    for (const c of chunks) { merged.set(c, offset); offset += c.byteLength; }
-    return new TextDecoder().decode(merged);
-  } catch (_e) {
-    return "";
-  } finally {
     clearTimeout(t);
+    if (!res.ok) return [];
+    const html = await res.text();
+    return [{ url, markdown: stripHtml(html).slice(0, 30_000) }];
+  } catch {
+    return [];
   }
 }
 
@@ -204,7 +172,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify business ownership if provided
     if (businessId) {
       const { data: biz } = await supabase.from("businesses").select("id").eq("id", businessId).maybeSingle();
       if (!biz) {
@@ -214,79 +181,35 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fetch homepage
-    const homepageHtml = await fetchPage(baseUrl.toString());
-    if (!homepageHtml) {
+    // ---- 1. CRAWL ----
+    const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY");
+    let pages: Array<{ url: string; markdown: string }> = [];
+
+    if (firecrawlKey) {
+      const jobId = await startFirecrawlCrawl(baseUrl.toString(), firecrawlKey);
+      if (jobId) {
+        pages = await pollFirecrawlCrawl(jobId, firecrawlKey);
+      }
+    } else {
+      console.warn("[scrape-website] FIRECRAWL_API_KEY missing — using fallback");
+    }
+
+    if (pages.length === 0) {
+      pages = await fallbackFetchHomepage(baseUrl.toString());
+    }
+
+    if (pages.length === 0) {
       return new Response(JSON.stringify({ error: "Could not fetch website" }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const visited = new Set<string>([baseUrl.toString()]);
-    const pages: Array<{ url: string; text: string }> = [
-      { url: baseUrl.toString(), text: stripHtml(homepageHtml).slice(0, 12000) },
-    ];
-
-    // 1. Try sitemap first — score & pick the most relevant URLs from it.
-    const sitemapUrls = await fetchSitemapUrls(baseUrl);
-    const sitemapPicks = pickRelevantLinks(
-      sitemapUrls.map((u) => ({ href: u, text: u })),
-      visited,
-      MAX_PAGES - 1,
-    );
-
-    // 2. Hop 1: relevant links from the homepage.
-    const homepageLinks = extractLinks(homepageHtml, baseUrl);
-    const hop1Picks = pickRelevantLinks(homepageLinks, visited, MAX_PAGES - 1);
-
-    // Merge sitemap + hop1 candidates, prioritizing overlap (URLs that appear in both).
-    const candidateScores = new Map<string, number>();
-    for (const u of sitemapPicks) candidateScores.set(u, (candidateScores.get(u) || 0) + 2);
-    for (const u of hop1Picks) candidateScores.set(u, (candidateScores.get(u) || 0) + 3);
-    const hop1Final = [...candidateScores.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, MAX_PAGES - 1)
-      .map(([u]) => u);
-
-    const hop1Fetched = await fetchAll(hop1Final, FETCH_CONCURRENCY);
-    for (const { url: u, html } of hop1Fetched) {
-      visited.add(u);
-      pages.push({ url: u, text: stripHtml(html).slice(0, 9000) });
-    }
-
-    // 3. Hop 2: from each strong "services/menu" page, follow its internal links too.
-    const remainingSlots = MAX_PAGES - pages.length;
-    if (remainingSlots > 0) {
-      const hop2Candidates = new Map<string, number>();
-      for (const { url: parentUrl, html } of hop1Fetched) {
-        // Only deepen from pages that look like a services/menu hub.
-        if (!STRONG_KEYWORDS.some((k) => parentUrl.toLowerCase().includes(k))) continue;
-        const innerLinks = extractLinks(html, new URL(parentUrl));
-        for (const l of innerLinks) {
-          if (visited.has(l.href) || shouldSkipUrl(l.href)) continue;
-          const s = scoreLink(l.href, l.text);
-          // Hop-2 links don't need keywords — being a child of a services page is enough.
-          const adjusted = s + 1;
-          hop2Candidates.set(l.href, Math.max(hop2Candidates.get(l.href) || 0, adjusted));
-        }
-      }
-      const hop2Picks = [...hop2Candidates.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, remainingSlots)
-        .map(([u]) => u);
-      const hop2Fetched = await fetchAll(hop2Picks, FETCH_CONCURRENCY);
-      for (const { url: u, html } of hop2Fetched) {
-        visited.add(u);
-        pages.push({ url: u, text: stripHtml(html).slice(0, 7000) });
-      }
-    }
-
     const combined = pages
-      .map((p) => `=== PAGE: ${p.url} ===\n${p.text}`)
+      .map((p) => `=== PAGE: ${p.url} ===\n${p.markdown}`)
       .join("\n\n")
-      .slice(0, 120_000);
+      .slice(0, MAX_COMBINED_CHARS);
 
-    // Call Lovable AI
+    // ---- 2. EXTRACT ----
     const lovableKey = Deno.env.get("LOVABLE_API_KEY");
     if (!lovableKey) {
       return new Response(JSON.stringify({ error: "AI not configured" }), {
@@ -294,21 +217,29 @@ Deno.serve(async (req) => {
       });
     }
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${lovableKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: EXTRACTION_PROMPT },
-          { role: "user", content: combined },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
+    async function callAI(model: string) {
+      return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${lovableKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: EXTRACTION_PROMPT },
+            { role: "user", content: combined },
+          ],
+          response_format: { type: "json_object" },
+        }),
+      });
+    }
+
+    let aiRes = await callAI("google/gemini-2.5-pro");
+    if (aiRes.status === 429 || aiRes.status === 402 || aiRes.status >= 500) {
+      console.warn("[scrape-website] Pro failed", aiRes.status, "— falling back to Flash");
+      aiRes = await callAI("google/gemini-2.5-flash");
+    }
 
     if (aiRes.status === 429) {
       return new Response(JSON.stringify({ error: "Rate limited, try again shortly" }), {
@@ -329,18 +260,21 @@ Deno.serve(async (req) => {
 
     const aiData = await aiRes.json();
     const content = aiData?.choices?.[0]?.message?.content ?? "{}";
-    let extracted: unknown;
+    let extracted: any;
     try { extracted = JSON.parse(content); } catch { extracted = {}; }
 
     return new Response(
       JSON.stringify({
         url: baseUrl.toString(),
         pages_scraped: pages.map((p) => p.url),
+        pages_count: pages.length,
+        services_found: Array.isArray(extracted?.services) ? extracted.services.length : 0,
         extracted,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
+    console.error("[scrape-website] error", e);
     return new Response(JSON.stringify({ error: "Server error", detail: String(e) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
