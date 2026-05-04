@@ -8,12 +8,27 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const KEYWORDS = ["service", "price", "menu", "about", "booking", "hours", "faq", "contact"];
-const MAX_PAGES = 4; // homepage + up to 3
-const MAX_HTML_BYTES = 200_000;
-const FETCH_TIMEOUT_MS = 10_000;
+// High-priority keywords get a bigger score boost than generic ones.
+const STRONG_KEYWORDS = [
+  "service", "services", "treatment", "treatments", "menu", "price", "prices", "pricing",
+  "price-list", "pricelist", "tariff", "rates", "packages", "package",
+];
+const MEDIUM_KEYWORDS = [
+  "booking", "book", "appointment", "reserve", "reservation",
+  "hours", "opening", "open", "schedule",
+  "faq", "faqs", "policy", "policies", "cancellation", "terms",
+  "about", "contact",
+];
+const SKIP_PATH_PATTERNS = [
+  /\.(pdf|jpg|jpeg|png|gif|svg|webp|mp4|mp3|zip|css|js|ico)(\?|$)/i,
+  /\/(blog|news|press|article|post|tag|category|author|wp-content|wp-admin|wp-login|cart|checkout|account|login|signup|privacy|cookie|gdpr)(\/|$|\?)/i,
+];
+const MAX_PAGES = 15; // homepage + up to 14 internal pages
+const MAX_HTML_BYTES = 250_000;
+const FETCH_TIMEOUT_MS = 8_000;
+const FETCH_CONCURRENCY = 5;
 
-const EXTRACTION_PROMPT = `You are a business data extraction assistant. Extract the following information from this website content and return it as valid JSON only with no additional text: business_name, services (array of objects with name and price), opening_hours (object with days and times), booking_policy, cancellation_policy, faqs (array of objects with question and answer). If any field cannot be found return null for that field.`;
+const EXTRACTION_PROMPT = `You are a business data extraction assistant. The user content contains text scraped from MULTIPLE pages of one business's website (each page delimited by "=== PAGE: <url> ==="). Carefully read EVERY page and merge information across them — services and prices are often spread across many pages (one per service, or grouped by category). Extract a COMPLETE list, not just the first few you see. Return valid JSON only with no additional text and these fields: business_name, services (array of objects with name and price; include EVERY distinct service/treatment/menu item you find across all pages, deduplicated by name), opening_hours (object with days and times), booking_policy, cancellation_policy, faqs (array of objects with question and answer). If a field cannot be found return null for that field. Do not invent prices — use null if a price is not stated.`;
 
 function stripHtml(html: string): string {
   return html
@@ -40,23 +55,79 @@ function extractLinks(html: string, baseUrl: URL): Array<{ href: string; text: s
   return out;
 }
 
-function pickRelevantLinks(links: Array<{ href: string; text: string }>, homepage: string): string[] {
-  const seen = new Set<string>([homepage]);
+function shouldSkipUrl(href: string): boolean {
+  return SKIP_PATH_PATTERNS.some((re) => re.test(href));
+}
+
+function scoreLink(href: string, text: string): number {
+  const blob = (href + " " + text).toLowerCase();
+  let score = 0;
+  for (const k of STRONG_KEYWORDS) if (blob.includes(k)) score += 3;
+  for (const k of MEDIUM_KEYWORDS) if (blob.includes(k)) score += 1;
+  // Bonus for short, "section-y" paths
+  try {
+    const path = new URL(href).pathname.replace(/\/$/, "");
+    const segs = path.split("/").filter(Boolean);
+    if (segs.length === 1 && STRONG_KEYWORDS.some((k) => segs[0].includes(k))) score += 2;
+    // Penalize very deep paths
+    if (segs.length > 4) score -= 1;
+  } catch (_) { /* ignore */ }
+  return score;
+}
+
+function pickRelevantLinks(
+  links: Array<{ href: string; text: string }>,
+  alreadySeen: Set<string>,
+  limit: number,
+): string[] {
   const scored: Array<{ href: string; score: number }> = [];
+  const dedup = new Set<string>();
   for (const l of links) {
-    if (seen.has(l.href)) continue;
-    const blob = (l.href + " " + l.text).toLowerCase();
-    let score = 0;
-    for (const k of KEYWORDS) if (blob.includes(k)) score += 1;
-    if (score > 0) scored.push({ href: l.href, score });
+    if (alreadySeen.has(l.href) || dedup.has(l.href)) continue;
+    if (shouldSkipUrl(l.href)) continue;
+    const score = scoreLink(l.href, l.text);
+    if (score > 0) {
+      scored.push({ href: l.href, score });
+      dedup.add(l.href);
+    }
   }
   scored.sort((a, b) => b.score - a.score);
-  const picked: string[] = [];
-  for (const s of scored) {
-    if (picked.length >= MAX_PAGES - 1) break;
-    if (!seen.has(s.href)) { picked.push(s.href); seen.add(s.href); }
+  return scored.slice(0, limit).map((s) => s.href);
+}
+
+async function fetchSitemapUrls(baseUrl: URL): Promise<string[]> {
+  const candidates = ["/sitemap.xml", "/sitemap_index.xml", "/sitemap-index.xml"];
+  const found: string[] = [];
+  for (const path of candidates) {
+    const xml = await fetchPage(new URL(path, baseUrl).toString());
+    if (!xml) continue;
+    const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/gi)].map((m) => m[1].trim());
+    for (const loc of locs) {
+      try {
+        const u = new URL(loc);
+        if (u.origin === baseUrl.origin && !shouldSkipUrl(u.toString())) {
+          found.push(u.toString().split("#")[0]);
+        }
+      } catch (_) { /* ignore */ }
+    }
+    if (found.length) break;
   }
-  return picked;
+  return Array.from(new Set(found));
+}
+
+async function fetchAll(urls: string[], concurrency: number): Promise<Array<{ url: string; html: string }>> {
+  const out: Array<{ url: string; html: string }> = [];
+  let i = 0;
+  async function worker() {
+    while (i < urls.length) {
+      const idx = i++;
+      const u = urls[idx];
+      const html = await fetchPage(u);
+      if (html) out.push({ url: u, html });
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, urls.length) }, worker));
+  return out;
 }
 
 async function fetchPage(url: string): Promise<string> {
@@ -150,18 +221,70 @@ Deno.serve(async (req) => {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const links = extractLinks(homepageHtml, baseUrl);
-    const extraUrls = pickRelevantLinks(links, baseUrl.toString());
 
+    const visited = new Set<string>([baseUrl.toString()]);
     const pages: Array<{ url: string; text: string }> = [
-      { url: baseUrl.toString(), text: stripHtml(homepageHtml).slice(0, 15000) },
+      { url: baseUrl.toString(), text: stripHtml(homepageHtml).slice(0, 12000) },
     ];
-    for (const u of extraUrls) {
-      const html = await fetchPage(u);
-      if (html) pages.push({ url: u, text: stripHtml(html).slice(0, 10000) });
+
+    // 1. Try sitemap first — score & pick the most relevant URLs from it.
+    const sitemapUrls = await fetchSitemapUrls(baseUrl);
+    const sitemapPicks = pickRelevantLinks(
+      sitemapUrls.map((u) => ({ href: u, text: u })),
+      visited,
+      MAX_PAGES - 1,
+    );
+
+    // 2. Hop 1: relevant links from the homepage.
+    const homepageLinks = extractLinks(homepageHtml, baseUrl);
+    const hop1Picks = pickRelevantLinks(homepageLinks, visited, MAX_PAGES - 1);
+
+    // Merge sitemap + hop1 candidates, prioritizing overlap (URLs that appear in both).
+    const candidateScores = new Map<string, number>();
+    for (const u of sitemapPicks) candidateScores.set(u, (candidateScores.get(u) || 0) + 2);
+    for (const u of hop1Picks) candidateScores.set(u, (candidateScores.get(u) || 0) + 3);
+    const hop1Final = [...candidateScores.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MAX_PAGES - 1)
+      .map(([u]) => u);
+
+    const hop1Fetched = await fetchAll(hop1Final, FETCH_CONCURRENCY);
+    for (const { url: u, html } of hop1Fetched) {
+      visited.add(u);
+      pages.push({ url: u, text: stripHtml(html).slice(0, 9000) });
     }
 
-    const combined = pages.map((p) => `=== PAGE: ${p.url} ===\n${p.text}`).join("\n\n").slice(0, 60000);
+    // 3. Hop 2: from each strong "services/menu" page, follow its internal links too.
+    const remainingSlots = MAX_PAGES - pages.length;
+    if (remainingSlots > 0) {
+      const hop2Candidates = new Map<string, number>();
+      for (const { url: parentUrl, html } of hop1Fetched) {
+        // Only deepen from pages that look like a services/menu hub.
+        if (!STRONG_KEYWORDS.some((k) => parentUrl.toLowerCase().includes(k))) continue;
+        const innerLinks = extractLinks(html, new URL(parentUrl));
+        for (const l of innerLinks) {
+          if (visited.has(l.href) || shouldSkipUrl(l.href)) continue;
+          const s = scoreLink(l.href, l.text);
+          // Hop-2 links don't need keywords — being a child of a services page is enough.
+          const adjusted = s + 1;
+          hop2Candidates.set(l.href, Math.max(hop2Candidates.get(l.href) || 0, adjusted));
+        }
+      }
+      const hop2Picks = [...hop2Candidates.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, remainingSlots)
+        .map(([u]) => u);
+      const hop2Fetched = await fetchAll(hop2Picks, FETCH_CONCURRENCY);
+      for (const { url: u, html } of hop2Fetched) {
+        visited.add(u);
+        pages.push({ url: u, text: stripHtml(html).slice(0, 7000) });
+      }
+    }
+
+    const combined = pages
+      .map((p) => `=== PAGE: ${p.url} ===\n${p.text}`)
+      .join("\n\n")
+      .slice(0, 120_000);
 
     // Call Lovable AI
     const lovableKey = Deno.env.get("LOVABLE_API_KEY");
