@@ -339,6 +339,10 @@ const Dashboard = () => {
     setChecklistItems(items);
   };
   const handleChecklistItemClick = (action: string) => {
+    if (action === "import_website") {
+      setWebsiteImportOpen(true);
+      return;
+    }
     setActiveSettingsSection(action);
     setActiveTab("settings");
   };
