@@ -8,12 +8,27 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const KEYWORDS = ["service", "price", "menu", "about", "booking", "hours", "faq", "contact"];
-const MAX_PAGES = 4; // homepage + up to 3
-const MAX_HTML_BYTES = 200_000;
-const FETCH_TIMEOUT_MS = 10_000;
+// High-priority keywords get a bigger score boost than generic ones.
+const STRONG_KEYWORDS = [
+  "service", "services", "treatment", "treatments", "menu", "price", "prices", "pricing",
+  "price-list", "pricelist", "tariff", "rates", "packages", "package",
+];
+const MEDIUM_KEYWORDS = [
+  "booking", "book", "appointment", "reserve", "reservation",
+  "hours", "opening", "open", "schedule",
+  "faq", "faqs", "policy", "policies", "cancellation", "terms",
+  "about", "contact",
+];
+const SKIP_PATH_PATTERNS = [
+  /\.(pdf|jpg|jpeg|png|gif|svg|webp|mp4|mp3|zip|css|js|ico)(\?|$)/i,
+  /\/(blog|news|press|article|post|tag|category|author|wp-content|wp-admin|wp-login|cart|checkout|account|login|signup|privacy|cookie|gdpr)(\/|$|\?)/i,
+];
+const MAX_PAGES = 15; // homepage + up to 14 internal pages
+const MAX_HTML_BYTES = 250_000;
+const FETCH_TIMEOUT_MS = 8_000;
+const FETCH_CONCURRENCY = 5;
 
-const EXTRACTION_PROMPT = `You are a business data extraction assistant. Extract the following information from this website content and return it as valid JSON only with no additional text: business_name, services (array of objects with name and price), opening_hours (object with days and times), booking_policy, cancellation_policy, faqs (array of objects with question and answer). If any field cannot be found return null for that field.`;
+const EXTRACTION_PROMPT = `You are a business data extraction assistant. The user content contains text scraped from MULTIPLE pages of one business's website (each page delimited by "=== PAGE: <url> ==="). Carefully read EVERY page and merge information across them — services and prices are often spread across many pages (one per service, or grouped by category). Extract a COMPLETE list, not just the first few you see. Return valid JSON only with no additional text and these fields: business_name, services (array of objects with name and price; include EVERY distinct service/treatment/menu item you find across all pages, deduplicated by name), opening_hours (object with days and times), booking_policy, cancellation_policy, faqs (array of objects with question and answer). If a field cannot be found return null for that field. Do not invent prices — use null if a price is not stated.`;
 
 function stripHtml(html: string): string {
   return html
