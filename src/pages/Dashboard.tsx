@@ -64,6 +64,7 @@ const Dashboard = () => {
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [checklistDismissed, setChecklistDismissed] = useState(false);
+  const [websiteImportOpen, setWebsiteImportOpen] = useState(false);
   
   // Track unread messages count
   useEffect(() => {
