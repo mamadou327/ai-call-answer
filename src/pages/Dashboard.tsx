@@ -560,6 +560,16 @@ const Dashboard = () => {
 
         {/* AI Assistant Chat */}
         {business && user && <AiviaAssistantChat businessId={business.id} userId={user.id} role={isStaffView ? "staff" : "owner"} />}
+
+        {business && (
+          <WebsiteImportDialog
+            open={websiteImportOpen}
+            onOpenChange={setWebsiteImportOpen}
+            businessId={business.id}
+            initialUrl={business.website || ""}
+            onComplete={handleSettingsUpdate}
+          />
+        )}
       </main>
     </div>;
 };
