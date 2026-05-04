@@ -181,13 +181,16 @@ export const WebsiteImportDialog = ({ open, onOpenChange, businessId, initialUrl
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              This may take 10–30 seconds while we scan your site.
+              We'll crawl every page (services, menus, FAQs, contact) and read price tables. This usually takes 30–90 seconds.
             </p>
           </div>
         )}
 
         {extracted && (
           <>
+            <div className="text-xs text-muted-foreground -mt-1">
+              Scanned <strong>{pagesCount}</strong> page{pagesCount === 1 ? "" : "s"} · found <strong>{servicesFound}</strong> service{servicesFound === 1 ? "" : "s"}
+            </div>
             <div className="border rounded-lg p-4 bg-muted/30 max-h-96 overflow-y-auto">
               {renderPreview()}
             </div>
