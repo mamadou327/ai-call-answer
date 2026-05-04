@@ -22,19 +22,31 @@ export const WebsiteImportDialog = ({ open, onOpenChange, businessId, initialUrl
   const [applying, setApplying] = useState(false);
   const [extracted, setExtracted] = useState<any>(null);
   const [scrapedUrl, setScrapedUrl] = useState<string>("");
+  const [pagesCount, setPagesCount] = useState<number>(0);
+  const [servicesFound, setServicesFound] = useState<number>(0);
 
   const handleImport = async () => {
     if (!url.trim()) return;
     setScraping(true);
     setExtracted(null);
+    setPagesCount(0);
+    setServicesFound(0);
     try {
       const { data, error } = await supabase.functions.invoke("scrape-website", {
         body: { url: url.trim(), businessId },
       });
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      setExtracted((data as any).extracted);
-      setScrapedUrl((data as any).url);
+      const payload = data as any;
+      if (payload?.error) {
+        if (/credits exhausted/i.test(payload.error)) {
+          throw new Error("Website scanner is out of credits. Please try again later or contact support.");
+        }
+        throw new Error(payload.error);
+      }
+      setExtracted(payload.extracted);
+      setScrapedUrl(payload.url);
+      setPagesCount(payload.pages_count || (payload.pages_scraped?.length ?? 0));
+      setServicesFound(payload.services_found || (payload.extracted?.services?.length ?? 0));
     } catch (e: any) {
       toast({
         title: "Import failed",
