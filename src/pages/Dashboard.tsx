@@ -42,6 +42,7 @@ interface Business {
   business_type: string | null;
   average_prep_time_minutes?: number | null;
   reservation_platform?: string | null;
+  website_last_synced_at?: string | null;
 }
 const Dashboard = () => {
   const navigate = useNavigate();
