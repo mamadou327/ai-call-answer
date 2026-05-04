@@ -55,25 +55,6 @@ function extractLinks(html: string, baseUrl: URL): Array<{ href: string; text: s
   return out;
 }
 
-function pickRelevantLinks(links: Array<{ href: string; text: string }>, homepage: string): string[] {
-  const seen = new Set<string>([homepage]);
-  const scored: Array<{ href: string; score: number }> = [];
-  for (const l of links) {
-    if (seen.has(l.href)) continue;
-    const blob = (l.href + " " + l.text).toLowerCase();
-    let score = 0;
-    for (const k of KEYWORDS) if (blob.includes(k)) score += 1;
-    if (score > 0) scored.push({ href: l.href, score });
-  }
-  scored.sort((a, b) => b.score - a.score);
-  const picked: string[] = [];
-  for (const s of scored) {
-    if (picked.length >= MAX_PAGES - 1) break;
-    if (!seen.has(s.href)) { picked.push(s.href); seen.add(s.href); }
-  }
-  return picked;
-}
-
 function shouldSkipUrl(href: string): boolean {
   return SKIP_PATH_PATTERNS.some((re) => re.test(href));
 }
