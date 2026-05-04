@@ -287,6 +287,7 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
           </CardContent>
         </Card>
       </form>
+      <WebsiteSyncSection businessId={businessId} business={business} onUpdate={onUpdate} />
     </div>
   );
 };
