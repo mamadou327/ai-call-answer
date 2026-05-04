@@ -121,6 +121,7 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
 
   return (
     <div className="space-y-6">
+      <PendingWebsiteChangesBanner businessId={businessId} business={business} onUpdate={onUpdate} />
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Business Information */}
         <Card>
