@@ -23,6 +23,7 @@ import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
 import { Badge } from "@/components/ui/badge";
 import { isDemoAccount, DEMO_BUSINESS, DEMO_SETTINGS } from "@/lib/demoData";
+import { WebsiteImportDialog } from "@/components/dashboard/WebsiteImportDialog";
 interface Business {
   id: string;
   business_name: string;
@@ -41,6 +42,7 @@ interface Business {
   business_type: string | null;
   average_prep_time_minutes?: number | null;
   reservation_platform?: string | null;
+  website_last_synced_at?: string | null;
 }
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -62,6 +64,7 @@ const Dashboard = () => {
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [checklistDismissed, setChecklistDismissed] = useState(false);
+  const [websiteImportOpen, setWebsiteImportOpen] = useState(false);
   
   // Track unread messages count
   useEffect(() => {
@@ -253,6 +256,12 @@ const Dashboard = () => {
     );
 
     const items: ChecklistItem[] = [
+      // Website import — at the very top
+      {
+        label: "Import your business details from your website",
+        isComplete: !!biz.website_last_synced_at,
+        action: "import_website",
+      },
       // Common items
       {
         label: "Business address",
@@ -330,6 +339,10 @@ const Dashboard = () => {
     setChecklistItems(items);
   };
   const handleChecklistItemClick = (action: string) => {
+    if (action === "import_website") {
+      setWebsiteImportOpen(true);
+      return;
+    }
     setActiveSettingsSection(action);
     setActiveTab("settings");
   };
@@ -547,6 +560,16 @@ const Dashboard = () => {
 
         {/* AI Assistant Chat */}
         {business && user && <AiviaAssistantChat businessId={business.id} userId={user.id} role={isStaffView ? "staff" : "owner"} />}
+
+        {business && (
+          <WebsiteImportDialog
+            open={websiteImportOpen}
+            onOpenChange={setWebsiteImportOpen}
+            businessId={business.id}
+            initialUrl={business.website || ""}
+            onComplete={handleSettingsUpdate}
+          />
+        )}
       </main>
     </div>;
 };

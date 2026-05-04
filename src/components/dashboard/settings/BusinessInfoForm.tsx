@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { MapPin, Store } from "lucide-react";
+import { WebsiteSyncSection } from "./WebsiteSyncSection";
+import { PendingWebsiteChangesBanner } from "./PendingWebsiteChangesBanner";
 
 interface BusinessInfoFormProps {
   businessId: string;
@@ -119,6 +121,7 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
 
   return (
     <div className="space-y-6">
+      <PendingWebsiteChangesBanner businessId={businessId} business={business} onUpdate={onUpdate} />
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Business Information */}
         <Card>
@@ -284,6 +287,7 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
           </CardContent>
         </Card>
       </form>
+      <WebsiteSyncSection businessId={businessId} business={business} onUpdate={onUpdate} />
     </div>
   );
 };

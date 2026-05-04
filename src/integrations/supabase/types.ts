@@ -512,6 +512,9 @@ export type Database = {
           updated_at: string | null
           website: string | null
           website_knowledge: string | null
+          website_last_synced_at: string | null
+          website_last_synced_url: string | null
+          website_pending_changes: Json | null
         }
         Insert: {
           address: string
@@ -582,6 +585,9 @@ export type Database = {
           updated_at?: string | null
           website?: string | null
           website_knowledge?: string | null
+          website_last_synced_at?: string | null
+          website_last_synced_url?: string | null
+          website_pending_changes?: Json | null
         }
         Update: {
           address?: string
@@ -652,6 +658,9 @@ export type Database = {
           updated_at?: string | null
           website?: string | null
           website_knowledge?: string | null
+          website_last_synced_at?: string | null
+          website_last_synced_url?: string | null
+          website_pending_changes?: Json | null
         }
         Relationships: []
       }
@@ -2568,6 +2577,54 @@ export type Database = {
           voice_id?: string
         }
         Relationships: []
+      }
+      website_sync_log: {
+        Row: {
+          business_id: string
+          changes_detected: boolean
+          changes_summary: Json | null
+          confirmed: boolean
+          confirmed_at: string | null
+          id: string
+          synced_at: string
+          url: string | null
+        }
+        Insert: {
+          business_id: string
+          changes_detected?: boolean
+          changes_summary?: Json | null
+          confirmed?: boolean
+          confirmed_at?: string | null
+          id?: string
+          synced_at?: string
+          url?: string | null
+        }
+        Update: {
+          business_id?: string
+          changes_detected?: boolean
+          changes_summary?: Json | null
+          confirmed?: boolean
+          confirmed_at?: string | null
+          id?: string
+          synced_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_sync_log_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_sync_log_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

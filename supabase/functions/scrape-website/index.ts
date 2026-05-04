@@ -1,0 +1,225 @@
+// Scrape a business website + up to 3 relevant linked pages, then ask Lovable AI
+// to extract structured business info as JSON.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+const KEYWORDS = ["service", "price", "menu", "about", "booking", "hours", "faq", "contact"];
+const MAX_PAGES = 4; // homepage + up to 3
+const MAX_HTML_BYTES = 200_000;
+const FETCH_TIMEOUT_MS = 10_000;
+
+const EXTRACTION_PROMPT = `You are a business data extraction assistant. Extract the following information from this website content and return it as valid JSON only with no additional text: business_name, services (array of objects with name and price), opening_hours (object with days and times), booking_policy, cancellation_policy, faqs (array of objects with question and answer). If any field cannot be found return null for that field.`;
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractLinks(html: string, baseUrl: URL): Array<{ href: string; text: string }> {
+  const out: Array<{ href: string; text: string }> = [];
+  const re = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    try {
+      const url = new URL(m[1], baseUrl);
+      if (url.origin !== baseUrl.origin) continue;
+      if (!/^https?:/.test(url.protocol)) continue;
+      out.push({ href: url.toString().split("#")[0], text: stripHtml(m[2]).toLowerCase() });
+    } catch (_) { /* ignore */ }
+  }
+  return out;
+}
+
+function pickRelevantLinks(links: Array<{ href: string; text: string }>, homepage: string): string[] {
+  const seen = new Set<string>([homepage]);
+  const scored: Array<{ href: string; score: number }> = [];
+  for (const l of links) {
+    if (seen.has(l.href)) continue;
+    const blob = (l.href + " " + l.text).toLowerCase();
+    let score = 0;
+    for (const k of KEYWORDS) if (blob.includes(k)) score += 1;
+    if (score > 0) scored.push({ href: l.href, score });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  const picked: string[] = [];
+  for (const s of scored) {
+    if (picked.length >= MAX_PAGES - 1) break;
+    if (!seen.has(s.href)) { picked.push(s.href); seen.add(s.href); }
+  }
+  return picked;
+}
+
+async function fetchPage(url: string): Promise<string> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { "User-Agent": "AiviaBot/1.0 (+https://aiviaapp.co.uk)" },
+      redirect: "follow",
+    });
+    if (!res.ok) return "";
+    const reader = res.body?.getReader();
+    if (!reader) return await res.text();
+    let received = 0;
+    const chunks: Uint8Array[] = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      chunks.push(value);
+      if (received >= MAX_HTML_BYTES) { try { reader.cancel(); } catch (_) {} break; }
+    }
+    const merged = new Uint8Array(received);
+    let offset = 0;
+    for (const c of chunks) { merged.set(c, offset); offset += c.byteLength; }
+    return new TextDecoder().decode(merged);
+  } catch (_e) {
+    return "";
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !userData.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    let { url, businessId } = body as { url?: string; businessId?: string };
+    if (!url || typeof url !== "string") {
+      return new Response(JSON.stringify({ error: "Missing url" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+    let baseUrl: URL;
+    try { baseUrl = new URL(url); } catch {
+      return new Response(JSON.stringify({ error: "Invalid url" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!/^https?:$/.test(baseUrl.protocol)) {
+      return new Response(JSON.stringify({ error: "Invalid protocol" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Verify business ownership if provided
+    if (businessId) {
+      const { data: biz } = await supabase.from("businesses").select("id").eq("id", businessId).maybeSingle();
+      if (!biz) {
+        return new Response(JSON.stringify({ error: "Business not found or access denied" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // Fetch homepage
+    const homepageHtml = await fetchPage(baseUrl.toString());
+    if (!homepageHtml) {
+      return new Response(JSON.stringify({ error: "Could not fetch website" }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const links = extractLinks(homepageHtml, baseUrl);
+    const extraUrls = pickRelevantLinks(links, baseUrl.toString());
+
+    const pages: Array<{ url: string; text: string }> = [
+      { url: baseUrl.toString(), text: stripHtml(homepageHtml).slice(0, 15000) },
+    ];
+    for (const u of extraUrls) {
+      const html = await fetchPage(u);
+      if (html) pages.push({ url: u, text: stripHtml(html).slice(0, 10000) });
+    }
+
+    const combined = pages.map((p) => `=== PAGE: ${p.url} ===\n${p.text}`).join("\n\n").slice(0, 60000);
+
+    // Call Lovable AI
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableKey) {
+      return new Response(JSON.stringify({ error: "AI not configured" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: EXTRACTION_PROMPT },
+          { role: "user", content: combined },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    if (aiRes.status === 429) {
+      return new Response(JSON.stringify({ error: "Rate limited, try again shortly" }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (aiRes.status === 402) {
+      return new Response(JSON.stringify({ error: "AI credits exhausted" }), {
+        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!aiRes.ok) {
+      const txt = await aiRes.text();
+      return new Response(JSON.stringify({ error: "AI extraction failed", detail: txt.slice(0, 500) }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const aiData = await aiRes.json();
+    const content = aiData?.choices?.[0]?.message?.content ?? "{}";
+    let extracted: unknown;
+    try { extracted = JSON.parse(content); } catch { extracted = {}; }
+
+    return new Response(
+      JSON.stringify({
+        url: baseUrl.toString(),
+        pages_scraped: pages.map((p) => p.url),
+        extracted,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (e) {
+    return new Response(JSON.stringify({ error: "Server error", detail: String(e) }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
