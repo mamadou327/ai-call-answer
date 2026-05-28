@@ -864,6 +864,12 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ImportCustomersDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        businessId={businessId}
+        onImported={loadCustomers}
+      />
     </div>
   );
 };
