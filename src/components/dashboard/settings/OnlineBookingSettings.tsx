@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Globe, Loader2, ChevronDown, Palette } from "lucide-react";
+import { Copy, ExternalLink, Globe, Loader2, ChevronDown, Palette, Code2 } from "lucide-react";
 import { LogoUpload } from "./LogoUpload";
 import { CustomDomainWizard } from "./CustomDomainWizard";
+import { WidgetSnippet } from "./WidgetSnippet";
 
 interface OnlineBookingSettingsProps {
   businessId: string;
@@ -32,6 +33,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
 
   // Collapsible state
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    widget: false,
     customDomain: false,
     branding: false,
     socialMedia: false,
@@ -213,6 +215,33 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
           </Button>
         </CardContent>
       </Card>
+
+      {/* Website Widget - Collapsible */}
+      <Collapsible open={openSections.widget} onOpenChange={() => toggleSection("widget")}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Code2 className="h-5 w-5" />
+                  <div>
+                    <CardTitle className="text-base">Website Widget</CardTitle>
+                    <CardDescription className="text-sm">
+                      Embed a floating "Book Now" button on your existing website
+                    </CardDescription>
+                  </div>
+                </div>
+                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${openSections.widget ? "rotate-180" : ""}`} />
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              <WidgetSnippet slug={settings.booking_slug} enabled={settings.online_booking_enabled} />
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {/* Custom Domain - Collapsible */}
       <Collapsible open={openSections.customDomain} onOpenChange={() => toggleSection("customDomain")}>

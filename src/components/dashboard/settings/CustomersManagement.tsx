@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Users, Download, Settings2, Phone, Mail, User, ChevronDown, ChevronUp, Calendar, MessageSquare, Heart, UserCheck, Loader2, Eye, Ban, Trash2, AlertTriangle } from "lucide-react";
+import { Users, Download, Upload, Settings2, Phone, Mail, User, ChevronDown, ChevronUp, Calendar, MessageSquare, Heart, UserCheck, Loader2, Eye, Ban, Trash2, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
 import { CustomerDetailDialog } from "../CustomerDetailDialog";
+import { ImportCustomersDialog } from "./ImportCustomersDialog";
 
 interface CustomersManagementProps {
   businessId: string;
@@ -74,6 +75,7 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [exportFromDate, setExportFromDate] = useState<Date | undefined>(undefined);
   const [exportToDate, setExportToDate] = useState<Date | undefined>(undefined);
   const [exporting, setExporting] = useState(false);
@@ -407,13 +409,18 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
             </CardTitle>
             <CardDescription>View and manage your customer database</CardDescription>
           </div>
-          <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              Import
+            </Button>
+            <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Export Customers</DialogTitle>
@@ -494,6 +501,7 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="mb-4">
@@ -856,6 +864,12 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ImportCustomersDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        businessId={businessId}
+        onImported={loadCustomers}
+      />
     </div>
   );
 };
