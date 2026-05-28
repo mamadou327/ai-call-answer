@@ -501,6 +501,7 @@ export const CustomersManagement = ({ businessId, onUpdate }: CustomersManagemen
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="mb-4">
