@@ -1,6 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 import { encode as encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
+// Escape SQL LIKE wildcards (%, _, \) in user-supplied input to prevent pattern injection
+function escapeLike(input: string): string {
+  return String(input ?? '').replace(/[\\%_]/g, (m) => '\\' + m);
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-twilio-signature",
@@ -789,7 +794,7 @@ async function recognizeCaller(
     .from("bookings")
     .select("start_time, service_id, staff_id, service:service_id(id, name), staff:staff_id(id, name)")
     .eq("business_id", businessId)
-    .ilike("customer_phone", `%${normalizedPhone}%`)
+    .ilike("customer_phone", `%${escapeLike(normalizedPhone)}%`)
     .eq("status", "completed")
     .order("start_time", { ascending: false })
     .limit(1)
@@ -800,7 +805,7 @@ async function recognizeCaller(
     .from("bookings")
     .select("booking_code, start_time, service:service_id(name)")
     .eq("business_id", businessId)
-    .ilike("customer_phone", `%${normalizedPhone}%`)
+    .ilike("customer_phone", `%${escapeLike(normalizedPhone)}%`)
     .neq("status", "cancelled")
     .gte("start_time", new Date().toISOString())
     .order("start_time")
@@ -1387,7 +1392,7 @@ async function handleCancelBooking(
       .from("bookings")
       .select("id, booking_code, customer_name")
       .eq("business_id", businessId)
-      .ilike("booking_code", `%${booking_code}%`)
+      .ilike("booking_code", `%${escapeLike(booking_code)}%`)
       .neq("status", "cancelled")
       .single();
     booking = data;
@@ -1396,7 +1401,7 @@ async function handleCancelBooking(
       .from("bookings")
       .select("id, booking_code, customer_name")
       .eq("business_id", businessId)
-      .ilike("customer_name", `%${customer_name}%`)
+      .ilike("customer_name", `%${escapeLike(customer_name)}%`)
       .neq("status", "cancelled")
       .gte("start_time", new Date().toISOString())
       .order("start_time")
@@ -1443,7 +1448,7 @@ async function handleRescheduleBooking(
       .from("bookings")
       .select("id, booking_code, service_id, staff_id, services:service_id(duration_minutes)")
       .eq("business_id", businessId)
-      .ilike("booking_code", `%${booking_code}%`)
+      .ilike("booking_code", `%${escapeLike(booking_code)}%`)
       .neq("status", "cancelled")
       .single();
     booking = data;
@@ -1452,7 +1457,7 @@ async function handleRescheduleBooking(
       .from("bookings")
       .select("id, booking_code, service_id, staff_id, services:service_id(duration_minutes)")
       .eq("business_id", businessId)
-      .ilike("customer_name", `%${customer_name}%`)
+      .ilike("customer_name", `%${escapeLike(customer_name)}%`)
       .neq("status", "cancelled")
       .gte("start_time", new Date().toISOString())
       .order("start_time")
