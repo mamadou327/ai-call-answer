@@ -462,7 +462,7 @@ const PublicBookingPage = () => {
         return;
       }
 
-      setStaff(staffData ?? []);
+      setStaff((staffData ?? []) as unknown as Staff[]);
     };
 
     fetchStaff();

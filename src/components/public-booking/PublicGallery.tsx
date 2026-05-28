@@ -47,7 +47,7 @@ export const PublicGallery = ({ businessId, onBack }: PublicGalleryProps) => {
     ]);
 
     if (galleryResult.data) setImages(galleryResult.data);
-    if (staffResult.data) setStaff(staffResult.data);
+    if (staffResult.data) setStaff(staffResult.data as unknown as Staff[]);
     setLoading(false);
   };
 
