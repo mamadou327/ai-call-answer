@@ -450,7 +450,7 @@ const PublicBookingPage = () => {
       }
 
       const { data: staffData, error: staffError } = await supabase
-        .from("staff")
+        .from("public_staff" as any)
         .select("id, name")
         .eq("business_id", business.id)
         .in("id", assignedStaffIds)
@@ -462,7 +462,7 @@ const PublicBookingPage = () => {
         return;
       }
 
-      setStaff(staffData ?? []);
+      setStaff((staffData ?? []) as unknown as Staff[]);
     };
 
     fetchStaff();

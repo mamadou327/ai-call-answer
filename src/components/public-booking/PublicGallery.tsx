@@ -40,14 +40,14 @@ export const PublicGallery = ({ businessId, onBack }: PublicGalleryProps) => {
         .eq("business_id", businessId)
         .order("display_order", { ascending: true }),
       supabase
-        .from("staff")
+        .from("public_staff" as any)
         .select("id, name")
         .eq("business_id", businessId)
         .eq("ai_enabled", true),
     ]);
 
     if (galleryResult.data) setImages(galleryResult.data);
-    if (staffResult.data) setStaff(staffResult.data);
+    if (staffResult.data) setStaff(staffResult.data as unknown as Staff[]);
     setLoading(false);
   };
 

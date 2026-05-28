@@ -1,110 +1,83 @@
-# Aivia → Full Salon Platform: Implementation Plan
+# Security Audit & Hardening Plan
 
-Three focused additions on top of what already exists. No landing-page rewrite in this pass.
+## Answers to your questions
 
----
+**1. RLS on every table** — Mostly yes. Every business-scoped table has RLS enabled with policies that scope by `business_id` → `owner_id = auth.uid()` (or staff membership). **However**, the `businesses` and `staff` tables have public-read policies (for the online booking widget) that leak sensitive columns. Needs fixing.
 
-## 1. Embeddable Booking Widget (floating button + iframe)
+**2. Client data exposure** — **Not safe right now.** The public booking policy on `businesses` returns *every column* including `twilio_webhook_token`, `messagebird_token`, `stripe_account_id`, `staff_join_code`, and assigned phone numbers to anonymous users. The `staff` public policy leaks staff `phone` and `email`. Confirmed by the scanner with live sample data.
 
-Goal: salon pastes one `<script>` tag into their site; a floating "Book Now" button appears bottom-right; clicking opens the existing public booking flow in a modal iframe.
+**3. Authentication** — Properly set up. Dashboard routes require auth, RLS blocks cross-tenant access, role checks use the `has_role()` security-definer pattern (no recursion). Good.
 
-### What we build
-- **New embed-friendly route** `/embed/:slug` — same content as `PublicBookingPage` but with transparent background, no outer padding, and a `postMessage` handler so the iframe can tell the parent to close after a successful booking.
-- **Public widget loader script** served from `/widget.js` (static file in `public/`). When the salon's site loads it, the script:
-  - Reads the `data-slug` attribute on the script tag.
-  - Injects a floating button (bottom-right, primary color, "Book Now" / "Order Now" based on business type fetched via a lightweight public endpoint).
-  - On click, opens a full-screen modal containing `<iframe src="https://aiviaapp.co.uk/embed/{slug}">`.
-  - Listens for `postMessage({ type: 'aivia:close' })` to dismiss.
-- **Settings UI** — new "Website Widget" section inside `OnlineBookingSettings.tsx`:
-  - Shows the snippet to copy: `<script src="https://aiviaapp.co.uk/widget.js" data-slug="{slug}" data-color="{hex}" async></script>`
-  - Live preview button (opens `/embed/:slug` in a new tab).
-  - Only shown when `online_booking_enabled = true`.
-- **CORS / headers** — make sure `/embed/*` and `/widget.js` are servable cross-origin (update `public/_headers`).
+**4. HTTPS** — Yes. Lovable + custom domain (`aiviaapp.co.uk`) serve over HTTPS only.
 
-### What we reuse
-- Entire `PublicBookingPage` flow, staff/service selectors, cart, deposit Stripe path, customer form.
-- Existing `booking_slug` and `online_booking_enabled` fields on `businesses`.
-
-### Out of scope for v1
-- Multiple widget styles (just the floating button).
-- Custom positioning. (Always bottom-right.)
-- Inline embed without floating button — can add later.
+**5. Other issues found** — See fixes below.
 
 ---
 
-## 2. CSV Client Importer
+## Critical fixes (must do before paying clients)
 
-Goal: salon switching from Fresha/Booksy uploads a CSV of their clients and they appear in Aivia's customer database.
+### 1. Stop leaking business credentials to the public
+The `Public can view limited business info` policy on `businesses` exposes tokens, Stripe IDs, and staff join codes to anonymous users.
+- Create a `public_businesses` view containing only: `id, business_name, address, booking_slug, online_booking_enabled, online_booking_message, logo_url, business_type, cuisine_type, social_*, website, custom_booking_domain`.
+- Drop the anonymous branch from the existing policy (keep owner/staff/admin branches).
+- Point the public booking page (`EmbedBookingPage`, public booking lookup) at `public_businesses`.
 
-### What we build
-- **New dialog** `ImportCustomersDialog.tsx` accessible from `CustomersManagement.tsx`.
-- Flow:
-  1. Upload `.csv` (parse client-side with PapaParse — already a small dependency or add it).
-  2. Preview first 5 rows + column mapper UI: map CSV columns → `name`, `phone`, `email`, `notes` (optional `total_visits`, `first_visit_date`).
-  3. Validation: name required, phone or email required, dedupe against existing `customers` by phone within the business.
-  4. Insert in batches via Supabase client; show progress + summary ("231 imported, 14 skipped as duplicates, 2 invalid").
-- **Optional helper**: built-in templates for Fresha and Booksy export formats (auto-detect headers like "Client name", "Mobile", "Email").
+### 2. Stop leaking staff phone/email to the public
+- Create a `public_staff` view with only `id, business_id, name, role, color, avatar_url`.
+- Replace the anonymous-read policy on `staff` so anon can only read via the view.
 
-### What we reuse
-- Existing `customers` table (already has `business_id`, `name`, `phone`, `email`, `total_visits`, `first_visit_date`, `notes_preferences`).
-- Existing RLS — business owners already have full access.
+### 3. Lock down Realtime channel authorization
+No RLS on `realtime.messages` means any authenticated user can subscribe to any channel and receive row-change broadcasts for `bookings`, `customers`, `calls_log`, `messages`, `orders`.
+- Add an RLS policy on `realtime.messages` that only allows subscriptions where the topic encodes a `business_id` the user owns or is staff of.
 
-### Out of scope for v1
-- Importing past appointments / appointment history.
-- Importing gift vouchers, packages, loyalty.
+### 4. Fix menu-images storage policies
+Current policies let any authenticated user delete/overwrite any business's menu images.
+- Rewrite UPDATE/DELETE policies to require `(storage.foldername(name))[1] = business_id::text` and verify ownership, matching the `business-logos` / `business-gallery` pattern.
 
----
-
-## 3. Verify + Wire AI Phone Booking Confirmations
-
-Goal: when the AI receptionist books an appointment, the customer gets an SMS and/or email confirmation if the business has those toggles on.
-
-### What we do
-- Audit the AI booking creation path (the edge function that handles tool calls from the OpenAI Realtime session) and confirm it:
-  - Reads `businesses.sms_on_confirmation` and `businesses.email_on_confirmation`.
-  - Calls the existing SMS sender (Twilio) and email sender (Resend) with the booking details.
-- If wiring is missing or partial, add it. If it already fires, add a small "Test notifications" button in `EmailNotificationSettings.tsx` so the owner can verify.
-- Confirm the same for cancellations and rescheduling done over the phone.
-
-### What we reuse
-- Existing toggles on `businesses` (`sms_on_confirmation`, `email_on_confirmation`, `sms_on_cancellation`, etc.).
-- Existing Resend + Twilio integrations.
+### 5. Sanitize ILIKE inputs in edge functions
+`twilio-media-stream` and `twilio-voice-continue` interpolate `customer_name`, `recipient_staff_name`, and `booking_code` into ILIKE patterns without escaping `%` / `_`.
+- Add an `escapeLikePattern()` helper and wrap every user-supplied ILIKE value. Prefer `.eq()` for booking codes when possible.
 
 ---
 
-## Technical Notes
+## Medium-priority fixes
 
-### Widget security & isolation
-- `/embed/:slug` must work in an iframe → set `Content-Security-Policy: frame-ancestors *` (or omit X-Frame-Options) for that route only.
-- The widget script must be tiny (~3KB) and have zero dependencies — vanilla JS, no React.
-- Sanitize the `data-slug` attribute before injecting into iframe src.
+### 6. Restrict `demo-audio` bucket writes
+Currently any authenticated user can upload/overwrite/delete. Restrict INSERT/UPDATE/DELETE to `super_admin` only (reads can remain public since the bucket is intentionally public).
 
-### CSV import safety
-- Hard cap upload at 5MB / 10,000 rows.
-- Run inserts in batches of 500 to avoid timeouts.
-- Always dedupe by (business_id, phone) — never create duplicate clients.
+### 7. Scope `menu_item_option_sizes` public read
+Current policy is `USING (true)`. Replace with the same guard used on `menu_items` (only when parent business has `online_booking_enabled=true` and `status='approved'`).
 
-### Files touched / created
-```text
-NEW   public/widget.js                              vanilla JS loader (~80 lines)
-NEW   src/pages/EmbedBookingPage.tsx                wraps PublicBookingPage in iframe-friendly shell
-NEW   src/components/dashboard/settings/WidgetSnippet.tsx   copy/preview UI
-NEW   src/components/dashboard/settings/ImportCustomersDialog.tsx
-EDIT  src/components/dashboard/settings/OnlineBookingSettings.tsx   add Widget section
-EDIT  src/components/dashboard/settings/CustomersManagement.tsx     add "Import CSV" button
-EDIT  src/App.tsx                                                    add /embed/:slug route
-EDIT  public/_headers                                                CORS + frame-ancestors for /embed and /widget.js
-EDIT  supabase/functions/<ai-booking-handler>/index.ts               wire confirmation triggers if missing
-```
+### 8. Lock down SECURITY DEFINER functions
+Revoke `EXECUTE` from `anon`/`authenticated` on internal helpers that should not be callable directly from the client (e.g. `ensure_super_admin`, `generate_*`, `protect_*`, `assign_staff_role_on_membership`). Keep execute on functions the client legitimately calls (`refresh_staff_join_code_if_expired`, `validate_staff_join_code`, `create_staff_membership_with_code`, `has_role`, `get_pending_invite_for_email`, `get_invite_by_token`, `get_current_month_call_count`).
 
-### No database migrations required
-All needed fields already exist on `businesses` and `customers`.
+### 9. Public storage buckets allow listing
+`business-logos`, `business-gallery`, `menu-images`, `demo-audio` have broad SELECT policies that allow listing all files. Replace `SELECT` policies with ones that allow direct object access (`bucket_id = '…'`) but block listing via `name IS NOT NULL AND auth.role() = ...` — or accept the risk for non-sensitive public assets and document it.
 
 ---
 
-## Build order
-1. Widget (route + loader + settings UI) — biggest user-visible win, ~1 day.
-2. CSV importer — unlocks switching from Fresha, ~half day.
-3. Audit + wire AI booking confirmations — ~half day.
+## Also worth enabling
 
-Total: ~2 working days of focused build.
+- **Leaked-password protection (HIBP)** on Supabase Auth — one-line config change.
+- **Update security memory** to record what's intentionally public (booking widget data) so future scans don't re-flag it.
+
+---
+
+## What I will NOT change
+
+- Existing owner/staff/admin RLS policies — they're correctly written using `has_role()` and `is_staff_member_of_business()` security-definer functions, no recursion.
+- Auth flow — already correct.
+- Dashboard routes — already protected.
+
+---
+
+## Order of execution
+
+1. Migration: create `public_businesses` + `public_staff` views, rewrite public-read policies, fix `menu-images` and `demo-audio` storage policies, scope `menu_item_option_sizes`, revoke EXECUTE on internal SECURITY DEFINER functions, add Realtime authorization policy.
+2. Update frontend code that reads public business/staff data to use the new views.
+3. Add `escapeLikePattern()` helper and apply in `twilio-media-stream` and `twilio-voice-continue` edge functions.
+4. Enable HIBP password protection.
+5. Update security memory.
+6. Re-run security scan and confirm clean.
+
+This is ~1 migration + ~4 file edits + 2 edge function edits. Safe to ship before onboarding.

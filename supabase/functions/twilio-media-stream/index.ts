@@ -3,6 +3,11 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 import { buildSystemPromptForBusinessType, getToolsForBusinessType, type BusinessType } from "./prompts/index.ts";
 import { ElevenLabsTTS } from "./elevenlabs-tts.ts";
 
+// Escape SQL LIKE wildcards (%, _, \) in user-supplied input to prevent pattern injection
+function escapeLike(input: string): string {
+  return String(input ?? '').replace(/[\\%_]/g, (m) => '\\' + m);
+}
+
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -2593,10 +2598,10 @@ async function executeCancelBooking(supabase: any, session: StreamSession, param
     } else if (params.booking_code_suffix) {
       // Suffix match (last 4 digits)
       const suffix = params.booking_code_suffix.replace(/\D/g, "");
-      query = query.ilike("booking_code", `%-${suffix}`);
+      query = query.ilike("booking_code", `%-${escapeLike(suffix)}`);
     } else if (params.customer_name) {
       // Customer name search
-      query = query.ilike("customer_name", `%${params.customer_name}%`);
+      query = query.ilike("customer_name", `%${escapeLike(params.customer_name)}%`);
     } else {
       return { success: false, message: "I need either the booking code, the last 4 digits, or the customer name to find the booking." };
     }
@@ -2690,9 +2695,9 @@ async function executeRescheduleBooking(supabase: any, session: StreamSession, p
       query = query.eq("booking_code", params.booking_code.toUpperCase());
     } else if (params.booking_code_suffix) {
       const suffix = params.booking_code_suffix.replace(/\D/g, "");
-      query = query.ilike("booking_code", `%-${suffix}`);
+      query = query.ilike("booking_code", `%-${escapeLike(suffix)}`);
     } else if (params.customer_name) {
-      query = query.ilike("customer_name", `%${params.customer_name}%`);
+      query = query.ilike("customer_name", `%${escapeLike(params.customer_name)}%`);
     } else {
       return { success: false, message: "I need either the booking code, the last 4 digits, or the customer name to find the booking." };
     }
@@ -3399,7 +3404,7 @@ async function executeLeaveMessage(supabase: any, businessId: string, callerPhon
         .from("staff")
         .select("id")
         .eq("business_id", businessId)
-        .ilike("name", `%${params.recipient_staff_name}%`)
+        .ilike("name", `%${escapeLike(params.recipient_staff_name)}%`)
         .limit(1)
         .maybeSingle();
       
@@ -3885,10 +3890,10 @@ async function executeCancelOrder(supabase: any, session: StreamSession, params:
   if (order_code) {
     query = query.eq("order_number", order_code);
   } else if (customer_name) {
-    query = query.ilike("customer_name", `%${customer_name}%`);
+    query = query.ilike("customer_name", `%${escapeLike(customer_name)}%`);
   } else {
     // Try to find by caller phone
-    query = query.ilike("customer_phone", `%${session.callerPhone.slice(-10)}%`);
+    query = query.ilike("customer_phone", `%${escapeLike(session.callerPhone.slice(-10))}%`);
   }
   
   const { data: orders, error } = await query.order("created_at", { ascending: false }).limit(5);
@@ -4124,10 +4129,10 @@ async function executeCancelReservation(supabase: any, session: StreamSession, p
     .gte("reservation_time", new Date().toISOString());
   
   if (customer_name) {
-    query = query.ilike("customer_name", `%${customer_name}%`);
+    query = query.ilike("customer_name", `%${escapeLike(customer_name)}%`);
   } else {
     // Try to find by caller phone
-    query = query.ilike("customer_phone", `%${session.callerPhone.slice(-10)}%`);
+    query = query.ilike("customer_phone", `%${escapeLike(session.callerPhone.slice(-10))}%`);
   }
   
   const { data: reservations, error } = await query.order("reservation_time").limit(5);
@@ -5299,7 +5304,7 @@ async function getCallerInfo(supabase: any, businessId: string, callerPhone: str
     .from("bookings")
     .select("start_time, service:service_id(id, name), staff:staff_id(id, name)")
     .eq("business_id", businessId)
-    .ilike("customer_phone", `%${normalizedPhone}%`)
+    .ilike("customer_phone", `%${escapeLike(normalizedPhone)}%`)
     .neq("status", "cancelled")
     .order("start_time", { ascending: false })
     .limit(1)
@@ -5310,7 +5315,7 @@ async function getCallerInfo(supabase: any, businessId: string, callerPhone: str
     .from("bookings")
     .select("booking_code, start_time, service:service_id(name)")
     .eq("business_id", businessId)
-    .ilike("customer_phone", `%${normalizedPhone}%`)
+    .ilike("customer_phone", `%${escapeLike(normalizedPhone)}%`)
     .neq("status", "cancelled")
     .gte("start_time", new Date().toISOString())
     .order("start_time")
