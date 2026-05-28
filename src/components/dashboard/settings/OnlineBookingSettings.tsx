@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Globe, Loader2, ChevronDown, Palette } from "lucide-react";
+import { Copy, ExternalLink, Globe, Loader2, ChevronDown, Palette, Code2 } from "lucide-react";
 import { LogoUpload } from "./LogoUpload";
 import { CustomDomainWizard } from "./CustomDomainWizard";
+import { WidgetSnippet } from "./WidgetSnippet";
 
 interface OnlineBookingSettingsProps {
   businessId: string;
@@ -32,6 +33,7 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
 
   // Collapsible state
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    widget: false,
     customDomain: false,
     branding: false,
     socialMedia: false,
