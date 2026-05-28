@@ -1,113 +1,110 @@
-## Goal
+# Aivia → Full Salon Platform: Implementation Plan
 
-Paste a website URL → Aivia automatically discovers every page, reads every price table, and imports a complete list of services, opening hours, booking policy, cancellation policy and FAQs. No manual cleanup.
+Three focused additions on top of what already exists. No landing-page rewrite in this pass.
 
-## Why the current import is incomplete
+---
 
-The existing `scrape-website` edge function does two things that limit it:
+## 1. Embeddable Booking Widget (floating button + iframe)
 
-1. **DIY crawler capped at 15 pages** with a 2-hop link-following heuristic. Sites with deep menu structures or JS-rendered content get partially missed.
-2. **`stripHtml()` flattens `<table>` elements into a run-on string**, then Gemini 2.5 Flash tries to guess which price belongs to which service. On grid pricing (e.g. Vixen & Blush's Tape Sides × 18″/22″/Refit columns), most rows are dropped or merged.
+Goal: salon pastes one `<script>` tag into their site; a floating "Book Now" button appears bottom-right; clicking opens the existing public booking flow in a modal iframe.
 
-## Solution: Firecrawl + Gemini 2.5 Pro
+### What we build
+- **New embed-friendly route** `/embed/:slug` — same content as `PublicBookingPage` but with transparent background, no outer padding, and a `postMessage` handler so the iframe can tell the parent to close after a successful booking.
+- **Public widget loader script** served from `/widget.js` (static file in `public/`). When the salon's site loads it, the script:
+  - Reads the `data-slug` attribute on the script tag.
+  - Injects a floating button (bottom-right, primary color, "Book Now" / "Order Now" based on business type fetched via a lightweight public endpoint).
+  - On click, opens a full-screen modal containing `<iframe src="https://aiviaapp.co.uk/embed/{slug}">`.
+  - Listens for `postMessage({ type: 'aivia:close' })` to dismiss.
+- **Settings UI** — new "Website Widget" section inside `OnlineBookingSettings.tsx`:
+  - Shows the snippet to copy: `<script src="https://aiviaapp.co.uk/widget.js" data-slug="{slug}" data-color="{hex}" async></script>`
+  - Live preview button (opens `/embed/:slug` in a new tab).
+  - Only shown when `online_booking_enabled = true`.
+- **CORS / headers** — make sure `/embed/*` and `/widget.js` are servable cross-origin (update `public/_headers`).
 
-Swap the homemade crawler for **Firecrawl** (an official Lovable connector built for exactly this) and upgrade the extraction model to **Gemini 2.5 Pro**.
+### What we reuse
+- Entire `PublicBookingPage` flow, staff/service selectors, cart, deposit Stripe path, customer form.
+- Existing `booking_slug` and `online_booking_enabled` fields on `businesses`.
 
-- **Firecrawl `/crawl`** walks the entire site recursively, renders JavaScript, and returns each page as clean Markdown — tables stay as `| Service | 18″ | 22″ | Refit |` Markdown tables.
-- **Gemini 2.5 Pro** is significantly stronger than Flash at reading tabular data and emitting one structured row per price column.
-- Firecrawl also has a built-in `json` extraction format with schemas, which we use to enforce the exact output shape we need.
+### Out of scope for v1
+- Multiple widget styles (just the floating button).
+- Custom positioning. (Always bottom-right.)
+- Inline embed without floating button — can add later.
 
-## Plan
+---
 
-### 1. Connect Firecrawl
-- Use the Firecrawl Lovable connector (`standard_connectors--connect` with `connector_id: firecrawl`).
-- This injects `FIRECRAWL_API_KEY` into the edge functions automatically — no manual key entry.
-- Firecrawl is a managed connector; the user can be offered the `LOVABLE50` coupon for 50% off if they hit credit limits.
+## 2. CSV Client Importer
 
-### 2. Rewrite `supabase/functions/scrape-website/index.ts`
-Replace the custom fetch + link scoring + HTML stripping with a two-stage pipeline:
+Goal: salon switching from Fresha/Booksy uploads a CSV of their clients and they appear in Aivia's customer database.
 
-**Stage A — Crawl with Firecrawl**
-```
-POST https://api.firecrawl.dev/v2/crawl
-{
-  url,
-  limit: 50,           // up to 50 pages, plenty for any small business site
-  maxDepth: 3,
-  scrapeOptions: { formats: ['markdown'], onlyMainContent: true },
-  excludePaths: ['/blog', '/news', '/cart', '/checkout', '/account', '/wp-admin']
-}
-```
-Poll the returned job ID until `status === 'completed'` (typically 10-60s). Firecrawl handles JS rendering, sitemap discovery, link following, and rate limiting.
+### What we build
+- **New dialog** `ImportCustomersDialog.tsx` accessible from `CustomersManagement.tsx`.
+- Flow:
+  1. Upload `.csv` (parse client-side with PapaParse — already a small dependency or add it).
+  2. Preview first 5 rows + column mapper UI: map CSV columns → `name`, `phone`, `email`, `notes` (optional `total_visits`, `first_visit_date`).
+  3. Validation: name required, phone or email required, dedupe against existing `customers` by phone within the business.
+  4. Insert in batches via Supabase client; show progress + summary ("231 imported, 14 skipped as duplicates, 2 invalid").
+- **Optional helper**: built-in templates for Fresha and Booksy export formats (auto-detect headers like "Client name", "Mobile", "Email").
 
-**Stage B — Extract with Gemini 2.5 Pro**
-Concatenate every page's Markdown (now preserving tables) into one document, then send to the Lovable AI Gateway with `google/gemini-2.5-pro` and a tool-calling schema that forces this exact shape:
+### What we reuse
+- Existing `customers` table (already has `business_id`, `name`, `phone`, `email`, `total_visits`, `first_visit_date`, `notes_preferences`).
+- Existing RLS — business owners already have full access.
 
-```json
-{
-  "business_name": "string|null",
-  "services": [
-    {
-      "name": "string",            // e.g. "Tape Sides — Up to 18″ First Fit"
-      "category": "string|null",   // e.g. "Tape", "Micro Bond"
-      "price": "number|null",
-      "duration_minutes": "number|null"
-    }
-  ],
-  "opening_hours": { "monday": "9:00am-5:30pm", ... },
-  "booking_policy": "string|null",
-  "cancellation_policy": "string|null",
-  "faqs": [{ "question": "string", "answer": "string" }]
-}
-```
+### Out of scope for v1
+- Importing past appointments / appointment history.
+- Importing gift vouchers, packages, loyalty.
 
-The prompt explicitly instructs: "For any price table with multiple columns (lengths, sizes, refit, etc.), emit ONE entry per cell. Always include the section heading as `category`. Never skip a row."
+---
 
-Fallback to `google/gemini-2.5-flash` only on 429/402.
+## 3. Verify + Wire AI Phone Booking Confirmations
 
-### 3. Update `apply-website-import/index.ts`
-- Honor the AI-returned `category` instead of hardcoding `"Imported"` so services land grouped correctly in Services Management (Tape, Micro Bond, etc.).
-- Honor `duration_minutes` when present (default 30 only if null).
+Goal: when the AI receptionist books an appointment, the customer gets an SMS and/or email confirmation if the business has those toggles on.
 
-### 4. Update `WebsiteImportDialog.tsx`
-- Show a richer progress indicator: "Crawling website…" → "Reading X pages…" → "Extracting services…"
-- Surface `pages_scraped` count + `services_found` count before the user confirms.
-- If Firecrawl returns 402 (out of credits), show a friendly message with the upgrade link.
+### What we do
+- Audit the AI booking creation path (the edge function that handles tool calls from the OpenAI Realtime session) and confirm it:
+  - Reads `businesses.sms_on_confirmation` and `businesses.email_on_confirmation`.
+  - Calls the existing SMS sender (Twilio) and email sender (Resend) with the booking details.
+- If wiring is missing or partial, add it. If it already fires, add a small "Test notifications" button in `EmailNotificationSettings.tsx` so the owner can verify.
+- Confirm the same for cancellations and rescheduling done over the phone.
 
-### 5. Apply the same pipeline to weekly re-sync
-`weekly-website-sync` already calls `scrape-website` internally, so it inherits the upgrade automatically — no changes needed there.
+### What we reuse
+- Existing toggles on `businesses` (`sms_on_confirmation`, `email_on_confirmation`, `sms_on_cancellation`, etc.).
+- Existing Resend + Twilio integrations.
 
-## Technical details
+---
 
-- **Firecrawl async pattern**: `/crawl` returns `{ id, url }`; poll `GET /crawl/:id` every 3s for up to 90s. If still running, return a 202 to the client and let them re-poll (or just extend timeout to 90s for now since edge functions allow it).
-- **Cost**: Firecrawl charges 1 credit per page scraped. A 50-page crawl = 50 credits. Free tier includes 500 credits/month, enough for ~10 imports.
-- **Token budget**: 50 pages of Markdown ≈ 200-400k tokens, well within Gemini 2.5 Pro's 2M context.
-- **Fallback**: If `FIRECRAWL_API_KEY` is missing (connector not linked), fall back to the current homemade crawler so existing customers aren't broken.
+## Technical Notes
 
-## Files to change
+### Widget security & isolation
+- `/embed/:slug` must work in an iframe → set `Content-Security-Policy: frame-ancestors *` (or omit X-Frame-Options) for that route only.
+- The widget script must be tiny (~3KB) and have zero dependencies — vanilla JS, no React.
+- Sanitize the `data-slug` attribute before injecting into iframe src.
 
-- `supabase/functions/scrape-website/index.ts` — full rewrite to Firecrawl + Gemini 2.5 Pro
-- `supabase/functions/apply-website-import/index.ts` — honor `category` + `duration_minutes`
-- `src/components/dashboard/WebsiteImportDialog.tsx` — better progress UI + 402 handling
+### CSV import safety
+- Hard cap upload at 5MB / 10,000 rows.
+- Run inserts in batches of 500 to avoid timeouts.
+- Always dedupe by (business_id, phone) — never create duplicate clients.
 
-Nothing else changes: call handling, voice settings, tier gating, billing, weekly re-sync wiring all stay as they are.
-
-## Expected result on Vixen & Blush
-
-Instead of ~5 partial entries, you should see ~60 services like:
-
-```
-Tape — Sides — Up to 18″ First Fit       £315
-Tape — Sides — Up to 22″ First Fit       £345
-Tape — Sides — Refit                     £145
-Tape — Boost — Up to 18″ First Fit       £...
-... (all 5 Tape rows × 3 columns)
-Micro Bond — Filler — 14″                £...
-... (all 4 head sizes × 5 lengths)
-Clip In — Set                            £295
-Clip In — Colour Match                   £50
-FeatherLight — ... (all 5 levels × 5 lengths)
-Other Services — ...
+### Files touched / created
+```text
+NEW   public/widget.js                              vanilla JS loader (~80 lines)
+NEW   src/pages/EmbedBookingPage.tsx                wraps PublicBookingPage in iframe-friendly shell
+NEW   src/components/dashboard/settings/WidgetSnippet.tsx   copy/preview UI
+NEW   src/components/dashboard/settings/ImportCustomersDialog.tsx
+EDIT  src/components/dashboard/settings/OnlineBookingSettings.tsx   add Widget section
+EDIT  src/components/dashboard/settings/CustomersManagement.tsx     add "Import CSV" button
+EDIT  src/App.tsx                                                    add /embed/:slug route
+EDIT  public/_headers                                                CORS + frame-ancestors for /embed and /widget.js
+EDIT  supabase/functions/<ai-booking-handler>/index.ts               wire confirmation triggers if missing
 ```
 
-Each grouped by `category` so they sort naturally in Services Management.
+### No database migrations required
+All needed fields already exist on `businesses` and `customers`.
+
+---
+
+## Build order
+1. Widget (route + loader + settings UI) — biggest user-visible win, ~1 day.
+2. CSV importer — unlocks switching from Fresha, ~half day.
+3. Audit + wire AI booking confirmations — ~half day.
+
+Total: ~2 working days of focused build.
