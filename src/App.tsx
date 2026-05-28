@@ -27,6 +27,7 @@ const AdminPending = lazy(() => import("./pages/AdminPending"));
 const StripeConnectCallback = lazy(() => import("./pages/StripeConnectCallback"));
 const DepositPayment = lazy(() => import("./pages/DepositPayment"));
 const PublicBookingPage = lazy(() => import("./pages/PublicBookingPage"));
+const EmbedBookingPage = lazy(() => import("./pages/EmbedBookingPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
@@ -80,6 +81,7 @@ const App = () => (
             <Route path="/pay/:bookingCode" element={<DepositPayment />} />
             <Route path="/book/:slug" element={<PublicBookingPage />} />
             <Route path="/book/:slug/success" element={<PublicBookingPage />} />
+            <Route path="/embed/:slug" element={<EmbedBookingPage />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
