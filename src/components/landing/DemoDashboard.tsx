@@ -1161,7 +1161,7 @@ const DemoDashboard = () => {
                       <Card className="border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
                           <CardTitle className="text-[10px] font-medium">
-                            {isAppointmentBased ? apptLabels.callsBookings : (false ? "Reservations" : "Orders")}
+                            {isAppointmentBased ? apptLabels.callsBookings : "Orders & Tables"}
                           </CardTitle>
                           <CalendarCheck className="w-3 h-3 text-primary" />
                         </CardHeader>
