@@ -112,7 +112,7 @@ const Footer = ({ onFaqClick }: FooterProps) => {
           {/* Bottom Bar */}
           <div className="border-t border-border pt-8 flex items-center justify-center">
             <p className="text-sm text-muted-foreground">
-              © 2025 AIVIA. All rights reserved.
+              © 2026 Aivia. All rights reserved.
             </p>
           </div>
         </div>
