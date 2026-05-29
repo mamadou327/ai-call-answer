@@ -234,7 +234,9 @@ const DemoDashboard = () => {
         totalCalls: Math.round((stats as typeof DEMO_SALON_STATS).appointmentsCount * 1.5),
         bookingsCreated: (stats as typeof DEMO_SALON_STATS).appointmentsCount,
         enquiries: 3,
-        cancellations: (stats as typeof DEMO_SALON_STATS).cancelledCount,
+        cancellations: selectedType === "salon"
+          ? (stats as typeof DEMO_SALON_STATS).todayCancelledCount
+          : (stats as typeof DEMO_SPA_STATS).cancelledCount,
       }
     : {
         totalCalls: selectedType === "dinein"
