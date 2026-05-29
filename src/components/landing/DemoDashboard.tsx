@@ -85,14 +85,17 @@ const callTypeBadgeVariants: Record<string, "default" | "secondary" | "destructi
 type DemoOrder = typeof DEMO_ORDERS[0];
 type DemoReservation = typeof DEMO_RESERVATIONS[0];
 type DemoAppointment = typeof DEMO_TODAYS_APPOINTMENTS[0] & { staff: { name: string; room?: string } };
-type DemoBusinessType = "takeaway" | "dinein" | "hybrid" | "salon" | "spa";
+type DemoBusinessType = "restaurants" | "salon" | "spa" | "realestate" | "trades";
+type RestaurantSubType = "takeaway" | "dinein" | "hybrid";
+// Internal type used for all data branching (keeps existing logic intact).
+type EffectiveType = RestaurantSubType | "salon" | "spa" | "realestate" | "trades";
 
 interface BusinessConfig {
   name: string;
   subtitle: string;
 }
 
-const businessConfigs: Record<DemoBusinessType, BusinessConfig> = {
+const businessConfigs: Record<EffectiveType, BusinessConfig> = {
   takeaway: {
     name: "Fresh Bites",
     subtitle: "Takeaway Restaurant Demo"
@@ -110,9 +113,17 @@ const businessConfigs: Record<DemoBusinessType, BusinessConfig> = {
     subtitle: "Salon & Barbershop Demo"
   },
   spa: {
-    name: "Serenity Spa",
-    subtitle: "Spa & Wellness Demo"
-  }
+    name: "Serenity Spa & Clinic",
+    subtitle: "Spa & Clinics Demo"
+  },
+  realestate: {
+    name: "Marlow & Co. Estates",
+    subtitle: "Real Estate Demo"
+  },
+  trades: {
+    name: "Pemberton Plumbing & Heating",
+    subtitle: "Trades Demo"
+  },
 };
 
 // Status config matching RestaurantOrderQueue
