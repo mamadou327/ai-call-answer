@@ -396,7 +396,7 @@ const Dashboard = () => {
       <main className="px-3 sm:px-4 md:container py-4 sm:py-8">
         {business?.status === "approved" && business && <>
             {!isStaffView && !isSetupComplete && !checklistDismissed && <div className="mb-6">
-                <SetupChecklist items={checklistItems} onItemClick={handleChecklistItemClick} onDismiss={handleDismissChecklist} />
+                <SetupChecklist items={checklistItems} onItemClick={handleChecklistItemClick} onSkip={handleChecklistSkip} onDismiss={handleDismissChecklist} />
               </div>}
 
             {isStaffView && <div className="mb-4 p-3 bg-primary/10 rounded-lg text-sm">
