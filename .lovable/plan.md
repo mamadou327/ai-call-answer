@@ -67,3 +67,18 @@ Append a short "v2 — 6 industries + restaurant sub-toggle" section so future c
 - Clicking Restaurants reveals an inner Takeaway/Dine-in/Hybrid sub-toggle; switching it swaps the dashboard exactly as the current 3 pills do today.
 - Clicking Clinic / Real Estate / Trades swaps business name, subtitle, stats labels, appointment kanban, staff strip, calls, messages, and both phone mockups to that industry's data.
 - Salon and Spa demos are unchanged.
+
+---
+
+## v2 — 5 industries (current state)
+
+Selector reduced to 5 pills:
+- **Restaurants** (single pill) with an inner segmented sub-toggle for Takeaway / Dine-in / Hybrid
+- **Salons**
+- **Spa & Clinics** (reuses spa demo data; pill renamed only)
+- **Real Estate** (new — `DEMO_REALESTATE_*`, viewings/agents/pipeline labels)
+- **Trades** (new — `DEMO_TRADES_*`, jobs/engineers/day-takings labels)
+
+Internally `selectedType` is one of the 5 + a `restaurantSub` state. All downstream data branching uses an `effectiveType` alias that expands `restaurants` → the selected sub-type, so existing takeaway/dinein/hybrid behaviour is preserved verbatim.
+
+Industry-specific labels live in an `apptLabels` object (primary stat, list title, revenue label, call-stats label). Real Estate shows "Viewings / Pipeline", Trades shows "Jobs / Day Takings".

@@ -20,7 +20,9 @@ import {
   ChevronRight,
   Calendar,
   Scissors,
-  Sparkles
+  Sparkles,
+  Home,
+  Wrench,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,6 +48,14 @@ import {
   DEMO_SPA_CALLS,
   DEMO_SPA_MESSAGES,
   DEMO_SPA_STATS,
+  DEMO_REALESTATE_APPOINTMENTS,
+  DEMO_REALESTATE_CALLS,
+  DEMO_REALESTATE_MESSAGES,
+  DEMO_REALESTATE_STATS,
+  DEMO_TRADES_APPOINTMENTS,
+  DEMO_TRADES_CALLS,
+  DEMO_TRADES_MESSAGES,
+  DEMO_TRADES_STATS,
 } from "@/lib/demoData";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -75,14 +85,17 @@ const callTypeBadgeVariants: Record<string, "default" | "secondary" | "destructi
 type DemoOrder = typeof DEMO_ORDERS[0];
 type DemoReservation = typeof DEMO_RESERVATIONS[0];
 type DemoAppointment = typeof DEMO_TODAYS_APPOINTMENTS[0] & { staff: { name: string; room?: string } };
-type DemoBusinessType = "takeaway" | "dinein" | "hybrid" | "salon" | "spa";
+type DemoBusinessType = "restaurants" | "salon" | "spa" | "realestate" | "trades";
+type RestaurantSubType = "takeaway" | "dinein" | "hybrid";
+// Internal type used for all data branching (keeps existing logic intact).
+type EffectiveType = RestaurantSubType | "salon" | "spa" | "realestate" | "trades";
 
 interface BusinessConfig {
   name: string;
   subtitle: string;
 }
 
-const businessConfigs: Record<DemoBusinessType, BusinessConfig> = {
+const businessConfigs: Record<EffectiveType, BusinessConfig> = {
   takeaway: {
     name: "Fresh Bites",
     subtitle: "Takeaway Restaurant Demo"
@@ -100,9 +113,17 @@ const businessConfigs: Record<DemoBusinessType, BusinessConfig> = {
     subtitle: "Salon & Barbershop Demo"
   },
   spa: {
-    name: "Serenity Spa",
-    subtitle: "Spa & Wellness Demo"
-  }
+    name: "Serenity Spa & Clinic",
+    subtitle: "Spa & Clinics Demo"
+  },
+  realestate: {
+    name: "Marlow & Co. Estates",
+    subtitle: "Real Estate Demo"
+  },
+  trades: {
+    name: "Pemberton Plumbing & Heating",
+    subtitle: "Trades Demo"
+  },
 };
 
 // Status config matching RestaurantOrderQueue
@@ -171,7 +192,8 @@ const ReservationCard = ({ reservation, onClick }: { reservation: DemoReservatio
 };
 
 const DemoDashboard = () => {
-  const [selectedType, setSelectedType] = useState<DemoBusinessType>("hybrid");
+  const [selectedType, setSelectedType] = useState<DemoBusinessType>("restaurants");
+  const [restaurantSub, setRestaurantSub] = useState<RestaurantSubType>("hybrid");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [phoneTab, setPhoneTab] = useState("dashboard");
   const [selectedOrder, setSelectedOrder] = useState<DemoOrder | null>(null);
@@ -191,42 +213,99 @@ const DemoDashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Get config based on selected type
-  const businessConfig = businessConfigs[selectedType];
+  // The effective type drives all data branching. Restaurants pill expands via sub-toggle.
+  const effectiveType: EffectiveType = selectedType === "restaurants" ? restaurantSub : selectedType;
 
-  const isAppointmentBased = selectedType === "salon" || selectedType === "spa";
+  // Get config based on effective type
+  const businessConfig = businessConfigs[effectiveType];
 
-  // Appointments dataset for salon/spa
-  const appointments: DemoAppointment[] = selectedType === "salon"
-    ? (DEMO_TODAYS_APPOINTMENTS as DemoAppointment[])
-    : selectedType === "spa"
-    ? (DEMO_SPA_APPOINTMENTS as DemoAppointment[])
-    : [];
+  const isAppointmentBased =
+    effectiveType === "salon" ||
+    effectiveType === "spa" ||
+    effectiveType === "realestate" ||
+    effectiveType === "trades";
 
-  // Get stats based on type
-  const stats = selectedType === "dinein"
-    ? DEMO_RESERVATION_STATS
-    : selectedType === "salon"
-    ? DEMO_SALON_STATS
-    : selectedType === "spa"
-    ? DEMO_SPA_STATS
-    : DEMO_RESTAURANT_STATS;
+  // Appointments dataset for all appointment-based industries
+  const appointments: DemoAppointment[] =
+    effectiveType === "salon"
+      ? (DEMO_TODAYS_APPOINTMENTS as DemoAppointment[])
+      : effectiveType === "spa"
+      ? (DEMO_SPA_APPOINTMENTS as DemoAppointment[])
+      : effectiveType === "realestate"
+      ? (DEMO_REALESTATE_APPOINTMENTS as DemoAppointment[])
+      : effectiveType === "trades"
+      ? (DEMO_TRADES_APPOINTMENTS as DemoAppointment[])
+      : [];
 
-  // Get calls and messages based on type
-  const calls = selectedType === "dinein"
-    ? DEMO_DINEIN_CALLS
-    : selectedType === "salon"
-    ? DEMO_SALON_CALLS
-    : selectedType === "spa"
-    ? DEMO_SPA_CALLS
-    : DEMO_RESTAURANT_CALLS;
-  const messages = selectedType === "dinein"
-    ? DEMO_DINEIN_MESSAGES
-    : selectedType === "salon"
-    ? DEMO_SALON_MESSAGES
-    : selectedType === "spa"
-    ? DEMO_SPA_MESSAGES
-    : DEMO_RESTAURANT_MESSAGES;
+  // Get stats based on effective type
+  const stats =
+    effectiveType === "dinein"
+      ? DEMO_RESERVATION_STATS
+      : effectiveType === "salon"
+      ? DEMO_SALON_STATS
+      : effectiveType === "spa"
+      ? DEMO_SPA_STATS
+      : effectiveType === "realestate"
+      ? DEMO_REALESTATE_STATS
+      : effectiveType === "trades"
+      ? DEMO_TRADES_STATS
+      : DEMO_RESTAURANT_STATS;
+
+  // Get calls and messages based on effective type
+  const calls =
+    effectiveType === "dinein"
+      ? DEMO_DINEIN_CALLS
+      : effectiveType === "salon"
+      ? DEMO_SALON_CALLS
+      : effectiveType === "spa"
+      ? DEMO_SPA_CALLS
+      : effectiveType === "realestate"
+      ? DEMO_REALESTATE_CALLS
+      : effectiveType === "trades"
+      ? DEMO_TRADES_CALLS
+      : DEMO_RESTAURANT_CALLS;
+  const messages =
+    effectiveType === "dinein"
+      ? DEMO_DINEIN_MESSAGES
+      : effectiveType === "salon"
+      ? DEMO_SALON_MESSAGES
+      : effectiveType === "spa"
+      ? DEMO_SPA_MESSAGES
+      : effectiveType === "realestate"
+      ? DEMO_REALESTATE_MESSAGES
+      : effectiveType === "trades"
+      ? DEMO_TRADES_MESSAGES
+      : DEMO_RESTAURANT_MESSAGES;
+
+  // Industry-specific labels for the appointment-based dashboards.
+  const apptLabels =
+    effectiveType === "realestate"
+      ? {
+          primary: "Viewings",
+          listTitle: "Today's Viewings",
+          callsBookings: "Viewings",
+          revenue: "Pipeline",
+        }
+      : effectiveType === "trades"
+      ? {
+          primary: "Jobs",
+          listTitle: "Today's Jobs",
+          callsBookings: "Jobs Booked",
+          revenue: "Day Takings",
+        }
+      : effectiveType === "spa"
+      ? {
+          primary: "Appointments",
+          listTitle: "Today's Appointments",
+          callsBookings: "Bookings",
+          revenue: "Revenue",
+        }
+      : {
+          primary: "Appointments",
+          listTitle: "Today's Appointments",
+          callsBookings: "Bookings",
+          revenue: "Revenue",
+        };
 
   // Calculate call stats derived from dashboard stats for consistency
   const callStats = isAppointmentBased
@@ -234,50 +313,59 @@ const DemoDashboard = () => {
         totalCalls: Math.round((stats as typeof DEMO_SALON_STATS).appointmentsCount * 1.5),
         bookingsCreated: (stats as typeof DEMO_SALON_STATS).appointmentsCount,
         enquiries: 3,
-        cancellations: selectedType === "salon"
-          ? (stats as typeof DEMO_SALON_STATS).todayCancelledCount
-          : (stats as typeof DEMO_SPA_STATS).cancelledCount,
+        cancellations:
+          effectiveType === "salon"
+            ? (stats as typeof DEMO_SALON_STATS).todayCancelledCount
+            : (stats as typeof DEMO_SPA_STATS).cancelledCount,
       }
     : {
-        totalCalls: selectedType === "dinein"
-          ? Math.round(DEMO_RESERVATION_STATS.reservationsCount * 0.8)
-          : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.75),
-        bookingsCreated: selectedType === "dinein"
-          ? DEMO_RESERVATION_STATS.reservationsCount
-          : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.85),
-        enquiries: selectedType === "dinein" ? 3 : 4,
-        cancellations: selectedType === "dinein"
-          ? DEMO_RESERVATION_STATS.cancelledCount
-          : DEMO_RESTAURANT_STATS.cancelledCount,
+        totalCalls:
+          effectiveType === "dinein"
+            ? Math.round(DEMO_RESERVATION_STATS.reservationsCount * 0.8)
+            : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.75),
+        bookingsCreated:
+          effectiveType === "dinein"
+            ? DEMO_RESERVATION_STATS.reservationsCount
+            : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.85),
+        enquiries: effectiveType === "dinein" ? 3 : 4,
+        cancellations:
+          effectiveType === "dinein"
+            ? DEMO_RESERVATION_STATS.cancelledCount
+            : DEMO_RESTAURANT_STATS.cancelledCount,
       };
 
   // Show orders for takeaway and hybrid
-  const showOrders = selectedType === "takeaway" || selectedType === "hybrid";
+  const showOrders = effectiveType === "takeaway" || effectiveType === "hybrid";
   // Show reservations for dinein and hybrid
-  const showReservations = selectedType === "dinein" || selectedType === "hybrid";
-  // Show appointments for salon and spa
+  const showReservations = effectiveType === "dinein" || effectiveType === "hybrid";
+  // Show appointments for all appointment-based industries
   const showAppointments = isAppointmentBased;
 
   // Normalized stat-card view (4 cards)
   const statView = isAppointmentBased
     ? {
-        primaryLabel: "Appointments",
+        primaryLabel: apptLabels.primary,
         primaryValue: (stats as typeof DEMO_SALON_STATS).appointmentsCount,
         secondaryLabel: "Completed",
         secondaryValue: (stats as typeof DEMO_SALON_STATS).completedCount,
-        cancelledValue: selectedType === "salon"
-          ? (stats as typeof DEMO_SALON_STATS).todayCancelledCount
-          : (stats as typeof DEMO_SPA_STATS).cancelledCount,
-        lastLabel: "Revenue",
-        lastValue: `£${(selectedType === "salon"
-          ? (stats as typeof DEMO_SALON_STATS).todayRevenue
-          : (stats as typeof DEMO_SPA_STATS).revenue).toFixed(2)}`,
-        lastValueShort: `£${(selectedType === "salon"
-          ? (stats as typeof DEMO_SALON_STATS).todayRevenue
-          : (stats as typeof DEMO_SPA_STATS).revenue).toFixed(0)}`,
+        cancelledValue:
+          effectiveType === "salon"
+            ? (stats as typeof DEMO_SALON_STATS).todayCancelledCount
+            : (stats as typeof DEMO_SPA_STATS).cancelledCount,
+        lastLabel: apptLabels.revenue,
+        lastValue: `£${(
+          effectiveType === "salon"
+            ? (stats as typeof DEMO_SALON_STATS).todayRevenue
+            : (stats as typeof DEMO_SPA_STATS).revenue
+        ).toLocaleString()}`,
+        lastValueShort: `£${(
+          effectiveType === "salon"
+            ? (stats as typeof DEMO_SALON_STATS).todayRevenue
+            : (stats as typeof DEMO_SPA_STATS).revenue
+        ).toLocaleString()}`,
         lastIcon: "money" as const,
       }
-    : selectedType === "dinein"
+    : effectiveType === "dinein"
     ? {
         primaryLabel: "Reservations",
         primaryValue: DEMO_RESERVATION_STATS.reservationsCount,
@@ -349,31 +437,13 @@ const DemoDashboard = () => {
       <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-1rem)] sm:w-auto flex justify-center">
         <div className="flex items-center gap-1 sm:gap-2 bg-background/80 backdrop-blur-sm border border-border rounded-full p-1 shadow-lg flex-wrap justify-center max-w-full">
           <Button
-            variant={selectedType === "takeaway" ? "default" : "ghost"}
+            variant={selectedType === "restaurants" ? "default" : "ghost"}
             size="sm"
-            onClick={() => handleTypeChange("takeaway")}
-            className="rounded-full gap-1.5 text-xs h-8 px-3"
-          >
-            <ShoppingBag className="w-3.5 h-3.5" />
-            Takeaway
-          </Button>
-          <Button
-            variant={selectedType === "dinein" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => handleTypeChange("dinein")}
+            onClick={() => handleTypeChange("restaurants")}
             className="rounded-full gap-1.5 text-xs h-8 px-3"
           >
             <UtensilsCrossed className="w-3.5 h-3.5" />
-            Dine-in
-          </Button>
-          <Button
-            variant={selectedType === "hybrid" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => handleTypeChange("hybrid")}
-            className="rounded-full gap-1.5 text-xs h-8 px-3"
-          >
-            <Shuffle className="w-3.5 h-3.5" />
-            Hybrid
+            Restaurants
           </Button>
           <Button
             variant={selectedType === "salon" ? "default" : "ghost"}
@@ -382,7 +452,7 @@ const DemoDashboard = () => {
             className="rounded-full gap-1.5 text-xs h-8 px-3"
           >
             <Scissors className="w-3.5 h-3.5" />
-            Salon
+            Salons
           </Button>
           <Button
             variant={selectedType === "spa" ? "default" : "ghost"}
@@ -391,10 +461,65 @@ const DemoDashboard = () => {
             className="rounded-full gap-1.5 text-xs h-8 px-3"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            Spa
+            Spa &amp; Clinics
+          </Button>
+          <Button
+            variant={selectedType === "realestate" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => handleTypeChange("realestate")}
+            className="rounded-full gap-1.5 text-xs h-8 px-3"
+          >
+            <Home className="w-3.5 h-3.5" />
+            Real Estate
+          </Button>
+          <Button
+            variant={selectedType === "trades" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => handleTypeChange("trades")}
+            className="rounded-full gap-1.5 text-xs h-8 px-3"
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            Trades
           </Button>
         </div>
       </div>
+
+      {/* Restaurants sub-toggle (Takeaway / Dine-in / Hybrid) */}
+      {selectedType === "restaurants" && (
+        <div className="flex justify-center mb-4">
+          <div className="inline-flex items-center gap-1 bg-muted rounded-full p-1 border border-border">
+            <button
+              onClick={() => { setRestaurantSub("takeaway"); setActiveTab("dashboard"); setPhoneTab("dashboard"); }}
+              className={`rounded-full text-xs h-7 px-3 inline-flex items-center gap-1.5 transition-colors ${
+                restaurantSub === "takeaway" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ShoppingBag className="w-3 h-3" />
+              Takeaway
+            </button>
+            <button
+              onClick={() => { setRestaurantSub("dinein"); setActiveTab("dashboard"); setPhoneTab("dashboard"); }}
+              className={`rounded-full text-xs h-7 px-3 inline-flex items-center gap-1.5 transition-colors ${
+                restaurantSub === "dinein" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <UtensilsCrossed className="w-3 h-3" />
+              Dine-in
+            </button>
+            <button
+              onClick={() => { setRestaurantSub("hybrid"); setActiveTab("dashboard"); setPhoneTab("dashboard"); }}
+              className={`rounded-full text-xs h-7 px-3 inline-flex items-center gap-1.5 transition-colors ${
+                restaurantSub === "hybrid" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Shuffle className="w-3 h-3" />
+              Hybrid
+            </button>
+          </div>
+        </div>
+      )}
+
+
 
 
       {/* Phone Mockup - Mobile Dashboard - Show on mobile, hide on desktop */}
@@ -540,7 +665,7 @@ const DemoDashboard = () => {
                     {showAppointments && (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold">Today's Appointments</span>
+                          <span className="text-xs font-semibold">{apptLabels.listTitle}</span>
                           <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
                             {appointments.length} booked
                           </Badge>
@@ -572,7 +697,7 @@ const DemoDashboard = () => {
                           </Badge>
                         </div>
                         <div className="space-y-1.5">
-                          {activeOrders.slice(0, selectedType === "hybrid" ? 1 : 2).map((order) => (
+                          {activeOrders.slice(0, effectiveType === "hybrid" ? 1 : 2).map((order) => (
                             <Card key={order.id} className={`p-2 border ${orderStatusConfig[order.status].bgColor}`}>
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -600,7 +725,7 @@ const DemoDashboard = () => {
                           </Badge>
                         </div>
                         <div className="space-y-1.5">
-                          {DEMO_RESERVATIONS.slice(0, selectedType === "hybrid" ? 1 : 2).map((res, i) => (
+                          {DEMO_RESERVATIONS.slice(0, effectiveType === "hybrid" ? 1 : 2).map((res, i) => (
                             <Card key={i} className="border-border/50 p-2">
                               <div className="flex items-center justify-between">
                                 <div className="text-xs font-medium">{res.customer_name}</div>
@@ -758,7 +883,7 @@ const DemoDashboard = () => {
 
               {/* Tabs */}
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className={`grid w-full h-9 ${selectedType === "hybrid" ? "grid-cols-5" : "grid-cols-4"}`}>
+                <TabsList className={`grid w-full h-9 ${effectiveType === "hybrid" ? "grid-cols-5" : "grid-cols-4"}`}>
                   <TabsTrigger value="dashboard" className="text-xs gap-1">
                     <LayoutDashboard className="w-3 h-3" />
                     <span className="hidden sm:inline">Dashboard</span>
@@ -867,7 +992,7 @@ const DemoDashboard = () => {
                       <Card className="border-border/50">
                         <CardHeader className="p-2 pb-1">
                           <div className="flex items-center justify-between">
-                            <CardTitle className="text-sm font-semibold">Today's Appointments</CardTitle>
+                            <CardTitle className="text-sm font-semibold">{apptLabels.listTitle}</CardTitle>
                             <Badge variant="secondary" className="text-[10px]">
                               {appointments.length} booked
                             </Badge>
@@ -970,7 +1095,7 @@ const DemoDashboard = () => {
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
                           <div className="grid grid-cols-2 gap-2">
-                            {DEMO_RESERVATIONS.slice(0, selectedType === "hybrid" ? 2 : 4).map((reservation) => (
+                            {DEMO_RESERVATIONS.slice(0, effectiveType === "hybrid" ? 2 : 4).map((reservation) => (
                               <ReservationCard 
                                 key={reservation.id} 
                                 reservation={reservation} 
@@ -1080,7 +1205,7 @@ const DemoDashboard = () => {
                       <Card className="border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
                           <CardTitle className="text-[10px] font-medium">
-                            {selectedType === "dinein" ? "Reservations" : "Orders"}
+                            {isAppointmentBased ? apptLabels.callsBookings : (effectiveType === "dinein" ? "Reservations" : "Orders")}
                           </CardTitle>
                           <CalendarCheck className="w-3 h-3 text-primary" />
                         </CardHeader>
@@ -1335,7 +1460,7 @@ const DemoDashboard = () => {
                       {showAppointments && (
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold">Today's Appointments</span>
+                            <span className="text-xs font-semibold">{apptLabels.listTitle}</span>
                             <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
                               {appointments.length} booked
                             </Badge>
@@ -1366,7 +1491,7 @@ const DemoDashboard = () => {
                             </Badge>
                           </div>
                           <div className="space-y-1.5">
-                            {activeOrders.slice(0, selectedType === "hybrid" ? 1 : 2).map((order) => (
+                            {activeOrders.slice(0, effectiveType === "hybrid" ? 1 : 2).map((order) => (
                               <Card key={order.id} className={`p-2 border ${orderStatusConfig[order.status].bgColor}`}>
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
@@ -1394,7 +1519,7 @@ const DemoDashboard = () => {
                             </Badge>
                           </div>
                           <div className="space-y-1.5">
-                            {DEMO_RESERVATIONS.slice(0, selectedType === "hybrid" ? 1 : 2).map((res, i) => (
+                            {DEMO_RESERVATIONS.slice(0, effectiveType === "hybrid" ? 1 : 2).map((res, i) => (
                               <Card key={i} className="border-border/50 p-2">
                                 <div className="flex items-center justify-between">
                                   <div className="text-xs font-medium">{res.customer_name}</div>
