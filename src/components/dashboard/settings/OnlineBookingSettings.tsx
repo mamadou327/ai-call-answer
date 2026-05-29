@@ -298,12 +298,72 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
             </CardHeader>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <CardContent className="pt-0">
+            <CardContent className="pt-0 space-y-6">
               <LogoUpload
                 businessId={businessId}
                 currentLogoUrl={business?.logo_url}
                 onUpdate={onUpdate}
               />
+
+              <HeroImageUpload
+                businessId={businessId}
+                currentHeroUrl={business?.hero_image_url}
+                onUpdate={onUpdate}
+              />
+
+              <div className="space-y-2">
+                <Label>Brand Colour</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={settings.brand_color}
+                    onChange={(e) => setSettings({ ...settings, brand_color: e.target.value })}
+                    className="h-10 w-14 rounded-md border bg-background cursor-pointer p-1"
+                    aria-label="Brand colour picker"
+                  />
+                  <Input
+                    value={settings.brand_color}
+                    onChange={(e) => setSettings({ ...settings, brand_color: e.target.value })}
+                    placeholder="#0F172A"
+                    className="max-w-[160px] font-mono"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This colour will be used for buttons and accents on your booking page.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>About</Label>
+                  <span className="text-xs text-muted-foreground">
+                    {settings.about_description.length}/500
+                  </span>
+                </div>
+                <Textarea
+                  value={settings.about_description}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      about_description: e.target.value.slice(0, 500),
+                    })
+                  }
+                  placeholder="Tell clients what makes your business special"
+                  rows={4}
+                  maxLength={500}
+                />
+              </div>
+
+              <Button onClick={handleSave} disabled={loading} size="sm">
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Branding"
+                )}
+              </Button>
             </CardContent>
           </CollapsibleContent>
         </Card>
