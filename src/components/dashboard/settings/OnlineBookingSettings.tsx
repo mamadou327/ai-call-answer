@@ -79,6 +79,8 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
           custom_booking_domain: normalizedDomain || null,
           online_booking_message: settings.online_booking_message || null,
           deposit_collection_timing: settings.deposit_collection_timing,
+          brand_color: settings.brand_color || "#0F172A",
+          about_description: settings.about_description || null,
         })
         .eq("id", businessId);
 
