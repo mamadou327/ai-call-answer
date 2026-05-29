@@ -16,7 +16,7 @@ interface SetupChecklistProps {
   onDismiss?: () => void;
 }
 
-export const SetupChecklist = ({ items, onItemClick, onDismiss }: SetupChecklistProps) => {
+export const SetupChecklist = ({ items, onItemClick, onSkip, onDismiss }: SetupChecklistProps) => {
   const completedCount = items.filter((item) => item.isComplete).length;
   const totalCount = items.length;
   const progress = totalCount === 0 ? 0 : (completedCount / totalCount) * 100;
