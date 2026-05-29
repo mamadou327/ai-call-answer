@@ -1,4 +1,4 @@
-import { Scissors, UtensilsCrossed, CalendarDays, Check } from "lucide-react";
+import { Scissors, UtensilsCrossed, CalendarDays, Building2, Wrench, Check } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 const BusinessTypeSelector = () => {
