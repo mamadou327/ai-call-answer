@@ -1,50 +1,69 @@
 ## Goal
 
-Extend the landing-page demo dashboard (the pill selector currently showing Takeaway / Dine-in / Hybrid) with two new appointment-based variants:
+Reshape the landing-page demo selector to 6 industry pills, all at full Salon/Spa depth (stats, today's list, calls, messages, phone mockup):
 
-- **Salon** — appointments, staff, services (matches the Salons & Barbershops product tier)
-- **Spa / Wellness** — treatments, rooms, longer durations
+1. **Restaurants** — single pill with an inner sub-toggle for Takeaway / Dine-in / Hybrid
+2. **Salons**
+3. **Spa**
+4. **Clinic**
+5. **Real Estate**
+6. **Trades**
 
-Both at the same depth as the Hybrid demo: stats, today's appointments list, calls, messages, and the phone mockup — fully clickable.
+Frontend/demo-only. No DB changes, no new product business types, no signup or dashboard changes.
 
-## Scope
+## Important note on "looks like they signed up"
 
-Frontend / demo content only. No DB, no edge functions, no real product behavior changes.
+The real product today only ships dashboards for **restaurants (takeaway / dine-in / hybrid)** and **salons/spa** (appointment model). There is no built clinic, real-estate, or trades dashboard.
+
+For the new three I will mirror the **salon/appointment dashboard pattern** (which is what those businesses would actually be onboarded onto today — appointment-led), and just relabel terminology so it reads native to each industry. This keeps the demo honest: what they see in the demo is what they'd see after signup, with industry-specific labels.
+
+| Industry | Mirrors | Relabels |
+|---|---|---|
+| Clinic | Salon dashboard | "Appointments" → "Patient appointments", staff → "Practitioners", services → "Consultations/Treatments", rooms → "Consult rooms" |
+| Real Estate | Salon dashboard | "Appointments" → "Viewings", staff → "Agents", services → "Property viewings / valuations", revenue → "Pipeline £" |
+| Trades | Salon dashboard | "Appointments" → "Jobs", staff → "Engineers", services → "Call-outs / Quotes / Repairs", revenue → "Day takings" |
 
 ## Files to change
 
-1. **`src/lib/demoData.ts`** — add new demo datasets:
-   - `DEMO_SALON_APPOINTMENTS` (~8 today, mix of statuses: confirmed / in-progress / completed / cancelled)
-   - `DEMO_SALON_STAFF` (3–4 stylists with chair assignments)
-   - `DEMO_SALON_SERVICES` (haircut, colour, blow-dry, beard trim, etc. with durations + prices)
-   - `DEMO_SALON_STATS` (appointments today, completed, cancelled, revenue)
-   - `DEMO_SALON_CALLS` + `DEMO_SALON_MESSAGES` (booking-flavoured, not order-flavoured)
-   - Same set for Spa: `DEMO_SPA_APPOINTMENTS`, `DEMO_SPA_STAFF` (therapists + rooms), `DEMO_SPA_SERVICES` (massage 60/90 min, facial, body wrap), `DEMO_SPA_STATS`, `DEMO_SPA_CALLS`, `DEMO_SPA_MESSAGES`
+### 1. `src/lib/demoData.ts`
+Add six new demo datasets (each: appointments list ~8 items, staff 3–4, services 4–6, stats, calls ~5, messages ~5):
 
-2. **`src/components/landing/DemoDashboard.tsx`** — extend the selector + dashboard:
-   - Widen `RestaurantType` → `DemoBusinessType = "takeaway" | "dinein" | "hybrid" | "salon" | "spa"`
-   - Add two pill buttons (Scissors icon for Salon, Sparkles icon for Spa) — selector becomes 5 options; on mobile let it wrap or scroll-x so it doesn't overflow
-   - Add `businessConfigs` entries: Salon → "Luxe Hair Studio / Salon Demo", Spa → "Serenity Spa / Spa & Wellness Demo"
-   - When `salon` or `spa` is selected:
-     - Hide Orders + Reservations sections
-     - Show new **Today's Appointments** kanban (Upcoming / In Chair / Completed / Cancelled) reusing the existing card/grid styling
-     - Show **Staff schedule** strip (chair/room → next 2 appointments)
-     - Stats cards relabel: "Appointments / Completed / Cancelled / Revenue"
-     - Calls + Messages tabs use the salon/spa demo data (booking, reschedule, enquiry types)
-   - Phone mockup mirrors the same data with appointment cards instead of order cards
+- `DEMO_CLINIC_*` — GP/dental flavour: "Check-up", "Filling", "Cleaning", patient names, practitioner staff
+- `DEMO_REALESTATE_*` — viewings & valuations: "2-bed flat viewing — 14 Oak Ave", agent staff, enquiry calls about listings
+- `DEMO_TRADES_*` — plumber/electrician flavour: "Boiler service", "Emergency call-out", engineer staff, day-rate revenue
 
-3. **`src/components/landing/HeroSection.tsx`** (or wherever DemoDashboard is mounted) — no change expected; selector lives inside DemoDashboard.
+Keep existing `DEMO_ORDERS`, `DEMO_RESERVATIONS`, salon/spa datasets untouched.
+
+### 2. `src/components/landing/DemoDashboard.tsx`
+- Widen type:
+  ```ts
+  type DemoBusinessType = "restaurants" | "salon" | "spa" | "clinic" | "realestate" | "trades";
+  type RestaurantSubType = "takeaway" | "dinein" | "hybrid";
+  ```
+- Replace the 3 restaurant pills with one **Restaurants** pill (UtensilsCrossed icon). Add Clinic (Stethoscope), Real Estate (Home), Trades (Wrench) pills. Total = 6 pills; mobile uses horizontal scroll-x.
+- When `restaurants` is selected, show a **secondary segmented toggle** (Takeaway / Dine-in / Hybrid) above the dashboard body. Internally this drives the existing takeaway/dinein/hybrid branches verbatim — no behaviour change to the restaurant demo.
+- Extend `businessConfigs` with entries for clinic / realestate / trades (business name, subtitle, currency, icon, accent colour).
+- Generalise the existing `statView` builder so it accepts per-type labels for primary/secondary/cancelled/last-value, then feed each new industry its own labels. Reuse:
+  - Stats grid (4 cards)
+  - "Today's Appointments" kanban (Upcoming / In progress / Completed / Cancelled) — relabelled per industry ("Today's Viewings", "Today's Jobs", "Today's Patients")
+  - Staff strip (relabelled "Agents" / "Engineers" / "Practitioners")
+  - Calls + Messages tabs using the new datasets
+  - Both phone mockups (inline and floating) — they already read from `statView`, so they pick up the new labels for free
+- Hide Orders + Reservations sections for the four appointment-based industries (same rule as salon/spa today).
+
+### 3. `.lovable/plan.md`
+Append a short "v2 — 6 industries + restaurant sub-toggle" section so future context reflects the new layout.
 
 ## Out of scope
 
-- No changes to `BusinessTypeSelector.tsx` on the landing page (that's the "Built for Your Industry" section, separate from the demo).
-- No new business_type values in the DB or product — these are purely visual demos for marketing.
-- No Barbershop demo (would be near-identical to Salon).
-- No localisation copy beyond English.
+- No new `business_type` enum values in Supabase, no signup flow changes, no real dashboard for clinic/realestate/trades.
+- No `BusinessTypeSelector.tsx` (the "Built for Your Industry" cards) change in this pass — can do as a follow-up if you want it to mirror the same 6.
+- No localisation beyond English.
+- No new icons beyond `lucide-react` (Stethoscope, Home, Wrench).
 
 ## Acceptance
 
-- Pill selector shows 5 options on desktop; wraps/scrolls cleanly at the current preview width.
-- Clicking Salon or Spa swaps the business name, subtitle, stats, appointments, calls, and messages.
-- Phone mockup updates with the same data.
-- Existing Takeaway / Dine-in / Hybrid demos behave unchanged.
+- Selector shows 6 pills; on the current ~1113px viewport they fit on one row, on mobile they scroll horizontally without overflow.
+- Clicking Restaurants reveals an inner Takeaway/Dine-in/Hybrid sub-toggle; switching it swaps the dashboard exactly as the current 3 pills do today.
+- Clicking Clinic / Real Estate / Trades swaps business name, subtitle, stats labels, appointment kanban, staff strip, calls, messages, and both phone mockups to that industry's data.
+- Salon and Spa demos are unchanged.
