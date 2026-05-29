@@ -83,43 +83,32 @@ type DemoOrder = typeof DEMO_ORDERS[0];
 type DemoReservation = typeof DEMO_RESERVATIONS[0];
 type DemoAppointment = typeof DEMO_TODAYS_APPOINTMENTS[0] & { staff: { name: string; room?: string } };
 type DemoBusinessType = "restaurants" | "salon" | "spa" | "realestate" | "trades";
-type RestaurantSubType = "takeaway" | "dinein" | "hybrid";
-// Internal type used for all data branching (keeps existing logic intact).
-type EffectiveType = RestaurantSubType | "salon" | "spa" | "realestate" | "trades";
 
 interface BusinessConfig {
   name: string;
   subtitle: string;
 }
 
-const businessConfigs: Record<EffectiveType, BusinessConfig> = {
-  takeaway: {
-    name: "Fresh Bites",
-    subtitle: "Takeaway Restaurant Demo"
-  },
-  dinein: {
-    name: "The Golden Table",
-    subtitle: "Dine-in Restaurant Demo"
-  },
-  hybrid: {
-    name: "Bella's Kitchen",
-    subtitle: "Hybrid Restaurant Demo"
+const businessConfigs: Record<DemoBusinessType, BusinessConfig> = {
+  restaurants: {
+    name: "Zara's Kitchen",
+    subtitle: "Restaurant",
   },
   salon: {
     name: "Luxe Hair Studio",
-    subtitle: "Salon & Barbershop Demo"
+    subtitle: "Hair Salon",
   },
   spa: {
-    name: "Serenity Spa & Clinic",
-    subtitle: "Spa & Clinics Demo"
+    name: "Serenity Aesthetics",
+    subtitle: "Aesthetics Clinic",
   },
   realestate: {
-    name: "Marlow & Co. Estates",
-    subtitle: "Real Estate Demo"
+    name: "Prime Property Group",
+    subtitle: "Estate Agency",
   },
   trades: {
-    name: "Pemberton Plumbing & Heating",
-    subtitle: "Trades Demo"
+    name: "Swift Plumbing and Heating",
+    subtitle: "Plumbing & Heating",
   },
 };
 
