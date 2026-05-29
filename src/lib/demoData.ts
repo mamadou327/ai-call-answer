@@ -116,11 +116,11 @@ export const DEMO_SALON_STATS = {
   revenue: 8450,
   callsCount: 189,
   messagesCount: 8,
-  // Landing-demo "today" view fields (kept internally consistent: 5 completed cuts/colours ≈ £425)
-  appointmentsCount: 8,
-  completedCount: 5,
+  // Landing-demo "today" view fields — match the 5-appointment list (£150+£45+£85+£55+£180 = £515)
+  appointmentsCount: 5,
+  completedCount: 3,
   todayCancelledCount: 1,
-  todayRevenue: 425,
+  todayRevenue: 515,
   todayCallsCount: 12,
   todayMessagesCount: 4,
 };
