@@ -1,4 +1,12 @@
-/* Fonts are loaded non-render-blocking via index.html */
+/* Self-hosted Inter (variable font, latin subset). No third-party font requests. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin.woff2') format('woff2');
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
