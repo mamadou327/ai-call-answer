@@ -33,6 +33,9 @@ interface Business {
   online_booking_message: string | null;
   deposit_collection_timing: string;
   logo_url: string | null;
+  hero_image_url: string | null;
+  brand_color: string | null;
+  about_description: string | null;
   social_instagram: string | null;
   social_facebook: string | null;
   social_tiktok: string | null;
@@ -93,6 +96,7 @@ const PublicBookingPage = () => {
   const [currency, setCurrency] = useState("GBP");
   const [error, setError] = useState<string | null>(null);
   const [hasGallery, setHasGallery] = useState(false);
+  const [galleryPreview, setGalleryPreview] = useState<string[]>([]);
   const [policies, setPolicies] = useState<PolicySettings | undefined>(undefined);
   const [openingHours, setOpeningHours] = useState<OpeningHour[]>([]);
   const [resolvedSlug, setResolvedSlug] = useState<string | null>(null);
@@ -286,7 +290,8 @@ const PublicBookingPage = () => {
           .select(`
             id, business_name, business_type, address, main_phone, website,
             online_booking_message, deposit_collection_timing, has_stripe,
-            logo_url, social_instagram, social_facebook, social_tiktok, social_twitter, social_youtube,
+            logo_url, hero_image_url, brand_color, about_description,
+            social_instagram, social_facebook, social_tiktok, social_twitter, social_youtube,
             minimum_order_amount, delivery_enabled, delivery_fee, delivery_minimum_order, average_prep_time_minutes
           `)
           .eq("booking_slug", resolvedSlug)
@@ -313,9 +318,10 @@ const PublicBookingPage = () => {
             .single(),
           supabase
             .from("business_gallery")
-            .select("id")
+            .select("image_url")
             .eq("business_id", businessData.id)
-            .limit(1),
+            .order("display_order", { ascending: true })
+            .limit(4),
           supabase
             .from("opening_hours")
             .select("day_of_week, is_closed, open_time, close_time")
@@ -334,7 +340,9 @@ const PublicBookingPage = () => {
             cancellationPolicy: settingsResult.data.cancellation_policy,
           });
         }
-        setHasGallery((galleryResult.data?.length || 0) > 0);
+        const galleryUrls = (galleryResult.data ?? []).map((g: any) => g.image_url).filter(Boolean);
+        setHasGallery(galleryUrls.length > 0);
+        setGalleryPreview(galleryUrls);
         if (hoursResult.data) setOpeningHours(hoursResult.data);
         
         // Fetch restaurant menu if applicable
@@ -876,8 +884,13 @@ const PublicBookingPage = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const brandColor = business.brand_color || "#0F172A";
+
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      className="min-h-screen bg-background"
+      style={{ ["--brand-color" as any]: brandColor }}
+    >
       <PublicBookingHeader
         businessName={business.business_name}
         logoUrl={business.logo_url}
@@ -915,21 +928,25 @@ const PublicBookingPage = () => {
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center gap-2 text-sm">
             {isRestaurant ? (
-              // Restaurant steps
               ["menu", "order-cart"].map((s, i) => (
                 <span key={s} className="flex items-center gap-2">
                   {i > 0 && <span className="text-muted-foreground">→</span>}
-                  <span className={step === s ? "font-bold" : "text-muted-foreground"}>
+                  <span
+                    className={step === s ? "font-bold" : "text-muted-foreground"}
+                    style={step === s ? { color: brandColor } : undefined}
+                  >
                     {i + 1}. {s === "menu" ? "Menu" : "Checkout"}
                   </span>
                 </span>
               ))
             ) : (
-              // Salon steps
               ["service", "staff", "datetime", "customer"].map((s, i) => (
                 <span key={s} className="flex items-center gap-2">
                   {i > 0 && <span className="text-muted-foreground">→</span>}
-                  <span className={step === s ? "font-bold" : "text-muted-foreground"}>
+                  <span
+                    className={step === s ? "font-bold" : "text-muted-foreground"}
+                    style={step === s ? { color: brandColor } : undefined}
+                  >
                     {i + 1}. {s.charAt(0).toUpperCase() + s.slice(1)}
                   </span>
                 </span>
