@@ -440,7 +440,7 @@ const DemoDashboard = () => {
             variant={selectedType === "restaurants" ? "default" : "ghost"}
             size="sm"
             onClick={() => handleTypeChange("restaurants")}
-            className="rounded-full gap-1.5 text-xs h-8 px-3"
+            className="rounded-full gap-1 text-[11px] sm:text-xs h-8 px-2 sm:px-3 whitespace-nowrap shrink-0"
           >
             <UtensilsCrossed className="w-3.5 h-3.5" />
             Restaurants
@@ -449,7 +449,7 @@ const DemoDashboard = () => {
             variant={selectedType === "salon" ? "default" : "ghost"}
             size="sm"
             onClick={() => handleTypeChange("salon")}
-            className="rounded-full gap-1.5 text-xs h-8 px-3"
+            className="rounded-full gap-1 text-[11px] sm:text-xs h-8 px-2 sm:px-3 whitespace-nowrap shrink-0"
           >
             <Scissors className="w-3.5 h-3.5" />
             Salons
@@ -458,7 +458,7 @@ const DemoDashboard = () => {
             variant={selectedType === "spa" ? "default" : "ghost"}
             size="sm"
             onClick={() => handleTypeChange("spa")}
-            className="rounded-full gap-1.5 text-xs h-8 px-3"
+            className="rounded-full gap-1 text-[11px] sm:text-xs h-8 px-2 sm:px-3 whitespace-nowrap shrink-0"
           >
             <Sparkles className="w-3.5 h-3.5" />
             Spa &amp; Clinics
@@ -467,7 +467,7 @@ const DemoDashboard = () => {
             variant={selectedType === "realestate" ? "default" : "ghost"}
             size="sm"
             onClick={() => handleTypeChange("realestate")}
-            className="rounded-full gap-1.5 text-xs h-8 px-3"
+            className="rounded-full gap-1 text-[11px] sm:text-xs h-8 px-2 sm:px-3 whitespace-nowrap shrink-0"
           >
             <Home className="w-3.5 h-3.5" />
             Real Estate
@@ -476,7 +476,7 @@ const DemoDashboard = () => {
             variant={selectedType === "trades" ? "default" : "ghost"}
             size="sm"
             onClick={() => handleTypeChange("trades")}
-            className="rounded-full gap-1.5 text-xs h-8 px-3"
+            className="rounded-full gap-1 text-[11px] sm:text-xs h-8 px-2 sm:px-3 whitespace-nowrap shrink-0"
           >
             <Wrench className="w-3.5 h-3.5" />
             Trades
