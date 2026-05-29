@@ -581,7 +581,7 @@ export const DEMO_ORDERS = [
   {
     id: "demo-order-1",
     order_number: "4521",
-    customer_name: "John Smith",
+    customer_name: "Liam Carter",
     customer_phone: "+44 7700 800123",
     items: [
       { name: "Fish & Chips", quantity: 2, price: 12.99 },
@@ -597,7 +597,7 @@ export const DEMO_ORDERS = [
   {
     id: "demo-order-2",
     order_number: "7832",
-    customer_name: "Mary Johnson",
+    customer_name: "Aisha Khan",
     customer_phone: "+44 7700 800456",
     items: [
       { name: "Chicken Tikka Masala", quantity: 1, price: 10.99 },
@@ -613,7 +613,7 @@ export const DEMO_ORDERS = [
   {
     id: "demo-order-3",
     order_number: "2156",
-    customer_name: "Robert Williams",
+    customer_name: "Tom Whitaker",
     customer_phone: "+44 7700 800789",
     items: [
       { name: "Margherita Pizza", quantity: 1, price: 11.99 },
@@ -629,7 +629,7 @@ export const DEMO_ORDERS = [
   {
     id: "demo-order-4",
     order_number: "8943",
-    customer_name: "Patricia Brown",
+    customer_name: "Holly Reid",
     customer_phone: "+44 7700 801234",
     items: [
       { name: "Burger & Fries", quantity: 2, price: 9.99 },
@@ -648,7 +648,7 @@ export const DEMO_ORDERS = [
 export const DEMO_RESERVATIONS = [
   {
     id: "demo-res-1",
-    customer_name: "William Turner",
+    customer_name: "James Peters",
     customer_phone: "+44 7700 700123",
     party_size: 4,
     reservation_time: new Date().setHours(18, 0, 0, 0),
@@ -659,7 +659,7 @@ export const DEMO_RESERVATIONS = [
   },
   {
     id: "demo-res-2",
-    customer_name: "Elizabeth Moore",
+    customer_name: "Sophie Allen",
     customer_phone: "+44 7700 700456",
     party_size: 2,
     reservation_time: new Date().setHours(19, 0, 0, 0),
@@ -670,7 +670,7 @@ export const DEMO_RESERVATIONS = [
   },
   {
     id: "demo-res-3",
-    customer_name: "Henry Jackson",
+    customer_name: "Marcus Owens",
     customer_phone: "+44 7700 700789",
     party_size: 6,
     reservation_time: new Date().setHours(19, 30, 0, 0),
@@ -681,7 +681,7 @@ export const DEMO_RESERVATIONS = [
   },
   {
     id: "demo-res-4",
-    customer_name: "Victoria Martin",
+    customer_name: "Lauren Ward",
     customer_phone: "+44 7700 701234",
     party_size: 3,
     reservation_time: new Date().setHours(20, 0, 0, 0),
@@ -692,7 +692,7 @@ export const DEMO_RESERVATIONS = [
   },
   {
     id: "demo-res-5",
-    customer_name: "Charles Anderson",
+    customer_name: "Ethan Bailey",
     customer_phone: "+44 7700 701567",
     party_size: 2,
     reservation_time: new Date().setHours(20, 30, 0, 0),
@@ -703,7 +703,7 @@ export const DEMO_RESERVATIONS = [
   },
   {
     id: "demo-res-6",
-    customer_name: "Margaret Thompson",
+    customer_name: "Whitfield Party",
     customer_phone: "+44 7700 701890",
     party_size: 8,
     reservation_time: new Date().setHours(18, 30, 0, 0),
