@@ -19,6 +19,7 @@ import { PaymentProvidersSettings } from "./settings/PaymentProvidersSettings";
 import { MenuManagement } from "./settings/MenuManagement";
 import { BillingSettings } from "./settings/BillingSettings";
 import { AccountManagementSection } from "./settings/AccountManagementSection";
+import { CustomerDataRequestSection } from "./settings/CustomerDataRequestSection";
 import { LockedFeatureCard } from "./LockedFeatureCard";
 import { useTier } from "@/hooks/use-tier";
 import { tierMeets } from "@/lib/tiers";
@@ -231,6 +232,7 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
       <TabsContent value="billing" className="space-y-6">
         <BillingSettings businessId={businessId} businessName={business?.business_name} />
         <AccountManagementSection />
+        <CustomerDataRequestSection />
       </TabsContent>
     </Tabs>
   );
