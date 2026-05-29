@@ -192,7 +192,8 @@ const ReservationCard = ({ reservation, onClick }: { reservation: DemoReservatio
 };
 
 const DemoDashboard = () => {
-  const [selectedType, setSelectedType] = useState<DemoBusinessType>("hybrid");
+  const [selectedType, setSelectedType] = useState<DemoBusinessType>("restaurants");
+  const [restaurantSub, setRestaurantSub] = useState<RestaurantSubType>("hybrid");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [phoneTab, setPhoneTab] = useState("dashboard");
   const [selectedOrder, setSelectedOrder] = useState<DemoOrder | null>(null);
@@ -212,42 +213,99 @@ const DemoDashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Get config based on selected type
-  const businessConfig = businessConfigs[selectedType];
+  // The effective type drives all data branching. Restaurants pill expands via sub-toggle.
+  const effectiveType: EffectiveType = selectedType === "restaurants" ? restaurantSub : selectedType;
 
-  const isAppointmentBased = selectedType === "salon" || selectedType === "spa";
+  // Get config based on effective type
+  const businessConfig = businessConfigs[effectiveType];
 
-  // Appointments dataset for salon/spa
-  const appointments: DemoAppointment[] = selectedType === "salon"
-    ? (DEMO_TODAYS_APPOINTMENTS as DemoAppointment[])
-    : selectedType === "spa"
-    ? (DEMO_SPA_APPOINTMENTS as DemoAppointment[])
-    : [];
+  const isAppointmentBased =
+    effectiveType === "salon" ||
+    effectiveType === "spa" ||
+    effectiveType === "realestate" ||
+    effectiveType === "trades";
 
-  // Get stats based on type
-  const stats = selectedType === "dinein"
-    ? DEMO_RESERVATION_STATS
-    : selectedType === "salon"
-    ? DEMO_SALON_STATS
-    : selectedType === "spa"
-    ? DEMO_SPA_STATS
-    : DEMO_RESTAURANT_STATS;
+  // Appointments dataset for all appointment-based industries
+  const appointments: DemoAppointment[] =
+    effectiveType === "salon"
+      ? (DEMO_TODAYS_APPOINTMENTS as DemoAppointment[])
+      : effectiveType === "spa"
+      ? (DEMO_SPA_APPOINTMENTS as DemoAppointment[])
+      : effectiveType === "realestate"
+      ? (DEMO_REALESTATE_APPOINTMENTS as DemoAppointment[])
+      : effectiveType === "trades"
+      ? (DEMO_TRADES_APPOINTMENTS as DemoAppointment[])
+      : [];
 
-  // Get calls and messages based on type
-  const calls = selectedType === "dinein"
-    ? DEMO_DINEIN_CALLS
-    : selectedType === "salon"
-    ? DEMO_SALON_CALLS
-    : selectedType === "spa"
-    ? DEMO_SPA_CALLS
-    : DEMO_RESTAURANT_CALLS;
-  const messages = selectedType === "dinein"
-    ? DEMO_DINEIN_MESSAGES
-    : selectedType === "salon"
-    ? DEMO_SALON_MESSAGES
-    : selectedType === "spa"
-    ? DEMO_SPA_MESSAGES
-    : DEMO_RESTAURANT_MESSAGES;
+  // Get stats based on effective type
+  const stats =
+    effectiveType === "dinein"
+      ? DEMO_RESERVATION_STATS
+      : effectiveType === "salon"
+      ? DEMO_SALON_STATS
+      : effectiveType === "spa"
+      ? DEMO_SPA_STATS
+      : effectiveType === "realestate"
+      ? DEMO_REALESTATE_STATS
+      : effectiveType === "trades"
+      ? DEMO_TRADES_STATS
+      : DEMO_RESTAURANT_STATS;
+
+  // Get calls and messages based on effective type
+  const calls =
+    effectiveType === "dinein"
+      ? DEMO_DINEIN_CALLS
+      : effectiveType === "salon"
+      ? DEMO_SALON_CALLS
+      : effectiveType === "spa"
+      ? DEMO_SPA_CALLS
+      : effectiveType === "realestate"
+      ? DEMO_REALESTATE_CALLS
+      : effectiveType === "trades"
+      ? DEMO_TRADES_CALLS
+      : DEMO_RESTAURANT_CALLS;
+  const messages =
+    effectiveType === "dinein"
+      ? DEMO_DINEIN_MESSAGES
+      : effectiveType === "salon"
+      ? DEMO_SALON_MESSAGES
+      : effectiveType === "spa"
+      ? DEMO_SPA_MESSAGES
+      : effectiveType === "realestate"
+      ? DEMO_REALESTATE_MESSAGES
+      : effectiveType === "trades"
+      ? DEMO_TRADES_MESSAGES
+      : DEMO_RESTAURANT_MESSAGES;
+
+  // Industry-specific labels for the appointment-based dashboards.
+  const apptLabels =
+    effectiveType === "realestate"
+      ? {
+          primary: "Viewings",
+          listTitle: "Today's Viewings",
+          callsBookings: "Viewings",
+          revenue: "Pipeline",
+        }
+      : effectiveType === "trades"
+      ? {
+          primary: "Jobs",
+          listTitle: "Today's Jobs",
+          callsBookings: "Jobs Booked",
+          revenue: "Day Takings",
+        }
+      : effectiveType === "spa"
+      ? {
+          primary: "Appointments",
+          listTitle: "Today's Appointments",
+          callsBookings: "Bookings",
+          revenue: "Revenue",
+        }
+      : {
+          primary: "Appointments",
+          listTitle: "Today's Appointments",
+          callsBookings: "Bookings",
+          revenue: "Revenue",
+        };
 
   // Calculate call stats derived from dashboard stats for consistency
   const callStats = isAppointmentBased
@@ -255,50 +313,59 @@ const DemoDashboard = () => {
         totalCalls: Math.round((stats as typeof DEMO_SALON_STATS).appointmentsCount * 1.5),
         bookingsCreated: (stats as typeof DEMO_SALON_STATS).appointmentsCount,
         enquiries: 3,
-        cancellations: selectedType === "salon"
-          ? (stats as typeof DEMO_SALON_STATS).todayCancelledCount
-          : (stats as typeof DEMO_SPA_STATS).cancelledCount,
+        cancellations:
+          effectiveType === "salon"
+            ? (stats as typeof DEMO_SALON_STATS).todayCancelledCount
+            : (stats as typeof DEMO_SPA_STATS).cancelledCount,
       }
     : {
-        totalCalls: selectedType === "dinein"
-          ? Math.round(DEMO_RESERVATION_STATS.reservationsCount * 0.8)
-          : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.75),
-        bookingsCreated: selectedType === "dinein"
-          ? DEMO_RESERVATION_STATS.reservationsCount
-          : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.85),
-        enquiries: selectedType === "dinein" ? 3 : 4,
-        cancellations: selectedType === "dinein"
-          ? DEMO_RESERVATION_STATS.cancelledCount
-          : DEMO_RESTAURANT_STATS.cancelledCount,
+        totalCalls:
+          effectiveType === "dinein"
+            ? Math.round(DEMO_RESERVATION_STATS.reservationsCount * 0.8)
+            : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.75),
+        bookingsCreated:
+          effectiveType === "dinein"
+            ? DEMO_RESERVATION_STATS.reservationsCount
+            : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.85),
+        enquiries: effectiveType === "dinein" ? 3 : 4,
+        cancellations:
+          effectiveType === "dinein"
+            ? DEMO_RESERVATION_STATS.cancelledCount
+            : DEMO_RESTAURANT_STATS.cancelledCount,
       };
 
   // Show orders for takeaway and hybrid
-  const showOrders = selectedType === "takeaway" || selectedType === "hybrid";
+  const showOrders = effectiveType === "takeaway" || effectiveType === "hybrid";
   // Show reservations for dinein and hybrid
-  const showReservations = selectedType === "dinein" || selectedType === "hybrid";
-  // Show appointments for salon and spa
+  const showReservations = effectiveType === "dinein" || effectiveType === "hybrid";
+  // Show appointments for all appointment-based industries
   const showAppointments = isAppointmentBased;
 
   // Normalized stat-card view (4 cards)
   const statView = isAppointmentBased
     ? {
-        primaryLabel: "Appointments",
+        primaryLabel: apptLabels.primary,
         primaryValue: (stats as typeof DEMO_SALON_STATS).appointmentsCount,
         secondaryLabel: "Completed",
         secondaryValue: (stats as typeof DEMO_SALON_STATS).completedCount,
-        cancelledValue: selectedType === "salon"
-          ? (stats as typeof DEMO_SALON_STATS).todayCancelledCount
-          : (stats as typeof DEMO_SPA_STATS).cancelledCount,
-        lastLabel: "Revenue",
-        lastValue: `£${(selectedType === "salon"
-          ? (stats as typeof DEMO_SALON_STATS).todayRevenue
-          : (stats as typeof DEMO_SPA_STATS).revenue).toFixed(2)}`,
-        lastValueShort: `£${(selectedType === "salon"
-          ? (stats as typeof DEMO_SALON_STATS).todayRevenue
-          : (stats as typeof DEMO_SPA_STATS).revenue).toFixed(0)}`,
+        cancelledValue:
+          effectiveType === "salon"
+            ? (stats as typeof DEMO_SALON_STATS).todayCancelledCount
+            : (stats as typeof DEMO_SPA_STATS).cancelledCount,
+        lastLabel: apptLabels.revenue,
+        lastValue: `£${(
+          effectiveType === "salon"
+            ? (stats as typeof DEMO_SALON_STATS).todayRevenue
+            : (stats as typeof DEMO_SPA_STATS).revenue
+        ).toLocaleString()}`,
+        lastValueShort: `£${(
+          effectiveType === "salon"
+            ? (stats as typeof DEMO_SALON_STATS).todayRevenue
+            : (stats as typeof DEMO_SPA_STATS).revenue
+        ).toLocaleString()}`,
         lastIcon: "money" as const,
       }
-    : selectedType === "dinein"
+    : effectiveType === "dinein"
     ? {
         primaryLabel: "Reservations",
         primaryValue: DEMO_RESERVATION_STATS.reservationsCount,
