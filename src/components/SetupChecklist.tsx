@@ -6,15 +6,17 @@ export interface ChecklistItem {
   label: string;
   isComplete: boolean;
   action?: string;
+  skipAction?: string;
 }
 
 interface SetupChecklistProps {
   items: ChecklistItem[];
   onItemClick: (action: string) => void;
+  onSkip?: (skipAction: string) => void;
   onDismiss?: () => void;
 }
 
-export const SetupChecklist = ({ items, onItemClick, onDismiss }: SetupChecklistProps) => {
+export const SetupChecklist = ({ items, onItemClick, onSkip, onDismiss }: SetupChecklistProps) => {
   const completedCount = items.filter((item) => item.isComplete).length;
   const totalCount = items.length;
   const progress = totalCount === 0 ? 0 : (completedCount / totalCount) * 100;
@@ -46,30 +48,41 @@ export const SetupChecklist = ({ items, onItemClick, onDismiss }: SetupChecklist
       </CardHeader>
       <CardContent className="space-y-2">
         {items.map((item, index) => (
-          <Button
-            key={index}
-            variant="ghost"
-            className="w-full justify-start h-auto py-3 px-3"
-            onClick={() => item.action && onItemClick(item.action)}
-          >
-            <div className="flex items-center gap-3 flex-1">
-              {item.isComplete ? (
-                <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
-              ) : (
-                <Circle className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-              )}
-              <span
-                className={`flex-1 text-left ${
-                  item.isComplete ? "text-foreground" : "text-muted-foreground"
-                }`}
+          <div key={index} className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              className="flex-1 justify-start h-auto py-3 px-3"
+              onClick={() => item.action && onItemClick(item.action)}
+            >
+              <div className="flex items-center gap-3 flex-1">
+                {item.isComplete ? (
+                  <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
+                ) : (
+                  <Circle className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                )}
+                <span
+                  className={`flex-1 text-left ${
+                    item.isComplete ? "text-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  {item.label}
+                </span>
+                {!item.isComplete && (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                )}
+              </div>
+            </Button>
+            {!item.isComplete && item.skipAction && onSkip && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={(e) => { e.stopPropagation(); onSkip(item.skipAction!); }}
               >
-                {item.label}
-              </span>
-              {!item.isComplete && (
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              )}
-            </div>
-          </Button>
+                Skip
+              </Button>
+            )}
+          </div>
         ))}
       </CardContent>
     </Card>

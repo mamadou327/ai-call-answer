@@ -39,16 +39,19 @@ export const AccountManagementSection = () => {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "Export failed");
       }
+      const cd = res.headers.get("Content-Disposition") || "";
+      const match = cd.match(/filename="?([^"]+)"?/i);
+      const filename = match?.[1] || `Aivia-Data-Export-${new Date().toISOString().slice(0, 10)}.xlsx`;
       const blob = await res.blob();
       const dl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = dl;
-      a.download = `aivia-data-export-${Date.now()}.json`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(dl);
-      toast({ title: "Export ready", description: "Your data file has been downloaded." });
+      toast({ title: "Export ready", description: "Your Excel file has been downloaded." });
     } catch (e: any) {
       toast({ title: "Export failed", description: e.message, variant: "destructive" });
     } finally {
@@ -99,7 +102,7 @@ export const AccountManagementSection = () => {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            The export includes bookings, customers, call logs, messages, staff, services, menus and settings as a JSON file.
+            Downloads an Excel file with Clients, Bookings, Call Logs and Staff on separate tabs.
           </p>
         </CardContent>
       </Card>

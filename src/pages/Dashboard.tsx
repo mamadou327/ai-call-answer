@@ -255,12 +255,16 @@ const Dashboard = () => {
       numberSelRes.data
     );
 
+    const websiteImportSkipped = typeof window !== "undefined" &&
+      localStorage.getItem(`aivia:website_import_skipped:${biz.id}`) === "1";
+
     const items: ChecklistItem[] = [
-      // Website import — at the very top
+      // Website import — optional
       {
-        label: "Import your business details from your website",
-        isComplete: !!biz.website_last_synced_at,
+        label: "Import your business details from your website (optional)",
+        isComplete: !!biz.website_last_synced_at || websiteImportSkipped,
         action: "import_website",
+        skipAction: "skip_website_import",
       },
       // Common items
       {
@@ -346,6 +350,12 @@ const Dashboard = () => {
     setActiveSettingsSection(action);
     setActiveTab("settings");
   };
+  const handleChecklistSkip = (skipAction: string) => {
+    if (skipAction === "skip_website_import" && business?.id) {
+      localStorage.setItem(`aivia:website_import_skipped:${business.id}`, "1");
+      loadSetupChecklist(business);
+    }
+  };
   const handleSettingsUpdate = async () => {
     if (business) {
       await loadBusinessData(business.owner_id);
@@ -392,7 +402,7 @@ const Dashboard = () => {
       <main className="px-3 sm:px-4 md:container py-4 sm:py-8">
         {business?.status === "approved" && business && <>
             {!isStaffView && !isSetupComplete && !checklistDismissed && <div className="mb-6">
-                <SetupChecklist items={checklistItems} onItemClick={handleChecklistItemClick} onDismiss={handleDismissChecklist} />
+                <SetupChecklist items={checklistItems} onItemClick={handleChecklistItemClick} onSkip={handleChecklistSkip} onDismiss={handleDismissChecklist} />
               </div>}
 
             {isStaffView && <div className="mb-4 p-3 bg-primary/10 rounded-lg text-sm">
