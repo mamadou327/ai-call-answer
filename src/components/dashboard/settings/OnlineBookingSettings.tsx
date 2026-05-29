@@ -30,6 +30,8 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
     custom_booking_domain: business?.custom_booking_domain || "",
     online_booking_message: business?.online_booking_message || "",
     deposit_collection_timing: business?.deposit_collection_timing || "after_booking",
+    brand_color: business?.brand_color || "#0F172A",
+    about_description: business?.about_description || "",
   });
 
   // Collapsible state
