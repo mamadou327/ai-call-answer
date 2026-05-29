@@ -337,9 +337,9 @@ const DemoDashboard = () => {
 
   return (
     <div className="relative mt-16">
-      {/* Restaurant Type Selector */}
-      <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20">
-        <div className="flex items-center gap-2 bg-background/80 backdrop-blur-sm border border-border rounded-full p-1 shadow-lg">
+      {/* Business Type Selector */}
+      <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-1rem)] sm:w-auto flex justify-center">
+        <div className="flex items-center gap-1 sm:gap-2 bg-background/80 backdrop-blur-sm border border-border rounded-full p-1 shadow-lg flex-wrap justify-center max-w-full">
           <Button
             variant={selectedType === "takeaway" ? "default" : "ghost"}
             size="sm"
@@ -367,8 +367,27 @@ const DemoDashboard = () => {
             <Shuffle className="w-3.5 h-3.5" />
             Hybrid
           </Button>
+          <Button
+            variant={selectedType === "salon" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => handleTypeChange("salon")}
+            className="rounded-full gap-1.5 text-xs h-8 px-3"
+          >
+            <Scissors className="w-3.5 h-3.5" />
+            Salon
+          </Button>
+          <Button
+            variant={selectedType === "spa" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => handleTypeChange("spa")}
+            className="rounded-full gap-1.5 text-xs h-8 px-3"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Spa
+          </Button>
         </div>
       </div>
+
 
       {/* Phone Mockup - Mobile Dashboard - Show on mobile, hide on desktop */}
       <div className="block md:hidden mx-auto max-w-[280px] mb-8 relative">
