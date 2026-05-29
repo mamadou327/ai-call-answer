@@ -807,32 +807,22 @@ const DemoDashboard = () => {
                     <div className="grid grid-cols-4 gap-2">
                       <Card className="cursor-pointer hover:bg-accent/50 transition-colors border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
-                          <CardTitle className="text-[10px] font-medium">
-                            {selectedType === "dinein" ? "Reservations" : "Total Orders"}
-                          </CardTitle>
+                          <CardTitle className="text-[10px] font-medium">{statView.primaryLabel}</CardTitle>
                           <Package className="w-3 h-3 text-muted-foreground" />
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
-                          <div className="text-lg font-bold">
-                            {selectedType === "dinein" ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount : (stats as typeof DEMO_RESTAURANT_STATS).ordersCount}
-                          </div>
+                          <div className="text-lg font-bold">{statView.primaryValue}</div>
                           <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
                       </Card>
 
                       <Card className="cursor-pointer hover:bg-accent/50 transition-colors border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
-                          <CardTitle className="text-[10px] font-medium">
-                            {selectedType === "dinein" ? "Seated" : "Completed"}
-                          </CardTitle>
+                          <CardTitle className="text-[10px] font-medium">{statView.secondaryLabel}</CardTitle>
                           <CheckCircle className="w-3 h-3 text-green-500" />
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
-                          <div className="text-lg font-bold text-green-600">
-                            {selectedType === "dinein" 
-                              ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount - (stats as typeof DEMO_RESERVATION_STATS).cancelledCount
-                              : (stats as typeof DEMO_RESTAURANT_STATS).completedCount}
-                          </div>
+                          <div className="text-lg font-bold text-green-600">{statView.secondaryValue}</div>
                           <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
                       </Card>
@@ -843,34 +833,64 @@ const DemoDashboard = () => {
                           <XCircle className="w-3 h-3 text-destructive" />
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
-                          <div className="text-lg font-bold text-destructive">
-                            {selectedType === "dinein" ? (stats as typeof DEMO_RESERVATION_STATS).cancelledCount : (stats as typeof DEMO_RESTAURANT_STATS).cancelledCount}
-                          </div>
+                          <div className="text-lg font-bold text-destructive">{statView.cancelledValue}</div>
                           <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
                       </Card>
 
                       <Card className="cursor-pointer hover:bg-accent/50 transition-colors border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
-                          <CardTitle className="text-[10px] font-medium">
-                            {selectedType === "dinein" ? "Total Covers" : "Revenue"}
-                          </CardTitle>
-                          {selectedType === "dinein" ? (
+                          <CardTitle className="text-[10px] font-medium">{statView.lastLabel}</CardTitle>
+                          {statView.lastIcon === "users" ? (
                             <Users className="w-3 h-3 text-muted-foreground" />
                           ) : (
                             <DollarSign className="w-3 h-3 text-muted-foreground" />
                           )}
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
-                          <div className="text-lg font-bold">
-                            {selectedType === "dinein" 
-                              ? (stats as typeof DEMO_RESERVATION_STATS).totalCovers 
-                              : `£${(stats as typeof DEMO_RESTAURANT_STATS).revenue.toFixed(2)}`}
-                          </div>
+                          <div className="text-lg font-bold">{statView.lastValue}</div>
                           <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
                       </Card>
                     </div>
+
+                    {/* Today's Appointments - Only for salon and spa */}
+                    {showAppointments && (
+                      <Card className="border-border/50">
+                        <CardHeader className="p-2 pb-1">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-sm font-semibold">Today's Appointments</CardTitle>
+                            <Badge variant="secondary" className="text-[10px]">
+                              {appointments.length} booked
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-2 pt-0">
+                          <div className="grid grid-cols-2 gap-2">
+                            {appointments.slice(0, 4).map((apt) => (
+                              <Card key={apt.id} className="border-border/50">
+                                <CardContent className="p-2.5">
+                                  <div className="flex items-start justify-between mb-1">
+                                    <div>
+                                      <p className="font-semibold text-xs">{apt.customer_name}</p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {format(new Date(apt.start_time), 'HH:mm')} • {apt.staff.name}
+                                        {apt.staff.room ? ` • ${apt.staff.room}` : ''}
+                                      </p>
+                                    </div>
+                                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
+                                      £{apt.service.price}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground truncate">{apt.service.name}</p>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
 
                     {/* Active Orders Queue - Only for takeaway and hybrid */}
                     {showOrders && (
