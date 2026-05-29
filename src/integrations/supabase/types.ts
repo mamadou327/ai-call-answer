@@ -444,12 +444,14 @@ export type Database = {
       }
       businesses: {
         Row: {
+          about_description: string | null
           address: string
           admin_note: string | null
           aivia_active: boolean
           assigned_aivia_number: string | null
           average_prep_time_minutes: number | null
           booking_slug: string | null
+          brand_color: string
           business_name: string
           business_type: string | null
           created_at: string | null
@@ -469,6 +471,7 @@ export type Database = {
           email_on_cancellation: boolean
           email_on_confirmation: boolean
           email_on_reminder: boolean
+          hero_image_url: string | null
           id: string
           logo_url: string | null
           main_phone: string
@@ -517,12 +520,14 @@ export type Database = {
           website_pending_changes: Json | null
         }
         Insert: {
+          about_description?: string | null
           address: string
           admin_note?: string | null
           aivia_active?: boolean
           assigned_aivia_number?: string | null
           average_prep_time_minutes?: number | null
           booking_slug?: string | null
+          brand_color?: string
           business_name: string
           business_type?: string | null
           created_at?: string | null
@@ -542,6 +547,7 @@ export type Database = {
           email_on_cancellation?: boolean
           email_on_confirmation?: boolean
           email_on_reminder?: boolean
+          hero_image_url?: string | null
           id?: string
           logo_url?: string | null
           main_phone: string
@@ -590,12 +596,14 @@ export type Database = {
           website_pending_changes?: Json | null
         }
         Update: {
+          about_description?: string | null
           address?: string
           admin_note?: string | null
           aivia_active?: boolean
           assigned_aivia_number?: string | null
           average_prep_time_minutes?: number | null
           booking_slug?: string | null
+          brand_color?: string
           business_name?: string
           business_type?: string | null
           created_at?: string | null
@@ -615,6 +623,7 @@ export type Database = {
           email_on_cancellation?: boolean
           email_on_confirmation?: boolean
           email_on_reminder?: boolean
+          hero_image_url?: string | null
           id?: string
           logo_url?: string | null
           main_phone?: string
@@ -2678,9 +2687,11 @@ export type Database = {
       }
       public_businesses: {
         Row: {
+          about_description: string | null
           address: string | null
           average_prep_time_minutes: number | null
           booking_slug: string | null
+          brand_color: string | null
           business_name: string | null
           business_type: string | null
           cuisine_type: string | null
@@ -2692,6 +2703,7 @@ export type Database = {
           delivery_radius_miles: number | null
           deposit_collection_timing: string | null
           has_stripe: boolean | null
+          hero_image_url: string | null
           id: string | null
           logo_url: string | null
           main_phone: string | null
@@ -2710,9 +2722,11 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          about_description?: string | null
           address?: string | null
           average_prep_time_minutes?: number | null
           booking_slug?: string | null
+          brand_color?: string | null
           business_name?: string | null
           business_type?: string | null
           cuisine_type?: string | null
@@ -2724,6 +2738,7 @@ export type Database = {
           delivery_radius_miles?: number | null
           deposit_collection_timing?: string | null
           has_stripe?: never
+          hero_image_url?: string | null
           id?: string | null
           logo_url?: string | null
           main_phone?: string | null
@@ -2742,9 +2757,11 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          about_description?: string | null
           address?: string | null
           average_prep_time_minutes?: number | null
           booking_slug?: string | null
+          brand_color?: string | null
           business_name?: string | null
           business_type?: string | null
           cuisine_type?: string | null
@@ -2756,6 +2773,7 @@ export type Database = {
           delivery_radius_miles?: number | null
           deposit_collection_timing?: string | null
           has_stripe?: never
+          hero_image_url?: string | null
           id?: string | null
           logo_url?: string | null
           main_phone?: string | null
