@@ -255,11 +255,14 @@ const Dashboard = () => {
       numberSelRes.data
     );
 
+    const websiteImportSkipped = typeof window !== "undefined" &&
+      localStorage.getItem(`aivia:website_import_skipped:${biz.id}`) === "1";
+
     const items: ChecklistItem[] = [
-      // Website import — at the very top
+      // Website import — optional
       {
-        label: "Import your business details from your website",
-        isComplete: !!biz.website_last_synced_at,
+        label: "Import your business details from your website (optional)",
+        isComplete: !!biz.website_last_synced_at || websiteImportSkipped,
         action: "import_website",
       },
       // Common items
