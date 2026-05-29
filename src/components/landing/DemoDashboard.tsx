@@ -14,7 +14,6 @@ import {
   Users,
   Plus,
   UtensilsCrossed,
-  Shuffle,
   CalendarCheck,
   HelpCircle,
   ChevronRight,
