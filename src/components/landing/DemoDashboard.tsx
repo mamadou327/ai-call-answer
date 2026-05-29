@@ -472,40 +472,8 @@ const DemoDashboard = () => {
         </div>
       </div>
 
-      {/* Restaurants sub-toggle (Takeaway / Dine-in / Hybrid) */}
-      {selectedType === "restaurants" && (
-        <div className="flex justify-center mb-4">
-          <div className="inline-flex items-center gap-1 bg-muted rounded-full p-1 border border-border">
-            <button
-              onClick={() => { setRestaurantSub("takeaway"); setActiveTab("dashboard"); setPhoneTab("dashboard"); }}
-              className={`rounded-full text-xs h-7 px-3 inline-flex items-center gap-1.5 transition-colors ${
-                restaurantSub === "takeaway" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <ShoppingBag className="w-3 h-3" />
-              Takeaway
-            </button>
-            <button
-              onClick={() => { setRestaurantSub("dinein"); setActiveTab("dashboard"); setPhoneTab("dashboard"); }}
-              className={`rounded-full text-xs h-7 px-3 inline-flex items-center gap-1.5 transition-colors ${
-                restaurantSub === "dinein" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <UtensilsCrossed className="w-3 h-3" />
-              Dine-in
-            </button>
-            <button
-              onClick={() => { setRestaurantSub("hybrid"); setActiveTab("dashboard"); setPhoneTab("dashboard"); }}
-              className={`rounded-full text-xs h-7 px-3 inline-flex items-center gap-1.5 transition-colors ${
-                restaurantSub === "hybrid" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Shuffle className="w-3 h-3" />
-              Hybrid
-            </button>
-          </div>
-        </div>
-      )}
+
+
 
 
 
