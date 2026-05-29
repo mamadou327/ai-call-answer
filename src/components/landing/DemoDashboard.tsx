@@ -496,59 +496,63 @@ const DemoDashboard = () => {
                     <div className="grid grid-cols-2 gap-2">
                       <Card className="border-border/50 p-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            {selectedType === "dinein" ? "Reservations" : "Orders"}
-                          </span>
+                          <span className="text-[10px] text-muted-foreground">{statView.primaryLabel}</span>
                           <Package className="w-3.5 h-3.5 text-muted-foreground" />
                         </div>
-                        <div className="text-lg font-bold">
-                          {selectedType === "dinein" 
-                            ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount 
-                            : (stats as typeof DEMO_RESTAURANT_STATS).ordersCount}
-                        </div>
+                        <div className="text-lg font-bold">{statView.primaryValue}</div>
                       </Card>
                       <Card className="border-border/50 p-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            {selectedType === "dinein" ? "Seated" : "Completed"}
-                          </span>
+                          <span className="text-[10px] text-muted-foreground">{statView.secondaryLabel}</span>
                           <CheckCircle className="w-3.5 h-3.5 text-green-500" />
                         </div>
-                        <div className="text-lg font-bold text-green-600">
-                          {selectedType === "dinein" 
-                            ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount - (stats as typeof DEMO_RESERVATION_STATS).cancelledCount
-                            : (stats as typeof DEMO_RESTAURANT_STATS).completedCount}
-                        </div>
+                        <div className="text-lg font-bold text-green-600">{statView.secondaryValue}</div>
                       </Card>
                       <Card className="border-border/50 p-2.5">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] text-muted-foreground">Cancelled</span>
                           <XCircle className="w-3.5 h-3.5 text-destructive" />
                         </div>
-                        <div className="text-lg font-bold text-destructive">
-                          {selectedType === "dinein" 
-                            ? (stats as typeof DEMO_RESERVATION_STATS).cancelledCount 
-                            : (stats as typeof DEMO_RESTAURANT_STATS).cancelledCount}
-                        </div>
+                        <div className="text-lg font-bold text-destructive">{statView.cancelledValue}</div>
                       </Card>
                       <Card className="border-border/50 p-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            {selectedType === "dinein" ? "Covers" : "Revenue"}
-                          </span>
-                          {selectedType === "dinein" ? (
+                          <span className="text-[10px] text-muted-foreground">{statView.lastLabel}</span>
+                          {statView.lastIcon === "users" ? (
                             <Users className="w-3.5 h-3.5 text-muted-foreground" />
                           ) : (
                             <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
                           )}
                         </div>
-                        <div className="text-lg font-bold">
-                          {selectedType === "dinein" 
-                            ? (stats as typeof DEMO_RESERVATION_STATS).totalCovers 
-                            : `£${(stats as typeof DEMO_RESTAURANT_STATS).revenue.toFixed(0)}`}
-                        </div>
+                        <div className="text-lg font-bold">{statView.lastValueShort}</div>
                       </Card>
                     </div>
+
+                    {/* Today's Appointments - salon/spa */}
+                    {showAppointments && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold">Today's Appointments</span>
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
+                            {appointments.length} booked
+                          </Badge>
+                        </div>
+                        <div className="space-y-1.5">
+                          {appointments.slice(0, 2).map((apt) => (
+                            <Card key={apt.id} className="border-border/50 p-2">
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs font-medium">{apt.customer_name}</div>
+                                <div className="text-[10px]">{format(new Date(apt.start_time), 'HH:mm')}</div>
+                              </div>
+                              <div className="text-[10px] text-muted-foreground mt-1 truncate">
+                                {apt.service.name} • {apt.staff.name}
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     
                     {/* Active Section - Orders for takeaway/hybrid */}
                     {showOrders && (
