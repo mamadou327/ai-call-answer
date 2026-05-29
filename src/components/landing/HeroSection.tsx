@@ -17,7 +17,7 @@ const HeroSection = () => {
         <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-4 text-foreground">
           Every Call Answered.
           <br />
-          <span className="text-muted-foreground">Every Order Taken. Every Table Booked.</span>
+          <span className="text-muted-foreground">Every Booking Taken. Every Customer Served.</span>
         </h1>
 
         {/* Sub-headline */}
