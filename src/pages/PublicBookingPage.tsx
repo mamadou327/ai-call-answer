@@ -96,6 +96,7 @@ const PublicBookingPage = () => {
   const [currency, setCurrency] = useState("GBP");
   const [error, setError] = useState<string | null>(null);
   const [hasGallery, setHasGallery] = useState(false);
+  const [galleryPreview, setGalleryPreview] = useState<string[]>([]);
   const [policies, setPolicies] = useState<PolicySettings | undefined>(undefined);
   const [openingHours, setOpeningHours] = useState<OpeningHour[]>([]);
   const [resolvedSlug, setResolvedSlug] = useState<string | null>(null);
