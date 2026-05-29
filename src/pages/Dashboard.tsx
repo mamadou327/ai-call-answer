@@ -350,6 +350,12 @@ const Dashboard = () => {
     setActiveSettingsSection(action);
     setActiveTab("settings");
   };
+  const handleChecklistSkip = (skipAction: string) => {
+    if (skipAction === "skip_website_import" && business?.id) {
+      localStorage.setItem(`aivia:website_import_skipped:${business.id}`, "1");
+      loadSetupChecklist(business);
+    }
+  };
   const handleSettingsUpdate = async () => {
     if (business) {
       await loadBusinessData(business.owner_id);
