@@ -25,6 +25,9 @@ import { Loader2, ArrowLeft, Check, AlertTriangle } from "lucide-react";
 import { TIERS, type SubscriptionTier } from "@/lib/tiers";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Link } from "react-router-dom";
+import LegalFooter from "@/components/LegalFooter";
 
 type BusinessTypeValue =
   | "restaurant_pickup"
@@ -73,6 +76,7 @@ const Signup = () => {
   const [existingBusinessId, setExistingBusinessId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -152,6 +156,15 @@ const Signup = () => {
       toast({
         title: "Choose a plan",
         description: "Please select a plan before submitting.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!reapplyMode && !agreedToTerms) {
+      toast({
+        title: "Agreement required",
+        description: "Please agree to the Terms of Service and Privacy Policy to continue.",
         variant: "destructive",
       });
       return;
