@@ -1,84 +1,110 @@
 ## Goal
 
-Reshape the landing-page demo selector to 6 industry pills, all at full Salon/Spa depth (stats, today's list, calls, messages, phone mockup):
+Match Claude's spec for the landing-page demo: 5 industries, each with a specific business name, stat labels, dashboard list and a single "hero" after-hours call in the Calls tab that sells the value instantly. Drop the word "Demo" from every visible subtitle.
 
-1. **Restaurants** — single pill with an inner sub-toggle for Takeaway / Dine-in / Hybrid
-2. **Salons**
-3. **Spa**
-4. **Clinic**
-5. **Real Estate**
-6. **Trades**
+## Scope
 
-Frontend/demo-only. No DB changes, no new product business types, no signup or dashboard changes.
+Frontend only. Edits limited to:
+- `src/components/landing/DemoDashboard.tsx`
+- `src/lib/demoData.ts`
 
-## Important note on "looks like they signed up"
+No backend, no signup, no real product dashboards.
 
-The real product today only ships dashboards for **restaurants (takeaway / dine-in / hybrid)** and **salons/spa** (appointment model). There is no built clinic, real-estate, or trades dashboard.
+## 1. Restaurants — collapse sub-toggle, rename to Zara's Kitchen
 
-For the new three I will mirror the **salon/appointment dashboard pattern** (which is what those businesses would actually be onboarded onto today — appointment-led), and just relabel terminology so it reads native to each industry. This keeps the demo honest: what they see in the demo is what they'd see after signup, with industry-specific labels.
+- Remove the 3-way Takeaway / Dine-in / Hybrid sub-toggle entirely. Restaurants becomes a single tab like the other four industries.
+- Behaviour matches the existing "hybrid" path: both Orders and Reservations sections render together.
+- Business name: `Zara's Kitchen`. Subtitle: `Restaurant`.
+- Keep current orders + reservations lists largely as-is, but trim to a tighter set so the screen reads cleanly.
+- Calls tab — replace the top entry with the hero call:
+  - Time: `23:02` (Tue), duration `2m 41s`, status `Booked`.
+  - Caller: `+44 7700 900318`.
+  - Summary: `Late-night takeaway order taken after kitchen close — 1× Chicken Katsu, 1× Veg Gyoza, collection 11:45pm. Customer paid on collection.`
+  - Outcome badge: `Order created · £24.50`.
 
-| Industry | Mirrors | Relabels |
-|---|---|---|
-| Clinic | Salon dashboard | "Appointments" → "Patient appointments", staff → "Practitioners", services → "Consultations/Treatments", rooms → "Consult rooms" |
-| Real Estate | Salon dashboard | "Appointments" → "Viewings", staff → "Agents", services → "Property viewings / valuations", revenue → "Pipeline £" |
-| Trades | Salon dashboard | "Appointments" → "Jobs", staff → "Engineers", services → "Call-outs / Quotes / Repairs", revenue → "Day takings" |
+## 2. Salon — Luxe Hair Studio
 
-## Files to change
+- Business name stays `Luxe Hair Studio`. Subtitle: `Hair Salon`.
+- Stats row: `Appointments`, `Completed`, `Cancelled`, `Revenue`.
+- Today's appointments list (replace current set):
+  1. `10:00 — Hannah Roberts — Balayage — £150 — with Isla`
+  2. `11:30 — Daniel Foster — Haircut & Beard — £45 — with Marcus`
+  3. `13:00 — Priya Shah — Root Tint + Blow-dry — £85 — with Isla`
+  4. `15:30 — Olivia Bennett — Cut & Style — £55 — with Marcus`
+  5. `17:00 — Chloe Mitchell — Full Highlights — £180 — with Isla`
+- Calls tab — three AI-handled bookings, hero entry on top:
+  1. `20:47 Tue` — colour appt booked for Saturday after closing.
+  2. `19:12 Mon` — reschedule + upsell to gloss treatment.
+  3. `08:55 Sun` — new client, first cut booked next Thursday.
+- Phone mockup mirrors the same appointments list (already does — keep parity).
 
-### 1. `src/lib/demoData.ts`
-Add six new demo datasets (each: appointments list ~8 items, staff 3–4, services 4–6, stats, calls ~5, messages ~5):
+## 3. Spa & Clinic — Serenity Aesthetics
 
-- `DEMO_CLINIC_*` — GP/dental flavour: "Check-up", "Filling", "Cleaning", patient names, practitioner staff
-- `DEMO_REALESTATE_*` — viewings & valuations: "2-bed flat viewing — 14 Oak Ave", agent staff, enquiry calls about listings
-- `DEMO_TRADES_*` — plumber/electrician flavour: "Boiler service", "Emergency call-out", engineer staff, day-rate revenue
+- Rename business from `Serenity Spa & Clinic` to `Serenity Aesthetics`. Subtitle: `Aesthetics Clinic`.
+- Stats row: `Consultations`, `Treatments`, `Cancelled`, `Revenue`.
+- Today's treatments list:
+  1. `10:00 — Emma Clarke — Hydrafacial — £150`
+  2. `12:00 — Sophie Allen — Botox Consultation — £200`
+  3. `14:00 — Rachel Owens — Lip Filler Top-up — £220`
+  4. `15:30 — Megan Patel — Skin Peel — £130`
+  5. `17:00 — Jasmine Lee — Microneedling — £190`
+- Calls tab hero entry: `19:08 Wed` — new-patient enquiry, AI explains mandatory consultation policy, books consultation for Friday 11am.
 
-Keep existing `DEMO_ORDERS`, `DEMO_RESERVATIONS`, salon/spa datasets untouched.
+## 4. Real Estate — Prime Property Group
 
-### 2. `src/components/landing/DemoDashboard.tsx`
-- Widen type:
-  ```ts
-  type DemoBusinessType = "restaurants" | "salon" | "spa" | "clinic" | "realestate" | "trades";
-  type RestaurantSubType = "takeaway" | "dinein" | "hybrid";
-  ```
-- Replace the 3 restaurant pills with one **Restaurants** pill (UtensilsCrossed icon). Add Clinic (Stethoscope), Real Estate (Home), Trades (Wrench) pills. Total = 6 pills; mobile uses horizontal scroll-x.
-- When `restaurants` is selected, show a **secondary segmented toggle** (Takeaway / Dine-in / Hybrid) above the dashboard body. Internally this drives the existing takeaway/dinein/hybrid branches verbatim — no behaviour change to the restaurant demo.
-- Extend `businessConfigs` with entries for clinic / realestate / trades (business name, subtitle, currency, icon, accent colour).
-- Generalise the existing `statView` builder so it accepts per-type labels for primary/secondary/cancelled/last-value, then feed each new industry its own labels. Reuse:
-  - Stats grid (4 cards)
-  - "Today's Appointments" kanban (Upcoming / In progress / Completed / Cancelled) — relabelled per industry ("Today's Viewings", "Today's Jobs", "Today's Patients")
-  - Staff strip (relabelled "Agents" / "Engineers" / "Practitioners")
-  - Calls + Messages tabs using the new datasets
-  - Both phone mockups (inline and floating) — they already read from `statView`, so they pick up the new labels for free
-- Hide Orders + Reservations sections for the four appointment-based industries (same rule as salon/spa today).
+- Rename `Marlow & Co. Estates` → `Prime Property Group`. Subtitle: `Estate Agency`.
+- Stat labels change to: `Viewings Today`, `New Enquiries`, `Properties Available`, `Callbacks Pending` (requires extending `apptLabels` to drive all 4 stat tiles, not just the booking tile).
+- Today's viewing schedule:
+  1. `11:00 — James Peters — 24 Maple Street, 3-bed — £425,000`
+  2. `14:00 — Sarah Hughes — Flat 12, Victoria Court — £1,200 pcm`
+  3. `16:30 — Tom Whitaker — 8 Beechwood Avenue, 4-bed — £675,000`
+  4. `18:00 — Lauren Ward — 5b Riverside Mews — £1,650 pcm`
+- Calls tab hero entry: `Sat 09:14` — caller asks about listing, AI answers details from property record, captures contact, books Monday 17:30 viewing.
 
-### 3. `.lovable/plan.md`
-Append a short "v2 — 6 industries + restaurant sub-toggle" section so future context reflects the new layout.
+## 5. Trades — Swift Plumbing and Heating
+
+- Rename `Pemberton Plumbing & Heating` → `Swift Plumbing and Heating`. Subtitle: `Plumbing & Heating`.
+- Stat labels: `Jobs Today`, `Completed`, `Urgent Callbacks`, `Revenue`.
+- Job list:
+  1. `09:00 — Mrs Brown, 47 Oak Road — Boiler service — £120`
+  2. `11:00 — Mr Ahmed — Emergency leak repair — £95`
+  3. `13:30 — Ms Khan, 12 Elm Court — Radiator flush — £180`
+  4. `15:30 — Mr Reilly — Bathroom tap replacement — £140`
+  5. `17:00 — Mrs Davies — Thermostat fit — £85`
+- Calls tab hero entry: `06:31 Thu` — emergency boiler breakdown, AI captures fault details + address, confirms engineer callback within the hour, sends SMS confirmation.
+
+## 6. Drop the word "Demo" from subtitles
+
+In `businessConfigs` (DemoDashboard.tsx) rewrite each `subtitle` to remove `Demo`:
+
+| key | new subtitle |
+|---|---|
+| restaurants | `Restaurant` |
+| salon | `Hair Salon` |
+| spa | `Aesthetics Clinic` |
+| realestate | `Estate Agency` |
+| trades | `Plumbing & Heating` |
+
+(The internal Takeaway / Dine-in / Hybrid config entries are dropped along with the sub-toggle.)
+
+## Technical notes
+
+- Collapse `EffectiveType` back to the same 5-value union as `DemoBusinessType`. Delete `RestaurantSubType`, `restaurantSub` state, the sub-toggle JSX, and any `effectiveType === "takeaway" | "dinein" | "hybrid"` branches — replace with a single `effectiveType === "restaurants"` branch that always shows both Orders and Reservations.
+- Extend `apptLabels` to cover all 4 stat-tile labels per industry (today / completed / cancelled-or-callbacks / revenue-or-pipeline) instead of just the bookings tile, so Real Estate and Trades can show their bespoke labels without bleeding into other industries.
+- In `demoData.ts` rewrite (in place, not new exports):
+  - `DEMO_TODAYS_APPOINTMENTS` → Luxe Hair Studio list above.
+  - `DEMO_SPA_APPOINTMENTS` → Serenity Aesthetics list.
+  - `DEMO_REALESTATE_APPOINTMENTS` → Prime Property Group list.
+  - `DEMO_TRADES_APPOINTMENTS` → Swift Plumbing list.
+  - `DEMO_ORDERS` / `DEMO_RESERVATIONS` → trim to Zara's Kitchen names.
+  - Each `*_CALLS` array: replace top entry with the hero call described above and adjust 2-3 surrounding entries for context.
+  - Each `*_STATS` object: update totals so they match the new appointment counts and revenue.
+- Keep both phone mockups reading from `statView` so labels propagate for free.
+- No changes to `src/lib/tiers.ts`, signup, real dashboards, or the `business_type` enum.
 
 ## Out of scope
 
-- No new `business_type` enum values in Supabase, no signup flow changes, no real dashboard for clinic/realestate/trades.
-- No `BusinessTypeSelector.tsx` (the "Built for Your Industry" cards) change in this pass — can do as a follow-up if you want it to mirror the same 6.
-- No localisation beyond English.
-- No new icons beyond `lucide-react` (Stethoscope, Home, Wrench).
-
-## Acceptance
-
-- Selector shows 6 pills; on the current ~1113px viewport they fit on one row, on mobile they scroll horizontally without overflow.
-- Clicking Restaurants reveals an inner Takeaway/Dine-in/Hybrid sub-toggle; switching it swaps the dashboard exactly as the current 3 pills do today.
-- Clicking Clinic / Real Estate / Trades swaps business name, subtitle, stats labels, appointment kanban, staff strip, calls, messages, and both phone mockups to that industry's data.
-- Salon and Spa demos are unchanged.
-
----
-
-## v2 — 5 industries (current state)
-
-Selector reduced to 5 pills:
-- **Restaurants** (single pill) with an inner segmented sub-toggle for Takeaway / Dine-in / Hybrid
-- **Salons**
-- **Spa & Clinics** (reuses spa demo data; pill renamed only)
-- **Real Estate** (new — `DEMO_REALESTATE_*`, viewings/agents/pipeline labels)
-- **Trades** (new — `DEMO_TRADES_*`, jobs/engineers/day-takings labels)
-
-Internally `selectedType` is one of the 5 + a `restaurantSub` state. All downstream data branching uses an `effectiveType` alias that expands `restaurants` → the selected sub-type, so existing takeaway/dinein/hybrid behaviour is preserved verbatim.
-
-Industry-specific labels live in an `apptLabels` object (primary stat, list title, revenue label, call-stats label). Real Estate shows "Viewings / Pipeline", Trades shows "Jobs / Day Takings".
+- No new industries.
+- No new icons beyond what is already imported.
+- No localisation, animation or layout overhaul of the demo shell.
+- No changes to the real product, only the landing-page demo.
