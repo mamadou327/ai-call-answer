@@ -20,7 +20,9 @@ import {
   ChevronRight,
   Calendar,
   Scissors,
-  Sparkles
+  Sparkles,
+  Home,
+  Wrench,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,6 +48,14 @@ import {
   DEMO_SPA_CALLS,
   DEMO_SPA_MESSAGES,
   DEMO_SPA_STATS,
+  DEMO_REALESTATE_APPOINTMENTS,
+  DEMO_REALESTATE_CALLS,
+  DEMO_REALESTATE_MESSAGES,
+  DEMO_REALESTATE_STATS,
+  DEMO_TRADES_APPOINTMENTS,
+  DEMO_TRADES_CALLS,
+  DEMO_TRADES_MESSAGES,
+  DEMO_TRADES_STATS,
 } from "@/lib/demoData";
 import { format, formatDistanceToNow } from "date-fns";
 
