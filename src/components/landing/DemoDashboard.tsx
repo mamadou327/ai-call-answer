@@ -74,14 +74,15 @@ const callTypeBadgeVariants: Record<string, "default" | "secondary" | "destructi
 
 type DemoOrder = typeof DEMO_ORDERS[0];
 type DemoReservation = typeof DEMO_RESERVATIONS[0];
-type RestaurantType = "takeaway" | "dinein" | "hybrid";
+type DemoAppointment = typeof DEMO_TODAYS_APPOINTMENTS[0] & { staff: { name: string; room?: string } };
+type DemoBusinessType = "takeaway" | "dinein" | "hybrid" | "salon" | "spa";
 
 interface BusinessConfig {
   name: string;
   subtitle: string;
 }
 
-const businessConfigs: Record<RestaurantType, BusinessConfig> = {
+const businessConfigs: Record<DemoBusinessType, BusinessConfig> = {
   takeaway: {
     name: "Fresh Bites",
     subtitle: "Takeaway Restaurant Demo"
@@ -93,6 +94,14 @@ const businessConfigs: Record<RestaurantType, BusinessConfig> = {
   hybrid: {
     name: "Bella's Kitchen",
     subtitle: "Hybrid Restaurant Demo"
+  },
+  salon: {
+    name: "Luxe Hair Studio",
+    subtitle: "Salon & Barbershop Demo"
+  },
+  spa: {
+    name: "Serenity Spa",
+    subtitle: "Spa & Wellness Demo"
   }
 };
 
