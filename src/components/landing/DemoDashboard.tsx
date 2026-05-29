@@ -653,7 +653,7 @@ const DemoDashboard = () => {
                           </Badge>
                         </div>
                         <div className="space-y-1.5">
-                          {activeOrders.slice(0, effectiveType === "hybrid" ? 1 : 2).map((order) => (
+                          {activeOrders.slice(0, effectiveType === "restaurants" ? 1 : 2).map((order) => (
                             <Card key={order.id} className={`p-2 border ${orderStatusConfig[order.status].bgColor}`}>
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -681,7 +681,7 @@ const DemoDashboard = () => {
                           </Badge>
                         </div>
                         <div className="space-y-1.5">
-                          {DEMO_RESERVATIONS.slice(0, effectiveType === "hybrid" ? 1 : 2).map((res, i) => (
+                          {DEMO_RESERVATIONS.slice(0, effectiveType === "restaurants" ? 1 : 2).map((res, i) => (
                             <Card key={i} className="border-border/50 p-2">
                               <div className="flex items-center justify-between">
                                 <div className="text-xs font-medium">{res.customer_name}</div>
@@ -839,7 +839,7 @@ const DemoDashboard = () => {
 
               {/* Tabs */}
               <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className={`grid w-full h-9 ${effectiveType === "hybrid" ? "grid-cols-5" : "grid-cols-4"}`}>
+                <TabsList className={`grid w-full h-9 ${effectiveType === "restaurants" ? "grid-cols-5" : "grid-cols-4"}`}>
                   <TabsTrigger value="dashboard" className="text-xs gap-1">
                     <LayoutDashboard className="w-3 h-3" />
                     <span className="hidden sm:inline">Dashboard</span>
@@ -1051,7 +1051,7 @@ const DemoDashboard = () => {
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
                           <div className="grid grid-cols-2 gap-2">
-                            {DEMO_RESERVATIONS.slice(0, effectiveType === "hybrid" ? 2 : 4).map((reservation) => (
+                            {DEMO_RESERVATIONS.slice(0, effectiveType === "restaurants" ? 2 : 4).map((reservation) => (
                               <ReservationCard 
                                 key={reservation.id} 
                                 reservation={reservation} 
@@ -1161,7 +1161,7 @@ const DemoDashboard = () => {
                       <Card className="border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
                           <CardTitle className="text-[10px] font-medium">
-                            {isAppointmentBased ? apptLabels.callsBookings : (effectiveType === "dinein" ? "Reservations" : "Orders")}
+                            {isAppointmentBased ? apptLabels.callsBookings : (false ? "Reservations" : "Orders")}
                           </CardTitle>
                           <CalendarCheck className="w-3 h-3 text-primary" />
                         </CardHeader>
@@ -1447,7 +1447,7 @@ const DemoDashboard = () => {
                             </Badge>
                           </div>
                           <div className="space-y-1.5">
-                            {activeOrders.slice(0, effectiveType === "hybrid" ? 1 : 2).map((order) => (
+                            {activeOrders.slice(0, effectiveType === "restaurants" ? 1 : 2).map((order) => (
                               <Card key={order.id} className={`p-2 border ${orderStatusConfig[order.status].bgColor}`}>
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
@@ -1475,7 +1475,7 @@ const DemoDashboard = () => {
                             </Badge>
                           </div>
                           <div className="space-y-1.5">
-                            {DEMO_RESERVATIONS.slice(0, effectiveType === "hybrid" ? 1 : 2).map((res, i) => (
+                            {DEMO_RESERVATIONS.slice(0, effectiveType === "restaurants" ? 1 : 2).map((res, i) => (
                               <Card key={i} className="border-border/50 p-2">
                                 <div className="flex items-center justify-between">
                                   <div className="text-xs font-medium">{res.customer_name}</div>
