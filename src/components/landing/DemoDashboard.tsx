@@ -18,7 +18,9 @@ import {
   CalendarCheck,
   HelpCircle,
   ChevronRight,
-  Calendar
+  Calendar,
+  Scissors,
+  Sparkles
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -35,7 +37,15 @@ import {
   DEMO_RESTAURANT_STATS,
   DEMO_DINEIN_CALLS,
   DEMO_DINEIN_MESSAGES,
-  DEMO_RESERVATION_STATS
+  DEMO_RESERVATION_STATS,
+  DEMO_TODAYS_APPOINTMENTS,
+  DEMO_SALON_CALLS,
+  DEMO_SALON_MESSAGES,
+  DEMO_SALON_STATS,
+  DEMO_SPA_APPOINTMENTS,
+  DEMO_SPA_CALLS,
+  DEMO_SPA_MESSAGES,
+  DEMO_SPA_STATS,
 } from "@/lib/demoData";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -64,14 +74,15 @@ const callTypeBadgeVariants: Record<string, "default" | "secondary" | "destructi
 
 type DemoOrder = typeof DEMO_ORDERS[0];
 type DemoReservation = typeof DEMO_RESERVATIONS[0];
-type RestaurantType = "takeaway" | "dinein" | "hybrid";
+type DemoAppointment = typeof DEMO_TODAYS_APPOINTMENTS[0] & { staff: { name: string; room?: string } };
+type DemoBusinessType = "takeaway" | "dinein" | "hybrid" | "salon" | "spa";
 
 interface BusinessConfig {
   name: string;
   subtitle: string;
 }
 
-const businessConfigs: Record<RestaurantType, BusinessConfig> = {
+const businessConfigs: Record<DemoBusinessType, BusinessConfig> = {
   takeaway: {
     name: "Fresh Bites",
     subtitle: "Takeaway Restaurant Demo"
@@ -83,6 +94,14 @@ const businessConfigs: Record<RestaurantType, BusinessConfig> = {
   hybrid: {
     name: "Bella's Kitchen",
     subtitle: "Hybrid Restaurant Demo"
+  },
+  salon: {
+    name: "Luxe Hair Studio",
+    subtitle: "Salon & Barbershop Demo"
+  },
+  spa: {
+    name: "Serenity Spa",
+    subtitle: "Spa & Wellness Demo"
   }
 };
 
@@ -152,7 +171,7 @@ const ReservationCard = ({ reservation, onClick }: { reservation: DemoReservatio
 };
 
 const DemoDashboard = () => {
-  const [selectedType, setSelectedType] = useState<RestaurantType>("hybrid");
+  const [selectedType, setSelectedType] = useState<DemoBusinessType>("hybrid");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [phoneTab, setPhoneTab] = useState("dashboard");
   const [selectedOrder, setSelectedOrder] = useState<DemoOrder | null>(null);
@@ -174,33 +193,106 @@ const DemoDashboard = () => {
 
   // Get config based on selected type
   const businessConfig = businessConfigs[selectedType];
-  
+
+  const isAppointmentBased = selectedType === "salon" || selectedType === "spa";
+
+  // Appointments dataset for salon/spa
+  const appointments: DemoAppointment[] = selectedType === "salon"
+    ? (DEMO_TODAYS_APPOINTMENTS as DemoAppointment[])
+    : selectedType === "spa"
+    ? (DEMO_SPA_APPOINTMENTS as DemoAppointment[])
+    : [];
+
   // Get stats based on type
-  const stats = selectedType === "dinein" ? DEMO_RESERVATION_STATS : DEMO_RESTAURANT_STATS;
-  
+  const stats = selectedType === "dinein"
+    ? DEMO_RESERVATION_STATS
+    : selectedType === "salon"
+    ? DEMO_SALON_STATS
+    : selectedType === "spa"
+    ? DEMO_SPA_STATS
+    : DEMO_RESTAURANT_STATS;
+
   // Get calls and messages based on type
-  const calls = selectedType === "dinein" ? DEMO_DINEIN_CALLS : DEMO_RESTAURANT_CALLS;
-  const messages = selectedType === "dinein" ? DEMO_DINEIN_MESSAGES : DEMO_RESTAURANT_MESSAGES;
-  
+  const calls = selectedType === "dinein"
+    ? DEMO_DINEIN_CALLS
+    : selectedType === "salon"
+    ? DEMO_SALON_CALLS
+    : selectedType === "spa"
+    ? DEMO_SPA_CALLS
+    : DEMO_RESTAURANT_CALLS;
+  const messages = selectedType === "dinein"
+    ? DEMO_DINEIN_MESSAGES
+    : selectedType === "salon"
+    ? DEMO_SALON_MESSAGES
+    : selectedType === "spa"
+    ? DEMO_SPA_MESSAGES
+    : DEMO_RESTAURANT_MESSAGES;
+
   // Calculate call stats derived from dashboard stats for consistency
-  const callStats = {
-    totalCalls: selectedType === "dinein" 
-      ? Math.round(DEMO_RESERVATION_STATS.reservationsCount * 0.8) // 80% of reservations via phone
-      : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.75),      // 75% of orders via phone
-    bookingsCreated: selectedType === "dinein"
-      ? DEMO_RESERVATION_STATS.reservationsCount
-      : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.85),      // 85% result in orders
-    enquiries: selectedType === "dinein" ? 3 : 4,
-    cancellations: selectedType === "dinein" 
-      ? DEMO_RESERVATION_STATS.cancelledCount 
-      : DEMO_RESTAURANT_STATS.cancelledCount,
-  };
-  
+  const callStats = isAppointmentBased
+    ? {
+        totalCalls: Math.round((stats as typeof DEMO_SALON_STATS).appointmentsCount * 1.5),
+        bookingsCreated: (stats as typeof DEMO_SALON_STATS).appointmentsCount,
+        enquiries: 3,
+        cancellations: (stats as typeof DEMO_SALON_STATS).cancelledCount,
+      }
+    : {
+        totalCalls: selectedType === "dinein"
+          ? Math.round(DEMO_RESERVATION_STATS.reservationsCount * 0.8)
+          : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.75),
+        bookingsCreated: selectedType === "dinein"
+          ? DEMO_RESERVATION_STATS.reservationsCount
+          : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.85),
+        enquiries: selectedType === "dinein" ? 3 : 4,
+        cancellations: selectedType === "dinein"
+          ? DEMO_RESERVATION_STATS.cancelledCount
+          : DEMO_RESTAURANT_STATS.cancelledCount,
+      };
+
   // Show orders for takeaway and hybrid
   const showOrders = selectedType === "takeaway" || selectedType === "hybrid";
   // Show reservations for dinein and hybrid
   const showReservations = selectedType === "dinein" || selectedType === "hybrid";
-  
+  // Show appointments for salon and spa
+  const showAppointments = isAppointmentBased;
+
+  // Normalized stat-card view (4 cards)
+  const statView = isAppointmentBased
+    ? {
+        primaryLabel: "Appointments",
+        primaryValue: (stats as typeof DEMO_SALON_STATS).appointmentsCount,
+        secondaryLabel: "Completed",
+        secondaryValue: (stats as typeof DEMO_SALON_STATS).completedCount,
+        cancelledValue: (stats as typeof DEMO_SALON_STATS).cancelledCount,
+        lastLabel: "Revenue",
+        lastValue: `£${(stats as typeof DEMO_SALON_STATS).revenue.toFixed(2)}`,
+        lastValueShort: `£${(stats as typeof DEMO_SALON_STATS).revenue.toFixed(0)}`,
+        lastIcon: "money" as const,
+      }
+    : selectedType === "dinein"
+    ? {
+        primaryLabel: "Reservations",
+        primaryValue: DEMO_RESERVATION_STATS.reservationsCount,
+        secondaryLabel: "Seated",
+        secondaryValue: DEMO_RESERVATION_STATS.reservationsCount - DEMO_RESERVATION_STATS.cancelledCount,
+        cancelledValue: DEMO_RESERVATION_STATS.cancelledCount,
+        lastLabel: "Total Covers",
+        lastValue: String(DEMO_RESERVATION_STATS.totalCovers),
+        lastValueShort: String(DEMO_RESERVATION_STATS.totalCovers),
+        lastIcon: "users" as const,
+      }
+    : {
+        primaryLabel: "Total Orders",
+        primaryValue: DEMO_RESTAURANT_STATS.ordersCount,
+        secondaryLabel: "Completed",
+        secondaryValue: DEMO_RESTAURANT_STATS.completedCount,
+        cancelledValue: DEMO_RESTAURANT_STATS.cancelledCount,
+        lastLabel: "Revenue",
+        lastValue: `£${DEMO_RESTAURANT_STATS.revenue.toFixed(2)}`,
+        lastValueShort: `£${DEMO_RESTAURANT_STATS.revenue.toFixed(0)}`,
+        lastIcon: "money" as const,
+      };
+
   // Group orders by status for the kanban queue
   const activeOrders = DEMO_ORDERS.filter(o => ["pending", "confirmed", "preparing", "ready"].includes(o.status));
   const groupedOrders = {
@@ -230,23 +322,24 @@ const DemoDashboard = () => {
     }
   };
 
-  // Get correct tab count based on type
-  const getTabCount = () => {
-    if (selectedType === "hybrid") return 5;
-    return 4;
-  };
-
   // Reset to dashboard tab when switching types
-  const handleTypeChange = (type: RestaurantType) => {
+  const handleTypeChange = (type: DemoBusinessType) => {
     setSelectedType(type);
     setActiveTab("dashboard");
+    setPhoneTab("dashboard");
   };
+
+  // Desktop tab count: dashboard + calls + messages + optional (orders | reservations | appointments)
+  const desktopTabsCount = 3
+    + (showOrders ? 1 : 0)
+    + (showReservations ? 1 : 0)
+    + (showAppointments ? 1 : 0);
 
   return (
     <div className="relative mt-16">
-      {/* Restaurant Type Selector */}
-      <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20">
-        <div className="flex items-center gap-2 bg-background/80 backdrop-blur-sm border border-border rounded-full p-1 shadow-lg">
+      {/* Business Type Selector */}
+      <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-1rem)] sm:w-auto flex justify-center">
+        <div className="flex items-center gap-1 sm:gap-2 bg-background/80 backdrop-blur-sm border border-border rounded-full p-1 shadow-lg flex-wrap justify-center max-w-full">
           <Button
             variant={selectedType === "takeaway" ? "default" : "ghost"}
             size="sm"
@@ -274,8 +367,27 @@ const DemoDashboard = () => {
             <Shuffle className="w-3.5 h-3.5" />
             Hybrid
           </Button>
+          <Button
+            variant={selectedType === "salon" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => handleTypeChange("salon")}
+            className="rounded-full gap-1.5 text-xs h-8 px-3"
+          >
+            <Scissors className="w-3.5 h-3.5" />
+            Salon
+          </Button>
+          <Button
+            variant={selectedType === "spa" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => handleTypeChange("spa")}
+            className="rounded-full gap-1.5 text-xs h-8 px-3"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Spa
+          </Button>
         </div>
       </div>
+
 
       {/* Phone Mockup - Mobile Dashboard - Show on mobile, hide on desktop */}
       <div className="block md:hidden mx-auto max-w-[280px] mb-8 relative">
@@ -384,59 +496,63 @@ const DemoDashboard = () => {
                     <div className="grid grid-cols-2 gap-2">
                       <Card className="border-border/50 p-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            {selectedType === "dinein" ? "Reservations" : "Orders"}
-                          </span>
+                          <span className="text-[10px] text-muted-foreground">{statView.primaryLabel}</span>
                           <Package className="w-3.5 h-3.5 text-muted-foreground" />
                         </div>
-                        <div className="text-lg font-bold">
-                          {selectedType === "dinein" 
-                            ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount 
-                            : (stats as typeof DEMO_RESTAURANT_STATS).ordersCount}
-                        </div>
+                        <div className="text-lg font-bold">{statView.primaryValue}</div>
                       </Card>
                       <Card className="border-border/50 p-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            {selectedType === "dinein" ? "Seated" : "Completed"}
-                          </span>
+                          <span className="text-[10px] text-muted-foreground">{statView.secondaryLabel}</span>
                           <CheckCircle className="w-3.5 h-3.5 text-green-500" />
                         </div>
-                        <div className="text-lg font-bold text-green-600">
-                          {selectedType === "dinein" 
-                            ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount - (stats as typeof DEMO_RESERVATION_STATS).cancelledCount
-                            : (stats as typeof DEMO_RESTAURANT_STATS).completedCount}
-                        </div>
+                        <div className="text-lg font-bold text-green-600">{statView.secondaryValue}</div>
                       </Card>
                       <Card className="border-border/50 p-2.5">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] text-muted-foreground">Cancelled</span>
                           <XCircle className="w-3.5 h-3.5 text-destructive" />
                         </div>
-                        <div className="text-lg font-bold text-destructive">
-                          {selectedType === "dinein" 
-                            ? (stats as typeof DEMO_RESERVATION_STATS).cancelledCount 
-                            : (stats as typeof DEMO_RESTAURANT_STATS).cancelledCount}
-                        </div>
+                        <div className="text-lg font-bold text-destructive">{statView.cancelledValue}</div>
                       </Card>
                       <Card className="border-border/50 p-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground">
-                            {selectedType === "dinein" ? "Covers" : "Revenue"}
-                          </span>
-                          {selectedType === "dinein" ? (
+                          <span className="text-[10px] text-muted-foreground">{statView.lastLabel}</span>
+                          {statView.lastIcon === "users" ? (
                             <Users className="w-3.5 h-3.5 text-muted-foreground" />
                           ) : (
                             <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
                           )}
                         </div>
-                        <div className="text-lg font-bold">
-                          {selectedType === "dinein" 
-                            ? (stats as typeof DEMO_RESERVATION_STATS).totalCovers 
-                            : `£${(stats as typeof DEMO_RESTAURANT_STATS).revenue.toFixed(0)}`}
-                        </div>
+                        <div className="text-lg font-bold">{statView.lastValueShort}</div>
                       </Card>
                     </div>
+
+                    {/* Today's Appointments - salon/spa */}
+                    {showAppointments && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold">Today's Appointments</span>
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
+                            {appointments.length} booked
+                          </Badge>
+                        </div>
+                        <div className="space-y-1.5">
+                          {appointments.slice(0, 2).map((apt) => (
+                            <Card key={apt.id} className="border-border/50 p-2">
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs font-medium">{apt.customer_name}</div>
+                                <div className="text-[10px]">{format(new Date(apt.start_time), 'HH:mm')}</div>
+                              </div>
+                              <div className="text-[10px] text-muted-foreground mt-1 truncate">
+                                {apt.service.name} • {apt.staff.name}
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     
                     {/* Active Section - Orders for takeaway/hybrid */}
                     {showOrders && (
@@ -691,32 +807,22 @@ const DemoDashboard = () => {
                     <div className="grid grid-cols-4 gap-2">
                       <Card className="cursor-pointer hover:bg-accent/50 transition-colors border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
-                          <CardTitle className="text-[10px] font-medium">
-                            {selectedType === "dinein" ? "Reservations" : "Total Orders"}
-                          </CardTitle>
+                          <CardTitle className="text-[10px] font-medium">{statView.primaryLabel}</CardTitle>
                           <Package className="w-3 h-3 text-muted-foreground" />
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
-                          <div className="text-lg font-bold">
-                            {selectedType === "dinein" ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount : (stats as typeof DEMO_RESTAURANT_STATS).ordersCount}
-                          </div>
+                          <div className="text-lg font-bold">{statView.primaryValue}</div>
                           <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
                       </Card>
 
                       <Card className="cursor-pointer hover:bg-accent/50 transition-colors border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
-                          <CardTitle className="text-[10px] font-medium">
-                            {selectedType === "dinein" ? "Seated" : "Completed"}
-                          </CardTitle>
+                          <CardTitle className="text-[10px] font-medium">{statView.secondaryLabel}</CardTitle>
                           <CheckCircle className="w-3 h-3 text-green-500" />
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
-                          <div className="text-lg font-bold text-green-600">
-                            {selectedType === "dinein" 
-                              ? (stats as typeof DEMO_RESERVATION_STATS).reservationsCount - (stats as typeof DEMO_RESERVATION_STATS).cancelledCount
-                              : (stats as typeof DEMO_RESTAURANT_STATS).completedCount}
-                          </div>
+                          <div className="text-lg font-bold text-green-600">{statView.secondaryValue}</div>
                           <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
                       </Card>
@@ -727,34 +833,64 @@ const DemoDashboard = () => {
                           <XCircle className="w-3 h-3 text-destructive" />
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
-                          <div className="text-lg font-bold text-destructive">
-                            {selectedType === "dinein" ? (stats as typeof DEMO_RESERVATION_STATS).cancelledCount : (stats as typeof DEMO_RESTAURANT_STATS).cancelledCount}
-                          </div>
+                          <div className="text-lg font-bold text-destructive">{statView.cancelledValue}</div>
                           <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
                       </Card>
 
                       <Card className="cursor-pointer hover:bg-accent/50 transition-colors border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
-                          <CardTitle className="text-[10px] font-medium">
-                            {selectedType === "dinein" ? "Total Covers" : "Revenue"}
-                          </CardTitle>
-                          {selectedType === "dinein" ? (
+                          <CardTitle className="text-[10px] font-medium">{statView.lastLabel}</CardTitle>
+                          {statView.lastIcon === "users" ? (
                             <Users className="w-3 h-3 text-muted-foreground" />
                           ) : (
                             <DollarSign className="w-3 h-3 text-muted-foreground" />
                           )}
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
-                          <div className="text-lg font-bold">
-                            {selectedType === "dinein" 
-                              ? (stats as typeof DEMO_RESERVATION_STATS).totalCovers 
-                              : `£${(stats as typeof DEMO_RESTAURANT_STATS).revenue.toFixed(2)}`}
-                          </div>
+                          <div className="text-lg font-bold">{statView.lastValue}</div>
                           <p className="text-[9px] text-muted-foreground">{getPeriodLabel()}</p>
                         </CardContent>
                       </Card>
                     </div>
+
+                    {/* Today's Appointments - Only for salon and spa */}
+                    {showAppointments && (
+                      <Card className="border-border/50">
+                        <CardHeader className="p-2 pb-1">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-sm font-semibold">Today's Appointments</CardTitle>
+                            <Badge variant="secondary" className="text-[10px]">
+                              {appointments.length} booked
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-2 pt-0">
+                          <div className="grid grid-cols-2 gap-2">
+                            {appointments.slice(0, 4).map((apt) => (
+                              <Card key={apt.id} className="border-border/50">
+                                <CardContent className="p-2.5">
+                                  <div className="flex items-start justify-between mb-1">
+                                    <div>
+                                      <p className="font-semibold text-xs">{apt.customer_name}</p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        {format(new Date(apt.start_time), 'HH:mm')} • {apt.staff.name}
+                                        {apt.staff.room ? ` • ${apt.staff.room}` : ''}
+                                      </p>
+                                    </div>
+                                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
+                                      £{apt.service.price}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground truncate">{apt.service.name}</p>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
 
                     {/* Active Orders Queue - Only for takeaway and hybrid */}
                     {showOrders && (
