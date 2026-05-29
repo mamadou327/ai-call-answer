@@ -437,31 +437,13 @@ const DemoDashboard = () => {
       <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-1rem)] sm:w-auto flex justify-center">
         <div className="flex items-center gap-1 sm:gap-2 bg-background/80 backdrop-blur-sm border border-border rounded-full p-1 shadow-lg flex-wrap justify-center max-w-full">
           <Button
-            variant={selectedType === "takeaway" ? "default" : "ghost"}
+            variant={selectedType === "restaurants" ? "default" : "ghost"}
             size="sm"
-            onClick={() => handleTypeChange("takeaway")}
-            className="rounded-full gap-1.5 text-xs h-8 px-3"
-          >
-            <ShoppingBag className="w-3.5 h-3.5" />
-            Takeaway
-          </Button>
-          <Button
-            variant={selectedType === "dinein" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => handleTypeChange("dinein")}
+            onClick={() => handleTypeChange("restaurants")}
             className="rounded-full gap-1.5 text-xs h-8 px-3"
           >
             <UtensilsCrossed className="w-3.5 h-3.5" />
-            Dine-in
-          </Button>
-          <Button
-            variant={selectedType === "hybrid" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => handleTypeChange("hybrid")}
-            className="rounded-full gap-1.5 text-xs h-8 px-3"
-          >
-            <Shuffle className="w-3.5 h-3.5" />
-            Hybrid
+            Restaurants
           </Button>
           <Button
             variant={selectedType === "salon" ? "default" : "ghost"}
@@ -470,7 +452,7 @@ const DemoDashboard = () => {
             className="rounded-full gap-1.5 text-xs h-8 px-3"
           >
             <Scissors className="w-3.5 h-3.5" />
-            Salon
+            Salons
           </Button>
           <Button
             variant={selectedType === "spa" ? "default" : "ghost"}
@@ -479,10 +461,65 @@ const DemoDashboard = () => {
             className="rounded-full gap-1.5 text-xs h-8 px-3"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            Spa
+            Spa &amp; Clinics
+          </Button>
+          <Button
+            variant={selectedType === "realestate" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => handleTypeChange("realestate")}
+            className="rounded-full gap-1.5 text-xs h-8 px-3"
+          >
+            <Home className="w-3.5 h-3.5" />
+            Real Estate
+          </Button>
+          <Button
+            variant={selectedType === "trades" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => handleTypeChange("trades")}
+            className="rounded-full gap-1.5 text-xs h-8 px-3"
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            Trades
           </Button>
         </div>
       </div>
+
+      {/* Restaurants sub-toggle (Takeaway / Dine-in / Hybrid) */}
+      {selectedType === "restaurants" && (
+        <div className="flex justify-center mb-4">
+          <div className="inline-flex items-center gap-1 bg-muted rounded-full p-1 border border-border">
+            <button
+              onClick={() => { setRestaurantSub("takeaway"); setActiveTab("dashboard"); setPhoneTab("dashboard"); }}
+              className={`rounded-full text-xs h-7 px-3 inline-flex items-center gap-1.5 transition-colors ${
+                restaurantSub === "takeaway" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ShoppingBag className="w-3 h-3" />
+              Takeaway
+            </button>
+            <button
+              onClick={() => { setRestaurantSub("dinein"); setActiveTab("dashboard"); setPhoneTab("dashboard"); }}
+              className={`rounded-full text-xs h-7 px-3 inline-flex items-center gap-1.5 transition-colors ${
+                restaurantSub === "dinein" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <UtensilsCrossed className="w-3 h-3" />
+              Dine-in
+            </button>
+            <button
+              onClick={() => { setRestaurantSub("hybrid"); setActiveTab("dashboard"); setPhoneTab("dashboard"); }}
+              className={`rounded-full text-xs h-7 px-3 inline-flex items-center gap-1.5 transition-colors ${
+                restaurantSub === "hybrid" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Shuffle className="w-3 h-3" />
+              Hybrid
+            </button>
+          </div>
+        </div>
+      )}
+
+
 
 
       {/* Phone Mockup - Mobile Dashboard - Show on mobile, hide on desktop */}
