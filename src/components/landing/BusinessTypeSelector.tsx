@@ -35,6 +35,28 @@ const BusinessTypeSelector = () => {
         "Special requests",
         "Dietary accommodations"
       ]
+    },
+    {
+      icon: Building2,
+      title: "Estate Agents",
+      description: "AI receptionist for property enquiries and viewings",
+      features: [
+        "Capture weekend enquiries",
+        "Book viewings automatically",
+        "Answer property questions",
+        "Never miss a hot lead"
+      ]
+    },
+    {
+      icon: Wrench,
+      title: "Trades and Services",
+      description: "AI receptionist that catches every emergency callout",
+      features: [
+        "Answer calls on the job",
+        "Capture emergency details",
+        "Book jobs automatically",
+        "Cover early mornings and evenings"
+      ]
     }
   ];
 
