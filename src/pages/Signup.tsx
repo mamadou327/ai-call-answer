@@ -565,10 +565,45 @@ const Signup = () => {
                 </p>
               </div>
 
+              {!reapplyMode && (
+                <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4">
+                  <Checkbox
+                    id="agreedToTerms"
+                    checked={agreedToTerms}
+                    onCheckedChange={(v) => setAgreedToTerms(v === true)}
+                    className="mt-0.5"
+                  />
+                  <Label
+                    htmlFor="agreedToTerms"
+                    className="text-sm font-normal leading-relaxed cursor-pointer"
+                  >
+                    I have read and agree to the{" "}
+                    <Link
+                      to="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium"
+                    >
+                      Terms of Service
+                    </Link>{" "}
+                    and{" "}
+                    <Link
+                      to="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-medium"
+                    >
+                      Privacy Policy
+                    </Link>
+                    .
+                  </Label>
+                </div>
+              )}
+
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isLoading || !selectedTier}
+                disabled={isLoading || !selectedTier || (!reapplyMode && !agreedToTerms)}
                 size="lg"
               >
                 {isLoading ? (
@@ -599,7 +634,10 @@ const Signup = () => {
           </CardContent>
         </Card>
       </div>
+      <LegalFooter />
     </div>
+  );
+};
   );
 };
 
