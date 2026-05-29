@@ -821,3 +821,200 @@ export const DEMO_BOOKINGS_LIST = [
     customer_phone: "+44 7700 900000",
   })),
 ];
+
+// ─────────────────────────────────────────────────────────────
+// Salon & Spa demo stats / data (used by DemoDashboard)
+// ─────────────────────────────────────────────────────────────
+
+export const DEMO_SALON_STATS = {
+  appointmentsCount: 8,
+  completedCount: 5,
+  cancelledCount: 1,
+  revenue: 505,
+  callsCount: 12,
+  messagesCount: 4,
+};
+
+export const DEMO_SPA_STATS = {
+  appointmentsCount: 6,
+  completedCount: 4,
+  cancelledCount: 1,
+  revenue: 720,
+  callsCount: 9,
+  messagesCount: 3,
+};
+
+// Demo today's appointments (Spa / Wellness)
+export const DEMO_SPA_APPOINTMENTS = [
+  {
+    id: "demo-spa-1",
+    customer_name: "Hannah Roberts",
+    customer_phone: "+44 7700 920111",
+    start_time: new Date().setHours(9, 30, 0, 0),
+    end_time: new Date().setHours(10, 30, 0, 0),
+    status: "confirmed",
+    service: { name: "Swedish Massage (60 min)", price: 75 },
+    staff: { name: "Isla", room: "Room 1" },
+  },
+  {
+    id: "demo-spa-2",
+    customer_name: "Daniel Foster",
+    customer_phone: "+44 7700 920222",
+    start_time: new Date().setHours(11, 0, 0, 0),
+    end_time: new Date().setHours(12, 30, 0, 0),
+    status: "confirmed",
+    service: { name: "Deep Tissue Massage (90 min)", price: 110 },
+    staff: { name: "Marcus", room: "Room 2" },
+  },
+  {
+    id: "demo-spa-3",
+    customer_name: "Priya Patel",
+    customer_phone: "+44 7700 920333",
+    start_time: new Date().setHours(13, 0, 0, 0),
+    end_time: new Date().setHours(14, 15, 0, 0),
+    status: "confirmed",
+    service: { name: "Hydrating Facial", price: 85 },
+    staff: { name: "Isla", room: "Treatment Room" },
+  },
+  {
+    id: "demo-spa-4",
+    customer_name: "Tom Caldwell",
+    customer_phone: "+44 7700 920444",
+    start_time: new Date().setHours(14, 30, 0, 0),
+    end_time: new Date().setHours(16, 0, 0, 0),
+    status: "confirmed",
+    service: { name: "Hot Stone Therapy (90 min)", price: 120 },
+    staff: { name: "Marcus", room: "Room 1" },
+  },
+  {
+    id: "demo-spa-5",
+    customer_name: "Aisha Khan",
+    customer_phone: "+44 7700 920555",
+    start_time: new Date().setHours(16, 30, 0, 0),
+    end_time: new Date().setHours(18, 0, 0, 0),
+    status: "confirmed",
+    service: { name: "Detox Body Wrap", price: 130 },
+    staff: { name: "Isla", room: "Wrap Suite" },
+  },
+  {
+    id: "demo-spa-6",
+    customer_name: "Eleanor Pike",
+    customer_phone: "+44 7700 920666",
+    start_time: new Date().setHours(18, 30, 0, 0),
+    end_time: new Date().setHours(19, 30, 0, 0),
+    status: "confirmed",
+    service: { name: "Aromatherapy Massage (60 min)", price: 80 },
+    staff: { name: "Marcus", room: "Room 2" },
+  },
+].map((apt) => ({
+  ...apt,
+  start_time: new Date(apt.start_time).toISOString(),
+  end_time: new Date(apt.end_time).toISOString(),
+}));
+
+// Demo call logs - Spa specific
+export const DEMO_SPA_CALLS = [
+  {
+    id: "demo-spa-call-1",
+    caller_name: "Hannah Roberts",
+    caller_phone: "+44 7700 920111",
+    call_type: "new_booking",
+    call_outcome: "Booked Swedish massage",
+    summary: "Customer booked a 60 minute Swedish massage with Isla for this morning.",
+    duration_ms: 165000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: "demo-spa-call-2",
+    caller_name: "Daniel Foster",
+    caller_phone: "+44 7700 920222",
+    call_type: "question",
+    call_outcome: "Asked about couples packages",
+    summary: "Caller asked whether we offer couples treatment packages for an anniversary.",
+    duration_ms: 140000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 7200000).toISOString(),
+  },
+  {
+    id: "demo-spa-call-3",
+    caller_name: "Priya Patel",
+    caller_phone: "+44 7700 920333",
+    call_type: "reschedule",
+    call_outcome: "Moved facial to Friday",
+    summary: "Customer rescheduled their hydrating facial from Wednesday to Friday at 1pm.",
+    duration_ms: 95000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 14400000).toISOString(),
+  },
+  {
+    id: "demo-spa-call-4",
+    caller_name: "Tom Caldwell",
+    caller_phone: "+44 7700 920444",
+    call_type: "new_booking",
+    call_outcome: "Hot stone therapy booked",
+    summary: "New client booked a 90 minute hot stone therapy session with Marcus.",
+    duration_ms: 210000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 21600000).toISOString(),
+  },
+  {
+    id: "demo-spa-call-5",
+    caller_name: "Aisha Khan",
+    caller_phone: "+44 7700 920555",
+    call_type: "cancel",
+    call_outcome: "Body wrap cancelled, will rebook",
+    summary: "Customer cancelled her detox body wrap due to illness, will call back next week.",
+    duration_ms: 75000,
+    needs_review: false,
+    created_at: new Date(Date.now() - 28800000).toISOString(),
+  },
+];
+
+// Demo messages - Spa specific
+export const DEMO_SPA_MESSAGES = [
+  {
+    id: "demo-spa-msg-1",
+    caller_name: "Hannah Roberts",
+    caller_phone: "+44 7700 920111",
+    content: "Do you offer gift vouchers I can buy online for a friend's birthday?",
+    recipient_type: "business",
+    is_urgent: false,
+    is_read: false,
+    is_archived: false,
+    created_at: new Date(Date.now() - 1800000).toISOString(),
+  },
+  {
+    id: "demo-spa-msg-2",
+    caller_name: "Daniel Foster",
+    caller_phone: "+44 7700 920222",
+    content: "Could you let me know if Marcus is available for a couples massage on Saturday?",
+    recipient_type: "business",
+    is_urgent: true,
+    is_read: false,
+    is_archived: false,
+    created_at: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: "demo-spa-msg-3",
+    caller_name: "Priya Patel",
+    caller_phone: "+44 7700 920333",
+    content: "The facial was wonderful, my skin feels amazing. Thank you!",
+    recipient_type: "business",
+    is_urgent: false,
+    is_read: true,
+    is_archived: false,
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: "demo-spa-msg-4",
+    caller_name: "Eleanor Pike",
+    caller_phone: "+44 7700 920666",
+    content: "Is parking available at the spa? Coming from out of town this evening.",
+    recipient_type: "business",
+    is_urgent: false,
+    is_read: true,
+    is_archived: false,
+    created_at: new Date(Date.now() - 172800000).toISOString(),
+  },
+];
