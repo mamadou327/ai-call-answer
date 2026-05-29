@@ -665,7 +665,7 @@ const DemoDashboard = () => {
                     {showAppointments && (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold">Today's Appointments</span>
+                          <span className="text-xs font-semibold">{apptLabels.listTitle}</span>
                           <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
                             {appointments.length} booked
                           </Badge>
@@ -992,7 +992,7 @@ const DemoDashboard = () => {
                       <Card className="border-border/50">
                         <CardHeader className="p-2 pb-1">
                           <div className="flex items-center justify-between">
-                            <CardTitle className="text-sm font-semibold">Today's Appointments</CardTitle>
+                            <CardTitle className="text-sm font-semibold">{apptLabels.listTitle}</CardTitle>
                             <Badge variant="secondary" className="text-[10px]">
                               {appointments.length} booked
                             </Badge>
@@ -1205,7 +1205,7 @@ const DemoDashboard = () => {
                       <Card className="border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
                           <CardTitle className="text-[10px] font-medium">
-                            {effectiveType === "dinein" ? "Reservations" : "Orders"}
+                            {isAppointmentBased ? apptLabels.callsBookings : (effectiveType === "dinein" ? "Reservations" : "Orders")}
                           </CardTitle>
                           <CalendarCheck className="w-3 h-3 text-primary" />
                         </CardHeader>
@@ -1460,7 +1460,7 @@ const DemoDashboard = () => {
                       {showAppointments && (
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold">Today's Appointments</span>
+                            <span className="text-xs font-semibold">{apptLabels.listTitle}</span>
                             <Badge variant="secondary" className="text-[9px] px-1.5 py-0.5">
                               {appointments.length} booked
                             </Badge>
