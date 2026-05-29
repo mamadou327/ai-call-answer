@@ -264,6 +264,7 @@ const Dashboard = () => {
         label: "Import your business details from your website (optional)",
         isComplete: !!biz.website_last_synced_at || websiteImportSkipped,
         action: "import_website",
+        skipAction: "skip_website_import",
       },
       // Common items
       {
