@@ -884,8 +884,13 @@ const PublicBookingPage = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const brandColor = business.brand_color || "#0F172A";
+
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      className="min-h-screen bg-background"
+      style={{ ["--brand-color" as any]: brandColor }}
+    >
       <PublicBookingHeader
         businessName={business.business_name}
         logoUrl={business.logo_url}
@@ -923,21 +928,25 @@ const PublicBookingPage = () => {
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center gap-2 text-sm">
             {isRestaurant ? (
-              // Restaurant steps
               ["menu", "order-cart"].map((s, i) => (
                 <span key={s} className="flex items-center gap-2">
                   {i > 0 && <span className="text-muted-foreground">→</span>}
-                  <span className={step === s ? "font-bold" : "text-muted-foreground"}>
+                  <span
+                    className={step === s ? "font-bold" : "text-muted-foreground"}
+                    style={step === s ? { color: brandColor } : undefined}
+                  >
                     {i + 1}. {s === "menu" ? "Menu" : "Checkout"}
                   </span>
                 </span>
               ))
             ) : (
-              // Salon steps
               ["service", "staff", "datetime", "customer"].map((s, i) => (
                 <span key={s} className="flex items-center gap-2">
                   {i > 0 && <span className="text-muted-foreground">→</span>}
-                  <span className={step === s ? "font-bold" : "text-muted-foreground"}>
+                  <span
+                    className={step === s ? "font-bold" : "text-muted-foreground"}
+                    style={step === s ? { color: brandColor } : undefined}
+                  >
                     {i + 1}. {s.charAt(0).toUpperCase() + s.slice(1)}
                   </span>
                 </span>
