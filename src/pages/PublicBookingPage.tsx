@@ -33,6 +33,9 @@ interface Business {
   online_booking_message: string | null;
   deposit_collection_timing: string;
   logo_url: string | null;
+  hero_image_url: string | null;
+  brand_color: string | null;
+  about_description: string | null;
   social_instagram: string | null;
   social_facebook: string | null;
   social_tiktok: string | null;
