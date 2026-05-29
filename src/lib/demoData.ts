@@ -829,14 +829,7 @@ export const DEMO_BOOKINGS_LIST = [
 // Salon & Spa demo stats / data (used by DemoDashboard)
 // ─────────────────────────────────────────────────────────────
 
-export const DEMO_SALON_STATS = {
-  appointmentsCount: 8,
-  completedCount: 5,
-  cancelledCount: 1,
-  revenue: 505,
-  callsCount: 12,
-  messagesCount: 4,
-};
+// (DEMO_SALON_STATS lives above with the original salon stats; landing-demo fields added inline.)
 
 export const DEMO_SPA_STATS = {
   appointmentsCount: 6,
