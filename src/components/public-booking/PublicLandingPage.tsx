@@ -155,6 +155,7 @@ export const PublicLandingPage = ({
 }: PublicLandingPageProps) => {
   const [policiesOpen, setPoliciesOpen] = useState(false);
   const [hoursOpen, setHoursOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
 
   const isRestaurant = RESTAURANT_TYPES.includes(businessType || "");
   const brand = brandColor || "#0F172A";
