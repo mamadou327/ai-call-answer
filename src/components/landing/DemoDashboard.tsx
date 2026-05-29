@@ -598,7 +598,7 @@ const DemoDashboard = () => {
                       </Card>
                       <Card className="border-border/50 p-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground">Cancelled</span>
+                          <span className="text-[10px] text-muted-foreground">{statView.cancelledLabel}</span>
                           <XCircle className="w-3.5 h-3.5 text-destructive" />
                         </div>
                         <div className="text-lg font-bold text-destructive">{statView.cancelledValue}</div>
@@ -917,7 +917,7 @@ const DemoDashboard = () => {
 
                       <Card className="cursor-pointer hover:bg-accent/50 transition-colors border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-1 p-2">
-                          <CardTitle className="text-[10px] font-medium">Cancelled</CardTitle>
+                          <CardTitle className="text-[10px] font-medium">{statView.cancelledLabel}</CardTitle>
                           <XCircle className="w-3 h-3 text-destructive" />
                         </CardHeader>
                         <CardContent className="p-2 pt-0">
@@ -1393,7 +1393,7 @@ const DemoDashboard = () => {
                         </Card>
                         <Card className="border-border/50 p-2.5">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] text-muted-foreground">Cancelled</span>
+                            <span className="text-[10px] text-muted-foreground">{statView.cancelledLabel}</span>
                             <XCircle className="w-3.5 h-3.5 text-destructive" />
                           </div>
                           <div className="text-lg font-bold text-destructive">{statView.cancelledValue}</div>
