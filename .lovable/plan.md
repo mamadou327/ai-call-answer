@@ -1,47 +1,108 @@
-## 1. Make "Import from website" optional in setup checklist
 
-**File:** `src/pages/Dashboard.tsx` (checklist item, line ~258–264)
+## Goal
 
-- Add an "(optional)" suffix to the label so it reads: **"Import your business details from your website (optional)"**.
-- Mark it as complete whenever the user dismisses it OR has already synced. Implementation: track a per-business dismissal flag in `localStorage` (key `aivia:website_import_skipped:<businessId>`); show a small "Skip" link/button on the row when not yet complete that sets the flag, and treat `isComplete` as `!!biz.website_last_synced_at || skipped`.
-- This makes the progress bar reach 100% without forcing the import. No DB change needed — purely UI/local state.
+Make the data export GDPR-complete by doing two things:
 
-Alternative if you'd prefer it persisted server-side: add a `setup_website_import_skipped boolean` column to `businesses`. Let me know and I'll switch to that in build mode.
+1. **(A) Expand the business-side Excel** so business owners get a fuller operational record of their own data (not just 4 thin tabs).
+2. **(B) Add a separate Data Subject Access Request (DSAR) flow** so a business can produce a per-customer archive for any individual end-customer who exercises their GDPR Article 15 right.
 
-## 2. Convert data export from JSON to multi-tab Excel (.xlsx)
+Both export as `.xlsx` (multi-tab) with the existing filename convention extended.
 
-**Edge function:** `supabase/functions/export-business-data/index.ts`
+---
 
-- Add `xlsx` (SheetJS) via Deno npm import: `import * as XLSX from "npm:xlsx@0.18.5"`.
-- Keep the existing auth + business ownership check. For each business owned by the user, build a workbook with these 4 sheets exactly as specified:
+## 1. Expand business-side Excel export
 
-  1. **Clients** — columns: `Name`, `Phone Number`, `Email` (from `customers`)
-  2. **Bookings** — columns: `Client Name`, `Service`, `Date`, `Time`, `Staff Member` (join `bookings` → `services.name`, `staff.name`; split `start_time` into date + time in the business's locale)
-  3. **Call Logs** — columns: `Date`, `Time`, `Caller Number`, `Duration`, `Outcome` (from `calls_log`: `created_at` split into date/time, `caller_phone`, `duration_ms` formatted as `m:ss`, `call_outcome`)
-  4. **Staff** — columns: `Name`, `Role`, `Email` (from `staff`)
+**File:** `supabase/functions/export-business-data/index.ts`
 
-- If the user owns multiple businesses, prefix sheet names with a short business tag (e.g. `Clients — Acme`) so all four sheet types appear per business in one workbook. Single-business accounts get plain sheet names.
-- Write the workbook with `XLSX.write(wb, { type: "array", bookType: "xlsx" })` and return it with:
-  - `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
-  - `Content-Disposition: attachment; filename="Aivia-Data-Export-<BusinessName>-<YYYY-MM-DD>.xlsx"` (business name sanitised: spaces → `-`, strip non-alphanumerics; date uses today in UTC). For multi-business accounts, use the primary/first business name.
-- Drop the JSON `exported_at`/credential-stripping shape since the workbook only contains the four whitelisted column sets — no secrets are emitted.
-- Remove the Resend admin-notification email (you said no notifications needed for demos; this also matches "they're all demos").
+Keep the existing 4 tabs and add these tabs (one row per record, business-scoped):
 
-**Client:** `src/components/dashboard/settings/AccountManagementSection.tsx`
+| Tab | Source table | Columns |
+|---|---|---|
+| Clients | `customers` | Name, Phone, Email, Total Visits, First Visit, Last Visit, Marketing Consent, Preferred Language, Notes/Preferences, How Heard, Blocked, Created At |
+| Bookings | `bookings` (+ joins) | Booking Code, Client Name, Client Phone, Client Email, Service, Date, Time, End Time, Staff, Party Size, Status, Payment Status, Deposit Amount, Deposit Paid At, Order Total, Special Requests, Notes, Cancelled At, Created By, Created At |
+| Call Logs | `calls_log` | Date, Time, Caller Name, Caller Number, To Number, Type, Outcome, Duration, Summary, Transcript, Tags, Booking Code (if linked), Recording URL, Created At |
+| Messages | `messages` | Date, Time, Caller Name, Caller Phone, Content, Urgent, Read, Recipient |
+| Orders | `orders` (+ `order_items`) | Order #, Date, Time, Customer Name, Phone, Type, Status, Items (joined string), Subtotal, Delivery Fee, Total, Payment Status, Notes |
+| Fallback Reservations | `fallback_reservations` | Date, Time, Customer Name, Phone, Email, Party Size, Duration, Status, Special Requests, Allergens, Notes |
+| Missed Calls | `missed_calls` | Date, Time, Caller Phone, Reason, Followed Up |
+| Staff | `staff` (+ membership info) | Name, Role, Email, Phone, Position, Active |
+| Services | `services` | Name, Duration, Price, Active |
+| Business Profile | `businesses` + `business_settings` + `opening_hours` | Two-column key/value sheet: name, address, phones, website, type, currency, country, language, assistant settings, opening hours, policies |
 
-- Update `handleExport` to:
-  - Read filename from the response `Content-Disposition` header (fallback `Aivia-Data-Export-<date>.xlsx`).
-  - Save the blob with `.xlsx` extension instead of `.json`.
-  - Update the helper sentence under the button to: "Downloads an Excel file with Clients, Bookings, Call Logs and Staff on separate tabs."
+Filename unchanged: `Aivia-Data-Export-<BusinessName>-<YYYY-MM-DD>.xlsx`.
+
+Behaviour for multi-business owners: keep current pattern (one workbook, all tabs per business, sheet names suffixed with `— <BizTag>`).
+
+---
+
+## 2. New DSAR (per-customer) export
+
+This is the **actual GDPR Article 15 deliverable**: everything we hold about ONE end-customer, identified by phone or email.
+
+### 2a. Backend: new edge function `export-customer-data`
+
+**File:** `supabase/functions/export-customer-data/index.ts` (new)
+
+- Auth: business owner OR sub-admin with `can_view_analytics`.
+- Input: `{ business_id, phone?, email?, customer_id? }` (at least one of phone/email/customer_id required).
+- Resolve the customer record, then pull EVERYTHING tied to that phone/email/customer_id within the business:
+  - `customers` row (full)
+  - All `bookings` where `customer_phone = X` or `customer_email = Y` (full row + service name + staff name)
+  - All `calls_log` where `caller_phone = X` (full row including `transcription`, `summary`, `recording_url`)
+  - All `call_conversations` where `caller_phone = X` (including full `messages` JSONB)
+  - All `messages` where `caller_phone = X`
+  - All `orders` where `customer_phone = X` (+ `order_items`)
+  - All `fallback_reservations` where `customer_phone = X` or `customer_email = Y`
+  - All `missed_calls` where `caller_phone = X`
+  - All `deposits`/payment records linked to those bookings
+  - All `email_notifications`/`sms_notifications` sent to X/Y (if those tables exist — confirm during build)
+
+Build a workbook with one tab per data type (skip empty tabs), plus a **"Summary"** tab listing: customer identity, data categories held, retention basis, business contact, export timestamp, and a plain-English notice explaining the customer's rights (rectification, erasure, portability, complaint to ICO).
+
+Also include a **"Recordings & Transcripts"** tab with one row per call, columns: Date, Direction, Duration, Transcript, Signed Recording URL (24h-expiring signed URL from the `call-recordings` storage bucket).
+
+**Filename:** `Aivia-DSAR-<BusinessName>-<CustomerNameOrPhone>-<YYYY-MM-DD>.xlsx` (sanitised).
+
+### 2b. Frontend: new "Customer data request (GDPR)" UI
+
+**File:** `src/components/dashboard/settings/CustomerDataRequestSection.tsx` (new)
+
+A new card in the Settings → Account/GDPR section with:
+- Heading: "Customer data request (DSAR)"
+- Description: short paragraph explaining when to use this (when an end-customer requests their data under GDPR).
+- Two inputs (phone OR email) and a "Generate report" button.
+- On click: calls the new edge function, downloads the `.xlsx`.
+- Shows error if no customer matched.
+
+**File:** `src/components/dashboard/settings/AccountManagementSection.tsx`
+- Tighten the existing card's helper text to clarify it's the **business-side** export, and add a one-line link/note pointing to the new DSAR card for customer requests.
+
+---
+
+## 3. Out of scope (call out, don't build)
+
+- **Right to erasure (Article 17)**: not part of this task; a separate "delete a customer's data" flow would be needed for full GDPR.
+- **Audit log of who requested what DSAR**: nice-to-have; can be added later as a `dsar_requests` table.
+- **End-customer self-service portal**: customers currently request via the business; no public-facing DSAR page is built.
+- **Encryption at rest of the .xlsx**: relies on HTTPS in transit + browser-side download; no password-protected zip.
+
+---
 
 ## Technical notes
 
-- SheetJS works in Deno via the `npm:` specifier; no extra config needed.
-- Duration formatting: `Math.floor(ms/60000) + ":" + String(Math.floor((ms%60000)/1000)).padStart(2,"0")`.
-- Date/time: format with `Intl.DateTimeFormat` using the business's `business_settings.country`/timezone if available, else UTC. To keep this simple I'll use `en-GB` locale (DD/MM/YYYY, HH:mm) which matches the UK customer base — flag if you want a different format.
-- Services and staff are looked up per business with a single `select id,name` query each, then mapped in memory to avoid N+1.
+- DSAR function uses service-role client with explicit business-ownership check at the top (same pattern as existing export).
+- Recording URLs: use `admin.storage.from("call-recordings").createSignedUrl(path, 86400)` per recording.
+- Sheet name limit (31 chars): truncate business tag accordingly.
+- All date/time formatting stays `en-GB` (DD/MM/YYYY, HH:mm) consistent with the existing export.
+- No schema changes required.
+- No new secrets required.
 
-## Out of scope
+---
 
-- No schema changes (unless you choose the server-side dismissal flag in §1).
-- No changes to the JSON export's GDPR completeness — the new Excel is intentionally a business-readable summary, not a full data dump. If you want a "Download full archive (JSON)" button kept alongside the Excel one, say so and I'll keep both.
+## Files touched
+
+- Edit `supabase/functions/export-business-data/index.ts` (expanded tabs)
+- Create `supabase/functions/export-customer-data/index.ts` (new DSAR function)
+- Create `src/components/dashboard/settings/CustomerDataRequestSection.tsx`
+- Edit `src/components/dashboard/settings/AccountManagementSection.tsx` (clarify copy + mount new card, or mount the new card in the parent settings page)
+- Possibly edit the settings page that renders `AccountManagementSection` to also render `CustomerDataRequestSection` (confirmed during build)

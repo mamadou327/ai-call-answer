@@ -102,7 +102,10 @@ export const AccountManagementSection = () => {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Downloads an Excel file with Clients, Bookings, Call Logs and Staff on separate tabs.
+            Business-side export. Downloads an Excel file with separate tabs for your Business
+            Profile, Clients, Bookings, Call Logs, Messages, Orders, Fallback Reservations,
+            Missed Calls, Staff and Services. For an individual customer's GDPR data request,
+            use the "Customer data request" card below.
           </p>
         </CardContent>
       </Card>
