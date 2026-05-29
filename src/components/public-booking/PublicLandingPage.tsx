@@ -523,11 +523,19 @@ export const PublicLandingPage = ({
               </DialogContent>
             </Dialog>
 
+            <button
+              onClick={() => setContactOpen(true)}
+              className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Contact
+            </button>
             <PublicContactForm
               businessSlug={businessSlug}
               businessName={businessName}
-              triggerClassName="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors text-xs"
-              triggerLabel="Contact"
+              open={contactOpen}
+              onOpenChange={setContactOpen}
+              showTrigger={false}
             />
           </div>
 
