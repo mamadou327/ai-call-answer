@@ -18,7 +18,9 @@ import {
   CalendarCheck,
   HelpCircle,
   ChevronRight,
-  Calendar
+  Calendar,
+  Scissors,
+  Sparkles
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -35,7 +37,15 @@ import {
   DEMO_RESTAURANT_STATS,
   DEMO_DINEIN_CALLS,
   DEMO_DINEIN_MESSAGES,
-  DEMO_RESERVATION_STATS
+  DEMO_RESERVATION_STATS,
+  DEMO_TODAYS_APPOINTMENTS,
+  DEMO_SALON_CALLS,
+  DEMO_SALON_MESSAGES,
+  DEMO_SALON_STATS,
+  DEMO_SPA_APPOINTMENTS,
+  DEMO_SPA_CALLS,
+  DEMO_SPA_MESSAGES,
+  DEMO_SPA_STATS,
 } from "@/lib/demoData";
 import { format, formatDistanceToNow } from "date-fns";
 
