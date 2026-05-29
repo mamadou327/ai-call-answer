@@ -340,7 +340,9 @@ const PublicBookingPage = () => {
             cancellationPolicy: settingsResult.data.cancellation_policy,
           });
         }
-        setHasGallery((galleryResult.data?.length || 0) > 0);
+        const galleryUrls = (galleryResult.data ?? []).map((g: any) => g.image_url).filter(Boolean);
+        setHasGallery(galleryUrls.length > 0);
+        setGalleryPreview(galleryUrls);
         if (hoursResult.data) setOpeningHours(hoursResult.data);
         
         // Fetch restaurant menu if applicable
