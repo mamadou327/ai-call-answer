@@ -1,23 +1,40 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@4.0.0";
+import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Expose-Headers": "Content-Disposition",
 };
 
-const ADMIN_EMAIL = "mo@aiviaapp.co.uk";
+const fmtDate = (iso: string) => {
+  const d = new Date(iso);
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getUTCFullYear()}`;
+};
+const fmtTime = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+};
+const fmtDuration = (ms: number | null) => {
+  if (!ms || ms < 0) return "0:00";
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+const sanitize = (s: string) =>
+  s.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "Business";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const admin = createClient(supabaseUrl, serviceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -25,106 +42,111 @@ serve(async (req) => {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await admin.auth.getUser(token);
+    const { data: { user }, error: authError } = await admin.auth.getUser(
+      authHeader.replace("Bearer ", ""),
+    );
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Find business owned by user (the requester must be an owner)
     const { data: businesses, error: bizErr } = await admin
-      .from("businesses")
-      .select("*")
-      .eq("owner_id", user.id);
-
+      .from("businesses").select("id, business_name").eq("owner_id", user.id);
     if (bizErr) throw bizErr;
-    if (!businesses || businesses.length === 0) {
+    if (!businesses?.length) {
       return new Response(JSON.stringify({ error: "No business found for this account" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const exports: Record<string, any> = {
-      exported_at: new Date().toISOString(),
-      account: { id: user.id, email: user.email },
-      businesses: [],
-    };
+    const wb = XLSX.utils.book_new();
+    const multi = businesses.length > 1;
+
+    const clientsAll: any[] = [];
+    const bookingsAll: any[] = [];
+    const callsAll: any[] = [];
+    const staffAll: any[] = [];
 
     for (const biz of businesses) {
-      const id = biz.id;
-      const fetchAll = async (table: string) => {
-        const { data } = await admin.from(table).select("*").eq("business_id", id);
-        return data || [];
-      };
-      const bookings = await fetchAll("bookings");
-      const customers = await fetchAll("customers");
-      const calls = await fetchAll("calls_log");
-      const messages = await fetchAll("messages");
-      const staff = await fetchAll("staff");
-      const services = await fetchAll("services");
-      const settings = await fetchAll("business_settings");
-      const openingHours = await fetchAll("opening_hours");
-      const menuCategories = await fetchAll("menu_categories");
-      const menuItems = await fetchAll("menu_items");
-      const fallbackReservations = await fetchAll("fallback_reservations");
-      const missedCalls = await fetchAll("missed_calls");
+      const bizId = biz.id;
+      const bizTag = multi ? ` — ${biz.business_name}`.slice(0, 25) : "";
 
-      // Strip sensitive credentials from the exported business record
-      const {
-        twilio_webhook_token, messagebird_token, stripe_account_id,
-        staff_join_code, custom_domain_txt_value, ...safeBiz
-      } = biz as any;
+      const [customersRes, bookingsRes, callsRes, staffRes, servicesRes] = await Promise.all([
+        admin.from("customers").select("name, phone, email").eq("business_id", bizId),
+        admin.from("bookings")
+          .select("customer_name, service_id, staff_id, start_time")
+          .eq("business_id", bizId).order("start_time", { ascending: false }),
+        admin.from("calls_log")
+          .select("created_at, caller_phone, duration_ms, call_outcome")
+          .eq("business_id", bizId).order("created_at", { ascending: false }),
+        admin.from("staff").select("name, role, email").eq("business_id", bizId),
+        admin.from("services").select("id, name").eq("business_id", bizId),
+      ]);
 
-      exports.businesses.push({
-        business: safeBiz,
-        settings,
-        opening_hours: openingHours,
-        services,
-        staff,
-        customers,
-        bookings,
-        calls_log: calls,
-        messages,
-        missed_calls: missedCalls,
-        fallback_reservations: fallbackReservations,
-        menu_categories: menuCategories,
-        menu_items: menuItems,
-      });
+      const staffMap = new Map((staffRes.data || []).map((s: any) => [s.name, s]));
+      // also need staff by id for bookings
+      const { data: staffById } = await admin.from("staff").select("id, name").eq("business_id", bizId);
+      const staffIdMap = new Map((staffById || []).map((s: any) => [s.id, s.name]));
+      const serviceMap = new Map((servicesRes.data || []).map((s: any) => [s.id, s.name]));
+
+      clientsAll.push(...(customersRes.data || []).map((c: any) => ({
+        "Name": c.name || "",
+        "Phone Number": c.phone || "",
+        "Email": c.email || "",
+        ...(multi ? { "Business": biz.business_name } : {}),
+      })));
+
+      bookingsAll.push(...(bookingsRes.data || []).map((b: any) => ({
+        "Client Name": b.customer_name || "",
+        "Service": b.service_id ? (serviceMap.get(b.service_id) || "") : "",
+        "Date": b.start_time ? fmtDate(b.start_time) : "",
+        "Time": b.start_time ? fmtTime(b.start_time) : "",
+        "Staff Member": b.staff_id ? (staffIdMap.get(b.staff_id) || "") : "",
+        ...(multi ? { "Business": biz.business_name } : {}),
+      })));
+
+      callsAll.push(...(callsRes.data || []).map((c: any) => ({
+        "Date": c.created_at ? fmtDate(c.created_at) : "",
+        "Time": c.created_at ? fmtTime(c.created_at) : "",
+        "Caller Number": c.caller_phone || "",
+        "Duration": fmtDuration(c.duration_ms),
+        "Outcome": c.call_outcome || "",
+        ...(multi ? { "Business": biz.business_name } : {}),
+      })));
+
+      staffAll.push(...(staffRes.data || []).map((s: any) => ({
+        "Name": s.name || "",
+        "Role": s.role || "",
+        "Email": s.email || "",
+        ...(multi ? { "Business": biz.business_name } : {}),
+      })));
     }
 
-    // Notify admin
-    try {
-      const resendKey = Deno.env.get("RESEND_API_KEY");
-      const fromEmail = Deno.env.get("RESEND_FROM_EMAIL");
-      if (resendKey && fromEmail) {
-        const resend = new Resend(resendKey);
-        const bizList = businesses.map((b: any) => `<li>${b.business_name} (${b.id})</li>`).join("");
-        await resend.emails.send({
-          from: fromEmail,
-          to: [ADMIN_EMAIL],
-          subject: `Data export requested - ${user.email}`,
-          html: `
-            <h2>Data export (GDPR) requested</h2>
-            <p><strong>User:</strong> ${user.email}</p>
-            <p><strong>User ID:</strong> ${user.id}</p>
-            <p><strong>Businesses included:</strong></p>
-            <ul>${bizList}</ul>
-            <p>The user has downloaded a JSON archive of their business data.</p>
-          `,
-        });
-      }
-    } catch (e) {
-      console.error("notification email failed", e);
-    }
+    const addSheet = (name: string, rows: any[], headers: string[]) => {
+      const ws = rows.length
+        ? XLSX.utils.json_to_sheet(rows, { header: headers })
+        : XLSX.utils.aoa_to_sheet([headers]);
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    };
 
-    return new Response(JSON.stringify(exports, null, 2), {
+    const baseHeaders = (h: string[]) => multi ? [...h, "Business"] : h;
+    addSheet("Clients", clientsAll, baseHeaders(["Name", "Phone Number", "Email"]));
+    addSheet("Bookings", bookingsAll, baseHeaders(["Client Name", "Service", "Date", "Time", "Staff Member"]));
+    addSheet("Call Logs", callsAll, baseHeaders(["Date", "Time", "Caller Number", "Duration", "Outcome"]));
+    addSheet("Staff", staffAll, baseHeaders(["Name", "Role", "Email"]));
+
+    const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const filename = `Aivia-Data-Export-${sanitize(businesses[0].business_name)}-${today}.xlsx`;
+
+    return new Response(buf, {
       status: 200,
       headers: {
         ...corsHeaders,
-        "Content-Type": "application/json",
-        "Content-Disposition": `attachment; filename="aivia-data-export-${Date.now()}.json"`,
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
   } catch (e: any) {
