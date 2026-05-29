@@ -263,10 +263,16 @@ const DemoDashboard = () => {
         primaryValue: (stats as typeof DEMO_SALON_STATS).appointmentsCount,
         secondaryLabel: "Completed",
         secondaryValue: (stats as typeof DEMO_SALON_STATS).completedCount,
-        cancelledValue: (stats as typeof DEMO_SALON_STATS).cancelledCount,
+        cancelledValue: selectedType === "salon"
+          ? (stats as typeof DEMO_SALON_STATS).todayCancelledCount
+          : (stats as typeof DEMO_SPA_STATS).cancelledCount,
         lastLabel: "Revenue",
-        lastValue: `£${(stats as typeof DEMO_SALON_STATS).revenue.toFixed(2)}`,
-        lastValueShort: `£${(stats as typeof DEMO_SALON_STATS).revenue.toFixed(0)}`,
+        lastValue: `£${(selectedType === "salon"
+          ? (stats as typeof DEMO_SALON_STATS).todayRevenue
+          : (stats as typeof DEMO_SPA_STATS).revenue).toFixed(2)}`,
+        lastValueShort: `£${(selectedType === "salon"
+          ? (stats as typeof DEMO_SALON_STATS).todayRevenue
+          : (stats as typeof DEMO_SPA_STATS).revenue).toFixed(0)}`,
         lastIcon: "money" as const,
       }
     : selectedType === "dinein"
