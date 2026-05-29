@@ -102,7 +102,7 @@ export const AccountManagementSection = () => {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            The export includes bookings, customers, call logs, messages, staff, services, menus and settings as a JSON file.
+            Downloads an Excel file with Clients, Bookings, Call Logs and Staff on separate tabs.
           </p>
         </CardContent>
       </Card>
