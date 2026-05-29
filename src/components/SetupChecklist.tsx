@@ -6,11 +6,13 @@ export interface ChecklistItem {
   label: string;
   isComplete: boolean;
   action?: string;
+  skipAction?: string;
 }
 
 interface SetupChecklistProps {
   items: ChecklistItem[];
   onItemClick: (action: string) => void;
+  onSkip?: (skipAction: string) => void;
   onDismiss?: () => void;
 }
 
