@@ -115,6 +115,9 @@ export const DEMO_SALON_STATS = {
   revenue: 8450,
   callsCount: 189,
   messagesCount: 8,
+  // Landing-demo "today" view fields
+  appointmentsCount: 8,
+  completedCount: 5,
 };
 
 export const DEMO_RESTAURANT_STATS = {
