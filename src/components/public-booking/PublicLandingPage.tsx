@@ -12,7 +12,7 @@ import {
   Youtube,
   Clock,
   ChevronDown,
-  Image as ImageIcon,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
