@@ -318,9 +318,10 @@ const PublicBookingPage = () => {
             .single(),
           supabase
             .from("business_gallery")
-            .select("id")
+            .select("image_url")
             .eq("business_id", businessData.id)
-            .limit(1),
+            .order("display_order", { ascending: true })
+            .limit(4),
           supabase
             .from("opening_hours")
             .select("day_of_week, is_closed, open_time, close_time")
