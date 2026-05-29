@@ -234,7 +234,9 @@ const DemoDashboard = () => {
         totalCalls: Math.round((stats as typeof DEMO_SALON_STATS).appointmentsCount * 1.5),
         bookingsCreated: (stats as typeof DEMO_SALON_STATS).appointmentsCount,
         enquiries: 3,
-        cancellations: (stats as typeof DEMO_SALON_STATS).cancelledCount,
+        cancellations: selectedType === "salon"
+          ? (stats as typeof DEMO_SALON_STATS).todayCancelledCount
+          : (stats as typeof DEMO_SPA_STATS).cancelledCount,
       }
     : {
         totalCalls: selectedType === "dinein"
@@ -263,10 +265,16 @@ const DemoDashboard = () => {
         primaryValue: (stats as typeof DEMO_SALON_STATS).appointmentsCount,
         secondaryLabel: "Completed",
         secondaryValue: (stats as typeof DEMO_SALON_STATS).completedCount,
-        cancelledValue: (stats as typeof DEMO_SALON_STATS).cancelledCount,
+        cancelledValue: selectedType === "salon"
+          ? (stats as typeof DEMO_SALON_STATS).todayCancelledCount
+          : (stats as typeof DEMO_SPA_STATS).cancelledCount,
         lastLabel: "Revenue",
-        lastValue: `£${(stats as typeof DEMO_SALON_STATS).revenue.toFixed(2)}`,
-        lastValueShort: `£${(stats as typeof DEMO_SALON_STATS).revenue.toFixed(0)}`,
+        lastValue: `£${(selectedType === "salon"
+          ? (stats as typeof DEMO_SALON_STATS).todayRevenue
+          : (stats as typeof DEMO_SPA_STATS).revenue).toFixed(2)}`,
+        lastValueShort: `£${(selectedType === "salon"
+          ? (stats as typeof DEMO_SALON_STATS).todayRevenue
+          : (stats as typeof DEMO_SPA_STATS).revenue).toFixed(0)}`,
         lastIcon: "money" as const,
       }
     : selectedType === "dinein"

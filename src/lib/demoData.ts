@@ -110,14 +110,19 @@ export const DEMO_SETTINGS = {
 
 // Demo dashboard stats
 export const DEMO_SALON_STATS = {
+  // Monthly figures (used by the in-app SalonDashboardTab demo)
   bookingsCount: 247,
   cancelledCount: 12,
   revenue: 8450,
   callsCount: 189,
   messagesCount: 8,
-  // Landing-demo "today" view fields
+  // Landing-demo "today" view fields (kept internally consistent: 5 completed cuts/colours ≈ £425)
   appointmentsCount: 8,
   completedCount: 5,
+  todayCancelledCount: 1,
+  todayRevenue: 425,
+  todayCallsCount: 12,
+  todayMessagesCount: 4,
 };
 
 export const DEMO_RESTAURANT_STATS = {
