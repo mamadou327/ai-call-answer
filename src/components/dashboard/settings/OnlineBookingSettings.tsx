@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, ExternalLink, Globe, Loader2, ChevronDown, Palette, Code2 } from "lucide-react";
 import { LogoUpload } from "./LogoUpload";
+import { HeroImageUpload } from "./HeroImageUpload";
 import { CustomDomainWizard } from "./CustomDomainWizard";
 import { WidgetSnippet } from "./WidgetSnippet";
 
