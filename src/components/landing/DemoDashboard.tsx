@@ -171,7 +171,7 @@ const ReservationCard = ({ reservation, onClick }: { reservation: DemoReservatio
 };
 
 const DemoDashboard = () => {
-  const [selectedType, setSelectedType] = useState<RestaurantType>("hybrid");
+  const [selectedType, setSelectedType] = useState<DemoBusinessType>("hybrid");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [phoneTab, setPhoneTab] = useState("dashboard");
   const [selectedOrder, setSelectedOrder] = useState<DemoOrder | null>(null);
@@ -193,33 +193,106 @@ const DemoDashboard = () => {
 
   // Get config based on selected type
   const businessConfig = businessConfigs[selectedType];
-  
+
+  const isAppointmentBased = selectedType === "salon" || selectedType === "spa";
+
+  // Appointments dataset for salon/spa
+  const appointments: DemoAppointment[] = selectedType === "salon"
+    ? (DEMO_TODAYS_APPOINTMENTS as DemoAppointment[])
+    : selectedType === "spa"
+    ? (DEMO_SPA_APPOINTMENTS as DemoAppointment[])
+    : [];
+
   // Get stats based on type
-  const stats = selectedType === "dinein" ? DEMO_RESERVATION_STATS : DEMO_RESTAURANT_STATS;
-  
+  const stats = selectedType === "dinein"
+    ? DEMO_RESERVATION_STATS
+    : selectedType === "salon"
+    ? DEMO_SALON_STATS
+    : selectedType === "spa"
+    ? DEMO_SPA_STATS
+    : DEMO_RESTAURANT_STATS;
+
   // Get calls and messages based on type
-  const calls = selectedType === "dinein" ? DEMO_DINEIN_CALLS : DEMO_RESTAURANT_CALLS;
-  const messages = selectedType === "dinein" ? DEMO_DINEIN_MESSAGES : DEMO_RESTAURANT_MESSAGES;
-  
+  const calls = selectedType === "dinein"
+    ? DEMO_DINEIN_CALLS
+    : selectedType === "salon"
+    ? DEMO_SALON_CALLS
+    : selectedType === "spa"
+    ? DEMO_SPA_CALLS
+    : DEMO_RESTAURANT_CALLS;
+  const messages = selectedType === "dinein"
+    ? DEMO_DINEIN_MESSAGES
+    : selectedType === "salon"
+    ? DEMO_SALON_MESSAGES
+    : selectedType === "spa"
+    ? DEMO_SPA_MESSAGES
+    : DEMO_RESTAURANT_MESSAGES;
+
   // Calculate call stats derived from dashboard stats for consistency
-  const callStats = {
-    totalCalls: selectedType === "dinein" 
-      ? Math.round(DEMO_RESERVATION_STATS.reservationsCount * 0.8) // 80% of reservations via phone
-      : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.75),      // 75% of orders via phone
-    bookingsCreated: selectedType === "dinein"
-      ? DEMO_RESERVATION_STATS.reservationsCount
-      : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.85),      // 85% result in orders
-    enquiries: selectedType === "dinein" ? 3 : 4,
-    cancellations: selectedType === "dinein" 
-      ? DEMO_RESERVATION_STATS.cancelledCount 
-      : DEMO_RESTAURANT_STATS.cancelledCount,
-  };
-  
+  const callStats = isAppointmentBased
+    ? {
+        totalCalls: Math.round((stats as typeof DEMO_SALON_STATS).appointmentsCount * 1.5),
+        bookingsCreated: (stats as typeof DEMO_SALON_STATS).appointmentsCount,
+        enquiries: 3,
+        cancellations: (stats as typeof DEMO_SALON_STATS).cancelledCount,
+      }
+    : {
+        totalCalls: selectedType === "dinein"
+          ? Math.round(DEMO_RESERVATION_STATS.reservationsCount * 0.8)
+          : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.75),
+        bookingsCreated: selectedType === "dinein"
+          ? DEMO_RESERVATION_STATS.reservationsCount
+          : Math.round(DEMO_RESTAURANT_STATS.ordersCount * 0.85),
+        enquiries: selectedType === "dinein" ? 3 : 4,
+        cancellations: selectedType === "dinein"
+          ? DEMO_RESERVATION_STATS.cancelledCount
+          : DEMO_RESTAURANT_STATS.cancelledCount,
+      };
+
   // Show orders for takeaway and hybrid
   const showOrders = selectedType === "takeaway" || selectedType === "hybrid";
   // Show reservations for dinein and hybrid
   const showReservations = selectedType === "dinein" || selectedType === "hybrid";
-  
+  // Show appointments for salon and spa
+  const showAppointments = isAppointmentBased;
+
+  // Normalized stat-card view (4 cards)
+  const statView = isAppointmentBased
+    ? {
+        primaryLabel: "Appointments",
+        primaryValue: (stats as typeof DEMO_SALON_STATS).appointmentsCount,
+        secondaryLabel: "Completed",
+        secondaryValue: (stats as typeof DEMO_SALON_STATS).completedCount,
+        cancelledValue: (stats as typeof DEMO_SALON_STATS).cancelledCount,
+        lastLabel: "Revenue",
+        lastValue: `£${(stats as typeof DEMO_SALON_STATS).revenue.toFixed(2)}`,
+        lastValueShort: `£${(stats as typeof DEMO_SALON_STATS).revenue.toFixed(0)}`,
+        lastIcon: "money" as const,
+      }
+    : selectedType === "dinein"
+    ? {
+        primaryLabel: "Reservations",
+        primaryValue: DEMO_RESERVATION_STATS.reservationsCount,
+        secondaryLabel: "Seated",
+        secondaryValue: DEMO_RESERVATION_STATS.reservationsCount - DEMO_RESERVATION_STATS.cancelledCount,
+        cancelledValue: DEMO_RESERVATION_STATS.cancelledCount,
+        lastLabel: "Total Covers",
+        lastValue: String(DEMO_RESERVATION_STATS.totalCovers),
+        lastValueShort: String(DEMO_RESERVATION_STATS.totalCovers),
+        lastIcon: "users" as const,
+      }
+    : {
+        primaryLabel: "Total Orders",
+        primaryValue: DEMO_RESTAURANT_STATS.ordersCount,
+        secondaryLabel: "Completed",
+        secondaryValue: DEMO_RESTAURANT_STATS.completedCount,
+        cancelledValue: DEMO_RESTAURANT_STATS.cancelledCount,
+        lastLabel: "Revenue",
+        lastValue: `£${DEMO_RESTAURANT_STATS.revenue.toFixed(2)}`,
+        lastValueShort: `£${DEMO_RESTAURANT_STATS.revenue.toFixed(0)}`,
+        lastIcon: "money" as const,
+      };
+
   // Group orders by status for the kanban queue
   const activeOrders = DEMO_ORDERS.filter(o => ["pending", "confirmed", "preparing", "ready"].includes(o.status));
   const groupedOrders = {
@@ -249,17 +322,18 @@ const DemoDashboard = () => {
     }
   };
 
-  // Get correct tab count based on type
-  const getTabCount = () => {
-    if (selectedType === "hybrid") return 5;
-    return 4;
-  };
-
   // Reset to dashboard tab when switching types
-  const handleTypeChange = (type: RestaurantType) => {
+  const handleTypeChange = (type: DemoBusinessType) => {
     setSelectedType(type);
     setActiveTab("dashboard");
+    setPhoneTab("dashboard");
   };
+
+  // Desktop tab count: dashboard + calls + messages + optional (orders | reservations | appointments)
+  const desktopTabsCount = 3
+    + (showOrders ? 1 : 0)
+    + (showReservations ? 1 : 0)
+    + (showAppointments ? 1 : 0);
 
   return (
     <div className="relative mt-16">
