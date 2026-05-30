@@ -909,7 +909,11 @@ const PublicBookingPage = () => {
   return (
     <div
       className="min-h-screen bg-background"
-      style={{ ["--brand-color" as any]: brandColor }}
+      style={{
+        ["--brand-color" as any]: brandColor,
+        ["--primary" as any]: hexToHsl(brandColor),
+        ["--primary-foreground" as any]: "0 0% 100%",
+      }}
     >
       <PublicBookingHeader
         businessName={business.business_name}
