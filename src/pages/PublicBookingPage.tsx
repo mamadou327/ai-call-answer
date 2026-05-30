@@ -989,6 +989,10 @@ const PublicBookingPage = () => {
             policies={policies}
             openingHours={openingHours}
             onMakeBooking={() => setStep(isRestaurant ? "menu" : "service")}
+            onSelectService={(serviceId) => {
+              const found = services.find((s: any) => s.id === serviceId);
+              if (found) handleServiceSelect(found);
+            }}
             onCancelBooking={() => setStep("lookup-cancel")}
             onRescheduleBooking={() => setStep("lookup-reschedule")}
             onViewGallery={() => setStep("gallery")}
