@@ -966,6 +966,25 @@ const PublicBookingPage = () => {
             address={business.address}
             phone={business.main_phone}
             website={business.website}
+            logoUrl={business.logo_url}
+            heroImageUrl={business.hero_image_url}
+            brandColor={business.brand_color}
+            aboutDescription={business.about_description}
+            socials={{
+              instagram: business.social_instagram,
+              facebook: business.social_facebook,
+              tiktok: business.social_tiktok,
+              twitter: business.social_twitter,
+              youtube: business.social_youtube,
+            }}
+            services={services.map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              duration_minutes: s.duration_minutes,
+              price: s.price,
+            }))}
+            galleryImages={galleryPreview}
+            currency={currency}
             hasGallery={hasGallery}
             policies={policies}
             openingHours={openingHours}
