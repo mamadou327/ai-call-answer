@@ -1,12 +1,16 @@
-## Fix service card tap on landing page
+## Apply brand color throughout booking flow
 
-Add the missing `onSelectService` prop to `<PublicLandingPage>` in `src/pages/PublicBookingPage.tsx` (around line 994) so tapping a service card pre-selects that service and jumps straight to the staff selection step.
+In `src/pages/PublicBookingPage.tsx`:
+
+1. Add a `hexToHsl(hex: string): string` utility (module scope) that converts `#rrggbb` to the `H S% L%` format Tailwind expects.
+2. Update the root wrapper `<div>` (line 892) `style` prop to also override `--primary` and `--primary-foreground`:
 
 ```tsx
-onSelectService={(serviceId) => {
-  const found = services.find((s: any) => s.id === serviceId);
-  if (found) handleServiceSelect(found);
+style={{
+  ["--brand-color" as any]: brandColor,
+  ["--primary" as any]: hexToHsl(brandColor),
+  ["--primary-foreground" as any]: "0 0% 100%",
 }}
 ```
 
-`handleServiceSelect` already exists and handles advancing to the staff step, so no other changes are needed.
+This cascades the business brand color into every Tailwind `*-primary` class used by the service selector, staff selector, date/time picker, customer form, and confirmation screens — no child components touched.
