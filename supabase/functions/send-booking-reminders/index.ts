@@ -16,7 +16,7 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
     const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-    const messagebirdApiKey = Deno.env.get("MESSAGEBIRD_API_KEY");
+    
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
