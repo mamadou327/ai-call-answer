@@ -963,7 +963,7 @@ const PublicBookingPage = () => {
             website={business.website}
             logoUrl={business.logo_url}
             heroImageUrl={business.hero_image_url}
-            brandColor={business.brand_color}
+            
             aboutDescription={business.about_description}
             socials={{
               instagram: business.social_instagram,
