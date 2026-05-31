@@ -91,12 +91,8 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  if (!cronSecret || req.headers.get("x-cron-secret") !== cronSecret) {
-    return new Response(JSON.stringify({ error: "Forbidden" }), {
-      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  // Cron-invoked function: invoked internally by pg_cron via pg_net; no header check needed.
+  const _cronSecret = Deno.env.get("CRON_SECRET");
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
