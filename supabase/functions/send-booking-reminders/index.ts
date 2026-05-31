@@ -16,11 +16,11 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
     const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-    const messagebirdApiKey = Deno.env.get("MESSAGEBIRD_API_KEY");
+    
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get all businesses with SMS reminders enabled (either Twilio or MessageBird)
+    // Get all businesses with SMS reminders enabled (Twilio only)
     const { data: businesses, error: businessesError } = await supabase
       .from("businesses")
       .select("*")
@@ -31,10 +31,9 @@ serve(async (req: Request): Promise<Response> => {
       throw businessesError;
     }
 
-    // Filter to businesses with either Twilio or MessageBird configured
-    const eligibleBusinesses = businesses?.filter(b => 
-      (b.twilio_enabled && b.twilio_phone_number) || 
-      (b.messagebird_enabled && b.messagebird_phone_number)
+    // Filter to businesses with Twilio configured
+    const eligibleBusinesses = businesses?.filter(b =>
+      b.twilio_enabled && b.twilio_phone_number
     ) || [];
 
     if (eligibleBusinesses.length === 0) {
@@ -169,7 +168,6 @@ ${business.business_name}`;
       try {
         let sendSuccess = false;
 
-        // Try Twilio first if configured
         if (business.twilio_enabled && business.twilio_phone_number && twilioAccountSid && twilioAuthToken) {
           const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
           const authHeader = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
@@ -195,31 +193,7 @@ ${business.business_name}`;
             sendSuccess = true;
           } else {
             console.error(`[send-booking-reminders] Twilio error for ${booking.id}:`, responseData);
-          }
-        }
-        // Fallback to MessageBird if Twilio didn't work
-        else if (business.messagebird_enabled && business.messagebird_phone_number && messagebirdApiKey) {
-          const response = await fetch("https://rest.messagebird.com/messages", {
-            method: "POST",
-            headers: {
-              "Authorization": `AccessKey ${messagebirdApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              originator: business.messagebird_phone_number,
-              recipients: [booking.customer_phone.replace(/\s/g, "")],
-              body: message,
-            }),
-          });
-
-          const responseData = await response.json();
-
-          if (response.ok) {
-            console.log(`[send-booking-reminders] MessageBird: Sent reminder for booking ${booking.id}`);
-            sendSuccess = true;
-          } else {
-            console.error(`[send-booking-reminders] MessageBird error for ${booking.id}:`, responseData);
-            errors.push(`Booking ${booking.id}: ${responseData.errors?.[0]?.description || "Unknown error"}`);
+            errors.push(`Booking ${booking.id}: ${responseData.message || "Twilio error"}`);
           }
         }
 
