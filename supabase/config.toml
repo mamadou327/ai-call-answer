@@ -1,5 +1,9 @@
 project_id = "zyqzypyncugihrawhppg"
 
+[functions.setup-demo-accounts]
+verify_jwt = true
+
+
 [functions.generate-demo-call]
 verify_jwt = true
 
