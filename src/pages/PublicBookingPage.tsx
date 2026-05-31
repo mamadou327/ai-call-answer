@@ -24,25 +24,6 @@ import { PublicOrderConfirmation } from "@/components/public-booking/PublicOrder
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
-function hexToHsl(hex: string): string {
-  const clean = hex.replace("#", "");
-  const r = parseInt(clean.slice(0, 2), 16) / 255;
-  const g = parseInt(clean.slice(2, 4), 16) / 255;
-  const b = parseInt(clean.slice(4, 6), 16) / 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0;
-  const l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-      case g: h = ((b - r) / d + 2) / 6; break;
-      case b: h = ((r - g) / d + 4) / 6; break;
-    }
-  }
-  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
-}
 interface Business {
   id: string;
   business_name: string;
@@ -54,7 +35,7 @@ interface Business {
   deposit_collection_timing: string;
   logo_url: string | null;
   hero_image_url: string | null;
-  brand_color: string | null;
+  
   about_description: string | null;
   social_instagram: string | null;
   social_facebook: string | null;
@@ -310,7 +291,7 @@ const PublicBookingPage = () => {
           .select(`
             id, business_name, business_type, address, main_phone, website,
             online_booking_message, deposit_collection_timing, has_stripe,
-            logo_url, hero_image_url, brand_color, about_description,
+            logo_url, hero_image_url, about_description,
             social_instagram, social_facebook, social_tiktok, social_twitter, social_youtube,
             minimum_order_amount, delivery_enabled, delivery_fee, delivery_minimum_order, average_prep_time_minutes
           `)
@@ -904,17 +885,9 @@ const PublicBookingPage = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const brandColor = business.brand_color || "#0F172A";
-
   return (
-    <div
-      className="min-h-screen bg-background"
-      style={{
-        ["--brand-color" as any]: brandColor,
-        ["--primary" as any]: hexToHsl(brandColor),
-        ["--primary-foreground" as any]: "0 0% 100%",
-      }}
-    >
+    <div className="min-h-screen bg-background">
+
       <PublicBookingHeader
         businessName={business.business_name}
         logoUrl={business.logo_url}
@@ -956,8 +929,7 @@ const PublicBookingPage = () => {
                 <span key={s} className="flex items-center gap-2">
                   {i > 0 && <span className="text-muted-foreground">→</span>}
                   <span
-                    className={step === s ? "font-bold" : "text-muted-foreground"}
-                    style={step === s ? { color: brandColor } : undefined}
+                    className={step === s ? "font-bold text-primary" : "text-muted-foreground"}
                   >
                     {i + 1}. {s === "menu" ? "Menu" : "Checkout"}
                   </span>
@@ -968,8 +940,7 @@ const PublicBookingPage = () => {
                 <span key={s} className="flex items-center gap-2">
                   {i > 0 && <span className="text-muted-foreground">→</span>}
                   <span
-                    className={step === s ? "font-bold" : "text-muted-foreground"}
-                    style={step === s ? { color: brandColor } : undefined}
+                    className={step === s ? "font-bold text-primary" : "text-muted-foreground"}
                   >
                     {i + 1}. {s.charAt(0).toUpperCase() + s.slice(1)}
                   </span>
@@ -992,7 +963,7 @@ const PublicBookingPage = () => {
             website={business.website}
             logoUrl={business.logo_url}
             heroImageUrl={business.hero_image_url}
-            brandColor={business.brand_color}
+            
             aboutDescription={business.about_description}
             socials={{
               instagram: business.social_instagram,

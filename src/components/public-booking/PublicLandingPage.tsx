@@ -72,7 +72,7 @@ interface PublicLandingPageProps {
   website: string | null;
   logoUrl?: string | null;
   heroImageUrl?: string | null;
-  brandColor?: string | null;
+  
   aboutDescription?: string | null;
   socials?: Socials;
   services?: ServicePreview[];
@@ -138,7 +138,6 @@ export const PublicLandingPage = ({
   website,
   logoUrl,
   heroImageUrl,
-  brandColor,
   aboutDescription,
   socials,
   services = [],
@@ -158,7 +157,7 @@ export const PublicLandingPage = ({
   const [contactOpen, setContactOpen] = useState(false);
 
   const isRestaurant = RESTAURANT_TYPES.includes(businessType || "");
-  const brand = brandColor || "#0F172A";
+  
   const heroServices = services.slice(0, 6);
   const heroGallery = galleryImages.slice(0, 4);
   const subtitle = welcomeMessage || aboutDescription;
@@ -187,12 +186,8 @@ export const PublicLandingPage = ({
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60" />
           </div>
         ) : (
-          <div
-            className="w-full h-[200px] md:h-[260px]"
-            style={{
-              background: `linear-gradient(135deg, ${brand}26 0%, #ffffff 100%)`,
-            }}
-          />
+          <div className="w-full h-[200px] md:h-[260px] bg-gradient-to-br from-primary/15 to-background" />
+
         )}
 
         {/* Logo + Name overlapping bottom of hero */}
@@ -207,9 +202,9 @@ export const PublicLandingPage = ({
                 />
               ) : (
                 <div
-                  className="h-20 w-20 rounded-full border-[3px] border-white shadow-lg flex items-center justify-center text-white font-bold text-2xl"
-                  style={{ background: brand }}
+                  className="h-20 w-20 rounded-full border-[3px] border-white shadow-lg flex items-center justify-center text-primary-foreground bg-primary font-bold text-2xl"
                 >
+
                   {businessName.charAt(0).toUpperCase()}
                 </div>
               )}
@@ -232,8 +227,7 @@ export const PublicLandingPage = ({
       <section className="flex flex-col items-center gap-4 mb-10">
         <Button
           onClick={onMakeBooking}
-          className="rounded-full px-10 h-12 text-base font-semibold shadow-md hover:shadow-lg transition-all text-white hover:opacity-90"
-          style={{ background: brand, color: "#fff" }}
+          className="rounded-full px-10 h-12 text-base font-semibold shadow-md hover:shadow-lg transition-all hover:opacity-90"
         >
           {isRestaurant ? "Order Now" : "Book Now"}
         </Button>
@@ -338,7 +332,7 @@ export const PublicLandingPage = ({
                   <span className="text-muted-foreground">
                     {service.duration_minutes} min
                   </span>
-                  <span className="font-semibold" style={{ color: brand }}>
+                  <span className="font-semibold text-primary">
                     {formatPrice(Number(service.price), currency)}
                   </span>
                 </div>
@@ -349,8 +343,7 @@ export const PublicLandingPage = ({
             <Button
               variant="ghost"
               onClick={onMakeBooking}
-              className="text-sm font-medium"
-              style={{ color: brand }}
+              className="text-sm font-medium text-primary"
             >
               See all services →
             </Button>
@@ -369,8 +362,7 @@ export const PublicLandingPage = ({
               variant="ghost"
               size="sm"
               onClick={onViewGallery}
-              className="text-sm"
-              style={{ color: brand }}
+              className="text-sm text-primary"
             >
               View all
             </Button>
@@ -398,11 +390,11 @@ export const PublicLandingPage = ({
       <section className="mb-10">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 text-sm">
           <div className="flex items-start gap-3 text-muted-foreground">
-            <MapPin className="h-4 w-4 mt-0.5 shrink-0" style={{ color: brand }} />
+            <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
             <span className="leading-snug">{address}</span>
           </div>
           <div className="flex items-start gap-3 text-muted-foreground">
-            <Phone className="h-4 w-4 mt-0.5 shrink-0" style={{ color: brand }} />
+            <Phone className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
             <a
               href={`tel:${phone}`}
               className="hover:text-foreground transition-colors leading-snug"
@@ -413,7 +405,7 @@ export const PublicLandingPage = ({
           {openingHours && openingHours.length > 0 && (
             <Collapsible open={hoursOpen} onOpenChange={setHoursOpen}>
               <CollapsibleTrigger className="flex items-center gap-3 text-muted-foreground w-full text-left hover:text-foreground transition-colors">
-                <Clock className="h-4 w-4 shrink-0" style={{ color: brand }} />
+                <Clock className="h-4 w-4 shrink-0 text-primary" />
                 <span className="leading-snug flex-1">Opening hours</span>
                 <ChevronDown
                   className={`h-4 w-4 transition-transform ${hoursOpen ? "rotate-180" : ""}`}
@@ -446,7 +438,7 @@ export const PublicLandingPage = ({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <Globe className="h-4 w-4" style={{ color: brand }} />
+              <Globe className="h-4 w-4 text-primary" />
               Visit website
             </a>
           </div>
