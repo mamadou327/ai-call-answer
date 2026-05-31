@@ -35,7 +35,7 @@ interface Business {
   deposit_collection_timing: string;
   logo_url: string | null;
   hero_image_url: string | null;
-  brand_color: string | null;
+  
   about_description: string | null;
   social_instagram: string | null;
   social_facebook: string | null;
