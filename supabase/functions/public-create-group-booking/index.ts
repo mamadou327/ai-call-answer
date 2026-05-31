@@ -115,6 +115,7 @@ serve(async (req) => {
         deposit_collection_timing,
         stripe_account_id,
         sms_on_confirmation,
+        email_on_confirmation,
         twilio_enabled,
         twilio_phone_number
       `)
@@ -549,6 +550,22 @@ serve(async (req) => {
         } catch (smsError: any) {
           logStep("Failed to send SMS", { bookingCode: booking.bookingCode, error: smsError?.message || String(smsError) });
         }
+      }
+    }
+
+    // Send confirmation email if enabled (using first booking)
+    if (business.email_on_confirmation && createdBookings.length > 0) {
+      try {
+        await supabase.functions.invoke("send-booking-email", {
+          body: {
+            businessId,
+            bookingId: createdBookings[0].bookingId,
+            type: "confirmation",
+          },
+        });
+        logStep("Confirmation email sent");
+      } catch (emailError: any) {
+        logStep("Failed to send email", { error: emailError?.message || String(emailError) });
       }
     }
 
