@@ -374,6 +374,22 @@ serve(async (req) => {
       }
     }
 
+    // Send confirmation email if enabled
+    if (business.email_on_confirmation) {
+      try {
+        await supabase.functions.invoke("send-booking-email", {
+          body: {
+            businessId,
+            bookingId: booking.id,
+            type: "confirmation",
+          },
+        });
+        logStep("Confirmation email sent");
+      } catch (emailError: any) {
+        logStep("Failed to send email", { error: emailError?.message || String(emailError) });
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true,
