@@ -310,27 +310,6 @@ export const OnlineBookingSettings = ({ businessId, business, onUpdate }: Online
                 onUpdate={onUpdate}
               />
 
-              <div className="space-y-2">
-                <Label>Brand Colour</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={settings.brand_color}
-                    onChange={(e) => setSettings({ ...settings, brand_color: e.target.value })}
-                    className="h-10 w-14 rounded-md border bg-background cursor-pointer p-1"
-                    aria-label="Brand colour picker"
-                  />
-                  <Input
-                    value={settings.brand_color}
-                    onChange={(e) => setSettings({ ...settings, brand_color: e.target.value })}
-                    placeholder="#0F172A"
-                    className="max-w-[160px] font-mono"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  This colour will be used for buttons and accents on your booking page.
-                </p>
-              </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
