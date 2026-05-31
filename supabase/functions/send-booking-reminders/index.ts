@@ -168,7 +168,6 @@ ${business.business_name}`;
       try {
         let sendSuccess = false;
 
-        // Try Twilio first if configured
         if (business.twilio_enabled && business.twilio_phone_number && twilioAccountSid && twilioAuthToken) {
           const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
           const authHeader = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
@@ -194,31 +193,7 @@ ${business.business_name}`;
             sendSuccess = true;
           } else {
             console.error(`[send-booking-reminders] Twilio error for ${booking.id}:`, responseData);
-          }
-        }
-        // Fallback to MessageBird if Twilio didn't work
-        else if (business.messagebird_enabled && business.messagebird_phone_number && messagebirdApiKey) {
-          const response = await fetch("https://rest.messagebird.com/messages", {
-            method: "POST",
-            headers: {
-              "Authorization": `AccessKey ${messagebirdApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              originator: business.messagebird_phone_number,
-              recipients: [booking.customer_phone.replace(/\s/g, "")],
-              body: message,
-            }),
-          });
-
-          const responseData = await response.json();
-
-          if (response.ok) {
-            console.log(`[send-booking-reminders] MessageBird: Sent reminder for booking ${booking.id}`);
-            sendSuccess = true;
-          } else {
-            console.error(`[send-booking-reminders] MessageBird error for ${booking.id}:`, responseData);
-            errors.push(`Booking ${booking.id}: ${responseData.errors?.[0]?.description || "Unknown error"}`);
+            errors.push(`Booking ${booking.id}: ${responseData.message || "Twilio error"}`);
           }
         }
 
