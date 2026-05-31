@@ -72,7 +72,7 @@ interface PublicLandingPageProps {
   website: string | null;
   logoUrl?: string | null;
   heroImageUrl?: string | null;
-  brandColor?: string | null;
+  
   aboutDescription?: string | null;
   socials?: Socials;
   services?: ServicePreview[];
