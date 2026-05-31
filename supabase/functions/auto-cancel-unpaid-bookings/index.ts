@@ -16,8 +16,13 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Cron-invoked function: invoked internally by pg_cron via pg_net; no header check needed.
-  const _cronSecret = Deno.env.get("CRON_SECRET");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader || authHeader !== `Bearer ${serviceRoleKey}`) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     logStep("Function started");
