@@ -30,19 +30,21 @@ import { Link } from "react-router-dom";
 import LegalFooter from "@/components/LegalFooter";
 
 type BusinessTypeValue =
-  | "restaurant_pickup"
-  | "restaurant_dine_in"
   | "restaurant_hybrid"
-  | "salon";
+  | "salon"
+  | "spa_clinic"
+  | "real_estate"
+  | "trades";
 
 const BUSINESS_TYPES: { value: BusinessTypeValue; label: string }[] = [
-  { value: "restaurant_pickup", label: "Restaurant — Pickup/Takeaway" },
-  { value: "restaurant_dine_in", label: "Restaurant — Dine-in" },
-  { value: "restaurant_hybrid", label: "Restaurant — Both" },
-  { value: "salon", label: "Salon / Barbershop / Spa" },
+  { value: "restaurant_hybrid", label: "Restaurant" },
+  { value: "salon", label: "Salon" },
+  { value: "spa_clinic", label: "Spa & Clinic" },
+  { value: "real_estate", label: "Real Estate" },
+  { value: "trades", label: "Trades" },
 ];
 
-const SELECTABLE_TIERS: SubscriptionTier[] = ["starter", "growth", "scale"];
+const SELECTABLE_TIERS: SubscriptionTier[] = ["starter", "growth", "scale", "enterprise"];
 
 const schema = z
   .object({
@@ -50,10 +52,11 @@ const schema = z
     lastName: z.string().trim().min(1, "Last name is required").max(50),
     businessName: z.string().trim().min(1, "Business name is required").max(120),
     businessType: z.enum([
-      "restaurant_pickup",
-      "restaurant_dine_in",
       "restaurant_hybrid",
       "salon",
+      "spa_clinic",
+      "real_estate",
+      "trades",
     ]),
     phone: z.string().trim().min(5, "Phone number is required").max(30),
     email: z.string().trim().email("Invalid email address").max(255),
@@ -64,6 +67,7 @@ const schema = z
     message: "Passwords don't match",
     path: ["confirmPassword"],
   });
+
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -193,9 +197,10 @@ const Signup = () => {
           email: form.email,
           password: form.password,
           options: {
-            emailRedirectTo: `${window.location.origin}/dashboard`,
+            emailRedirectTo: `${window.location.origin}/pending-approval`,
           },
         });
+
 
         if (authError) {
           const code = (authError as any).code as string | undefined;
@@ -510,7 +515,7 @@ const Signup = () => {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {SELECTABLE_TIERS.map((tierId) => {
                     const tier = TIERS[tierId];
                     const isSelected = selectedTier === tierId;
@@ -582,7 +587,7 @@ const Signup = () => {
                       to="/terms"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-primary hover:underline font-medium"
+                      className="font-bold underline underline-offset-2"
                     >
                       Terms of Service
                     </Link>{" "}
@@ -591,11 +596,12 @@ const Signup = () => {
                       to="/privacy"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-primary hover:underline font-medium"
+                      className="font-bold underline underline-offset-2"
                     >
                       Privacy Policy
                     </Link>
                     .
+
                   </Label>
                 </div>
               )}
