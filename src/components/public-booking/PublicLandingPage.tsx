@@ -157,7 +157,7 @@ export const PublicLandingPage = ({
   const [contactOpen, setContactOpen] = useState(false);
 
   const isRestaurant = RESTAURANT_TYPES.includes(businessType || "");
-  const brand = brandColor || "#0F172A";
+  
   const heroServices = services.slice(0, 6);
   const heroGallery = galleryImages.slice(0, 4);
   const subtitle = welcomeMessage || aboutDescription;
