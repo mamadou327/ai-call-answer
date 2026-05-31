@@ -929,8 +929,7 @@ const PublicBookingPage = () => {
                 <span key={s} className="flex items-center gap-2">
                   {i > 0 && <span className="text-muted-foreground">→</span>}
                   <span
-                    className={step === s ? "font-bold" : "text-muted-foreground"}
-                    style={step === s ? { color: brandColor } : undefined}
+                    className={step === s ? "font-bold text-primary" : "text-muted-foreground"}
                   >
                     {i + 1}. {s === "menu" ? "Menu" : "Checkout"}
                   </span>
