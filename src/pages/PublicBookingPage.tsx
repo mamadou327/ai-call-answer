@@ -291,7 +291,7 @@ const PublicBookingPage = () => {
           .select(`
             id, business_name, business_type, address, main_phone, website,
             online_booking_message, deposit_collection_timing, has_stripe,
-            logo_url, hero_image_url, brand_color, about_description,
+            logo_url, hero_image_url, about_description,
             social_instagram, social_facebook, social_tiktok, social_twitter, social_youtube,
             minimum_order_amount, delivery_enabled, delivery_fee, delivery_minimum_order, average_prep_time_minutes
           `)
