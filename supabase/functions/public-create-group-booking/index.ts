@@ -552,6 +552,22 @@ serve(async (req) => {
       }
     }
 
+    // Send confirmation email if enabled (using first booking)
+    if (business.email_on_confirmation && createdBookings.length > 0) {
+      try {
+        await supabase.functions.invoke("send-booking-email", {
+          body: {
+            businessId,
+            bookingId: createdBookings[0].bookingId,
+            type: "confirmation",
+          },
+        });
+        logStep("Confirmation email sent");
+      } catch (emailError: any) {
+        logStep("Failed to send email", { error: emailError?.message || String(emailError) });
+      }
+    }
+
     // Calculate total deposit if any
     const totalDeposit = createdBookings.reduce((sum, b) => sum + (b.depositAmount || 0), 0);
 
