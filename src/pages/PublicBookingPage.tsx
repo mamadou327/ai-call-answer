@@ -885,17 +885,9 @@ const PublicBookingPage = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const brandColor = business.brand_color || "#0F172A";
-
   return (
-    <div
-      className="min-h-screen bg-background"
-      style={{
-        ["--brand-color" as any]: brandColor,
-        ["--primary" as any]: hexToHsl(brandColor),
-        ["--primary-foreground" as any]: "0 0% 100%",
-      }}
-    >
+    <div className="min-h-screen bg-background">
+
       <PublicBookingHeader
         businessName={business.business_name}
         logoUrl={business.logo_url}
