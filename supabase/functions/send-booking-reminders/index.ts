@@ -20,7 +20,7 @@ serve(async (req: Request): Promise<Response> => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get all businesses with SMS reminders enabled (either Twilio or MessageBird)
+    // Get all businesses with SMS reminders enabled (Twilio only)
     const { data: businesses, error: businessesError } = await supabase
       .from("businesses")
       .select("*")
@@ -31,10 +31,9 @@ serve(async (req: Request): Promise<Response> => {
       throw businessesError;
     }
 
-    // Filter to businesses with either Twilio or MessageBird configured
-    const eligibleBusinesses = businesses?.filter(b => 
-      (b.twilio_enabled && b.twilio_phone_number) || 
-      (b.messagebird_enabled && b.messagebird_phone_number)
+    // Filter to businesses with Twilio configured
+    const eligibleBusinesses = businesses?.filter(b =>
+      b.twilio_enabled && b.twilio_phone_number
     ) || [];
 
     if (eligibleBusinesses.length === 0) {
