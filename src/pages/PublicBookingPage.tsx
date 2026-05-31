@@ -845,7 +845,7 @@ const PublicBookingPage = () => {
 
     const backMap: Record<string, BookingStep> = {
       service: "landing",
-      staff: cartItems.length > 0 ? "service" : "service",
+      staff: "service",
       datetime: "staff",
       "group-type": "service",
       customer: cartItems.length > 0 ? "group-type" : "datetime",
