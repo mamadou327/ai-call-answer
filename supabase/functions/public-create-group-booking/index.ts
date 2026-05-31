@@ -115,6 +115,7 @@ serve(async (req) => {
         deposit_collection_timing,
         stripe_account_id,
         sms_on_confirmation,
+        email_on_confirmation,
         twilio_enabled,
         twilio_phone_number
       `)
