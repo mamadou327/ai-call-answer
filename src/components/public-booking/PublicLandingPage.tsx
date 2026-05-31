@@ -138,7 +138,6 @@ export const PublicLandingPage = ({
   website,
   logoUrl,
   heroImageUrl,
-  brandColor,
   aboutDescription,
   socials,
   services = [],
