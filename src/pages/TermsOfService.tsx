@@ -1,18 +1,27 @@
 import { Link } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import LegalFooter from "@/components/LegalFooter";
+import { Button } from "@/components/ui/button";
 
 const TermsOfService = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto flex h-16 items-center px-4">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link to="/" className="flex items-center gap-3">
             <img src={aiviaLogo} alt="Aivia" className="h-8 w-auto" />
             <span className="text-xl font-bold">AIVIA</span>
           </Link>
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Home
+            </Link>
+          </Button>
         </div>
       </header>
+
 
       <main className="container mx-auto px-4 py-12 max-w-3xl flex-1">
         <h1 className="text-3xl font-bold mb-2">Terms of Service</h1>
