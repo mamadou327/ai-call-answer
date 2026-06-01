@@ -1908,22 +1908,20 @@ async function sendSessionConfig(
 
         const safeOpening = openingContext.replace(/\s+/g, " ").trim();
 
-        const greetingLead = isReturning
-          ? (firstName
-              ? `Hey ${firstName}! Welcome back!`
-              : `Hey there! Welcome back to ${session.businessName}!`)
-          : `Hey there! Thanks for calling ${session.businessName}!`;
+        const greetingPeriod = getGreetingPeriod(session.businessTimezone || "Europe/London");
+
+        const greetingLead = isReturning && firstName
+          ? `${greetingPeriod} ${firstName}, lovely to hear from you again. How can I help?`
+          : `${greetingPeriod}, ${session.businessName}, ${session.assistantName} speaking. How can I help you today?`;
 
         const parts = [
           greetingLead,
-          safeOpening ? `Quick note: ${safeOpening}` : "",
-          "Just so you know, this call may be recorded to help us improve our service.",
-          "What can I do for you today?",
+          safeOpening ? `Just a quick note — ${safeOpening}` : "",
         ].filter(Boolean);
 
         const forcedGreeting = parts.join(" ");
 
-        responseConfig.response.instructions = `Say this exact greeting verbatim, then wait for the caller:\n"${forcedGreeting}"`;
+        responseConfig.response.instructions = `Say this exact greeting verbatim, then wait for the caller. Do NOT mention call recording — that comes later after the caller explains why they called.\n"${forcedGreeting}"`;
       }
 
       session.openAiWs.send(JSON.stringify(responseConfig));
