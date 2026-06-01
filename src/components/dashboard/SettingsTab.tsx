@@ -153,6 +153,10 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
 
       <TabsContent value="policies" className="space-y-6">
         <PoliciesTab businessId={businessId} onUpdate={onUpdate} />
+      </TabsContent>
+
+      <TabsContent value="payments" className="space-y-6">
+        <PaymentProvidersSettings business={business} onUpdate={onUpdate} currency={currency} />
         {canCollectDeposits ? (
           <DepositSettings businessId={businessId} onUpdate={onUpdate} />
         ) : (
@@ -164,10 +168,6 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
             businessName={business?.business_name}
           />
         )}
-      </TabsContent>
-
-      <TabsContent value="payments">
-        <PaymentProvidersSettings business={business} onUpdate={onUpdate} currency={currency} />
       </TabsContent>
 
       {/* Salon-specific content */}
