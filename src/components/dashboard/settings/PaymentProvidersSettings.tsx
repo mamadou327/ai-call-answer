@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard, CheckCircle2, Wallet } from "lucide-react";
+import { CreditCard, CheckCircle2, Wallet, AlertTriangle } from "lucide-react";
 import { StripeConnectSettings } from "./StripeConnectSettings";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PaymentProvidersSettingsProps {
   business: any;
@@ -11,9 +13,35 @@ interface PaymentProvidersSettingsProps {
 
 export const PaymentProvidersSettings = ({ business, onUpdate }: PaymentProvidersSettingsProps) => {
   const isStripeConnected = !!business?.stripe_account_id;
+  const [hasDepositServices, setHasDepositServices] = useState(false);
+
+  useEffect(() => {
+    if (!business?.id || isStripeConnected) return;
+    (async () => {
+      const { count } = await supabase
+        .from("services")
+        .select("id", { count: "exact", head: true })
+        .eq("business_id", business.id)
+        .eq("deposit_required", true)
+        .gt("deposit_amount", 0);
+      setHasDepositServices((count ?? 0) > 0);
+    })();
+  }, [business?.id, isStripeConnected]);
 
   return (
     <div className="space-y-6">
+      {!isStripeConnected && hasDepositServices && (
+        <div className="flex gap-3 p-4 rounded-lg border border-warning/40 bg-warning/10">
+          <AlertTriangle className="w-5 h-5 text-warning shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-foreground">Stripe not connected</p>
+            <p className="text-muted-foreground">
+              You have services that require a deposit but Stripe is not connected. Connect Stripe to collect deposits automatically.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Stripe Status Card */}
       <Card>
         <CardHeader>
