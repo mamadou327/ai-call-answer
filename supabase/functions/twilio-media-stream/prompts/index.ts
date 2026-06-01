@@ -63,6 +63,35 @@ interface PromptBuilderParams {
 
 export function buildSystemPromptForBusinessType(params: PromptBuilderParams): string {
   const { businessType } = params;
+  const basePrompt = buildBasePrompt(params);
+  return basePrompt + buildAdvancedRulesForParams(params);
+}
+
+function buildAdvancedRulesForParams(params: PromptBuilderParams): string {
+  const tz = params.businessTimezone || "Europe/London";
+  const status = getOpenStatus(params.openingHours, tz);
+  const variant: PromptVariant =
+    params.businessType === "restaurant_dine_in"
+      ? "restaurant-reservation"
+      : params.businessType === "restaurant_pickup"
+      ? "restaurant-pickup"
+      : params.businessType === "restaurant_hybrid"
+      ? "restaurant-hybrid"
+      : "appointment";
+  return buildAdvancedReceptionistRules({
+    businessName: params.businessName,
+    assistantName: params.assistantName,
+    callerFirstName: params.callerInfo?.name?.split(" ")[0] || null,
+    isReturning: !!params.callerInfo?.isReturning,
+    greetingPeriod: getGreetingPeriod(tz),
+    isClosedNow: !status.isOpenNow,
+    nextOpenWindow: status.nextOpenWindow,
+    variant,
+  });
+}
+
+function buildBasePrompt(params: PromptBuilderParams): string {
+  const { businessType } = params;
 
   switch (businessType) {
     case "salon":
