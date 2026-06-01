@@ -1075,15 +1075,16 @@ async function enforcePickupOrderCreation(session: StreamSession, supabase: any,
   }
 }
 
+const OPENAI_REALTIME_MODEL = "gpt-realtime";
+
 async function connectToOpenAI(session: StreamSession, supabase: any) {
-  console.log("[MediaStream] Connecting to OpenAI Realtime API...");
+  console.log("[MediaStream] Connecting to OpenAI Realtime API (GA)...");
 
   const openAiWs = new WebSocket(
-    "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17",
+    `wss://api.openai.com/v1/realtime?model=${OPENAI_REALTIME_MODEL}`,
     [
       "realtime",
       `openai-insecure-api-key.${OPENAI_API_KEY}`,
-      "openai-beta.realtime-v1"
     ]
   );
 
