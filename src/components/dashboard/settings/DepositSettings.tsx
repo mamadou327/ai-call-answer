@@ -20,6 +20,8 @@ export const DepositSettings = ({ businessId, onUpdate }: DepositSettingsProps) 
   const [settings, setSettings] = useState({
     auto_cancel_unpaid_bookings: false,
     auto_cancel_hours: 12,
+    deposit_reminder_enabled: false,
+    deposit_reminder_hours: 24,
   });
 
   useEffect(() => {
