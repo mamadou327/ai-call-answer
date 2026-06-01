@@ -802,8 +802,10 @@ const PublicBookingPage = () => {
           customerEmail: customerData.email,
           notes: customerData.notes,
           returnUrl: window.location.origin,
+          payDepositNow: customerData.payDepositNow,
         },
       });
+
 
       if (error) throw error;
 
