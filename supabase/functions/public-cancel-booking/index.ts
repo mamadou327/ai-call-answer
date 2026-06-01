@@ -158,6 +158,43 @@ serve(async (req) => {
       }
     }
 
+    // Notify business owner by email
+    const ownerEmail = settings?.notification_email;
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (ownerEmail && resendApiKey) {
+      try {
+        const tz = settings?.timezone || "UTC";
+        const fmt = new Intl.DateTimeFormat("en-GB", {
+          dateStyle: "full", timeStyle: "short", timeZone: tz,
+        });
+        const when = fmt.format(startTime);
+        const serviceName = booking.service?.name || "appointment";
+        const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
+        const html = `
+          <p>Hi,</p>
+          <p><strong>${booking.customer_name || "A client"}</strong> has cancelled their <strong>${serviceName}</strong> appointment on <strong>${when}</strong>.</p>
+          <p>Their booking code was <strong>${booking.booking_code}</strong>.</p>
+          <p>— ${business.business_name}</p>
+        `;
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${resendApiKey}`,
+          },
+          body: JSON.stringify({
+            from: fromEmail,
+            to: [ownerEmail],
+            subject: `Booking cancelled — ${booking.customer_name || "Client"} (${booking.booking_code})`,
+            html,
+          }),
+        });
+        logStep("Owner cancellation email sent", { ownerEmail });
+      } catch (emailError) {
+        logStep("Failed to send owner cancellation email", { error: String(emailError) });
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true,
