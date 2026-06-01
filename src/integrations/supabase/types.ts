@@ -2875,6 +2875,7 @@ export type Database = {
         Args: { business_name: string }
         Returns: string
       }
+      get_cron_secret: { Args: never; Returns: string }
       get_current_month_call_count: {
         Args: { p_business_id: string }
         Returns: number
