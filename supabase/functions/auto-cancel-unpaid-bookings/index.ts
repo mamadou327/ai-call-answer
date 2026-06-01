@@ -85,6 +85,10 @@ serve(async (req) => {
       // 3. Deposit is not paid
       // 4. Start time is before the cutoff
       // 5. Are confirmed (not already cancelled)
+      const reminderEnabled = (setting as any).deposit_reminder_enabled === true;
+      const reminderHours = (setting as any).deposit_reminder_hours ?? 24;
+      const reminderCutoffTime = new Date(now.getTime() + reminderHours * 60 * 60 * 1000);
+
       const { data: bookings, error: bookingsError } = await supabaseClient
         .from("bookings")
         .select(`
@@ -95,7 +99,9 @@ serve(async (req) => {
           start_time,
           deposit_amount,
           deposit_paid_at,
-          services:service_id (deposit_required)
+          deposit_reminder_sent,
+          notes,
+          services:service_id (name, deposit_required)
         `)
         .eq("business_id", setting.business_id)
         .eq("status", "confirmed")
@@ -118,12 +124,51 @@ serve(async (req) => {
 
       logStep("Found unpaid bookings", { count: bookings.length });
 
-      for (const booking of bookings) {
-        // Only cancel if service requires deposit
-        const serviceData = booking.services as { deposit_required?: boolean } | null;
-        if (!serviceData?.deposit_required) {
-          continue;
+      // Also fetch reminder candidates (in reminder window but not yet at cancel cutoff)
+      if (reminderEnabled) {
+        const { data: reminderBookings } = await supabaseClient
+          .from("bookings")
+          .select(`
+            id, booking_code, customer_name, customer_phone, start_time,
+            deposit_amount, deposit_paid_at, deposit_reminder_sent,
+            services:service_id (name, deposit_required)
+          `)
+          .eq("business_id", setting.business_id)
+          .eq("status", "confirmed")
+          .is("deposit_paid_at", null)
+          .eq("deposit_reminder_sent", false)
+          .not("deposit_amount", "is", null)
+          .gt("deposit_amount", 0)
+          .lte("start_time", reminderCutoffTime.toISOString())
+          .gte("start_time", now.toISOString());
+
+        for (const rb of reminderBookings || []) {
+          const svc = (rb as any).services as { deposit_required?: boolean } | null;
+          if (!svc?.deposit_required) continue;
+
+          // Skip if booking is already inside the cancel window (we'll cancel instead)
+          const startMs = new Date(rb.start_time).getTime();
+          const hoursToStart = (startMs - now.getTime()) / (60 * 60 * 1000);
+          if (hoursToStart <= cancelHours) continue;
+
+          try {
+            await supabaseClient.functions.invoke("send-booking-sms", {
+              body: { businessId: setting.business_id, bookingId: rb.id, type: "deposit_reminder" },
+            });
+            await supabaseClient
+              .from("bookings")
+              .update({ deposit_reminder_sent: true } as any)
+              .eq("id", rb.id);
+            logStep("Deposit reminder sent", { bookingId: rb.id });
+          } catch (e: any) {
+            logStep("Reminder failed", { bookingId: rb.id, error: e.message });
+          }
         }
+      }
+
+      for (const booking of bookings) {
+        const serviceData = (booking as any).services as { deposit_required?: boolean; name?: string } | null;
+        if (!serviceData?.deposit_required) continue;
 
         const { error: cancelError } = await supabaseClient
           .from("bookings")
@@ -137,19 +182,60 @@ serve(async (req) => {
           .eq("id", booking.id);
 
         if (cancelError) {
-          logStep("Failed to cancel booking", { 
-            bookingId: booking.id, 
-            error: cancelError.message 
-          });
+          logStep("Failed to cancel booking", { bookingId: booking.id, error: cancelError.message });
           errors.push(`Booking ${booking.id}: ${cancelError.message}`);
-        } else {
-          logStep("Booking cancelled", { 
-            bookingId: booking.id, 
-            code: booking.booking_code 
-          });
-          cancelledCount++;
+          continue;
+        }
 
-          // TODO: Send cancellation SMS/email notification
+        logStep("Booking cancelled", { bookingId: booking.id, code: booking.booking_code });
+        cancelledCount++;
+
+        // Notify the client via SMS
+        try {
+          await supabaseClient.functions.invoke("send-booking-sms", {
+            body: { businessId: setting.business_id, bookingId: booking.id, type: "deposit_cancellation" },
+          });
+        } catch (e: any) {
+          logStep("Client SMS failed", { bookingId: booking.id, error: e.message });
+        }
+
+        // Notify the business owner via email
+        try {
+          const resendApiKey = Deno.env.get("RESEND_API_KEY");
+          const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
+          const ownerEmail = (setting as any).notification_email;
+          if (resendApiKey && ownerEmail) {
+            const { data: biz } = await supabaseClient
+              .from("businesses")
+              .select("business_name")
+              .eq("id", setting.business_id)
+              .single();
+            const startTime = new Date(booking.start_time);
+            const when = `${startTime.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} at ${startTime.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+            const html = `
+              <h2>Booking auto-cancelled (unpaid deposit)</h2>
+              <p>A booking at <strong>${biz?.business_name || "your business"}</strong> was automatically cancelled because the deposit was not paid.</p>
+              <ul>
+                <li><strong>Customer:</strong> ${booking.customer_name} (${booking.customer_phone})</li>
+                <li><strong>Service:</strong> ${serviceData.name || "—"}</li>
+                <li><strong>When:</strong> ${when}</li>
+                <li><strong>Reference:</strong> ${booking.booking_code}</li>
+                <li><strong>Deposit amount:</strong> ${booking.deposit_amount}</li>
+              </ul>
+            `;
+            await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                from: fromEmail,
+                to: [ownerEmail],
+                subject: `Booking auto-cancelled — ${booking.booking_code}`,
+                html,
+              }),
+            });
+          }
+        } catch (e: any) {
+          logStep("Owner email failed", { bookingId: booking.id, error: e.message });
         }
       }
     }
