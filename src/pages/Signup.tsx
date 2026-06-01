@@ -336,11 +336,13 @@ const Signup = () => {
       navigate("/pending-approval");
     } catch (err: any) {
       toast({
-        title: "Error",
-        description: err.message || "Something went wrong",
+        title: "Something did not go right",
+        description:
+          "We could not create your account. Please check your details and try again. If the problem continues contact us at info@aiviaapp.co.uk.",
         variant: "destructive",
       });
     } finally {
+
       setIsLoading(false);
     }
   };
