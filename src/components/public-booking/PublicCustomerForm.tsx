@@ -95,8 +95,12 @@ export const PublicCustomerForm = ({
   const [recentBookings, setRecentBookings] = useState<RecentBooking[]>([]);
   const [customerLookedUp, setCustomerLookedUp] = useState(false);
 
-  const depositRequired = selectedService.deposit_required && selectedService.deposit_amount && selectedService.deposit_amount > 0;
+  const depositRequired = !!(selectedService.deposit_required && selectedService.deposit_amount && selectedService.deposit_amount > 0);
+  const canPayOnline = depositRequired && hasStripe;
+  const depositNoStripe = depositRequired && !hasStripe;
+  // Legacy single-button flow (collect during booking, no choice given) — kept for fallback
   const willPayNow = depositRequired && collectDuringBooking && hasStripe;
+
 
   // Lookup customer when phone number changes
   const lookupCustomer = async (phoneNumber: string) => {
