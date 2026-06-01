@@ -199,6 +199,45 @@ serve(async (req) => {
       }
     }
 
+    // Notify business owner by email
+    const ownerEmail = settings?.notification_email;
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (ownerEmail && resendApiKey) {
+      try {
+        const tz = settings?.timezone || "UTC";
+        const fmt = new Intl.DateTimeFormat("en-GB", {
+          dateStyle: "full", timeStyle: "short", timeZone: tz,
+        });
+        const originalWhen = fmt.format(originalStartTime);
+        const newWhen = fmt.format(newStart);
+        const serviceName = booking.service?.name || "appointment";
+        const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
+        const html = `
+          <p>Hi,</p>
+          <p><strong>${booking.customer_name || "A client"}</strong> has rescheduled their <strong>${serviceName}</strong> appointment.</p>
+          <p><strong>From:</strong> ${originalWhen}<br/><strong>To:</strong> ${newWhen}</p>
+          <p>Booking code: <strong>${booking.booking_code}</strong></p>
+          <p>— ${business.business_name}</p>
+        `;
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${resendApiKey}`,
+          },
+          body: JSON.stringify({
+            from: fromEmail,
+            to: [ownerEmail],
+            subject: `Booking rescheduled — ${booking.customer_name || "Client"} (${booking.booking_code})`,
+            html,
+          }),
+        });
+        logStep("Owner reschedule email sent", { ownerEmail });
+      } catch (emailError) {
+        logStep("Failed to send owner reschedule email", { error: String(emailError) });
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true,
