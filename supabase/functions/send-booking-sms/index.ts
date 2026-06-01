@@ -9,7 +9,7 @@ const corsHeaders = {
 interface SendBookingSmsRequest {
   businessId: string;
   bookingId: string;
-  type: "confirmation" | "cancellation" | "reminder" | "reschedule";
+  type: "confirmation" | "cancellation" | "reminder" | "reschedule" | "deposit_reminder" | "deposit_cancellation";
 }
 
 const normalizePhoneToE164 = (raw: string | null | undefined): string | null => {
