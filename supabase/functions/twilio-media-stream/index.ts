@@ -1200,6 +1200,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           session.assistantTranscriptBuffer = "";
           break;
 
+        case "response.output_audio.delta":
         case "response.audio.delta":
           // ElevenLabs path: OpenAI is text-only, so this event should never
           // fire. Drop it defensively.
@@ -1224,6 +1225,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           }
           break;
 
+        case "response.output_text.delta":
         case "response.text.delta":
           // ElevenLabs path: pipe OpenAI text deltas straight into ElevenLabs.
           if (session.useElevenLabs && data.delta) {
@@ -1237,6 +1239,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           }
           break;
 
+        case "response.output_text.done":
         case "response.text.done":
           // Tell ElevenLabs the current utterance is complete so it flushes
           // any remaining audio.
@@ -1245,6 +1248,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           }
           break;
 
+        case "response.output_audio.done":
         case "response.audio.done":
           console.log("[MediaStream] AI response audio complete");
           // Send mark to track when Twilio finishes playing the audio
@@ -1259,6 +1263,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           }
           break;
 
+        case "response.output_audio_transcript.delta":
         case "response.audio_transcript.delta":
           // AI is speaking - accumulate transcript for guardrails + log for debugging
           if (data.delta) {
