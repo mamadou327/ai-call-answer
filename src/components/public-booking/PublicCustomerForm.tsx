@@ -157,11 +157,9 @@ export const PublicCustomerForm = ({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const submitWith = async (payDepositNow?: boolean) => {
     if (!validate()) return;
-
+    if (depositNoStripe) return; // blocked — no Stripe connected
     setLoading(true);
     try {
       await onSubmit({
@@ -169,11 +167,19 @@ export const PublicCustomerForm = ({
         phone: phone.trim(),
         email: email.trim() || undefined,
         notes: notes.trim() || undefined,
+        payDepositNow,
       });
     } finally {
       setLoading(false);
     }
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Default behavior when no Pay Now/Later choice is shown
+    await submitWith(willPayNow ? true : undefined);
+  };
+
 
   const handleExpressRebook = (booking: RecentBooking) => {
     if (onExpressRebook && booking.service) {
