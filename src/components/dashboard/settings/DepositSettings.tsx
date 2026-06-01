@@ -153,6 +153,52 @@ export const DepositSettings = ({ businessId, onUpdate }: DepositSettingsProps) 
           </div>
         )}
 
+        {settings.auto_cancel_unpaid_bookings && (
+          <div className="flex items-center justify-between border-t pt-6">
+            <div className="space-y-0.5 pr-4">
+              <Label htmlFor="deposit-reminder">Send payment reminder before cancelling</Label>
+              <p className="text-sm text-muted-foreground">
+                Remind the client to pay before their booking gets cancelled.
+              </p>
+            </div>
+            <Switch
+              id="deposit-reminder"
+              checked={settings.deposit_reminder_enabled}
+              onCheckedChange={(checked) =>
+                setSettings({ ...settings, deposit_reminder_enabled: checked })
+              }
+            />
+          </div>
+        )}
+
+        {settings.auto_cancel_unpaid_bookings && settings.deposit_reminder_enabled && (
+          <div className="space-y-2">
+            <Label htmlFor="reminder-hours">Hours before cancellation to send reminder</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="reminder-hours"
+                type="number"
+                min={1}
+                max={settings.auto_cancel_hours}
+                value={settings.deposit_reminder_hours}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    deposit_reminder_hours: parseInt(e.target.value) || 1,
+                  })
+                }
+                className="w-24"
+              />
+              <span className="text-sm text-muted-foreground">
+                hours before cancellation
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The reminder will be sent this many hours before the booking is automatically cancelled.
+            </p>
+          </div>
+        )}
+
         <Button onClick={handleSave} disabled={saving}>
           {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
           Save Settings
