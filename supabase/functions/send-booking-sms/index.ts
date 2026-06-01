@@ -9,7 +9,7 @@ const corsHeaders = {
 interface SendBookingSmsRequest {
   businessId: string;
   bookingId: string;
-  type: "confirmation" | "cancellation" | "reminder" | "reschedule";
+  type: "confirmation" | "cancellation" | "reminder" | "reschedule" | "deposit_reminder" | "deposit_cancellation";
 }
 
 const normalizePhoneToE164 = (raw: string | null | undefined): string | null => {
@@ -91,11 +91,14 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     // Check if SMS is enabled for this type (reschedule uses confirmation setting)
-    const smsEnabled = 
+    // deposit_reminder and deposit_cancellation are transactional and always sent
+    const smsEnabled =
       (type === "confirmation" && business.sms_on_confirmation) ||
       (type === "reschedule" && business.sms_on_confirmation) ||
       (type === "cancellation" && business.sms_on_cancellation) ||
-      (type === "reminder" && business.sms_on_reminder);
+      (type === "reminder" && business.sms_on_reminder) ||
+      type === "deposit_reminder" ||
+      type === "deposit_cancellation";
 
     if (!smsEnabled) {
       console.log(`[send-booking-sms] SMS for ${type} is disabled for business ${businessId}`);
@@ -189,12 +192,13 @@ serve(async (req: Request): Promise<Response> => {
     // Fetch business settings for currency
     const { data: settings } = await supabase
       .from("business_settings")
-      .select("currency")
+      .select("currency, auto_cancel_hours")
       .eq("business_id", businessId)
       .single();
 
     const currency = settings?.currency || "GBP";
     const currencySymbol = currency === "GBP" ? "£" : currency === "EUR" ? "€" : "$";
+    const autoCancelHoursSetting = settings?.auto_cancel_hours ?? 12;
 
     // Format booking details
     const startTime = new Date(booking.start_time);
@@ -324,6 +328,12 @@ To cancel or reschedule, please call us on ${business.main_phone}.${websiteSecti
 
 See you soon!
 ${business.business_name}`;
+    } else if (type === "deposit_reminder") {
+      const payLink = depositPaymentLink || "";
+      message = `Hi ${customerName}, just a reminder that your deposit of ${currencySymbol}${depositAmount.toFixed(2)} for your ${serviceName} appointment on ${formattedDate} has not been paid yet. Please pay to keep your slot: ${payLink}. Your booking will be cancelled if payment is not received ${autoCancelHoursSetting} hours before your appointment.`;
+    } else if (type === "deposit_cancellation") {
+      const bookingLink = cleanWebsite ? `https://${cleanWebsite}` : business.main_phone;
+      message = `Hi ${customerName}, your ${serviceName} appointment on ${formattedDate} has been cancelled because the deposit of ${currencySymbol}${depositAmount.toFixed(2)} was not paid. Please rebook at ${bookingLink} if you would still like an appointment.`;
     }
 
     // Send SMS via Twilio

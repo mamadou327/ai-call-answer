@@ -105,6 +105,7 @@ export type Database = {
           deposit_amount: number | null
           deposit_paid_at: string | null
           deposit_payment_link: string | null
+          deposit_reminder_sent: boolean
           end_time: string
           id: string
           last_modified_by_user_id: string | null
@@ -139,6 +140,7 @@ export type Database = {
           deposit_amount?: number | null
           deposit_paid_at?: string | null
           deposit_payment_link?: string | null
+          deposit_reminder_sent?: boolean
           end_time: string
           id?: string
           last_modified_by_user_id?: string | null
@@ -173,6 +175,7 @@ export type Database = {
           deposit_amount?: number | null
           deposit_paid_at?: string | null
           deposit_payment_link?: string | null
+          deposit_reminder_sent?: boolean
           end_time?: string
           id?: string
           last_modified_by_user_id?: string | null
@@ -352,6 +355,8 @@ export type Database = {
           country: string | null
           created_at: string | null
           currency: string | null
+          deposit_reminder_enabled: boolean
+          deposit_reminder_hours: number
           elevenlabs_voice_id: string | null
           id: string
           max_days_advance: number | null
@@ -380,6 +385,8 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           currency?: string | null
+          deposit_reminder_enabled?: boolean
+          deposit_reminder_hours?: number
           elevenlabs_voice_id?: string | null
           id?: string
           max_days_advance?: number | null
@@ -408,6 +415,8 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           currency?: string | null
+          deposit_reminder_enabled?: boolean
+          deposit_reminder_hours?: number
           elevenlabs_voice_id?: string | null
           id?: string
           max_days_advance?: number | null

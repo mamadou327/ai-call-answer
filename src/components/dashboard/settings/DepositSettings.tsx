@@ -20,6 +20,8 @@ export const DepositSettings = ({ businessId, onUpdate }: DepositSettingsProps) 
   const [settings, setSettings] = useState({
     auto_cancel_unpaid_bookings: false,
     auto_cancel_hours: 12,
+    deposit_reminder_enabled: false,
+    deposit_reminder_hours: 24,
   });
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export const DepositSettings = ({ businessId, onUpdate }: DepositSettingsProps) 
     try {
       const { data, error } = await supabase
         .from("business_settings")
-        .select("auto_cancel_unpaid_bookings, auto_cancel_hours")
+        .select("auto_cancel_unpaid_bookings, auto_cancel_hours, deposit_reminder_enabled, deposit_reminder_hours")
         .eq("business_id", businessId)
         .single();
 
@@ -41,6 +43,8 @@ export const DepositSettings = ({ businessId, onUpdate }: DepositSettingsProps) 
         setSettings({
           auto_cancel_unpaid_bookings: data.auto_cancel_unpaid_bookings || false,
           auto_cancel_hours: data.auto_cancel_hours || 12,
+          deposit_reminder_enabled: (data as any).deposit_reminder_enabled || false,
+          deposit_reminder_hours: (data as any).deposit_reminder_hours || 24,
         });
       }
     } catch (error: any) {
@@ -53,12 +57,15 @@ export const DepositSettings = ({ businessId, onUpdate }: DepositSettingsProps) 
   const handleSave = async () => {
     setSaving(true);
     try {
+      const reminderHours = Math.min(settings.deposit_reminder_hours, settings.auto_cancel_hours);
       const { error } = await supabase
         .from("business_settings")
         .update({
           auto_cancel_unpaid_bookings: settings.auto_cancel_unpaid_bookings,
           auto_cancel_hours: settings.auto_cancel_hours,
-        })
+          deposit_reminder_enabled: settings.deposit_reminder_enabled,
+          deposit_reminder_hours: reminderHours,
+        } as any)
         .eq("business_id", businessId);
 
       if (error) throw error;
@@ -142,6 +149,52 @@ export const DepositSettings = ({ businessId, onUpdate }: DepositSettingsProps) 
             <p className="text-xs text-muted-foreground">
               Bookings will be automatically cancelled if the deposit is not paid 
               within this time before the appointment starts.
+            </p>
+          </div>
+        )}
+
+        {settings.auto_cancel_unpaid_bookings && (
+          <div className="flex items-center justify-between border-t pt-6">
+            <div className="space-y-0.5 pr-4">
+              <Label htmlFor="deposit-reminder">Send payment reminder before cancelling</Label>
+              <p className="text-sm text-muted-foreground">
+                Remind the client to pay before their booking gets cancelled.
+              </p>
+            </div>
+            <Switch
+              id="deposit-reminder"
+              checked={settings.deposit_reminder_enabled}
+              onCheckedChange={(checked) =>
+                setSettings({ ...settings, deposit_reminder_enabled: checked })
+              }
+            />
+          </div>
+        )}
+
+        {settings.auto_cancel_unpaid_bookings && settings.deposit_reminder_enabled && (
+          <div className="space-y-2">
+            <Label htmlFor="reminder-hours">Hours before cancellation to send reminder</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="reminder-hours"
+                type="number"
+                min={1}
+                max={settings.auto_cancel_hours}
+                value={settings.deposit_reminder_hours}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    deposit_reminder_hours: parseInt(e.target.value) || 1,
+                  })
+                }
+                className="w-24"
+              />
+              <span className="text-sm text-muted-foreground">
+                hours before cancellation
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The reminder will be sent this many hours before the booking is automatically cancelled.
             </p>
           </div>
         )}
