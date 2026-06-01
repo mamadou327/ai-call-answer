@@ -102,6 +102,7 @@ serve(async (req) => {
           deposit_amount,
           deposit_paid_at,
           deposit_reminder_sent,
+          deposit_payment_link,
           notes,
           services:service_id (name, deposit_required)
         `)
@@ -112,6 +113,7 @@ serve(async (req) => {
         .gt("deposit_amount", 0)
         .lte("start_time", cutoffTime.toISOString())
         .gte("start_time", now.toISOString());
+
 
       if (bookingsError) {
         logStep("Error fetching bookings", { error: bookingsError.message });
