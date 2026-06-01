@@ -1721,7 +1721,47 @@ function initializeElevenLabsAdapter(session: StreamSession): void {
       console.log(message, meta ?? {});
     },
     onFatalError: (err) => {
-      console.error("[MediaStream] ElevenLabs fatal error — call will continue but voice may degrade:", err);
+      console.error("[MediaStream] ElevenLabs fatal error — switching this call to OpenAI voice fallback:", err);
+      session.useElevenLabs = false;
+      const bufferedText = session.currentResponseText.trim();
+      session.elevenLabs?.close();
+      session.elevenLabs = null;
+
+      if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
+        try {
+          session.twilioWs.send(JSON.stringify({ event: "clear", streamSid: session.streamSid }));
+        } catch {
+          // ignore
+        }
+      }
+
+      if (session.openAiWs?.readyState === WebSocket.OPEN) {
+        sendSessionConfig(session, supabase)
+          .then(() => {
+            const response: Record<string, unknown> = {
+              type: "response.create",
+              response: {
+                output_modalities: ["audio"],
+              },
+            };
+
+            if (bufferedText) {
+              response.response = {
+                output_modalities: ["audio"],
+                instructions: `Say this exact message verbatim, then wait for the caller:\n\"${bufferedText.replace(/\s+/g, " ").trim().replace(/"/g, '\\"')}\"`,
+              };
+            }
+
+            session.openAiWs?.send(JSON.stringify(response));
+            console.log("[MediaStream] Replayed response using OpenAI voice fallback", {
+              hadBufferedText: !!bufferedText,
+              callSid: session.callSid,
+            });
+          })
+          .catch((configError) => {
+            console.error("[MediaStream] Failed to activate OpenAI voice fallback after ElevenLabs error:", configError);
+          });
+      }
     },
   });
 }
