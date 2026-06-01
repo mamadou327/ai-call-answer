@@ -643,7 +643,13 @@ const Signup = () => {
         </Card>
       </div>
       <LegalFooter />
+      <LegalDocDialog
+        open={legalDialog !== null}
+        onOpenChange={(open) => !open && setLegalDialog(null)}
+        type={legalDialog ?? "terms"}
+      />
     </div>
+
   );
 };
 
