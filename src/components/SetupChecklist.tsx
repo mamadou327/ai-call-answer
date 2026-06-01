@@ -84,6 +84,17 @@ export const SetupChecklist = ({ items, onItemClick, onSkip, onDismiss }: SetupC
             )}
           </div>
         ))}
+        {onDismiss && (
+          <div className="pt-3 mt-2 border-t">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={onDismiss}
+            >
+              Do this later
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

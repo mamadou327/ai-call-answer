@@ -59,6 +59,7 @@ const Dashboard = () => {
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [activeSettingsSection, setActiveSettingsSection] = useState<string>("");
+  const [settingsNavKey, setSettingsNavKey] = useState(0);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isStaffView, setIsStaffView] = useState(false);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
@@ -241,11 +242,10 @@ const Dashboard = () => {
     const hasTables = businessType === "restaurant_dine_in" || businessType === "restaurant_hybrid";
 
     // Fetch supporting data in parallel
-    const [servicesRes, hoursRes, tablesRes, customerSettingsRes, numberSelRes] = await Promise.all([
+    const [servicesRes, hoursRes, tablesRes, numberSelRes] = await Promise.all([
       supabase.from("services").select("id").eq("business_id", biz.id),
       supabase.from("opening_hours").select("id").eq("business_id", biz.id),
       supabase.from("restaurant_tables").select("id").eq("business_id", biz.id),
-      supabase.from("customer_settings").select("id").eq("business_id", biz.id).maybeSingle(),
       supabase.from("business_number_selection").select("id").eq("business_id", biz.id).maybeSingle(),
     ]);
 
@@ -255,89 +255,47 @@ const Dashboard = () => {
       numberSelRes.data
     );
 
-    const websiteImportSkipped = typeof window !== "undefined" &&
-      localStorage.getItem(`aivia:website_import_skipped:${biz.id}`) === "1";
+    const isSkipped = (key: string) =>
+      typeof window !== "undefined" &&
+      localStorage.getItem(`aivia:checklist_skipped:${biz.id}:${key}`) === "1";
 
     const items: ChecklistItem[] = [
-      // Website import — optional
       {
-        label: "Import your business details from your website (optional)",
-        isComplete: !!biz.website_last_synced_at || websiteImportSkipped,
-        action: "import_website",
-        skipAction: "skip_website_import",
-      },
-      // Common items
-      {
-        label: "Business address",
-        isComplete: !!(biz.address && biz.address.trim().length > 0),
+        label: "Phone number setup — required so Aivia can answer your calls",
+        isComplete: phoneConfigured || isSkipped("phone"),
         action: "business",
+        skipAction: "phone",
       },
       {
-        label: "Website (optional)",
-        isComplete: !!(biz.website && biz.website.trim().length > 0),
-        action: "business",
-      },
-      {
-        label: "Opening hours",
-        isComplete: (hoursRes.data?.length || 0) > 0,
+        label: "Opening hours — required so Aivia knows when you're open",
+        isComplete: (hoursRes.data?.length || 0) > 0 || isSkipped("hours"),
         action: "hours",
-      },
-      {
-        label: "Phone number setup",
-        isComplete: phoneConfigured,
-        action: "business",
+        skipAction: "hours",
       },
     ];
 
     if (isRestaurant) {
-      items.push(
-        {
-          label: "Cuisine type",
-          isComplete: !!(biz.cuisine_type && biz.cuisine_type.trim().length > 0),
-          action: "business",
-        },
-        {
-          label: "Menu link",
-          isComplete: !!(biz.menu_link && biz.menu_link.trim().length > 0),
-          action: "business",
-        },
-        {
-          label: "Average prep time",
-          isComplete: biz.average_prep_time_minutes != null && biz.average_prep_time_minutes > 0,
-          action: "orders",
-        },
-      );
+      items.push({
+        label: "Average prep time — required so Aivia can quote pickup times",
+        isComplete: (biz.average_prep_time_minutes != null && biz.average_prep_time_minutes > 0) || isSkipped("prep_time"),
+        action: "orders",
+        skipAction: "prep_time",
+      });
       if (hasTables) {
         items.push({
-          label: "Table count",
-          isComplete: (tablesRes.data?.length || 0) > 0,
+          label: "Table count — required so Aivia can take reservations",
+          isComplete: (tablesRes.data?.length || 0) > 0 || isSkipped("tables"),
           action: "tables",
+          skipAction: "tables",
         });
       }
-      items.push({
-        label: "Payment methods accepted",
-        isComplete: Array.isArray(biz.payment_methods) && biz.payment_methods.length > 0,
-        action: "payments",
-      });
     } else {
-      // Salon
-      items.push(
-        {
-          label: "Services offered",
-          isComplete: (servicesRes.data?.length || 0) > 0,
-          action: "services",
-        },
-        {
-          label: "Staff count",
-          isComplete: (biz.staff_count || 0) > 1,
-          action: "staff",
-        },
-        {
-          label: "Booking preferences",
-          isComplete: !!customerSettingsRes.data,
-          action: "policies",
-        },
-      );
+      items.push({
+        label: "Services offered — required so Aivia can book appointments",
+        isComplete: (servicesRes.data?.length || 0) > 0 || isSkipped("services"),
+        action: "services",
+        skipAction: "services",
+      });
     }
 
     setChecklistItems(items);
@@ -348,13 +306,13 @@ const Dashboard = () => {
       return;
     }
     setActiveSettingsSection(action);
+    setSettingsNavKey((k) => k + 1);
     setActiveTab("settings");
   };
   const handleChecklistSkip = (skipAction: string) => {
-    if (skipAction === "skip_website_import" && business?.id) {
-      localStorage.setItem(`aivia:website_import_skipped:${business.id}`, "1");
-      loadSetupChecklist(business);
-    }
+    if (!business?.id) return;
+    localStorage.setItem(`aivia:checklist_skipped:${business.id}:${skipAction}`, "1");
+    loadSetupChecklist(business);
   };
   const handleSettingsUpdate = async () => {
     if (business) {
@@ -563,7 +521,7 @@ const Dashboard = () => {
               )}
 
               {!isStaffView && <TabsContent value="settings">
-                  <SettingsTab businessId={business.id} business={business} activeSection={activeSettingsSection} onUpdate={handleSettingsUpdate} currency={settings?.currency || "GBP"} />
+                  <SettingsTab key={`settings-${settingsNavKey}`} businessId={business.id} business={business} activeSection={activeSettingsSection} onUpdate={handleSettingsUpdate} currency={settings?.currency || "GBP"} />
                 </TabsContent>}
             </Tabs>
           </>}
