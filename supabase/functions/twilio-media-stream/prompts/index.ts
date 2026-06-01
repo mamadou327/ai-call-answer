@@ -4,6 +4,13 @@ import { buildSalonSystemPrompt } from "./salon-prompt.ts";
 import { buildRestaurantPickupSystemPrompt } from "./restaurant-pickup-prompt.ts";
 import { buildRestaurantDineInSystemPrompt } from "./restaurant-dine-in-prompt.ts";
 import { buildRestaurantHybridSystemPrompt } from "./restaurant-hybrid-prompt.ts";
+import {
+  buildAdvancedReceptionistRules,
+  getGreetingPeriod,
+  getOpenStatus,
+  type PromptVariant,
+} from "./advanced-rules.ts";
+
 
 export type BusinessType = "salon" | "restaurant_pickup" | "restaurant_dine_in" | "restaurant_hybrid";
 
