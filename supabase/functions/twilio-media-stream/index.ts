@@ -1061,7 +1061,7 @@ async function enforcePickupOrderCreation(session: StreamSession, supabase: any,
       JSON.stringify({
         type: "response.create",
         response: {
-          modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
+          output_modalities: session.useElevenLabs ? ["text"] : ["audio"],
           instructions: [
             "Do NOT confirm the order, do NOT give an order number, and do NOT promise a ready time until create_pickup_order returns success.",
             "",
