@@ -5299,8 +5299,22 @@ ${dataCollectionRules}${faqContext}`;
     };
   }
 
+  const advancedRules = (() => {
+    const status = getOpenStatus(hours, businessTimezone);
+    return buildAdvancedReceptionistRules({
+      businessName,
+      assistantName,
+      callerFirstName: callerInfo?.name?.split(" ")[0] || null,
+      isReturning: !!callerInfo?.isReturning,
+      greetingPeriod: getGreetingPeriod(businessTimezone),
+      isClosedNow: !status.isOpenNow,
+      nextOpenWindow: status.nextOpenWindow,
+      variant: "appointment",
+    });
+  })();
+
   return {
-    prompt,
+    prompt: prompt + advancedRules,
     businessSettings,
     openingHours: hours,
     staffTimeOff,
