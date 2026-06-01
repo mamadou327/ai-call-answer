@@ -291,9 +291,17 @@ const Signup = () => {
             },
           },
         );
-        if (createError) throw createError;
-        if (!createData?.businessId) throw new Error("Failed to create business");
+        if (createError || !createData?.businessId) {
+          toast({
+            title: "We could not set up your account",
+            description:
+              "Something went wrong on our end. Please try again in a moment. If this keeps happening contact us at info@aiviaapp.co.uk.",
+            variant: "destructive",
+          });
+          return;
+        }
         businessId = createData.businessId;
+
       }
 
       if (reapplyMode) {
