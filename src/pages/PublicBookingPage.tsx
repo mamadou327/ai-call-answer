@@ -807,7 +807,43 @@ const PublicBookingPage = () => {
       });
 
 
-      if (error) throw error;
+      // Edge function returned non-2xx: parse JSON body for our error codes
+      if (error) {
+        let errorCode: string | undefined;
+        try {
+          const ctx: any = (error as any).context;
+          if (ctx && typeof ctx.json === "function") {
+            const body = await ctx.json();
+            errorCode = body?.errorCode;
+          }
+        } catch {}
+
+        if (customerData.payDepositNow) {
+          if (errorCode === "deposit_too_low") {
+            toast({
+              title: "Deposit too low",
+              description: "The deposit amount is too low to process. Please use Pay Later to receive a payment link by SMS.",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Payment could not be processed",
+              description: "We could not process your deposit right now. Please use Pay Later below and you will receive a payment link by SMS.",
+              variant: "destructive",
+            });
+          }
+          return;
+        }
+        throw error;
+      }
+
+      if (data?.errorCode && customerData.payDepositNow) {
+        const friendly = data.errorCode === "deposit_too_low"
+          ? "The deposit amount is too low to process. Please use Pay Later to receive a payment link by SMS."
+          : "We could not process your deposit right now. Please use Pay Later below and you will receive a payment link by SMS.";
+        toast({ title: "Payment could not be processed", description: friendly, variant: "destructive" });
+        return;
+      }
 
       if (data.requiresPayment && data.paymentUrl) {
         window.location.href = data.paymentUrl;
@@ -826,6 +862,7 @@ const PublicBookingPage = () => {
       toast({ title: "Booking failed", description: err?.message || "Failed to create booking.", variant: "destructive" });
     }
   };
+
 
   const handleBack = () => {
     // If we're in cart mode and going back from datetime, cancel current item selection
