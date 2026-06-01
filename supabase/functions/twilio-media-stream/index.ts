@@ -5281,6 +5281,7 @@ ${dataCollectionRules}${faqContext}`;
       currentDate: restCurrentDate,
       currentDay: restCurrentDay,
       businessStatus,
+      businessTimezone,
     });
     
     console.log(`[MediaStream] Built restaurant prompt for ${businessType} with ${menuItems.length} menu items`);
