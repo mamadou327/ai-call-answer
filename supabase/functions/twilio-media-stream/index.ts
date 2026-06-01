@@ -1736,7 +1736,7 @@ function initializeElevenLabsAdapter(session: StreamSession): void {
       }
 
       if (session.openAiWs?.readyState === WebSocket.OPEN) {
-        sendSessionConfig(session, supabase)
+        sendSessionConfig(session, supabase, { triggerGreeting: false })
           .then(() => {
             const response: Record<string, unknown> = {
               type: "response.create",
