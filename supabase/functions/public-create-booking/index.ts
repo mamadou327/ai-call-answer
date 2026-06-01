@@ -31,8 +31,10 @@ serve(async (req) => {
       customerPhone, 
       customerEmail,
       notes,
-      returnUrl
+      returnUrl,
+      payDepositNow,
     } = await req.json();
+
 
     logStep("Request received", { businessSlug, serviceId, staffId, startTime, customerName });
 
