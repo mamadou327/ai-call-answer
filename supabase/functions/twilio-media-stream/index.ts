@@ -1909,10 +1909,11 @@ async function sendSessionConfig(
         const safeOpening = openingContext.replace(/\s+/g, " ").trim();
 
         const greetingPeriod = getGreetingPeriod(session.businessTimezone || "Europe/London");
+        const assistantNameForGreeting = (session.businessSettings as any)?.assistant_name || "Aivia";
 
         const greetingLead = isReturning && firstName
           ? `${greetingPeriod} ${firstName}, lovely to hear from you again. How can I help?`
-          : `${greetingPeriod}, ${session.businessName}, ${session.assistantName} speaking. How can I help you today?`;
+          : `${greetingPeriod}, ${session.businessName}, ${assistantNameForGreeting} speaking. How can I help you today?`;
 
         const parts = [
           greetingLead,
