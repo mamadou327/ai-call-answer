@@ -31,8 +31,10 @@ serve(async (req) => {
       customerPhone, 
       customerEmail,
       notes,
-      returnUrl
+      returnUrl,
+      payDepositNow,
     } = await req.json();
+
 
     logStep("Request received", { businessSlug, serviceId, staffId, startTime, customerName });
 
@@ -144,8 +146,11 @@ serve(async (req) => {
 
     // Check if deposit is required and when to collect
     const depositRequired = service.deposit_required && service.deposit_amount > 0;
-    const collectDuringBooking = business.deposit_collection_timing === "during_booking";
+    const settingsCollectDuringBooking = business.deposit_collection_timing === "during_booking";
+    // Client choice (Pay Now / Pay Later) overrides the business default when provided
+    const collectDuringBooking = typeof payDepositNow === "boolean" ? payDepositNow : settingsCollectDuringBooking;
     const hasStripeConnected = !!business.stripe_account_id;
+
 
     // Generate booking code using the database function
     const { data: bookingCodeData } = await supabase.rpc("generate_booking_code", {

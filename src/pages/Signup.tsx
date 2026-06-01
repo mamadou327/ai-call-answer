@@ -218,13 +218,14 @@ const Signup = () => {
           }
           if (code === "weak_password" || msg.includes("weak") || msg.includes("pwned")) {
             toast({
-              title: "Password too weak",
+              title: "Please choose a stronger password",
               description:
-                "That password has appeared in known data breaches. Please choose a stronger, unique password.",
+                "Your password needs to be harder to guess. Try using a mix of letters, numbers and symbols.",
               variant: "destructive",
             });
             return;
           }
+
           if (code === "invalid_email" || (msg.includes("invalid") && msg.includes("email"))) {
             toast({
               title: "Invalid email",
@@ -290,9 +291,17 @@ const Signup = () => {
             },
           },
         );
-        if (createError) throw createError;
-        if (!createData?.businessId) throw new Error("Failed to create business");
+        if (createError || !createData?.businessId) {
+          toast({
+            title: "We could not set up your account",
+            description:
+              "Something went wrong on our end. Please try again in a moment. If this keeps happening contact us at info@aiviaapp.co.uk.",
+            variant: "destructive",
+          });
+          return;
+        }
         businessId = createData.businessId;
+
       }
 
       if (reapplyMode) {
@@ -327,11 +336,13 @@ const Signup = () => {
       navigate("/pending-approval");
     } catch (err: any) {
       toast({
-        title: "Error",
-        description: err.message || "Something went wrong",
+        title: "Something did not go right",
+        description:
+          "We could not create your account. Please check your details and try again. If the problem continues contact us at info@aiviaapp.co.uk.",
         variant: "destructive",
       });
     } finally {
+
       setIsLoading(false);
     }
   };

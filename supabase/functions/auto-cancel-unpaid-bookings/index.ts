@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import Stripe from "https://esm.sh/stripe@14.21.0";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -100,6 +102,7 @@ serve(async (req) => {
           deposit_amount,
           deposit_paid_at,
           deposit_reminder_sent,
+          deposit_payment_link,
           notes,
           services:service_id (name, deposit_required)
         `)
@@ -110,6 +113,7 @@ serve(async (req) => {
         .gt("deposit_amount", 0)
         .lte("start_time", cutoffTime.toISOString())
         .gte("start_time", now.toISOString());
+
 
       if (bookingsError) {
         logStep("Error fetching bookings", { error: bookingsError.message });
@@ -189,6 +193,38 @@ serve(async (req) => {
 
         logStep("Booking cancelled", { bookingId: booking.id, code: booking.booking_code });
         cancelledCount++;
+
+        // Deactivate the Stripe payment link so the client can't pay for a cancelled booking
+        const depositPaymentLink = (booking as any).deposit_payment_link as string | null;
+        if (depositPaymentLink) {
+          try {
+            const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+            if (stripeSecretKey) {
+              // Fetch the business stripe account id for Connect-scoped call
+              const { data: biz } = await supabaseClient
+                .from("businesses")
+                .select("stripe_account_id")
+                .eq("id", setting.business_id)
+                .single();
+              // Payment link URLs look like https://buy.stripe.com/<id> — extract id from URL via Stripe API search
+              // Easiest: list recent payment links and match URL, but using the URL directly works via metadata lookup.
+              // We'll search payment links by metadata.booking_id which we set at creation time.
+              const stripe = new Stripe(stripeSecretKey, { apiVersion: "2023-10-16" });
+              const opts: any = biz?.stripe_account_id ? { stripeAccount: biz.stripe_account_id } : undefined;
+              const links = await stripe.paymentLinks.list({ limit: 100 }, opts);
+              const match = links.data.find((l: any) => l.metadata?.booking_id === booking.id || l.url === depositPaymentLink);
+              if (match) {
+                await stripe.paymentLinks.update(match.id, { active: false }, opts);
+                logStep("Stripe payment link deactivated", { bookingId: booking.id, linkId: match.id });
+              } else {
+                logStep("Payment link not found to deactivate", { bookingId: booking.id });
+              }
+            }
+          } catch (e: any) {
+            logStep("Failed to deactivate Stripe payment link", { bookingId: booking.id, error: e?.message || String(e) });
+          }
+        }
+
 
         // Notify the client via SMS
         try {
