@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { buildSystemPromptForBusinessType, getToolsForBusinessType, type BusinessType } from "./prompts/index.ts";
+import { buildAdvancedReceptionistRules, getGreetingPeriod, getOpenStatus } from "./prompts/advanced-rules.ts";
 import { ElevenLabsTTS } from "./elevenlabs-tts.ts";
 
 // Escape SQL LIKE wildcards (%, _, \) in user-supplied input to prevent pattern injection
@@ -1907,22 +1908,21 @@ async function sendSessionConfig(
 
         const safeOpening = openingContext.replace(/\s+/g, " ").trim();
 
-        const greetingLead = isReturning
-          ? (firstName
-              ? `Hey ${firstName}! Welcome back!`
-              : `Hey there! Welcome back to ${session.businessName}!`)
-          : `Hey there! Thanks for calling ${session.businessName}!`;
+        const greetingPeriod = getGreetingPeriod(session.businessTimezone || "Europe/London");
+        const assistantNameForGreeting = (session.businessSettings as any)?.assistant_name || "Aivia";
+
+        const greetingLead = isReturning && firstName
+          ? `${greetingPeriod} ${firstName}, lovely to hear from you again. How can I help?`
+          : `${greetingPeriod}, ${session.businessName}, ${assistantNameForGreeting} speaking. How can I help you today?`;
 
         const parts = [
           greetingLead,
-          safeOpening ? `Quick note: ${safeOpening}` : "",
-          "Just so you know, this call may be recorded to help us improve our service.",
-          "What can I do for you today?",
+          safeOpening ? `Just a quick note — ${safeOpening}` : "",
         ].filter(Boolean);
 
         const forcedGreeting = parts.join(" ");
 
-        responseConfig.response.instructions = `Say this exact greeting verbatim, then wait for the caller:\n"${forcedGreeting}"`;
+        responseConfig.response.instructions = `Say this exact greeting verbatim, then wait for the caller. Do NOT mention call recording — that comes later after the caller explains why they called.\n"${forcedGreeting}"`;
       }
 
       session.openAiWs.send(JSON.stringify(responseConfig));
@@ -4838,10 +4838,11 @@ SOUND HUMAN - THIS IS CRITICAL:
 - End naturally: "Lovely, you're all booked in!" not "Your booking has been confirmed."
 `;
 
-  // Greeting - casual, personalized with recording disclosure (explains purpose)
-  const greetingInstruction = callerInfo.isReturning 
-    ? `Greet warmly: "Hey ${callerInfo.name?.split(' ')[0] || callerInfo.name}! Great to hear from you again! Quick heads up - this call may be recorded to help us improve our service. What can I do for you today?"`
-    : `Greet: "Hey there! Thanks for calling ${businessName}! Just so you know, this call may be recorded to help us improve our service. I'm ${assistantName}, how can I help you today?"`;
+  // Greeting — the detailed format & rules live in the ADVANCED RULES block
+  // appended at the very end of the prompt. This short line just nudges the
+  // model to follow that block at call start.
+  const greetingInstruction = `## GREETING:
+Follow the OPENING GREETING rules in the section below. Use the time-of-day greeting (Good morning / Good afternoon / Good evening) based on CURRENT CONTEXT. Do NOT mention call recording in the greeting — the RECORDING DISCLOSURE rule handles that after the caller explains why they called.`;
 
   // Opening context from business owner - should be woven naturally into greeting
   const openingContext = businessSettings?.opening_context?.trim() || "";
@@ -5280,6 +5281,7 @@ ${dataCollectionRules}${faqContext}`;
       currentDate: restCurrentDate,
       currentDay: restCurrentDay,
       businessStatus,
+      businessTimezone,
     });
     
     console.log(`[MediaStream] Built restaurant prompt for ${businessType} with ${menuItems.length} menu items`);
@@ -5298,8 +5300,22 @@ ${dataCollectionRules}${faqContext}`;
     };
   }
 
+  const advancedRules = (() => {
+    const status = getOpenStatus(hours, businessTimezone);
+    return buildAdvancedReceptionistRules({
+      businessName,
+      assistantName,
+      callerFirstName: callerInfo?.name?.split(" ")[0] || null,
+      isReturning: !!callerInfo?.isReturning,
+      greetingPeriod: getGreetingPeriod(businessTimezone),
+      isClosedNow: !status.isOpenNow,
+      nextOpenWindow: status.nextOpenWindow,
+      variant: "appointment",
+    });
+  })();
+
   return {
-    prompt,
+    prompt: prompt + advancedRules,
     businessSettings,
     openingHours: hours,
     staffTimeOff,
