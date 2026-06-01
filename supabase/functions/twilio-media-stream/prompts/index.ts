@@ -35,6 +35,7 @@ interface PromptBuilderParams {
   currentDate?: string;     // Full date (e.g., "14 January 2026")
   currentDay?: string;      // Day name (e.g., "Tuesday")
   businessStatus?: string;  // "OPEN (11:00-22:00)" or "CLOSED"
+  businessTimezone?: string; // IANA timezone, used for time-aware greetings/closed-hours logic
   // Salon-specific
   staff?: any[];
   services?: any[];
