@@ -1832,7 +1832,7 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
       const responseConfig: any = {
         type: "response.create",
         response: {
-          modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
+          output_modalities: session.useElevenLabs ? ["text"] : ["audio"],
         },
       };
 
