@@ -195,6 +195,7 @@ interface StreamSession {
 
   // Guardrails: prevent confirming orders without tool success
   assistantTranscriptBuffer: string;
+  currentResponseText: string;
   enforcingPickupOrderCreation: boolean;
   pickupOrderEnforcementStartedAt: number | null;
   pickupOrderEnforcementToolCalled: boolean;
@@ -630,6 +631,7 @@ Deno.serve(async (req) => {
 
     // Guardrails
     assistantTranscriptBuffer: "",
+    currentResponseText: "",
     enforcingPickupOrderCreation: false,
     pickupOrderEnforcementStartedAt: null,
     pickupOrderEnforcementToolCalled: false,
@@ -1198,6 +1200,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           session.hasActiveResponse = true;
           // Reset transcript buffer for the new response
           session.assistantTranscriptBuffer = "";
+          session.currentResponseText = "";
           break;
 
         case "response.output_audio.delta":
@@ -1229,6 +1232,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
         case "response.text.delta":
           // ElevenLabs path: pipe OpenAI text deltas straight into ElevenLabs.
           if (session.useElevenLabs && data.delta) {
+            session.currentResponseText += data.delta;
             if (!session.elevenLabs) initializeElevenLabsAdapter(session);
             // Mark AI as speaking on first text delta so barge-in logic works
             if (!session.isAISpeaking) {
