@@ -375,31 +375,51 @@ export const PublicCustomerForm = ({
                 />
               </div>
 
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : willPayNow ? (
-                  <>
-                    <CreditCard className="h-4 w-4 mr-2" />
-                    Pay {formatCurrency(selectedService.deposit_amount!, currency)} Deposit
-                  </>
-                ) : (
-                  "Confirm Booking"
-                )}
-              </Button>
-
-              {willPayNow && (
-                <p className="text-xs text-center text-muted-foreground">
-                  You'll be redirected to our secure payment page
-                </p>
+              {depositNoStripe ? (
+                <div className="rounded-md border border-warning/40 bg-warning/10 p-4 text-sm">
+                  This service requires a deposit. Please call us directly to arrange payment before your appointment.
+                </div>
+              ) : canPayOnline ? (
+                <div className="space-y-2">
+                  <Button
+                    type="button"
+                    className="w-full"
+                    disabled={loading}
+                    onClick={() => submitWith(true)}
+                  >
+                    {loading ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</>
+                    ) : (
+                      <><CreditCard className="h-4 w-4 mr-2" />Pay {formatCurrency(selectedService.deposit_amount!, currency)} Deposit Now</>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={loading}
+                    onClick={() => submitWith(false)}
+                  >
+                    Pay Later — confirm booking and pay {formatCurrency(selectedService.deposit_amount!, currency)} via SMS link
+                  </Button>
+                  <p className="text-xs text-center text-muted-foreground">
+                    Pay Now redirects to our secure payment page. Pay Later confirms your booking immediately and sends the payment link by SMS — pay any time before the auto-cancel window closes.
+                  </p>
+                </div>
+              ) : (
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</>
+                  ) : (
+                    "Confirm Booking"
+                  )}
+                </Button>
               )}
+
             </form>
           </CardContent>
         </Card>
