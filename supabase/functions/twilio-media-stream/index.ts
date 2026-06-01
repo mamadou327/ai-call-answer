@@ -4838,10 +4838,11 @@ SOUND HUMAN - THIS IS CRITICAL:
 - End naturally: "Lovely, you're all booked in!" not "Your booking has been confirmed."
 `;
 
-  // Greeting - casual, personalized with recording disclosure (explains purpose)
-  const greetingInstruction = callerInfo.isReturning 
-    ? `Greet warmly: "Hey ${callerInfo.name?.split(' ')[0] || callerInfo.name}! Great to hear from you again! Quick heads up - this call may be recorded to help us improve our service. What can I do for you today?"`
-    : `Greet: "Hey there! Thanks for calling ${businessName}! Just so you know, this call may be recorded to help us improve our service. I'm ${assistantName}, how can I help you today?"`;
+  // Greeting — the detailed format & rules live in the ADVANCED RULES block
+  // appended at the very end of the prompt. This short line just nudges the
+  // model to follow that block at call start.
+  const greetingInstruction = `## GREETING:
+Follow the OPENING GREETING rules in the section below. Use the time-of-day greeting (Good morning / Good afternoon / Good evening) based on CURRENT CONTEXT. Do NOT mention call recording in the greeting — the RECORDING DISCLOSURE rule handles that after the caller explains why they called.`;
 
   // Opening context from business owner - should be woven naturally into greeting
   const openingContext = businessSettings?.opening_context?.trim() || "";
