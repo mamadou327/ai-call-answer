@@ -44,6 +44,11 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
     secondary_phone: business?.secondary_phone || "",
     website: business?.website || "",
     business_type: business?.business_type || "salon",
+    social_instagram: business?.social_instagram || "",
+    social_facebook: business?.social_facebook || "",
+    social_tiktok: business?.social_tiktok || "",
+    social_twitter: business?.social_twitter || "",
+    social_youtube: business?.social_youtube || "",
   });
 
   // Localization settings
