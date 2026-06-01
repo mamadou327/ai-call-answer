@@ -195,6 +195,7 @@ interface StreamSession {
 
   // Guardrails: prevent confirming orders without tool success
   assistantTranscriptBuffer: string;
+  currentResponseText: string;
   enforcingPickupOrderCreation: boolean;
   pickupOrderEnforcementStartedAt: number | null;
   pickupOrderEnforcementToolCalled: boolean;
@@ -630,6 +631,7 @@ Deno.serve(async (req) => {
 
     // Guardrails
     assistantTranscriptBuffer: "",
+    currentResponseText: "",
     enforcingPickupOrderCreation: false,
     pickupOrderEnforcementStartedAt: null,
     pickupOrderEnforcementToolCalled: false,
@@ -1198,6 +1200,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           session.hasActiveResponse = true;
           // Reset transcript buffer for the new response
           session.assistantTranscriptBuffer = "";
+          session.currentResponseText = "";
           break;
 
         case "response.output_audio.delta":
@@ -1229,6 +1232,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
         case "response.text.delta":
           // ElevenLabs path: pipe OpenAI text deltas straight into ElevenLabs.
           if (session.useElevenLabs && data.delta) {
+            session.currentResponseText += data.delta;
             if (!session.elevenLabs) initializeElevenLabsAdapter(session);
             // Mark AI as speaking on first text delta so barge-in logic works
             if (!session.isAISpeaking) {
@@ -1717,7 +1721,47 @@ function initializeElevenLabsAdapter(session: StreamSession): void {
       console.log(message, meta ?? {});
     },
     onFatalError: (err) => {
-      console.error("[MediaStream] ElevenLabs fatal error — call will continue but voice may degrade:", err);
+      console.error("[MediaStream] ElevenLabs fatal error — switching this call to OpenAI voice fallback:", err);
+      session.useElevenLabs = false;
+      const bufferedText = session.currentResponseText.trim();
+      session.elevenLabs?.close();
+      session.elevenLabs = null;
+
+      if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
+        try {
+          session.twilioWs.send(JSON.stringify({ event: "clear", streamSid: session.streamSid }));
+        } catch {
+          // ignore
+        }
+      }
+
+      if (session.openAiWs?.readyState === WebSocket.OPEN) {
+        sendSessionConfig(session, supabase, { triggerGreeting: false })
+          .then(() => {
+            const response: Record<string, unknown> = {
+              type: "response.create",
+              response: {
+                output_modalities: ["audio"],
+              },
+            };
+
+            if (bufferedText) {
+              response.response = {
+                output_modalities: ["audio"],
+                instructions: `Say this exact message verbatim, then wait for the caller:\n\"${bufferedText.replace(/\s+/g, " ").trim().replace(/"/g, '\\"')}\"`,
+              };
+            }
+
+            session.openAiWs?.send(JSON.stringify(response));
+            console.log("[MediaStream] Replayed response using OpenAI voice fallback", {
+              hadBufferedText: !!bufferedText,
+              callSid: session.callSid,
+            });
+          })
+          .catch((configError) => {
+            console.error("[MediaStream] Failed to activate OpenAI voice fallback after ElevenLabs error:", configError);
+          });
+      }
     },
   });
 }
@@ -1746,7 +1790,11 @@ async function finalizeElevenLabsForSession(session: StreamSession, supabase: an
   }
 }
 
-async function sendSessionConfig(session: StreamSession, supabase: any) {
+async function sendSessionConfig(
+  session: StreamSession,
+  supabase: any,
+  options: { triggerGreeting?: boolean } = {},
+) {
   if (!session.openAiWs || session.openAiWs.readyState !== WebSocket.OPEN) {
     console.error("[MediaStream] Cannot send config - WebSocket not open");
     return;
@@ -1832,6 +1880,10 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
   }
 
   // Send initial greeting or reconnect acknowledgment
+  if (options.triggerGreeting === false) {
+    return;
+  }
+
   setTimeout(() => {
     if (session.openAiWs?.readyState === WebSocket.OPEN) {
       const responseConfig: any = {
