@@ -1790,7 +1790,11 @@ async function finalizeElevenLabsForSession(session: StreamSession, supabase: an
   }
 }
 
-async function sendSessionConfig(session: StreamSession, supabase: any) {
+async function sendSessionConfig(
+  session: StreamSession,
+  supabase: any,
+  options: { triggerGreeting?: boolean } = {},
+) {
   if (!session.openAiWs || session.openAiWs.readyState !== WebSocket.OPEN) {
     console.error("[MediaStream] Cannot send config - WebSocket not open");
     return;
@@ -1876,6 +1880,10 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
   }
 
   // Send initial greeting or reconnect acknowledgment
+  if (options.triggerGreeting === false) {
+    return;
+  }
+
   setTimeout(() => {
     if (session.openAiWs?.readyState === WebSocket.OPEN) {
       const responseConfig: any = {
