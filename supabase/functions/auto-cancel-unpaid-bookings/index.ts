@@ -42,10 +42,10 @@ serve(async (req) => {
     const now = new Date();
     logStep("Current time", { now: now.toISOString() });
 
-    // Get businesses with auto-cancel enabled
+    // Get businesses with auto-cancel enabled (plus reminder settings)
     const { data: settings, error: settingsError } = await supabaseClient
       .from("business_settings")
-      .select("business_id, auto_cancel_unpaid_bookings, auto_cancel_hours")
+      .select("business_id, auto_cancel_unpaid_bookings, auto_cancel_hours, deposit_reminder_enabled, deposit_reminder_hours, notification_email")
       .eq("auto_cancel_unpaid_bookings", true);
 
     if (settingsError) {
