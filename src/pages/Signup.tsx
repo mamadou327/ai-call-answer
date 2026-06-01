@@ -218,13 +218,14 @@ const Signup = () => {
           }
           if (code === "weak_password" || msg.includes("weak") || msg.includes("pwned")) {
             toast({
-              title: "Password too weak",
+              title: "Please choose a stronger password",
               description:
-                "That password has appeared in known data breaches. Please choose a stronger, unique password.",
+                "Your password needs to be harder to guess. Try using a mix of letters, numbers and symbols.",
               variant: "destructive",
             });
             return;
           }
+
           if (code === "invalid_email" || (msg.includes("invalid") && msg.includes("email"))) {
             toast({
               title: "Invalid email",
