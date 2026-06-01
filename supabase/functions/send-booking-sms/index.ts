@@ -327,6 +327,13 @@ To cancel or reschedule, please call us on ${business.main_phone}.${websiteSecti
 
 See you soon!
 ${business.business_name}`;
+    } else if (type === "deposit_reminder") {
+      const autoCancelHours = (booking as any)._auto_cancel_hours ?? 12;
+      const payLink = depositPaymentLink || "";
+      message = `Hi ${customerName}, just a reminder that your deposit of ${currencySymbol}${depositAmount.toFixed(2)} for your ${serviceName} appointment on ${formattedDate} has not been paid yet. Please pay to keep your slot: ${payLink}. Your booking will be cancelled if payment is not received ${autoCancelHours} hours before your appointment.`;
+    } else if (type === "deposit_cancellation") {
+      const bookingLink = cleanWebsite ? `https://${cleanWebsite}` : business.main_phone;
+      message = `Hi ${customerName}, your ${serviceName} appointment on ${formattedDate} has been cancelled because the deposit of ${currencySymbol}${depositAmount.toFixed(2)} was not paid. Please rebook at ${bookingLink} if you would still like an appointment.`;
     }
 
     // Send SMS via Twilio
