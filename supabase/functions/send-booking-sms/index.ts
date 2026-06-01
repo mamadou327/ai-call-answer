@@ -192,12 +192,13 @@ serve(async (req: Request): Promise<Response> => {
     // Fetch business settings for currency
     const { data: settings } = await supabase
       .from("business_settings")
-      .select("currency")
+      .select("currency, auto_cancel_hours")
       .eq("business_id", businessId)
       .single();
 
     const currency = settings?.currency || "GBP";
     const currencySymbol = currency === "GBP" ? "£" : currency === "EUR" ? "€" : "$";
+    const autoCancelHoursSetting = settings?.auto_cancel_hours ?? 12;
 
     // Format booking details
     const startTime = new Date(booking.start_time);
