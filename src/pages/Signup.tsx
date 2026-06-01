@@ -26,8 +26,8 @@ import { TIERS, type SubscriptionTier } from "@/lib/tiers";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Link } from "react-router-dom";
 import LegalFooter from "@/components/LegalFooter";
+import LegalDocDialog from "@/components/LegalDocDialog";
 
 type BusinessTypeValue =
   | "restaurant_hybrid"
@@ -81,6 +81,7 @@ const Signup = () => {
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [legalDialog, setLegalDialog] = useState<"terms" | "privacy" | null>(null);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -585,24 +586,23 @@ const Signup = () => {
                     className="text-sm font-normal leading-relaxed cursor-pointer"
                   >
                     I have read and agree to the{" "}
-                    <Link
-                      to="/terms"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-bold underline underline-offset-2"
+                    <button
+                      type="button"
+                      onClick={() => setLegalDialog("terms")}
+                      className="font-bold underline underline-offset-2 text-primary"
                     >
                       Terms of Service
-                    </Link>{" "}
+                    </button>{" "}
                     and{" "}
-                    <Link
-                      to="/privacy"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-bold underline underline-offset-2"
+                    <button
+                      type="button"
+                      onClick={() => setLegalDialog("privacy")}
+                      className="font-bold underline underline-offset-2 text-primary"
                     >
                       Privacy Policy
-                    </Link>
+                    </button>
                     .
+
 
                   </Label>
                 </div>
@@ -643,7 +643,13 @@ const Signup = () => {
         </Card>
       </div>
       <LegalFooter />
+      <LegalDocDialog
+        open={legalDialog !== null}
+        onOpenChange={(open) => !open && setLegalDialog(null)}
+        type={legalDialog ?? "terms"}
+      />
     </div>
+
   );
 };
 
