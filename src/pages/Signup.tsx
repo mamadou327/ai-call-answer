@@ -26,8 +26,8 @@ import { TIERS, type SubscriptionTier } from "@/lib/tiers";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Link } from "react-router-dom";
 import LegalFooter from "@/components/LegalFooter";
+import LegalDocDialog from "@/components/LegalDocDialog";
 
 type BusinessTypeValue =
   | "restaurant_hybrid"
