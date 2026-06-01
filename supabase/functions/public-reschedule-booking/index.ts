@@ -86,7 +86,7 @@ serve(async (req) => {
     // Fetch business settings
     const { data: settings } = await supabase
       .from("business_settings")
-      .select("min_reschedule_notice_hours")
+      .select("min_reschedule_notice_hours, notification_email, timezone")
       .eq("business_id", business.id)
       .single();
 
