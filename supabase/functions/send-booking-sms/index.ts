@@ -91,11 +91,14 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     // Check if SMS is enabled for this type (reschedule uses confirmation setting)
-    const smsEnabled = 
+    // deposit_reminder and deposit_cancellation are transactional and always sent
+    const smsEnabled =
       (type === "confirmation" && business.sms_on_confirmation) ||
       (type === "reschedule" && business.sms_on_confirmation) ||
       (type === "cancellation" && business.sms_on_cancellation) ||
-      (type === "reminder" && business.sms_on_reminder);
+      (type === "reminder" && business.sms_on_reminder) ||
+      type === "deposit_reminder" ||
+      type === "deposit_cancellation";
 
     if (!smsEnabled) {
       console.log(`[send-booking-sms] SMS for ${type} is disabled for business ${businessId}`);
