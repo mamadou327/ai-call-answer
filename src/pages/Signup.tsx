@@ -586,24 +586,23 @@ const Signup = () => {
                     className="text-sm font-normal leading-relaxed cursor-pointer"
                   >
                     I have read and agree to the{" "}
-                    <Link
-                      to="/terms"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-bold underline underline-offset-2"
+                    <button
+                      type="button"
+                      onClick={() => setLegalDialog("terms")}
+                      className="font-bold underline underline-offset-2 text-primary"
                     >
                       Terms of Service
-                    </Link>{" "}
+                    </button>{" "}
                     and{" "}
-                    <Link
-                      to="/privacy"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-bold underline underline-offset-2"
+                    <button
+                      type="button"
+                      onClick={() => setLegalDialog("privacy")}
+                      className="font-bold underline underline-offset-2 text-primary"
                     >
                       Privacy Policy
-                    </Link>
+                    </button>
                     .
+
 
                   </Label>
                 </div>
