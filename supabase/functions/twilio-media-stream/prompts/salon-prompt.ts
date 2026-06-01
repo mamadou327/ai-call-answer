@@ -1,5 +1,6 @@
 // Salon-specific system prompt builder
 // Used for salons, barbershops, spas - appointment-based services
+import { buildAdvancedReceptionistRules, getGreetingPeriod, getOpenStatus } from "./advanced-rules.ts";
 
 interface SalonPromptData {
   businessName: string;
