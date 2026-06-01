@@ -305,8 +305,9 @@ ${depositPaymentLink}`;
         reminderDepositSection = `
 
 ⚠️ DEPOSIT STILL REQUIRED: ${currencySymbol}${depositAmount.toFixed(2)}
-Please contact us urgently to arrange payment.`;
+A payment link will be sent to you shortly.`;
       }
+
 
       message = `⏰ Appointment Reminder
 
