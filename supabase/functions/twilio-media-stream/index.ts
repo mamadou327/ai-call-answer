@@ -1363,7 +1363,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
               JSON.stringify({
                 type: "response.create",
                 response: {
-                  modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
+                  output_modalities: session.useElevenLabs ? ["text"] : ["audio"],
                 },
               })
             );
