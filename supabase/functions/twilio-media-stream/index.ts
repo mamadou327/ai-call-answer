@@ -1061,7 +1061,7 @@ async function enforcePickupOrderCreation(session: StreamSession, supabase: any,
       JSON.stringify({
         type: "response.create",
         response: {
-          modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
+          output_modalities: session.useElevenLabs ? ["text"] : ["audio"],
           instructions: [
             "Do NOT confirm the order, do NOT give an order number, and do NOT promise a ready time until create_pickup_order returns success.",
             "",
@@ -1075,15 +1075,16 @@ async function enforcePickupOrderCreation(session: StreamSession, supabase: any,
   }
 }
 
+const OPENAI_REALTIME_MODEL = "gpt-realtime";
+
 async function connectToOpenAI(session: StreamSession, supabase: any) {
-  console.log("[MediaStream] Connecting to OpenAI Realtime API...");
+  console.log("[MediaStream] Connecting to OpenAI Realtime API (GA)...");
 
   const openAiWs = new WebSocket(
-    "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17",
+    `wss://api.openai.com/v1/realtime?model=${OPENAI_REALTIME_MODEL}`,
     [
       "realtime",
       `openai-insecure-api-key.${OPENAI_API_KEY}`,
-      "openai-beta.realtime-v1"
     ]
   );
 
@@ -1199,6 +1200,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           session.assistantTranscriptBuffer = "";
           break;
 
+        case "response.output_audio.delta":
         case "response.audio.delta":
           // ElevenLabs path: OpenAI is text-only, so this event should never
           // fire. Drop it defensively.
@@ -1223,6 +1225,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           }
           break;
 
+        case "response.output_text.delta":
         case "response.text.delta":
           // ElevenLabs path: pipe OpenAI text deltas straight into ElevenLabs.
           if (session.useElevenLabs && data.delta) {
@@ -1236,6 +1239,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           }
           break;
 
+        case "response.output_text.done":
         case "response.text.done":
           // Tell ElevenLabs the current utterance is complete so it flushes
           // any remaining audio.
@@ -1244,6 +1248,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           }
           break;
 
+        case "response.output_audio.done":
         case "response.audio.done":
           console.log("[MediaStream] AI response audio complete");
           // Send mark to track when Twilio finishes playing the audio
@@ -1258,6 +1263,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           }
           break;
 
+        case "response.output_audio_transcript.delta":
         case "response.audio_transcript.delta":
           // AI is speaking - accumulate transcript for guardrails + log for debugging
           if (data.delta) {
@@ -1362,7 +1368,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
               JSON.stringify({
                 type: "response.create",
                 response: {
-                  modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
+                  output_modalities: session.useElevenLabs ? ["text"] : ["audio"],
                 },
               })
             );
@@ -1765,36 +1771,39 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
   
   console.log(`[MediaStream] Using ${tools.length} tools for business type: ${session.businessType}`);
 
-  // Modalities, voice, and output format depend on whether the premium
-  // ElevenLabs path is active. ElevenLabs path = OpenAI text-only; we
-  // synthesize audio downstream.
-  const sessionConfig: Record<string, unknown> = {
-    instructions: session.systemPrompt,
-    input_audio_format: "g711_ulaw",
-    input_audio_transcription: {
-      model: "whisper-1",
-    },
+  // GA Realtime session shape. Audio I/O moved under `audio.{input,output}`,
+  // `modalities` is now `output_modalities`, and `g711_ulaw` is `audio/pcmu`.
+  const audioInput: Record<string, unknown> = {
+    format: { type: "audio/pcmu" },
     turn_detection: {
       type: "server_vad",
-      threshold: 0.75,           // Slightly lower for better detection of quiet speakers
-      prefix_padding_ms: 300,    // Standard pre-speech buffer
-      silence_duration_ms: 1000, // Slightly longer pauses for natural conversation
-      create_response: true,     // Auto-create response when speech ends
+      threshold: 0.75,
+      prefix_padding_ms: 300,
+      silence_duration_ms: 1000,
+      create_response: true,
     },
-    tools,
-    tool_choice: "auto",
-    temperature: 0.75,           // Higher for more natural variation in responses
-    max_response_output_tokens: 600, // Increased for more complete responses in long calls
+    transcription: { model: "whisper-1" },
   };
 
-  if (session.useElevenLabs) {
-    sessionConfig.modalities = ["text"];
-    // No `voice` or `output_audio_format` — OpenAI emits text only.
-  } else {
-    sessionConfig.modalities = ["text", "audio"];
-    sessionConfig.voice = session.voice;
-    sessionConfig.output_audio_format = "g711_ulaw";
-  }
+  const sessionConfig: Record<string, unknown> = {
+    type: "realtime",
+    model: OPENAI_REALTIME_MODEL,
+    instructions: session.systemPrompt,
+    tools,
+    tool_choice: "auto",
+    output_modalities: session.useElevenLabs ? ["text"] : ["audio"],
+    audio: {
+      input: audioInput,
+      ...(session.useElevenLabs
+        ? {}
+        : {
+            output: {
+              format: { type: "audio/pcmu" },
+              voice: session.voice,
+            },
+          }),
+    },
+  };
 
   const config = {
     type: "session.update",
@@ -1805,7 +1814,7 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
     "[MediaStream] Sending session config",
     {
       voice: session.useElevenLabs ? `[ElevenLabs:${session.elevenLabsVoiceId}]` : session.voice,
-      modalities: sessionConfig.modalities,
+      output_modalities: (sessionConfig as any).output_modalities,
       isReconnect: session.isReconnect,
     }
   );
@@ -1828,7 +1837,7 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
       const responseConfig: any = {
         type: "response.create",
         response: {
-          modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
+          output_modalities: session.useElevenLabs ? ["text"] : ["audio"],
         },
       };
 
@@ -1994,7 +2003,7 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
       JSON.stringify({
         type: "response.create",
         response: {
-          modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
+          output_modalities: session.useElevenLabs ? ["text"] : ["audio"],
         },
       })
     );
