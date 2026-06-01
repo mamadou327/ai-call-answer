@@ -45,6 +45,7 @@ interface PublicCustomerFormProps {
     phone: string;
     email?: string;
     notes?: string;
+    payDepositNow?: boolean;
   }) => Promise<void>;
   onBack: () => void;
   onExpressRebook?: (serviceId: string, staffId?: string) => void;
