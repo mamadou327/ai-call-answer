@@ -157,7 +157,18 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (formData.deposit_required && formData.deposit_amount < 0.3) {
+      toast({
+        title: "Deposit too low",
+        description: "Minimum deposit amount is £0.30 as required by Stripe.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
+
 
     if (editingService) {
       // Update existing service
