@@ -81,6 +81,7 @@ const Signup = () => {
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [legalDialog, setLegalDialog] = useState<"terms" | "privacy" | null>(null);
 
   const [form, setForm] = useState({
     firstName: "",
