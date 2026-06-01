@@ -1809,7 +1809,7 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
     "[MediaStream] Sending session config",
     {
       voice: session.useElevenLabs ? `[ElevenLabs:${session.elevenLabsVoiceId}]` : session.voice,
-      modalities: sessionConfig.modalities,
+      output_modalities: (sessionConfig as any).output_modalities,
       isReconnect: session.isReconnect,
     }
   );
