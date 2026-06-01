@@ -277,30 +277,32 @@ const Signup = () => {
           .eq("id", existingBusinessId);
         if (bizError) throw bizError;
       } else {
-        const { data: bizData, error: bizError } = await supabase
-          .from("businesses")
-          .insert({
-            owner_id: userId!,
-            business_name: form.businessName,
-            main_phone: form.phone,
-            business_type: form.businessType as BusinessTypeValue,
-            address: "",
-            status: "pending",
-            staff_count: 1,
-          })
-          .select("id")
-          .single();
-        if (bizError) throw bizError;
-        businessId = bizData.id;
+        const { data: createData, error: createError } = await supabase.functions.invoke(
+          "create-business-signup",
+          {
+            body: {
+              businessName: form.businessName,
+              businessType: form.businessType,
+              phone: form.phone,
+              userId: userId!,
+              subscriptionTier: selectedTier,
+            },
+          },
+        );
+        if (createError) throw createError;
+        if (!createData?.businessId) throw new Error("Failed to create business");
+        businessId = createData.businessId;
       }
 
-      await supabase.from("business_settings").upsert(
-        {
-          business_id: businessId!,
-          subscription_tier: selectedTier,
-        },
-        { onConflict: "business_id" },
-      );
+      if (reapplyMode) {
+        await supabase.from("business_settings").upsert(
+          {
+            business_id: businessId!,
+            subscription_tier: selectedTier,
+          },
+          { onConflict: "business_id" },
+        );
+      }
 
       try {
         await supabase.functions.invoke("send-admin-notification", {
