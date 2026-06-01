@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,32 +8,59 @@ import { Clock, Mail, Phone, LogOut } from "lucide-react";
 
 const PendingApproval = () => {
   const navigate = useNavigate();
+  const [businessName, setBusinessName] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const checkStatus = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user) {
-        navigate("/auth");
+        // No session yet (may be establishing right after signup) — wait, don't bounce.
         return;
       }
 
       const { data: business } = await supabase
         .from("businesses")
-        .select("status")
+        .select("business_name, status")
         .eq("owner_id", user.id)
-        .single();
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (business?.business_name && !businessName) {
+        setBusinessName(business.business_name);
+      }
 
       if (business?.status === "approved") {
         navigate("/dashboard");
+      } else if (business?.status === "rejected") {
+        navigate("/signup");
       }
     };
 
     checkStatus();
-
-    // Check status every 30 seconds
     const interval = setInterval(checkStatus, 30000);
-    return () => clearInterval(interval);
-  }, [navigate]);
+
+    // Re-check on auth state changes (session establishment after signup)
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+      checkStatus();
+    });
+
+    // Safety: if no session arrives within 5s, send to auth
+    const sessionTimer = setTimeout(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session && !cancelled) navigate("/auth");
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      clearTimeout(sessionTimer);
+      authListener.subscription.unsubscribe();
+    };
+  }, [navigate, businessName]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -62,8 +89,12 @@ const PendingApproval = () => {
               <Clock className="w-8 h-8 text-warning" />
             </div>
             <CardTitle className="text-2xl">Application Under Review</CardTitle>
-            <CardDescription>
-              Thank you for submitting your application! We're reviewing your information.
+            <CardDescription className="text-base">
+              {businessName ? (
+                <>Your application for <span className="font-semibold text-foreground">{businessName}</span> is under review.</>
+              ) : (
+                "Thank you for submitting your application! We're reviewing your information."
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
