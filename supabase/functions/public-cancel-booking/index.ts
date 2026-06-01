@@ -70,7 +70,7 @@ serve(async (req) => {
     // Fetch business
     const { data: business, error: businessError } = await supabase
       .from("businesses")
-      .select("id, business_name, sms_on_cancellation, twilio_enabled")
+      .select("id, business_name, sms_on_cancellation, twilio_enabled, booking_slug")
       .eq("booking_slug", businessSlug)
       .eq("online_booking_enabled", true)
       .eq("status", "approved")
@@ -86,14 +86,14 @@ serve(async (req) => {
     // Fetch business settings
     const { data: settings } = await supabase
       .from("business_settings")
-      .select("min_cancellation_notice_hours")
+      .select("min_cancellation_notice_hours, notification_email, timezone")
       .eq("business_id", business.id)
       .single();
 
     // SECURITY: Fetch booking with booking code verification
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("*")
+      .select("*, service:services(name)")
       .eq("id", bookingId)
       .eq("booking_code", bookingCode.toUpperCase())
       .eq("business_id", business.id)
@@ -155,6 +155,43 @@ serve(async (req) => {
         logStep("Cancellation SMS sent");
       } catch (smsError) {
         logStep("Failed to send cancellation SMS", { error: smsError });
+      }
+    }
+
+    // Notify business owner by email
+    const ownerEmail = settings?.notification_email;
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (ownerEmail && resendApiKey) {
+      try {
+        const tz = settings?.timezone || "UTC";
+        const fmt = new Intl.DateTimeFormat("en-GB", {
+          dateStyle: "full", timeStyle: "short", timeZone: tz,
+        });
+        const when = fmt.format(startTime);
+        const serviceName = booking.service?.name || "appointment";
+        const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
+        const html = `
+          <p>Hi,</p>
+          <p><strong>${booking.customer_name || "A client"}</strong> has cancelled their <strong>${serviceName}</strong> appointment on <strong>${when}</strong>.</p>
+          <p>Their booking code was <strong>${booking.booking_code}</strong>.</p>
+          <p>— ${business.business_name}</p>
+        `;
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${resendApiKey}`,
+          },
+          body: JSON.stringify({
+            from: fromEmail,
+            to: [ownerEmail],
+            subject: `Booking cancelled — ${booking.customer_name || "Client"} (${booking.booking_code})`,
+            html,
+          }),
+        });
+        logStep("Owner cancellation email sent", { ownerEmail });
+      } catch (emailError) {
+        logStep("Failed to send owner cancellation email", { error: String(emailError) });
       }
     }
 

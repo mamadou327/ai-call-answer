@@ -47,9 +47,9 @@ export const LogoUpload = ({ businessId, currentLogoUrl, onUpdate }: LogoUploadP
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Create file path
+      // Create file path — must start with business_id to match storage RLS policy
       const fileExt = file.name.split(".").pop();
-      const filePath = `${user.id}/${businessId}-logo.${fileExt}`;
+      const filePath = `${businessId}/logo.${fileExt}`;
 
       // Upload to storage
       const { error: uploadError } = await supabase.storage

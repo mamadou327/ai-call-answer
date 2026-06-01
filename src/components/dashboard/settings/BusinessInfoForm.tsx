@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
-import { MapPin, Store } from "lucide-react";
+import { MapPin, Store, Share2 } from "lucide-react";
 import { WebsiteSyncSection } from "./WebsiteSyncSection";
 
 interface BusinessInfoFormProps {
@@ -44,6 +44,11 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
     secondary_phone: business?.secondary_phone || "",
     website: business?.website || "",
     business_type: business?.business_type || "salon",
+    social_instagram: business?.social_instagram || "",
+    social_facebook: business?.social_facebook || "",
+    social_tiktok: business?.social_tiktok || "",
+    social_twitter: business?.social_twitter || "",
+    social_youtube: business?.social_youtube || "",
   });
 
   // Localization settings
@@ -208,6 +213,70 @@ export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInf
             </div>
           </CardContent>
         </Card>
+
+        {/* Social Links */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Share2 className="w-5 h-5" />
+              Social Links
+            </CardTitle>
+            <CardDescription>
+              These links are shown on your public booking page so customers can find you on social media.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="social_instagram">Instagram</Label>
+                <Input
+                  id="social_instagram"
+                  value={formData.social_instagram}
+                  onChange={(e) => setFormData({ ...formData, social_instagram: e.target.value })}
+                  placeholder="yourhandle or full URL"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="social_facebook">Facebook</Label>
+                <Input
+                  id="social_facebook"
+                  value={formData.social_facebook}
+                  onChange={(e) => setFormData({ ...formData, social_facebook: e.target.value })}
+                  placeholder="yourpage or full URL"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="social_tiktok">TikTok</Label>
+                <Input
+                  id="social_tiktok"
+                  value={formData.social_tiktok}
+                  onChange={(e) => setFormData({ ...formData, social_tiktok: e.target.value })}
+                  placeholder="yourhandle or full URL"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="social_twitter">Twitter / X</Label>
+                <Input
+                  id="social_twitter"
+                  value={formData.social_twitter}
+                  onChange={(e) => setFormData({ ...formData, social_twitter: e.target.value })}
+                  placeholder="yourhandle or full URL"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="social_youtube">YouTube</Label>
+                <Input
+                  id="social_youtube"
+                  value={formData.social_youtube}
+                  onChange={(e) => setFormData({ ...formData, social_youtube: e.target.value })}
+                  placeholder="channel URL"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+
 
         {/* Location & Currency */}
         <Card>
