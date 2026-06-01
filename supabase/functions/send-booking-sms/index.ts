@@ -234,17 +234,28 @@ serve(async (req: Request): Promise<Response> => {
       ? business.website.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "")
       : null;
 
-    // Build deposit section for SMS - use Stripe link directly
+    // Compute "pay before" deadline (auto-cancel hours before appointment)
+    const deadlineMs = startTime.getTime() - autoCancelHoursSetting * 60 * 60 * 1000;
+    const deadline = new Date(deadlineMs);
+    const formattedDeadline = `${deadline.toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    })} at ${deadline.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+
+    // Build deposit section for SMS - always use Stripe payment link when available
     let depositSection = "";
     if (needsDeposit && depositPaymentLink) {
       depositSection = `
 💳 DEPOSIT: ${currencySymbol}${depositAmount.toFixed(2)}
-Pay securely: ${depositPaymentLink}`;
+Pay here: ${depositPaymentLink}
+Please pay before ${formattedDeadline} to avoid cancellation.`;
     } else if (needsDeposit) {
       depositSection = `
 💳 DEPOSIT: ${currencySymbol}${depositAmount.toFixed(2)}
-Please contact us to arrange payment.`;
+A payment link will be sent to you shortly.`;
     }
+
 
     // Build website section
     const websiteSection = cleanWebsite ? `\nOr visit our website 🌐 ${cleanWebsite}` : "";
@@ -294,8 +305,9 @@ ${depositPaymentLink}`;
         reminderDepositSection = `
 
 ⚠️ DEPOSIT STILL REQUIRED: ${currencySymbol}${depositAmount.toFixed(2)}
-Please contact us urgently to arrange payment.`;
+A payment link will be sent to you shortly.`;
       }
+
 
       message = `⏰ Appointment Reminder
 

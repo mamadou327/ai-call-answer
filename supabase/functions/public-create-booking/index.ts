@@ -266,10 +266,26 @@ serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       } catch (stripeError: any) {
-        logStep("Stripe error", { error: stripeError?.message || String(stripeError) });
-        // Fall back to creating confirmed booking without immediate payment
+        const stripeMsg: string = stripeError?.message || String(stripeError);
+        logStep("Stripe error", { error: stripeMsg });
+
+        // Remove the pending booking so we don't leave it orphaned
+        await supabase.from("bookings").delete().eq("id", booking.id);
+
+        const isAmountTooLow = /amount.*(too small|must be at least|minimum)/i.test(stripeMsg)
+          || /must be.*greater than/i.test(stripeMsg)
+          || stripeError?.code === "amount_too_small";
+
+        return new Response(
+          JSON.stringify({
+            error: stripeMsg,
+            errorCode: isAmountTooLow ? "deposit_too_low" : "stripe_error",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
     }
+
 
     // Create confirmed booking (either no deposit, collect later, or Stripe failed)
     const { data: booking, error: bookingError } = await supabase
