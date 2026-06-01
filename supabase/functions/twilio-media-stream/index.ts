@@ -1766,36 +1766,39 @@ async function sendSessionConfig(session: StreamSession, supabase: any) {
   
   console.log(`[MediaStream] Using ${tools.length} tools for business type: ${session.businessType}`);
 
-  // Modalities, voice, and output format depend on whether the premium
-  // ElevenLabs path is active. ElevenLabs path = OpenAI text-only; we
-  // synthesize audio downstream.
-  const sessionConfig: Record<string, unknown> = {
-    instructions: session.systemPrompt,
-    input_audio_format: "g711_ulaw",
-    input_audio_transcription: {
-      model: "whisper-1",
-    },
+  // GA Realtime session shape. Audio I/O moved under `audio.{input,output}`,
+  // `modalities` is now `output_modalities`, and `g711_ulaw` is `audio/pcmu`.
+  const audioInput: Record<string, unknown> = {
+    format: { type: "audio/pcmu" },
     turn_detection: {
       type: "server_vad",
-      threshold: 0.75,           // Slightly lower for better detection of quiet speakers
-      prefix_padding_ms: 300,    // Standard pre-speech buffer
-      silence_duration_ms: 1000, // Slightly longer pauses for natural conversation
-      create_response: true,     // Auto-create response when speech ends
+      threshold: 0.75,
+      prefix_padding_ms: 300,
+      silence_duration_ms: 1000,
+      create_response: true,
     },
-    tools,
-    tool_choice: "auto",
-    temperature: 0.75,           // Higher for more natural variation in responses
-    max_response_output_tokens: 600, // Increased for more complete responses in long calls
+    transcription: { model: "whisper-1" },
   };
 
-  if (session.useElevenLabs) {
-    sessionConfig.modalities = ["text"];
-    // No `voice` or `output_audio_format` — OpenAI emits text only.
-  } else {
-    sessionConfig.modalities = ["text", "audio"];
-    sessionConfig.voice = session.voice;
-    sessionConfig.output_audio_format = "g711_ulaw";
-  }
+  const sessionConfig: Record<string, unknown> = {
+    type: "realtime",
+    model: OPENAI_REALTIME_MODEL,
+    instructions: session.systemPrompt,
+    tools,
+    tool_choice: "auto",
+    output_modalities: session.useElevenLabs ? ["text"] : ["audio"],
+    audio: {
+      input: audioInput,
+      ...(session.useElevenLabs
+        ? {}
+        : {
+            output: {
+              format: { type: "audio/pcmu" },
+              voice: session.voice,
+            },
+          }),
+    },
+  };
 
   const config = {
     type: "session.update",
