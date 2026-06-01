@@ -339,11 +339,14 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
                       id="deposit_amount"
                       type="number"
                       step="0.01"
-                      min="0"
+                      min="0.30"
                       max={formData.price}
                       value={formData.deposit_amount}
                       onChange={(e) => setFormData({ ...formData, deposit_amount: parseFloat(e.target.value) || 0 })}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Minimum deposit amount is £0.30 as required by Stripe.
+                    </p>
                   </div>
                 )}
               </div>
