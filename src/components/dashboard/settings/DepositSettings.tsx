@@ -33,7 +33,7 @@ export const DepositSettings = ({ businessId, onUpdate }: DepositSettingsProps) 
     try {
       const { data, error } = await supabase
         .from("business_settings")
-        .select("auto_cancel_unpaid_bookings, auto_cancel_hours")
+        .select("auto_cancel_unpaid_bookings, auto_cancel_hours, deposit_reminder_enabled, deposit_reminder_hours")
         .eq("business_id", businessId)
         .single();
 
@@ -43,6 +43,8 @@ export const DepositSettings = ({ businessId, onUpdate }: DepositSettingsProps) 
         setSettings({
           auto_cancel_unpaid_bookings: data.auto_cancel_unpaid_bookings || false,
           auto_cancel_hours: data.auto_cancel_hours || 12,
+          deposit_reminder_enabled: (data as any).deposit_reminder_enabled || false,
+          deposit_reminder_hours: (data as any).deposit_reminder_hours || 24,
         });
       }
     } catch (error: any) {
@@ -55,12 +57,15 @@ export const DepositSettings = ({ businessId, onUpdate }: DepositSettingsProps) 
   const handleSave = async () => {
     setSaving(true);
     try {
+      const reminderHours = Math.min(settings.deposit_reminder_hours, settings.auto_cancel_hours);
       const { error } = await supabase
         .from("business_settings")
         .update({
           auto_cancel_unpaid_bookings: settings.auto_cancel_unpaid_bookings,
           auto_cancel_hours: settings.auto_cancel_hours,
-        })
+          deposit_reminder_enabled: settings.deposit_reminder_enabled,
+          deposit_reminder_hours: reminderHours,
+        } as any)
         .eq("business_id", businessId);
 
       if (error) throw error;
