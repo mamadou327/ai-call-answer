@@ -59,6 +59,7 @@ const Dashboard = () => {
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [activeSettingsSection, setActiveSettingsSection] = useState<string>("");
+  const [settingsNavKey, setSettingsNavKey] = useState(0);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isStaffView, setIsStaffView] = useState(false);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
