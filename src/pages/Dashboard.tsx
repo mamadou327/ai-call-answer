@@ -521,7 +521,7 @@ const Dashboard = () => {
               )}
 
               {!isStaffView && <TabsContent value="settings">
-                  <SettingsTab businessId={business.id} business={business} activeSection={activeSettingsSection} onUpdate={handleSettingsUpdate} currency={settings?.currency || "GBP"} />
+                  <SettingsTab key={`settings-${settingsNavKey}`} businessId={business.id} business={business} activeSection={activeSettingsSection} onUpdate={handleSettingsUpdate} currency={settings?.currency || "GBP"} />
                 </TabsContent>}
             </Tabs>
           </>}
