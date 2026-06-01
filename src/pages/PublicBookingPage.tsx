@@ -729,7 +729,7 @@ const PublicBookingPage = () => {
     }
   };
 
-  const handleBookingSubmit = async (customerData: { name: string; phone: string; email?: string; notes?: string }) => {
+  const handleBookingSubmit = async (customerData: { name: string; phone: string; email?: string; notes?: string; payDepositNow?: boolean }) => {
     // Use resolvedSlug for API calls instead of slug
     const effectiveSlug = resolvedSlug || slug;
     if (!effectiveSlug) return;
