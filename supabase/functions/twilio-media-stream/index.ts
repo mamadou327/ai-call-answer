@@ -1998,7 +1998,7 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
       JSON.stringify({
         type: "response.create",
         response: {
-          modalities: session.useElevenLabs ? ["text"] : ["audio", "text"],
+          output_modalities: session.useElevenLabs ? ["text"] : ["audio"],
         },
       })
     );
