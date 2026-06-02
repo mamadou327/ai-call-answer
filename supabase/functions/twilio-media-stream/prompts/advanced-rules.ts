@@ -159,7 +159,8 @@ export function buildAdvancedReceptionistRules(ctx: AdvancedRulesContext): strin
       : "booking";
   const itemsLabel = isRestaurant ? "MENU" : "SERVICES";
 
-  const newCallerLine = `"${ctx.greetingPeriod}, ${ctx.businessName}, ${ctx.assistantName} speaking. How can I help you today?"`;
+  const spokenBusinessName = ctx.businessNameForSpeech?.trim() || ctx.businessName;
+  const newCallerLine = `"${ctx.greetingPeriod}, ${spokenBusinessName}, ${ctx.assistantName} speaking. How can I help you today?"`;
   const returningLine = `"${ctx.greetingPeriod} ${firstName || "[FirstName]"}, lovely to hear from you again. How can I help?"`;
 
   const upsellExample = isRestaurant
