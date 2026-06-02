@@ -81,6 +81,7 @@ export function buildRestaurantPickupSystemPrompt(data: RestaurantPickupPromptDa
   let formattedMenu = "";
   const currency = businessSettings?.currency || "GBP";
   const currencySymbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : currency === "EUR" ? "€" : currency;
+  const speak = (n: number) => formatPriceForSpeech(n, currency);
   
   // Helper to format item options with their sizes and prices (for AI knowledge)
   const formatItemOptions = (itemId: string): string => {
