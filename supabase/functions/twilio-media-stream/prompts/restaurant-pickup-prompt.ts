@@ -1,5 +1,6 @@
 // Restaurant Pickup/Takeaway specific system prompt builder
 // Used for restaurants that only do pickup/takeaway orders
+import { formatPriceForSpeech } from "./advanced-rules.ts";
 
 interface RestaurantPickupPromptData {
   businessName: string;
