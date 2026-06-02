@@ -5305,6 +5305,7 @@ ${dataCollectionRules}${faqContext}`;
     const status = getOpenStatus(hours, businessTimezone);
     return buildAdvancedReceptionistRules({
       businessName,
+      businessNameForSpeech: businessSettings?.business_name_phonetic || businessName,
       assistantName,
       callerFirstName: callerInfo?.name?.split(" ")[0] || null,
       isReturning: !!callerInfo?.isReturning,
