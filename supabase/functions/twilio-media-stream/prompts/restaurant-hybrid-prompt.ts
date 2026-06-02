@@ -102,7 +102,7 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
           // If this option has sizes, list sizes WITH prices so AI knows the truth
           if (opt.has_sizes && opt.sizes && opt.sizes.length > 0) {
             const sizesList = opt.sizes.map((s: any) => {
-              const priceStr = s.price > 0 ? ` +${currencySymbol}${s.price.toFixed(2)}` : "";
+              const priceStr = s.price > 0 ? ` +${speak(s.price)}` : "";
               return `${s.name}${priceStr}`;
             }).join(", ");
             return `${opt.name} [HAS SIZES - MUST ASK: ${sizesList}]`;
@@ -111,9 +111,9 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
           // Include price adjustments so AI can answer truthfully when asked
           const priceAdj = opt.price_adjustment || 0;
           if (priceAdj > 0) {
-            return `${opt.name} (+${currencySymbol}${priceAdj.toFixed(2)})`;
+            return `${opt.name} (+${speak(priceAdj)})`;
           } else if (priceAdj < 0) {
-            return `${opt.name} (-${currencySymbol}${Math.abs(priceAdj).toFixed(2)})`;
+            return `${opt.name} (-${speak(Math.abs(priceAdj))})`;
           }
           return `${opt.name}`;
         })
