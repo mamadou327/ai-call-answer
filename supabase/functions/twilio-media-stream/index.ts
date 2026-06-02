@@ -4645,18 +4645,18 @@ async function buildFullSystemPrompt(
             availabilityNote = " [TRANSFER ONLY]";
           }
           
-          // Show deposit requirement if applicable
-          const depositNote = s.deposit_required && s.deposit_amount && s.deposit_amount > 0 
-            ? ` [DEPOSIT: ${currency}${s.deposit_amount}]`
+          // Show deposit requirement if applicable (spoken form for the AI)
+          const depositNote = s.deposit_required && s.deposit_amount && s.deposit_amount > 0
+            ? `, deposit: ${formatPriceForSpeech(s.deposit_amount, currency)}`
             : "";
-          
+
           // For duplicate service names, show disambiguated name with category
           const normalizedName = s.name.toLowerCase().trim();
           const isDuplicate = duplicateServiceNames.has(normalizedName);
           const displayName = isDuplicate ? `${s.name} (${cat})` : s.name;
           const duplicateWarning = isDuplicate ? ` ⚠️ SAME NAME EXISTS IN OTHER CATEGORIES - ALWAYS CLARIFY!` : "";
-          
-          return `  - ${displayName}: ${s.duration_minutes}min, ${currency}${s.price}${availabilityNote}${depositNote}${duplicateWarning}`;
+
+          return `  - ${displayName}: ${s.duration_minutes} minutes, ${formatPriceForSpeech(s.price, currency)}${depositNote}${availabilityNote}${duplicateWarning}`;
         }).join("\n")}`
       ).join("\n")
     : "Services available upon request";
