@@ -149,7 +149,7 @@ export function buildRestaurantHybridSystemPrompt(data: RestaurantHybridPromptDa
 
   // Minimum order
   const minimumOrder = restaurantSettings.minimumOrderAmount && restaurantSettings.minimumOrderAmount > 0
-    ? `Minimum pickup order: ${currency} ${restaurantSettings.minimumOrderAmount}`
+    ? `Minimum pickup order: ${speak(restaurantSettings.minimumOrderAmount)}`
     : "";
 
   // Refund policy
