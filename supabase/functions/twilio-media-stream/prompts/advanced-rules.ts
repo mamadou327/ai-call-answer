@@ -73,6 +73,8 @@ export function getOpenStatus(
 
 export interface AdvancedRulesContext {
   businessName: string;
+  /** Optional phonetic / spoken form of the business name — preferred for the greeting. */
+  businessNameForSpeech?: string;
   assistantName: string;
   callerFirstName?: string | null;
   isReturning: boolean;
@@ -80,6 +82,63 @@ export interface AdvancedRulesContext {
   isClosedNow: boolean;
   nextOpenWindow: string | null;
   variant: PromptVariant;
+}
+
+/**
+ * Convert a numeric currency amount into a fully spoken English phrase
+ * suitable for inclusion in a system prompt that will be read aloud by a
+ * voice AI. Never returns a currency symbol or decimal notation.
+ *
+ * Examples (GBP):
+ *   30      -> "thirty pounds"
+ *   1.5     -> "one pound fifty"
+ *   0.3     -> "thirty pence"
+ *   1       -> "one pound"
+ */
+export function formatPriceForSpeech(
+  amount: number | null | undefined,
+  currency: string = "GBP",
+): string {
+  if (amount === null || amount === undefined || isNaN(Number(amount))) return "";
+  const cur = (currency || "GBP").toUpperCase();
+  const units =
+    cur === "GBP" ? { major: "pound", majors: "pounds", minor: "pence", minors: "pence" }
+    : cur === "USD" ? { major: "dollar", majors: "dollars", minor: "cent", minors: "cents" }
+    : cur === "EUR" ? { major: "euro", majors: "euros", minor: "cent", minors: "cents" }
+    : { major: cur, majors: cur, minor: "", minors: "" };
+
+  const total = Math.round(Number(amount) * 100);
+  const whole = Math.floor(total / 100);
+  const frac = total % 100;
+
+  const numberToWords = (n: number): string => {
+    if (n === 0) return "zero";
+    const ones = ["zero","one","two","three","four","five","six","seven","eight","nine","ten",
+      "eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+    const tens = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+    if (n < 20) return ones[n];
+    if (n < 100) {
+      const t = Math.floor(n / 10), o = n % 10;
+      return o === 0 ? tens[t] : `${tens[t]}-${ones[o]}`;
+    }
+    if (n < 1000) {
+      const h = Math.floor(n / 100), rest = n % 100;
+      return rest === 0 ? `${ones[h]} hundred` : `${ones[h]} hundred and ${numberToWords(rest)}`;
+    }
+    if (n < 1000000) {
+      const th = Math.floor(n / 1000), rest = n % 1000;
+      return rest === 0 ? `${numberToWords(th)} thousand` : `${numberToWords(th)} thousand ${numberToWords(rest)}`;
+    }
+    return String(n);
+  };
+
+  if (whole === 0 && frac > 0 && units.minor) {
+    return `${numberToWords(frac)} ${frac === 1 ? units.minor : units.minors}`;
+  }
+  const wholeWords = `${numberToWords(whole)} ${whole === 1 ? units.major : units.majors}`;
+  if (frac === 0) return wholeWords;
+  // Common spoken form: "one pound fifty" (drop the minor unit label)
+  return `${wholeWords} ${numberToWords(frac)}`;
 }
 
 /**
