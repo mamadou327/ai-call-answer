@@ -80,6 +80,7 @@ function buildAdvancedRulesForParams(params: PromptBuilderParams): string {
       : "appointment";
   return buildAdvancedReceptionistRules({
     businessName: params.businessName,
+    businessNameForSpeech: params.businessNamePhonetic || params.businessName,
     assistantName: params.assistantName,
     callerFirstName: params.callerInfo?.name?.split(" ")[0] || null,
     isReturning: !!params.callerInfo?.isReturning,
