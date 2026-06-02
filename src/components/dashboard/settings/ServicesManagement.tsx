@@ -270,6 +270,9 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                 />
+                <p className="text-xs text-muted-foreground">
+                  Your service names are spoken aloud by the AI receptionist. Use natural names like "Haircut" or "Men's Haircut" rather than "Haircut 1" or "HC-001".
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>

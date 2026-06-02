@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { buildSystemPromptForBusinessType, getToolsForBusinessType, type BusinessType } from "./prompts/index.ts";
-import { buildAdvancedReceptionistRules, getGreetingPeriod, getOpenStatus } from "./prompts/advanced-rules.ts";
+import { buildAdvancedReceptionistRules, getGreetingPeriod, getOpenStatus, formatPriceForSpeech } from "./prompts/advanced-rules.ts";
 import { ElevenLabsTTS } from "./elevenlabs-tts.ts";
 
 // Escape SQL LIKE wildcards (%, _, \) in user-supplied input to prevent pattern injection
@@ -4645,18 +4645,18 @@ async function buildFullSystemPrompt(
             availabilityNote = " [TRANSFER ONLY]";
           }
           
-          // Show deposit requirement if applicable
-          const depositNote = s.deposit_required && s.deposit_amount && s.deposit_amount > 0 
-            ? ` [DEPOSIT: ${currency}${s.deposit_amount}]`
+          // Show deposit requirement if applicable (spoken form for the AI)
+          const depositNote = s.deposit_required && s.deposit_amount && s.deposit_amount > 0
+            ? `, deposit: ${formatPriceForSpeech(s.deposit_amount, currency)}`
             : "";
-          
+
           // For duplicate service names, show disambiguated name with category
           const normalizedName = s.name.toLowerCase().trim();
           const isDuplicate = duplicateServiceNames.has(normalizedName);
           const displayName = isDuplicate ? `${s.name} (${cat})` : s.name;
           const duplicateWarning = isDuplicate ? ` ⚠️ SAME NAME EXISTS IN OTHER CATEGORIES - ALWAYS CLARIFY!` : "";
-          
-          return `  - ${displayName}: ${s.duration_minutes}min, ${currency}${s.price}${availabilityNote}${depositNote}${duplicateWarning}`;
+
+          return `  - ${displayName}: ${s.duration_minutes} minutes, ${formatPriceForSpeech(s.price, currency)}${depositNote}${availabilityNote}${duplicateWarning}`;
         }).join("\n")}`
       ).join("\n")
     : "Services available upon request";
@@ -4908,25 +4908,26 @@ Collect: ${collectFields.join(", ")}.${doNotAskFields.length > 0 ? `\nDO NOT ask
     ? `\n## DEPOSITS (IMPORTANT - FOLLOW THIS FLOW):
 
 **1. WHEN LISTING SERVICES or caller asks about prices:**
-Include deposit info naturally when mentioning services that require one:
-- "A haircut is £15, and there's a small £1 deposit to secure your booking"
-- "That service is £30, with a £5 deposit payable by text"
+Include deposit info naturally when mentioning services that require one. Always speak amounts in full English words, never use currency symbols or decimals:
+- "A haircut is fifteen pounds, and there's a small one pound deposit to secure your booking"
+- "That service is thirty pounds, with a five pound deposit payable by text"
 
 **2. BEFORE CALLING create_booking (REQUIRED for deposit services):**
-If the service has [DEPOSIT: X] in its description, you MUST:
-- Say: "Just so you know, there's a [deposit amount] deposit for this service. You'll get a text with a secure payment link, and if it's not paid before your appointment, the booking may be cancelled. Is that okay with you?"
+If the service shows a "deposit:" amount in its description, you MUST:
+- Say: "Just so you know, there's a [deposit amount spoken in words] deposit for this service. You'll get a text with a secure payment link, and if it's not paid before your appointment, the booking may be cancelled. Is that okay with you?"
 - WAIT for the caller to confirm (yes/okay/that's fine/etc.)
 - Only THEN call create_booking
 - If they say no or hesitate, offer alternatives or ask if they have questions
 
 **3. AFTER BOOKING IS CONFIRMED:**
 Remind them about the payment:
-- "Perfect, you're all booked! You'll get a text shortly with your booking details and the payment link for the [deposit amount] deposit. Just a heads up - please pay before your appointment to keep your slot secure."
+- "Perfect, you're all booked! You'll get a text shortly with your booking details and the payment link for the [deposit amount spoken in words] deposit. Just a heads up — please pay before your appointment to keep your slot secure."
 
 **4. IF THEY ASK ABOUT DEPOSITS:**
-- "The deposit helps us secure your time slot. You'll get a text with an easy payment link - just takes a minute to pay. If it's not paid before your appointment, we may need to give your slot to someone else."
+- "The deposit helps us secure your time slot. You'll get a text with an easy payment link — just takes a minute to pay. If it's not paid before your appointment, we may need to give your slot to someone else."
 
-**DO NOT mention deposits for services that don't have [DEPOSIT: X] in their description.**`
+**ALWAYS speak money in full words (e.g. "thirty pounds", "one pound fifty", "thirty pence"). NEVER say "£30" or "pound sign 30".**
+**DO NOT mention deposits for services that don't show a deposit amount in their description.**`
     : "";
 
   // Website knowledge for FAQs
@@ -5304,6 +5305,7 @@ ${dataCollectionRules}${faqContext}`;
     const status = getOpenStatus(hours, businessTimezone);
     return buildAdvancedReceptionistRules({
       businessName,
+      businessNameForSpeech: businessSettings?.business_name_phonetic || businessName,
       assistantName,
       callerFirstName: callerInfo?.name?.split(" ")[0] || null,
       isReturning: !!callerInfo?.isReturning,
