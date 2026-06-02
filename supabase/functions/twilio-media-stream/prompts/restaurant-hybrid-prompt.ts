@@ -1,5 +1,6 @@
 // Restaurant Hybrid specific system prompt builder
 // Used for restaurants that do both pickup/takeaway AND dine-in reservations
+import { formatPriceForSpeech } from "./advanced-rules.ts";
 
 interface RestaurantHybridPromptData {
   businessName: string;
