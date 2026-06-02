@@ -65,12 +65,13 @@ export function buildSalonSystemPrompt(data: SalonPromptData): string {
     return acc;
   }, {});
 
+  const salonCurrency = businessSettings?.currency || "GBP";
   let formattedServices = "";
   for (const [category, categoryServices] of Object.entries(servicesByCategory)) {
     formattedServices += `\n${category}:\n`;
     for (const service of categoryServices as any[]) {
-      const deposit = service.deposit_required ? ` (Deposit: ${businessSettings?.currency || "GBP"} ${service.deposit_amount})` : "";
-      formattedServices += `  - ${service.name}: ${service.duration_minutes} min, ${businessSettings?.currency || "GBP"} ${service.price}${deposit}\n`;
+      const deposit = service.deposit_required ? ` (Deposit: ${formatPriceForSpeech(service.deposit_amount, salonCurrency)})` : "";
+      formattedServices += `  - ${service.name}: ${service.duration_minutes} minutes, ${formatPriceForSpeech(service.price, salonCurrency)}${deposit}\n`;
     }
   }
 
