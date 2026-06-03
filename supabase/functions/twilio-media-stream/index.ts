@@ -594,6 +594,9 @@ Deno.serve(async (req) => {
     tables: [],
     menuCategories: [],
     menuItems: [],
+    menuItemOptionGroups: [],
+    menuItemOptions: [],
+    currency: business.currency || "GBP",
     restaurantSettings: {
       cuisineType: business.cuisine_type,
       menuLink: business.menu_link,
