@@ -165,6 +165,9 @@ interface StreamSession {
   tables: any[];
   menuCategories: any[];
   menuItems: any[];
+  menuItemOptionGroups: any[];
+  menuItemOptions: any[];
+  currency: string;
   restaurantSettings: any;
   // Call stability tracking
   interactionCount: number;
