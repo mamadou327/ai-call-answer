@@ -158,8 +158,8 @@ ${twilioPhoneNumber ? `- Phone: ${twilioPhoneNumber}` : ""}
 ${restaurantSettings.menuLink ? `- Menu: ${restaurantSettings.menuLink}` : ""}
 ${websiteKnowledge ? `\nADDITIONAL INFO:\n${websiteKnowledge}` : ""}
 
-OPENING HOURS:
-${formattedHours}
+LIVE REFERENCE DATA (DO NOT GUESS — CALL THE TOOL):
+- Before stating ANY opening/closing time or open day → call get_opening_hours. NEVER read hours from memory.
 
 SEATING:
 - Total capacity: ${totalSeats} seats across ${activeTables.length} tables

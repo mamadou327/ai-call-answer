@@ -265,17 +265,16 @@ ${twilioPhoneNumber ? `- Phone: ${twilioPhoneNumber}` : ""}
 ${restaurantSettings.menuLink ? `- Menu: ${restaurantSettings.menuLink}` : ""}
 ${websiteKnowledge ? `\nADDITIONAL INFO:\n${websiteKnowledge}` : ""}
 
-OPENING HOURS:
-${formattedHours}
+LIVE REFERENCE DATA (DO NOT GUESS — CALL THE TOOL):
+- This business has ${menuItems.length} menu item(s) across ${menuCategories.length} categor(ies), plus weekly opening hours.
+- Before stating ANY opening/closing time or open day → call get_opening_hours.
+- Before naming, describing, pricing or offering ANY menu item, size, or option → call get_menu.
+- NEVER read the menu or hours from memory. They are NOT in this prompt — you MUST fetch them.
+⚠️ CRITICAL ABOUT OPTIONS: Item options returned by get_menu belong ONLY to that specific item. NEVER offer one item's options for a different item.
 
 ═══════════════════════════════════════
 PICKUP/TAKEAWAY INFORMATION:
 ═══════════════════════════════════════
-MENU (Know this well - you're the expert!):
-⚠️ CRITICAL ABOUT OPTIONS: Each item below may have OPTIONS shown with "↳".
-These options belong ONLY to that specific item - NEVER offer them for other items!
-For example, if "Burger" has "Extra Cheese" but "Chips" doesn't, NEVER ask if they want cheese with their chips.
-${formattedMenu || "Menu available - ask customer what they'd like."}
 
 ${paymentInfo}
 ${minimumOrder}
