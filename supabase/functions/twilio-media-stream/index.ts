@@ -214,7 +214,14 @@ interface StreamSession {
   useElevenLabs: boolean;
   elevenLabsVoiceId: string | null;
   elevenLabs: ElevenLabsTTS | null;
+
+  // Assistant identity (resolved once from settings.assistant_name)
+  assistantName: string;
+
+  // One-shot flag so the "Sorry about that brief interruption" line is said at most once per call
+  interruptionAcknowledged: boolean;
 }
+
 
 interface BusinessSettings {
   min_booking_notice_hours: number;
