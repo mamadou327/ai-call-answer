@@ -658,7 +658,14 @@ Deno.serve(async (req) => {
     useElevenLabs,
     elevenLabsVoiceId,
     elevenLabs: null,
+
+    // Assistant identity — single resolved source of truth for greetings/prompts
+    assistantName,
+
+    // One-shot reconnect apology flag
+    interruptionAcknowledged: false,
   };
+
 
   if (useElevenLabs) {
     console.log("[MediaStream] Premium voice ENABLED for business", {
