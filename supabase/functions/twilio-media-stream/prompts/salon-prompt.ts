@@ -172,17 +172,13 @@ ${businessNamePhonetic ? `- PRONUNCIATION: When saying the business name aloud, 
 ${twilioPhoneNumber ? `- Phone: ${twilioPhoneNumber}` : ""}
 ${websiteKnowledge ? `\nWEBSITE KNOWLEDGE:\n${websiteKnowledge}` : ""}
 
-OPENING HOURS:
-${formattedHours}
-
-SERVICES OFFERED:
-${formattedServices}
-
-STAFF MEMBERS:
-${formattedStaff}
-
-STAFF TIME OFF:
-${formattedTimeOff}
+LIVE REFERENCE DATA (DO NOT GUESS — CALL THE TOOL):
+- This business has ${services.length} service(s), ${staff.length} staff member(s), and weekly opening hours configured.
+- Before listing or quoting ANY service, price, duration or deposit → call get_services.
+- Before naming, listing or confirming ANY staff member or their eligibility for a service → call get_staff.
+- Before stating opening/closing times or which days are open → call get_opening_hours.
+- NEVER read services, staff or hours from memory. They are NOT in this prompt — you MUST fetch them.
+${staffTimeOff.length > 0 ? `\nACTIVE STAFF TIME OFF (already loaded, safe to use):\n${formattedTimeOff}` : ""}
 
 BOOKING RULES:
 - Minimum notice: ${businessSettings?.min_booking_notice_hours || 2} hours

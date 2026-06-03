@@ -1828,6 +1828,8 @@ async function sendSessionConfig(
   });
   
   console.log(`[MediaStream] Using ${tools.length} tools for business type: ${session.businessType}`);
+  console.log(`[MediaStream] Tool names: ${tools.map((t: any) => t.name).join(", ")}`);
+  console.log(`[MediaStream] System prompt length: ${session.systemPrompt?.length || 0} chars`);
 
   // GA Realtime session shape. Audio I/O moved under `audio.{input,output}`,
   // `modalities` is now `output_modalities`, and `g711_ulaw` is `audio/pcmu`.
