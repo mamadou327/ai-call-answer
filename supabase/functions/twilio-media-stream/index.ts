@@ -753,7 +753,10 @@ Deno.serve(async (req) => {
           // Restaurant-specific cached data
           session.menuCategories = promptData.menuCategories || [];
           session.menuItems = promptData.menuItems || [];
+          session.menuItemOptionGroups = promptData.menuItemOptionGroups || [];
+          session.menuItemOptions = promptData.menuItemOptions || [];
           session.tables = promptData.tables || [];
+          session.currency = promptData.businessSettings?.currency || "GBP";
 
           // Connect to OpenAI Realtime API
           await connectToOpenAI(session, supabase);
