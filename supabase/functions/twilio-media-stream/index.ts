@@ -2007,6 +2007,20 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
       case "update_customer_language":
         result = await executeUpdateCustomerLanguage(supabase, session, args);
         break;
+
+      // On-demand reference data
+      case "get_services":
+        result = executeGetServices(session);
+        break;
+      case "get_staff":
+        result = executeGetStaff(session);
+        break;
+      case "get_opening_hours":
+        result = executeGetOpeningHours(session);
+        break;
+      case "get_menu":
+        result = executeGetMenu(session);
+        break;
     }
   } catch (error) {
     console.error("[MediaStream] Tool execution error:", error);
