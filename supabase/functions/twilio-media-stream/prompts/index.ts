@@ -239,7 +239,35 @@ function getDefaultRestaurantSettings() {
 
 // Get the appropriate tools for a business type
 export function getToolsForBusinessType(businessType: BusinessType): any[] {
+  const onDemandDataTools = [
+    {
+      type: "function",
+      name: "get_services",
+      description: "Return the full live list of services this business offers, with price, duration, deposit info, and which staff can provide each. CALL THIS the first time the caller asks about services, prices, or what is offered. Do not list services from memory before calling.",
+      parameters: { type: "object", properties: {} },
+    },
+    {
+      type: "function",
+      name: "get_staff",
+      description: "Return the full live staff roster including which services each staff member can perform and their working hours. CALL THIS the first time the caller asks who works there, asks for a specific staff member, or you need to verify staff/service eligibility.",
+      parameters: { type: "object", properties: {} },
+    },
+    {
+      type: "function",
+      name: "get_opening_hours",
+      description: "Return the business opening hours for the week. CALL THIS when the caller asks what time the business opens/closes or which days it is open.",
+      parameters: { type: "object", properties: {} },
+    },
+    {
+      type: "function",
+      name: "get_menu",
+      description: "Return the full live menu (categories, items, options, sizes, prices, dietary tags). RESTAURANT ONLY. Call the first time the caller asks about the menu, a specific item, options, or prices.",
+      parameters: { type: "object", properties: {} },
+    },
+  ];
+
   const commonTools = [
+    ...onDemandDataTools,
     {
       type: "function",
       name: "update_customer_language",

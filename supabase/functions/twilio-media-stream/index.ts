@@ -165,6 +165,9 @@ interface StreamSession {
   tables: any[];
   menuCategories: any[];
   menuItems: any[];
+  menuItemOptionGroups: any[];
+  menuItemOptions: any[];
+  currency: string;
   restaurantSettings: any;
   // Call stability tracking
   interactionCount: number;
@@ -591,6 +594,9 @@ Deno.serve(async (req) => {
     tables: [],
     menuCategories: [],
     menuItems: [],
+    menuItemOptionGroups: [],
+    menuItemOptions: [],
+    currency: business.currency || "GBP",
     restaurantSettings: {
       cuisineType: business.cuisine_type,
       menuLink: business.menu_link,
@@ -747,7 +753,10 @@ Deno.serve(async (req) => {
           // Restaurant-specific cached data
           session.menuCategories = promptData.menuCategories || [];
           session.menuItems = promptData.menuItems || [];
+          session.menuItemOptionGroups = promptData.menuItemOptionGroups || [];
+          session.menuItemOptions = promptData.menuItemOptions || [];
           session.tables = promptData.tables || [];
+          session.currency = promptData.businessSettings?.currency || "GBP";
 
           // Connect to OpenAI Realtime API
           await connectToOpenAI(session, supabase);
@@ -1997,6 +2006,20 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
       // Common tools
       case "update_customer_language":
         result = await executeUpdateCustomerLanguage(supabase, session, args);
+        break;
+
+      // On-demand reference data
+      case "get_services":
+        result = executeGetServices(session);
+        break;
+      case "get_staff":
+        result = executeGetStaff(session);
+        break;
+      case "get_opening_hours":
+        result = executeGetOpeningHours(session);
+        break;
+      case "get_menu":
+        result = executeGetMenu(session);
         break;
     }
   } catch (error) {
@@ -5297,6 +5320,8 @@ ${dataCollectionRules}${faqContext}`;
       services,
       menuCategories,
       menuItems: enrichedMenuItems,
+      menuItemOptionGroups,
+      menuItemOptions,
       tables,
     };
   }
@@ -5357,6 +5382,122 @@ async function executeUpdateCustomerLanguage(supabase: any, session: StreamSessi
     return { success: false, message: "Error updating language" };
   }
 }
+
+// ============================================================================
+// ON-DEMAND REFERENCE DATA TOOLS
+// These return live data from the session cache instead of bloating the
+// resident system prompt with the full lists at call start.
+// ============================================================================
+function executeGetServices(session: StreamSession): any {
+  const services = session.services || [];
+  const staffServices = session.staffServices || [];
+  const staff = session.staff || [];
+  const currency = session.currency || "GBP";
+  if (services.length === 0) {
+    return { success: true, services: [], note: "No services configured." };
+  }
+  const items = services.map((s: any) => {
+    const staffIds = staffServices.filter((ss: any) => ss.service_id === s.id).map((ss: any) => ss.staff_id);
+    const staffNames = staff.filter((st: any) => staffIds.includes(st.id) && st.ai_enabled).map((st: any) => st.name);
+    return {
+      name: s.name,
+      category: s.category || "General",
+      duration_minutes: s.duration_minutes,
+      price_spoken: formatPriceForSpeech(s.price, currency),
+      deposit_spoken: s.deposit_required && s.deposit_amount > 0 ? formatPriceForSpeech(s.deposit_amount, currency) : null,
+      bookable_with: staffNames,
+    };
+  });
+  return { success: true, services: items, instruction: "Use price_spoken when reading prices aloud. Only mention bookable_with if the caller asks who can do it." };
+}
+
+function executeGetStaff(session: StreamSession): any {
+  const staff = session.staff || [];
+  const services = session.services || [];
+  const staffServices = session.staffServices || [];
+  if (staff.length === 0) {
+    return { success: true, staff: [], note: "No staff configured." };
+  }
+  const items = staff.map((s: any) => {
+    const svcIds = staffServices.filter((ss: any) => ss.staff_id === s.id).map((ss: any) => ss.service_id);
+    const svcNames = services.filter((sv: any) => svcIds.includes(sv.id)).map((sv: any) => sv.name);
+    return {
+      name: s.name,
+      title: s.title || s.role || null,
+      is_business_owner: !!s.is_business_owner,
+      bookable_by_ai: !!s.ai_enabled,
+      can_book_for_services: svcNames,
+      working_hours: s.working_hours || null,
+    };
+  });
+  return { success: true, staff: items, instruction: "If bookable_by_ai is false, transfer instead of booking. Only book a service that is in can_book_for_services." };
+}
+
+function executeGetOpeningHours(session: StreamSession): any {
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const hours = (session.openingHours || [])
+    .slice()
+    .sort((a: any, b: any) => a.day_of_week - b.day_of_week)
+    .map((h: any) => ({
+      day: dayNames[h.day_of_week] || `Day ${h.day_of_week}`,
+      is_closed: !!h.is_closed,
+      open_time: h.is_closed ? null : (h.open_time || "").slice(0, 5) || null,
+      close_time: h.is_closed ? null : (h.close_time || "").slice(0, 5) || null,
+    }));
+  return { success: true, opening_hours: hours };
+}
+
+function executeGetMenu(session: StreamSession): any {
+  const categories = session.menuCategories || [];
+  const items = session.menuItems || [];
+  const optionGroups = session.menuItemOptionGroups || [];
+  const options = session.menuItemOptions || [];
+  const currency = session.currency || "GBP";
+  if (items.length === 0) {
+    return { success: true, menu: [], note: "Menu not configured." };
+  }
+  const formatItem = (item: any) => {
+    const itemGroups = optionGroups.filter((g: any) => g.menu_item_id === item.id);
+    const groups = itemGroups.map((g: any) => {
+      const opts = options
+        .filter((o: any) => o.option_group_id === g.id && o.is_available !== false)
+        .map((o: any) => {
+          const sizes = o.has_sizes && Array.isArray(o.sizes) && o.sizes.length > 0
+            ? o.sizes.map((s: any) => ({
+                name: s.name,
+                extra_cost_spoken: s.price > 0 ? formatPriceForSpeech(s.price, currency) : null,
+              }))
+            : null;
+          const adj = o.price_adjustment || 0;
+          return {
+            name: o.name,
+            sizes,
+            extra_cost_spoken: !sizes && adj !== 0 ? `${adj > 0 ? "+" : "-"}${formatPriceForSpeech(Math.abs(adj), currency)}` : null,
+          };
+        });
+      return { name: g.name, required: !!g.is_required, options: opts };
+    });
+    return {
+      name: item.name,
+      description: item.description || null,
+      dietary_tags: item.dietary_tags || [],
+      option_groups: groups,
+    };
+  };
+  if (categories.length > 0) {
+    const menu = categories.map((c: any) => ({
+      category: c.name,
+      items: items.filter((i: any) => i.category_id === c.id && i.is_available !== false).map(formatItem),
+    })).filter((c: any) => c.items.length > 0);
+    return { success: true, menu, instruction: "Use extra_cost_spoken when reading prices aloud. Only ask about option_groups that belong to the item being ordered." };
+  }
+  return {
+    success: true,
+    menu: [{ category: "Menu", items: items.filter((i: any) => i.is_available !== false).map(formatItem) }],
+    instruction: "Use extra_cost_spoken when reading prices aloud.",
+  };
+}
+
 
 async function getCallerInfo(supabase: any, businessId: string, callerPhone: string, currentCallSid?: string): Promise<CallerInfo> {
   if (!callerPhone) {
