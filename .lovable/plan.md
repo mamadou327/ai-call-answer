@@ -1,41 +1,44 @@
-# Real-world interruption handling for AI receptionist
+## Four targeted fixes to `twilio-media-stream` and prompt rules
 
-Add a new INTERRUPTION & BACKGROUND HANDLING section to the shared advanced rules so all business types (salon, restaurant pickup/dine-in/hybrid, generic) inherit the same behaviour.
+### Fix 1 — Greeting uses the correct assistant name
+Problem: line 1923 reads `(session.businessSettings as any)?.assistant_name || "Aivia"`, a second resolution path that falls back to "Aivia" when `businessSettings` is incomplete, even though `assistantName` was already correctly resolved at line 519 from the same DB row.
 
-## File to edit
+Change:
+- Add `assistantName: string` to the `StreamSession` interface (line 139 block) and initialise it in the `session` literal at line 569 using the already-resolved `assistantName` variable.
+- In the forced-greeting block (around line 1923–1927), replace the `assistantNameForGreeting` lookup with `session.assistantName`. Use the same value anywhere the greeting line is composed.
 
-`supabase/functions/twilio-media-stream/prompts/advanced-rules.ts` — extend `buildAdvancedReceptionistRules()` with the new section. No other prompt files need editing because they already append this shared block.
+### Fix 2 — Returning caller: answer the question first
+Problem: when a returning caller asks a direct question in their very first utterance, the model uses the "welcome back" branch and skips answering.
 
-## New prompt section: INTERRUPTION & BACKGROUND HANDLING
+Change (prompt-only, in `prompts/advanced-rules.ts`):
+- Add a new high-priority rule under the existing "RETURNING CALLER" / first-turn handling:
+  > If a returning caller asks a direct question in their first turn, ANSWER THE QUESTION FIRST in the same response, then add a brief warm acknowledgement (e.g. "— and lovely to hear from you again, <FirstName>."). Never delay or replace answering a question with a returning-caller greeting.
+- Keep the existing "welcome back" greeting for first turns that contain no question.
 
-Six scenarios, written as strict rules the model must follow:
+Note: the forced initial greeting at index.ts:1925 fires before the caller has spoken, so it stays as-is. This rule governs the model's first *response* after the caller speaks.
 
-1. **Background voice giving conflicting info** — If the caller relays input from someone nearby ("hang on, he says Sunday") or a background voice contradicts what the caller just said, do NOT act on the background input. Re-confirm with the primary caller: *"No problem, just to confirm — shall I put that down for Sunday?"* Only proceed once the caller themselves confirms.
+### Fix 3 — Mandatory pre-booking confirmation summary
+Problem: the model is skipping the read-back summary before `create_booking`.
 
-2. **"Hold on / one moment"** — On any pause phrase ("hold on", "one sec", "just a second", "hang on a moment", "bear with me", "sorry, one minute"), go completely silent. Do not speak, do not prompt, do not trigger silence-handling for at least 30 seconds. When they return ("sorry about that", "right, where were we"), resume warmly: *"No problem at all, where were we — you were asking about [last topic]."*
+Change (prompt-only, in `prompts/advanced-rules.ts`, BOOKING WORKFLOW / confirmation section):
+- Promote the existing summary rule to a HARD, NON-SKIPPABLE rule with explicit language:
+  > BEFORE calling `create_booking` you MUST read back the full summary line (service, staff, date, time, customer name) and WAIT for an explicit "yes" (or equivalent confirmation) from the caller. No exceptions under any circumstances. If you call `create_booking` without an explicit yes after the summary, that is a critical failure.
+- Apply the same hardening to `create_reservation` and `create_pickup_order` confirmation lines for consistency (these were already in the brevity-exempt list).
 
-3. **Background speech aimed at someone else** — If audible speech is clearly directed at another person in the caller's environment ("what do you want?", "yeah I'll be there in a minute", "hang on I'm on the phone"), do NOT respond. Wait for the caller to address the AI directly again. Phrases containing "I'm on the phone" or "just a second" are strong signals to stay silent.
+### Fix 4 — "Sorry about that brief interruption" only once per call
+Problem: the reconnect-greeting instruction is reused on every reconnect, so the phrase can be spoken twice in one call.
 
-4. **Caller loses their train of thought** — If the caller trails off after an interruption and returns confused ("sorry, where was I", "what was I saying"), gently re-orient by repeating the last confirmed detail: *"Not at all, we were just sorting out a time for your appointment. You had said Wednesday — shall we carry on from there?"*
+Change (`index.ts`):
+- Add `interruptionAcknowledged: boolean` to `StreamSession` (default `false` in the session literal).
+- In the reconnect branch (line 1909–1911), only include the "Sorry about that brief interruption…" wording when `session.interruptionAcknowledged === false`. After sending that instruction set `session.interruptionAcknowledged = true`.
+- On subsequent reconnects, use a silent continuation instruction instead, e.g. *"Continue the conversation naturally from where you left off. Do NOT apologise for any interruption — that has already been acknowledged earlier in this call."*
 
-5. **Two people speaking through the same phone** — If two distinct voices both address the AI, acknowledge warmly and ask to speak with one: *"I can hear there are two of you — shall I speak with one of you at a time so I can get everything sorted properly?"*
+### Deployment
+- After edits, deploy `twilio-media-stream` via `supabase--deploy_edge_functions`.
+- No DB migration, no UI changes.
 
-6. **Parallel conversation in the room** — If the caller is clearly talking to someone else in the room, do not compete, do not repeat the last question, do not speak unless directly addressed. Specifically:
-   - Wait in silence for up to 20 seconds with no engagement.
-   - At 20 seconds, say once only, gently: *"Take your time, I am still here whenever you are ready."*
-   - Wait another 30 seconds in silence before falling back to the standard silence handler.
-   - Never say "I notice you seem distracted" or repeat "shall we continue".
-   - Never make the caller feel like a burden.
-   - If the caller has clearly forgotten the AI is on the line, wait up to 60 seconds total then close gently: *"I will let you go for now. Feel free to call back whenever suits you and we will get everything sorted. Have a lovely day."*
-
-## Interaction with existing rules
-
-- This block takes **precedence over the existing nuanced silence handling** (the 3s/4s rules) whenever the silence is preceded by a pause phrase, background chatter, or a parallel conversation. The standard silence handler only applies to plain unexplained silence.
-- Rule 1 (background contradicts caller) takes precedence over the existing anti-repetition rule — re-confirming after conflicting background input is required, not a repetition violation.
-- Rules reference the AI's existing "last confirmed info" tracking; no new state is introduced.
-
-## Deploy
-
-Redeploy `twilio-media-stream` after the edit.
-
-No schema changes, no client-side changes, no new tools.
+### Validation (next test call)
+- (a) Greeting uses the business's configured assistant name, not "Aivia".
+- (b) If caller is returning and opens with a question, the question is answered first and the welcome-back line follows in the same turn.
+- (c) Before any `create_booking` log entry, the transcript contains a full summary line and an explicit caller "yes".
+- (d) Across two forced reconnects in the same call, "Sorry about that brief interruption" appears at most once.

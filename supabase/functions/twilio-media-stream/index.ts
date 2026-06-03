@@ -214,7 +214,14 @@ interface StreamSession {
   useElevenLabs: boolean;
   elevenLabsVoiceId: string | null;
   elevenLabs: ElevenLabsTTS | null;
+
+  // Assistant identity (resolved once from settings.assistant_name)
+  assistantName: string;
+
+  // One-shot flag so the "Sorry about that brief interruption" line is said at most once per call
+  interruptionAcknowledged: boolean;
 }
+
 
 interface BusinessSettings {
   min_booking_notice_hours: number;
@@ -651,7 +658,14 @@ Deno.serve(async (req) => {
     useElevenLabs,
     elevenLabsVoiceId,
     elevenLabs: null,
+
+    // Assistant identity — single resolved source of truth for greetings/prompts
+    assistantName,
+
+    // One-shot reconnect apology flag
+    interruptionAcknowledged: false,
   };
+
 
   if (useElevenLabs) {
     console.log("[MediaStream] Premium voice ENABLED for business", {
@@ -1907,8 +1921,14 @@ async function sendSessionConfig(
 
       // For reconnects, give the AI context about the reconnection
       if (session.isReconnect) {
-        responseConfig.response.instructions =
-          "The call was briefly reconnected due to a technical glitch. Continue the conversation naturally from where you left off. Say something brief like 'Sorry about that brief interruption. Now, where were we?' and continue helping the caller.";
+        if (!session.interruptionAcknowledged) {
+          responseConfig.response.instructions =
+            "The call was briefly reconnected due to a technical glitch. Continue the conversation naturally from where you left off. Say something brief like 'Sorry about that brief interruption. Now, where were we?' and continue helping the caller.";
+          session.interruptionAcknowledged = true;
+        } else {
+          responseConfig.response.instructions =
+            "Continue the conversation naturally from where you left off. Do NOT apologise for any interruption — that has already been acknowledged earlier in this call. Just pick up exactly where you left off and keep helping the caller.";
+        }
       } else {
         // FORCE the first greeting to include BOTH:
         // 1) opening context (if set)
@@ -1920,7 +1940,7 @@ async function sendSessionConfig(
         const safeOpening = openingContext.replace(/\s+/g, " ").trim();
 
         const greetingPeriod = getGreetingPeriod(session.businessTimezone || "Europe/London");
-        const assistantNameForGreeting = (session.businessSettings as any)?.assistant_name || "Aivia";
+        const assistantNameForGreeting = session.assistantName;
 
         const greetingLead = isReturning && firstName
           ? `${greetingPeriod} ${firstName}, lovely to hear from you again. How can I help?`
@@ -1935,6 +1955,7 @@ async function sendSessionConfig(
 
         responseConfig.response.instructions = `Say this exact greeting verbatim, then wait for the caller. Do NOT mention call recording — that comes later after the caller explains why they called.\n"${forcedGreeting}"`;
       }
+
 
       session.openAiWs.send(JSON.stringify(responseConfig));
       console.log("[MediaStream] Triggered", session.isReconnect ? "reconnect greeting" : "initial greeting");
