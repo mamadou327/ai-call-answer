@@ -5306,6 +5306,8 @@ ${dataCollectionRules}${faqContext}`;
       services,
       menuCategories,
       menuItems: enrichedMenuItems,
+      menuItemOptionGroups,
+      menuItemOptions,
       tables,
     };
   }
