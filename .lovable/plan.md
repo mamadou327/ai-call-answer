@@ -1,44 +1,84 @@
-## Four targeted fixes to `twilio-media-stream` and prompt rules
+## Plan
 
-### Fix 1 — Greeting uses the correct assistant name
-Problem: line 1923 reads `(session.businessSettings as any)?.assistant_name || "Aivia"`, a second resolution path that falls back to "Aivia" when `businessSettings` is incomplete, even though `assistantName` was already correctly resolved at line 519 from the same DB row.
+I’ll make one focused backend pass on the voice stream function to preserve full mid-call state across reconnects, stop repeated disclosures/greetings, block duplicate rebooking after a successful booking, then clean up the duplicate booking row and redeploy.
 
-Change:
-- Add `assistantName: string` to the `StreamSession` interface (line 139 block) and initialise it in the `session` literal at line 569 using the already-resolved `assistantName` variable.
-- In the forced-greeting block (around line 1923–1927), replace the `assistantNameForGreeting` lookup with `session.assistantName`. Use the same value anywhere the greeting line is composed.
+## What I found
 
-### Fix 2 — Returning caller: answer the question first
-Problem: when a returning caller asks a direct question in their very first utterance, the model uses the "welcome back" branch and skips answering.
+- **Reconnect rehydration is incomplete today**: `rehydrateContext()` only reloads the **last 15 user/assistant messages** from `call_conversations`, skips system/tool state, and rebuilds `session.conversationHistory` from that subset (`supabase/functions/twilio-media-stream/index.ts:1537-1599`).
+- **Successful tool calls are not persisted into conversation history**: `logConversation()` only writes `{ role, content, timestamp }`, so the DB record has no structured `create_booking` success marker to protect against reconnect rebooking (`index.ts:5628-5650`).
+- **Only one reconnect flag currently survives locally**: `interruptionAcknowledged` exists on `StreamSession`, but `recordingDisclosureGiven` and `returningCallerGreeted` do not currently live there (`index.ts:139-223`).
+- **Reconnect prompt is not the requested silent continuation rule**: current reconnect instructions still inject an apology on first reconnect and do not explicitly forbid re-checking already confirmed details (`index.ts:1922-1931`).
+- **There are already duplicate confirmed bookings for this caller on 2026-06-09**:
+  - `JOH-3676` at **14:00** created **2026-06-05 15:55:26 UTC**
+  - `JOH-0131` at **16:00** created **2026-06-05 15:53:48 UTC**
+  Both are confirmed for the same caller/business/service/staff.
 
-Change (prompt-only, in `prompts/advanced-rules.ts`):
-- Add a new high-priority rule under the existing "RETURNING CALLER" / first-turn handling:
-  > If a returning caller asks a direct question in their first turn, ANSWER THE QUESTION FIRST in the same response, then add a brief warm acknowledgement (e.g. "— and lovely to hear from you again, <FirstName>."). Never delay or replace answering a question with a returning-caller greeting.
-- Keep the existing "welcome back" greeting for first turns that contain no question.
+## Implementation
 
-Note: the forced initial greeting at index.ts:1925 fires before the caller has spoken, so it stays as-is. This rule governs the model's first *response* after the caller speaks.
+### 1) Persist full reconnect state on `StreamSession`
+Update `StreamSession` in `supabase/functions/twilio-media-stream/index.ts` to carry reconnect-stable state for the whole call:
+- `conversationHistory` as the authoritative in-memory event log for the call
+- `recordingDisclosureGiven: boolean`
+- `interruptionAcknowledged: boolean`
+- `returningCallerGreeted: boolean`
+- a structured record of successful booking/reservation/order tool results for dedupe checks, keyed by type + business + service/date/time/customer where applicable
 
-### Fix 3 — Mandatory pre-booking confirmation summary
-Problem: the model is skipping the read-back summary before `create_booking`.
+These values will be initialized once per call and **never reset during reconnects**.
 
-Change (prompt-only, in `prompts/advanced-rules.ts`, BOOKING WORKFLOW / confirmation section):
-- Promote the existing summary rule to a HARD, NON-SKIPPABLE rule with explicit language:
-  > BEFORE calling `create_booking` you MUST read back the full summary line (service, staff, date, time, customer name) and WAIT for an explicit "yes" (or equivalent confirmation) from the caller. No exceptions under any circumstances. If you call `create_booking` without an explicit yes after the summary, that is a critical failure.
-- Apply the same hardening to `create_reservation` and `create_pickup_order` confirmation lines for consistency (these were already in the brevity-exempt list).
+### 2) Save and restore conversation history properly
+Before any reconnect/session reinitialisation path, preserve the current full `session.conversationHistory` and use it as the primary restore source.
 
-### Fix 4 — "Sorry about that brief interruption" only once per call
-Problem: the reconnect-greeting instruction is reused on every reconnect, so the phrase can be spoken twice in one call.
+On OpenAI session re-init after reconnect:
+- inject the saved history back immediately as prior conversation items
+- include assistant, user, and structured tool success context needed for continuity
+- fall back to `call_conversations.messages` only if in-memory history is unexpectedly missing
+- log the restored **history length** and **estimated token count** at reconnect start so you can verify restoration on the next test call
 
-Change (`index.ts`):
-- Add `interruptionAcknowledged: boolean` to `StreamSession` (default `false` in the session literal).
-- In the reconnect branch (line 1909–1911), only include the "Sorry about that brief interruption…" wording when `session.interruptionAcknowledged === false`. After sending that instruction set `session.interruptionAcknowledged = true`.
-- On subsequent reconnects, use a silent continuation instruction instead, e.g. *"Continue the conversation naturally from where you left off. Do NOT apologise for any interruption — that has already been acknowledged earlier in this call."*
+### 3) Apply the exact reconnect continuation rule
+Replace the reconnect response instruction with the exact required text:
 
-### Deployment
-- After edits, deploy `twilio-media-stream` via `supabase--deploy_edge_functions`.
-- No DB migration, no UI changes.
+```text
+You are reconnecting mid-call. The conversation history above shows everything that was already discussed. Continue naturally from exactly where you left off. Do NOT re-introduce yourself. Do NOT re-deliver the recording disclosure. Do NOT apologise for any interruption unless this is the very first reconnect and interruptionAcknowledged is false. Do NOT re-check availability or re-discuss anything already confirmed. Simply continue as if the line never dropped.
+```
 
-### Validation (next test call)
-- (a) Greeting uses the business's configured assistant name, not "Aivia".
-- (b) If caller is returning and opens with a question, the question is answered first and the welcome-back line follows in the same turn.
-- (c) Before any `create_booking` log entry, the transcript contains a full summary line and an explicit caller "yes".
-- (d) Across two forced reconnects in the same call, "Sorry about that brief interruption" appears at most once.
+I’ll make this the dominant reconnect instruction and keep the first-reconnect apology logic gated by `interruptionAcknowledged`.
+
+### 4) Prevent duplicate bookings after reconnect
+Add a reconnect-safe duplicate guard around `create_booking`:
+- whenever `create_booking` succeeds, store a structured success entry in session history/state
+- on reconnect, inspect restored history/state for prior successful `create_booking` results
+- if a booking for the **same service + date + time** already succeeded in the same call, block a second `create_booking`
+- instead, inject a system instruction telling the model the booking already exists and it must confirm the existing booking details rather than book again
+
+I’ll apply the same pattern to reservation/order success tracking if the existing code path makes that low-risk in the same edit.
+
+### 5) Clean up the duplicate booking data
+After the code fix, remove the extra duplicate booking row for caller `07491004439` on `2026-06-09`, keeping only the **most recently created confirmed row** per your instruction.
+
+Based on current data, that means:
+- **Keep** `0bf50194-fab2-426b-a5e7-8b5300b98acf` (`JOH-3676`, 14:00, created 15:55:26 UTC)
+- **Delete** `f6114033-edee-4e58-aef1-ab17d7084087` (`JOH-0131`, 16:00, created 15:53:48 UTC)
+
+## Validation after deploy
+
+I’ll verify and report back with:
+- reconnect start **history length**
+- reconnect start **estimated token count**
+- whether the exact reconnect continuation instruction is being sent
+- whether a prior successful `create_booking` is detected and blocks rebooking
+- confirmation that the duplicate row was deleted and the kept booking remains
+
+## Technical details
+
+- **Primary files**:
+  - `supabase/functions/twilio-media-stream/index.ts`
+- **Likely changes**:
+  - expand `StreamSession`
+  - strengthen reconnect scheduling + OpenAI session reinit path
+  - replace `rehydrateContext()` to restore from full saved history first
+  - persist structured tool success events alongside plain transcript history
+  - add duplicate guard in `create_booking` handling
+  - run a data cleanup on `public.bookings`
+- **Deployment**:
+  - redeploy `twilio-media-stream`
+  - inspect deployed logs for reconnect restoration metrics
