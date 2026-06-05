@@ -1494,6 +1494,16 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
                       content: content.transcript,
                       itemId: output.id,
                     });
+                    // Latch one-shot per-call flags so reconnects don't repeat these lines.
+                    const lc = content.transcript.toLowerCase();
+                    if (!session.recordingDisclosureGiven && (lc.includes("call may be recorded") || lc.includes("recorded for quality"))) {
+                      session.recordingDisclosureGiven = true;
+                      console.log("[MediaStream] Latched recordingDisclosureGiven=true");
+                    }
+                    if (!session.returningCallerGreeted && lc.includes("lovely to hear from you again")) {
+                      session.returningCallerGreeted = true;
+                      console.log("[MediaStream] Latched returningCallerGreeted=true");
+                    }
                   }
                 }
               }
