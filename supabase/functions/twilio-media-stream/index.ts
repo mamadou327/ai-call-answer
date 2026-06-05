@@ -1938,15 +1938,25 @@ async function sendSessionConfig(
         },
       };
 
-      // For reconnects, give the AI context about the reconnection
+      // For reconnects, give the AI the exact required silent-continuation instruction.
       if (session.isReconnect) {
+        const apologyClause = session.interruptionAcknowledged
+          ? "Do NOT apologise for any interruption — that has already been acknowledged earlier in this call."
+          : "You MAY briefly apologise for the interruption ONCE (e.g. 'Sorry about that brief interruption.').";
+
+        responseConfig.response.instructions =
+          "You are reconnecting mid-call. The conversation history above shows everything that was already discussed. " +
+          "Continue naturally from exactly where you left off. " +
+          "Do NOT re-introduce yourself. " +
+          "Do NOT re-deliver the recording disclosure. " +
+          "Do NOT re-greet the caller with 'welcome back' or any returning-caller greeting — that has already been done. " +
+          apologyClause + " " +
+          "Do NOT re-check availability or re-discuss anything already confirmed. " +
+          "If a booking, reservation, or order was already successfully created earlier in this call, do NOT create another one — confirm the existing details instead. " +
+          "Simply continue as if the line never dropped.";
+
         if (!session.interruptionAcknowledged) {
-          responseConfig.response.instructions =
-            "The call was briefly reconnected due to a technical glitch. Continue the conversation naturally from where you left off. Say something brief like 'Sorry about that brief interruption. Now, where were we?' and continue helping the caller.";
           session.interruptionAcknowledged = true;
-        } else {
-          responseConfig.response.instructions =
-            "Continue the conversation naturally from where you left off. Do NOT apologise for any interruption — that has already been acknowledged earlier in this call. Just pick up exactly where you left off and keep helping the caller.";
         }
       } else {
         // FORCE the first greeting to include BOTH:
@@ -1973,6 +1983,11 @@ async function sendSessionConfig(
         const forcedGreeting = parts.join(" ");
 
         responseConfig.response.instructions = `Say this exact greeting verbatim, then wait for the caller. Do NOT mention call recording — that comes later after the caller explains why they called.\n"${forcedGreeting}"`;
+
+        // Mark the returning-caller welcome as delivered so reconnects don't repeat it.
+        if (isReturning && firstName) {
+          session.returningCallerGreeted = true;
+        }
       }
 
 
