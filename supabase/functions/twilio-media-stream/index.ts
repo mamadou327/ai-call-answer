@@ -2160,6 +2160,44 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
     result = { success: false, message: "Sorry, there was an error processing that request." };
   }
 
+  // Record successful booking-class tool calls in the reconnect-safe ledger
+  // so a later reconnect cannot trigger a duplicate booking.
+  try {
+    if (
+      result?.success === true &&
+      (name === "create_booking" || name === "create_reservation" || name === "create_pickup_order")
+    ) {
+      const args = JSON.parse(argumentsJson);
+      const key = bookingDedupeKey(name, args);
+      if (!session.successfulBookings.some((b) => b.type === name && b.key === key)) {
+        const summaryParts = [
+          args?.service_name && `service ${args.service_name}`,
+          args?.staff_name && `with ${args.staff_name}`,
+          args?.date && `on ${args.date}`,
+          args?.time && `at ${args.time}`,
+          args?.customer_name && `for ${args.customer_name}`,
+          args?.party_size && `party of ${args.party_size}`,
+        ].filter(Boolean);
+        session.successfulBookings.push({
+          type: name,
+          key,
+          summary: summaryParts.join(" "),
+          booking_code: result?.booking_code,
+          booking_id: result?.booking_id,
+          at: new Date().toISOString(),
+        });
+        console.log("[MediaStream] Recorded successful booking in ledger:", {
+          type: name,
+          key,
+          booking_code: result?.booking_code,
+          ledgerSize: session.successfulBookings.length,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("[MediaStream] Failed to update booking ledger:", err);
+  }
+
   // Update the call tag in Calls tab based on what actually happened.
   // (We only set tags for booking actions; other intents remain 'other' unless handled elsewhere.)
   try {
