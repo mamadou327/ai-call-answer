@@ -2049,6 +2049,38 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
   try {
     const args = JSON.parse(argumentsJson);
 
+    // Reconnect-safe duplicate guard for booking-class tool calls.
+    // If a successful booking with the same canonical key already exists in
+    // this call's ledger, refuse to call the tool again and tell the model
+    // to confirm the existing booking instead.
+    if (name === "create_booking" || name === "create_reservation" || name === "create_pickup_order") {
+      const key = bookingDedupeKey(name, args);
+      const existing = session.successfulBookings.find((b) => b.type === name && b.key === key);
+      if (existing) {
+        console.warn("[MediaStream] Duplicate booking blocked by reconnect-safe guard:", { name, key, existing });
+        result = {
+          success: false,
+          duplicate: true,
+          message:
+            `That ${name === "create_booking" ? "booking" : name === "create_reservation" ? "reservation" : "order"} was already confirmed earlier in this call` +
+            (existing.booking_code ? ` (reference ${existing.booking_code})` : "") +
+            `. Do NOT call ${name} again. Tell the caller it's already booked and confirm the existing details: ${existing.summary}.`,
+        };
+        // Skip the real tool execution entirely.
+        if (session.openAiWs?.readyState === WebSocket.OPEN) {
+          session.openAiWs.send(JSON.stringify({
+            type: "conversation.item.create",
+            item: { type: "function_call_output", call_id: callId, output: JSON.stringify(result) },
+          }));
+          session.openAiWs.send(JSON.stringify({
+            type: "response.create",
+            response: { output_modalities: session.useElevenLabs ? ["text"] : ["audio"] },
+          }));
+        }
+        return;
+      }
+    }
+
     switch (name) {
       // Salon tools
       case "create_booking":
