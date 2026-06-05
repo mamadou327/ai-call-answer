@@ -1555,38 +1555,55 @@ const LOVABLE_AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 // Rehydrate conversation context after a reconnect
 async function rehydrateContext(session: StreamSession, supabase: any): Promise<void> {
   if (!session.callSid) return;
-  
-  console.log("[MediaStream] Rehydrating context for callSid:", session.callSid);
-  
+
+  console.log("[MediaStream] Rehydrating context for callSid:", session.callSid, {
+    inMemoryHistoryLen: session.conversationHistory.length,
+    successfulBookings: session.successfulBookings.length,
+    reconnectCount: session.reconnectCount,
+  });
+
   try {
-    // Load recent messages from call_conversations
-    const { data: conversation } = await supabase
-      .from("call_conversations")
-      .select("messages")
-      .eq("call_sid", session.callSid)
-      .maybeSingle();
-    
-    if (!conversation?.messages || !Array.isArray(conversation.messages)) {
-      console.log("[MediaStream] No conversation history found for rehydration");
+    // PREFER in-memory history (survives in-place reconnects). Fall back to DB
+    // for cases where the session object itself was recreated (full stream
+    // reconnect via twilio-stream-action).
+    let sourceMessages: Array<{ role: string; content: string }> = [];
+
+    if (session.conversationHistory && session.conversationHistory.length > 0) {
+      sourceMessages = session.conversationHistory
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role, content: m.content }));
+      console.log(`[MediaStream] Using in-memory history: ${sourceMessages.length} messages`);
+    } else {
+      const { data: conversation } = await supabase
+        .from("call_conversations")
+        .select("messages")
+        .eq("call_sid", session.callSid)
+        .maybeSingle();
+
+      if (conversation?.messages && Array.isArray(conversation.messages)) {
+        sourceMessages = conversation.messages
+          .filter((m: any) => m.role === "user" || m.role === "assistant")
+          .map((m: any) => ({ role: m.role, content: m.content }));
+        console.log(`[MediaStream] Using DB-fallback history: ${sourceMessages.length} messages`);
+        // Seed the in-memory ledger so future reconnects in this call use it.
+        session.conversationHistory = sourceMessages.map((m) => ({ ...m }));
+      }
+    }
+
+    // Keep the full call's history — cap defensively at the most recent 60 messages
+    // to bound prompt size on very long calls.
+    const MAX_REPLAY = 60;
+    const toReplay = sourceMessages.slice(-MAX_REPLAY);
+
+    if (toReplay.length === 0 && session.successfulBookings.length === 0) {
+      console.log("[MediaStream] Nothing to rehydrate");
       return;
     }
-    
-    // Filter to only user and assistant messages (skip system events)
-    const relevantMessages = conversation.messages
-      .filter((m: any) => m.role === "user" || m.role === "assistant")
-      .slice(-15); // Last 15 messages
-    
-    if (relevantMessages.length === 0) {
-      console.log("[MediaStream] No relevant messages to rehydrate");
-      return;
-    }
-    
-    console.log(`[MediaStream] Rehydrating ${relevantMessages.length} messages`);
-    
-    // Send each message to OpenAI to rebuild context
-    for (const msg of relevantMessages) {
+
+    // Inject prior messages back into the OpenAI session.
+    for (const msg of toReplay) {
       if (!session.openAiWs || session.openAiWs.readyState !== WebSocket.OPEN) break;
-      
+
       const item: any = {
         type: "conversation.item.create",
         item: {
@@ -1598,27 +1615,54 @@ async function rehydrateContext(session: StreamSession, supabase: any): Promise<
           }],
         },
       };
-      
+
       session.openAiWs.send(JSON.stringify(item));
-      
-      // Track in local history
-      session.conversationHistory.push({
-        role: msg.role,
-        content: msg.content,
-      });
     }
-    
-    // Estimate tokens from rehydrated content
-    session.estimatedTokens = relevantMessages.reduce(
-      (sum: number, m: any) => sum + Math.ceil((m.content?.length || 0) / 4),
-      0
+
+    // Inject a structured system note summarising any successful booking-class
+    // tool calls so the model knows not to rebook them.
+    if (session.successfulBookings.length > 0 && session.openAiWs?.readyState === WebSocket.OPEN) {
+      const lines = session.successfulBookings
+        .map((b) => `- ${b.summary}${b.booking_code ? ` (ref ${b.booking_code})` : ""}`)
+        .join("\n");
+      const guardText =
+        "[reconnect-guard] The following booking-class tool calls ALREADY SUCCEEDED earlier in this call. " +
+        "Do NOT call create_booking, create_reservation, or create_pickup_order again for any of them. " +
+        "If the caller asks about one of these, confirm the existing details from the references below.\n" +
+        lines;
+
+      session.openAiWs.send(JSON.stringify({
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: guardText }],
+        },
+      }));
+    }
+
+    // Recalculate estimated tokens (rough: ~4 chars/token).
+    const totalChars = toReplay.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+    session.estimatedTokens = Math.ceil(totalChars / 4);
+
+    console.log(
+      `[MediaStream] Context rehydrated. historyLen=${toReplay.length} estimatedTokens=${session.estimatedTokens} successfulBookings=${session.successfulBookings.length}`
     );
-    
-    console.log(`[MediaStream] Context rehydrated. Estimated tokens: ${session.estimatedTokens}`);
   } catch (error) {
     console.error("[MediaStream] Error rehydrating context:", error);
   }
 }
+
+// Canonical dedupe key for booking-class tool calls.
+function bookingDedupeKey(type: string, params: any): string {
+  const date = (params?.date || "").toString().trim();
+  const time = (params?.time || "").toString().trim();
+  const service = (params?.service_name || "").toString().toLowerCase().trim();
+  const staff = (params?.staff_name || "").toString().toLowerCase().trim();
+  const customer = (params?.customer_name || "").toString().toLowerCase().trim();
+  return `${type}|${date}|${time}|${service}|${staff}|${customer}`;
+}
+
 
 // Summarize older messages to manage token window
 async function summarizeAndPrune(session: StreamSession, supabase: any): Promise<void> {
