@@ -218,8 +218,22 @@ interface StreamSession {
   // Assistant identity (resolved once from settings.assistant_name)
   assistantName: string;
 
-  // One-shot flag so the "Sorry about that brief interruption" line is said at most once per call
+  // One-shot per-call flags — MUST survive WebSocket reconnects. Once true,
+  // never reset for the remainder of the call.
   interruptionAcknowledged: boolean;
+  recordingDisclosureGiven: boolean;
+  returningCallerGreeted: boolean;
+
+  // Structured ledger of successful booking-class tool calls in this call.
+  // Used to prevent duplicate bookings after a reconnect rehydrates the AI.
+  successfulBookings: Array<{
+    type: "create_booking" | "create_reservation" | "create_pickup_order";
+    key: string; // canonical dedupe key
+    summary: string; // human-readable summary for the model
+    booking_code?: string;
+    booking_id?: string;
+    at: string; // ISO timestamp
+  }>;
 }
 
 
@@ -662,8 +676,13 @@ Deno.serve(async (req) => {
     // Assistant identity — single resolved source of truth for greetings/prompts
     assistantName,
 
-    // One-shot reconnect apology flag
+    // One-shot reconnect-safe flags — initialised ONCE per call and never reset on reconnect.
     interruptionAcknowledged: false,
+    recordingDisclosureGiven: false,
+    returningCallerGreeted: false,
+
+    // Booking dedupe ledger
+    successfulBookings: [],
   };
 
 
