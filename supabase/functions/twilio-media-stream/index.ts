@@ -218,8 +218,22 @@ interface StreamSession {
   // Assistant identity (resolved once from settings.assistant_name)
   assistantName: string;
 
-  // One-shot flag so the "Sorry about that brief interruption" line is said at most once per call
+  // One-shot per-call flags — MUST survive WebSocket reconnects. Once true,
+  // never reset for the remainder of the call.
   interruptionAcknowledged: boolean;
+  recordingDisclosureGiven: boolean;
+  returningCallerGreeted: boolean;
+
+  // Structured ledger of successful booking-class tool calls in this call.
+  // Used to prevent duplicate bookings after a reconnect rehydrates the AI.
+  successfulBookings: Array<{
+    type: "create_booking" | "create_reservation" | "create_pickup_order";
+    key: string; // canonical dedupe key
+    summary: string; // human-readable summary for the model
+    booking_code?: string;
+    booking_id?: string;
+    at: string; // ISO timestamp
+  }>;
 }
 
 
@@ -662,8 +676,13 @@ Deno.serve(async (req) => {
     // Assistant identity — single resolved source of truth for greetings/prompts
     assistantName,
 
-    // One-shot reconnect apology flag
+    // One-shot reconnect-safe flags — initialised ONCE per call and never reset on reconnect.
     interruptionAcknowledged: false,
+    recordingDisclosureGiven: false,
+    returningCallerGreeted: false,
+
+    // Booking dedupe ledger
+    successfulBookings: [],
   };
 
 
@@ -1475,6 +1494,16 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
                       content: content.transcript,
                       itemId: output.id,
                     });
+                    // Latch one-shot per-call flags so reconnects don't repeat these lines.
+                    const lc = content.transcript.toLowerCase();
+                    if (!session.recordingDisclosureGiven && (lc.includes("call may be recorded") || lc.includes("recorded for quality"))) {
+                      session.recordingDisclosureGiven = true;
+                      console.log("[MediaStream] Latched recordingDisclosureGiven=true");
+                    }
+                    if (!session.returningCallerGreeted && lc.includes("lovely to hear from you again")) {
+                      session.returningCallerGreeted = true;
+                      console.log("[MediaStream] Latched returningCallerGreeted=true");
+                    }
                   }
                 }
               }
@@ -1536,38 +1565,55 @@ const LOVABLE_AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 // Rehydrate conversation context after a reconnect
 async function rehydrateContext(session: StreamSession, supabase: any): Promise<void> {
   if (!session.callSid) return;
-  
-  console.log("[MediaStream] Rehydrating context for callSid:", session.callSid);
-  
+
+  console.log("[MediaStream] Rehydrating context for callSid:", session.callSid, {
+    inMemoryHistoryLen: session.conversationHistory.length,
+    successfulBookings: session.successfulBookings.length,
+    reconnectCount: session.reconnectCount,
+  });
+
   try {
-    // Load recent messages from call_conversations
-    const { data: conversation } = await supabase
-      .from("call_conversations")
-      .select("messages")
-      .eq("call_sid", session.callSid)
-      .maybeSingle();
-    
-    if (!conversation?.messages || !Array.isArray(conversation.messages)) {
-      console.log("[MediaStream] No conversation history found for rehydration");
+    // PREFER in-memory history (survives in-place reconnects). Fall back to DB
+    // for cases where the session object itself was recreated (full stream
+    // reconnect via twilio-stream-action).
+    let sourceMessages: Array<{ role: string; content: string }> = [];
+
+    if (session.conversationHistory && session.conversationHistory.length > 0) {
+      sourceMessages = session.conversationHistory
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role, content: m.content }));
+      console.log(`[MediaStream] Using in-memory history: ${sourceMessages.length} messages`);
+    } else {
+      const { data: conversation } = await supabase
+        .from("call_conversations")
+        .select("messages")
+        .eq("call_sid", session.callSid)
+        .maybeSingle();
+
+      if (conversation?.messages && Array.isArray(conversation.messages)) {
+        sourceMessages = conversation.messages
+          .filter((m: any) => m.role === "user" || m.role === "assistant")
+          .map((m: any) => ({ role: m.role, content: m.content }));
+        console.log(`[MediaStream] Using DB-fallback history: ${sourceMessages.length} messages`);
+        // Seed the in-memory ledger so future reconnects in this call use it.
+        session.conversationHistory = sourceMessages.map((m) => ({ ...m }));
+      }
+    }
+
+    // Keep the full call's history — cap defensively at the most recent 60 messages
+    // to bound prompt size on very long calls.
+    const MAX_REPLAY = 60;
+    const toReplay = sourceMessages.slice(-MAX_REPLAY);
+
+    if (toReplay.length === 0 && session.successfulBookings.length === 0) {
+      console.log("[MediaStream] Nothing to rehydrate");
       return;
     }
-    
-    // Filter to only user and assistant messages (skip system events)
-    const relevantMessages = conversation.messages
-      .filter((m: any) => m.role === "user" || m.role === "assistant")
-      .slice(-15); // Last 15 messages
-    
-    if (relevantMessages.length === 0) {
-      console.log("[MediaStream] No relevant messages to rehydrate");
-      return;
-    }
-    
-    console.log(`[MediaStream] Rehydrating ${relevantMessages.length} messages`);
-    
-    // Send each message to OpenAI to rebuild context
-    for (const msg of relevantMessages) {
+
+    // Inject prior messages back into the OpenAI session.
+    for (const msg of toReplay) {
       if (!session.openAiWs || session.openAiWs.readyState !== WebSocket.OPEN) break;
-      
+
       const item: any = {
         type: "conversation.item.create",
         item: {
@@ -1579,27 +1625,54 @@ async function rehydrateContext(session: StreamSession, supabase: any): Promise<
           }],
         },
       };
-      
+
       session.openAiWs.send(JSON.stringify(item));
-      
-      // Track in local history
-      session.conversationHistory.push({
-        role: msg.role,
-        content: msg.content,
-      });
     }
-    
-    // Estimate tokens from rehydrated content
-    session.estimatedTokens = relevantMessages.reduce(
-      (sum: number, m: any) => sum + Math.ceil((m.content?.length || 0) / 4),
-      0
+
+    // Inject a structured system note summarising any successful booking-class
+    // tool calls so the model knows not to rebook them.
+    if (session.successfulBookings.length > 0 && session.openAiWs?.readyState === WebSocket.OPEN) {
+      const lines = session.successfulBookings
+        .map((b) => `- ${b.summary}${b.booking_code ? ` (ref ${b.booking_code})` : ""}`)
+        .join("\n");
+      const guardText =
+        "[reconnect-guard] The following booking-class tool calls ALREADY SUCCEEDED earlier in this call. " +
+        "Do NOT call create_booking, create_reservation, or create_pickup_order again for any of them. " +
+        "If the caller asks about one of these, confirm the existing details from the references below.\n" +
+        lines;
+
+      session.openAiWs.send(JSON.stringify({
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: guardText }],
+        },
+      }));
+    }
+
+    // Recalculate estimated tokens (rough: ~4 chars/token).
+    const totalChars = toReplay.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+    session.estimatedTokens = Math.ceil(totalChars / 4);
+
+    console.log(
+      `[MediaStream] Context rehydrated. historyLen=${toReplay.length} estimatedTokens=${session.estimatedTokens} successfulBookings=${session.successfulBookings.length}`
     );
-    
-    console.log(`[MediaStream] Context rehydrated. Estimated tokens: ${session.estimatedTokens}`);
   } catch (error) {
     console.error("[MediaStream] Error rehydrating context:", error);
   }
 }
+
+// Canonical dedupe key for booking-class tool calls.
+function bookingDedupeKey(type: string, params: any): string {
+  const date = (params?.date || "").toString().trim();
+  const time = (params?.time || "").toString().trim();
+  const service = (params?.service_name || "").toString().toLowerCase().trim();
+  const staff = (params?.staff_name || "").toString().toLowerCase().trim();
+  const customer = (params?.customer_name || "").toString().toLowerCase().trim();
+  return `${type}|${date}|${time}|${service}|${staff}|${customer}`;
+}
+
 
 // Summarize older messages to manage token window
 async function summarizeAndPrune(session: StreamSession, supabase: any): Promise<void> {
@@ -1919,15 +1992,25 @@ async function sendSessionConfig(
         },
       };
 
-      // For reconnects, give the AI context about the reconnection
+      // For reconnects, give the AI the exact required silent-continuation instruction.
       if (session.isReconnect) {
+        const apologyClause = session.interruptionAcknowledged
+          ? "Do NOT apologise for any interruption — that has already been acknowledged earlier in this call."
+          : "You MAY briefly apologise for the interruption ONCE (e.g. 'Sorry about that brief interruption.').";
+
+        responseConfig.response.instructions =
+          "You are reconnecting mid-call. The conversation history above shows everything that was already discussed. " +
+          "Continue naturally from exactly where you left off. " +
+          "Do NOT re-introduce yourself. " +
+          "Do NOT re-deliver the recording disclosure. " +
+          "Do NOT re-greet the caller with 'welcome back' or any returning-caller greeting — that has already been done. " +
+          apologyClause + " " +
+          "Do NOT re-check availability or re-discuss anything already confirmed. " +
+          "If a booking, reservation, or order was already successfully created earlier in this call, do NOT create another one — confirm the existing details instead. " +
+          "Simply continue as if the line never dropped.";
+
         if (!session.interruptionAcknowledged) {
-          responseConfig.response.instructions =
-            "The call was briefly reconnected due to a technical glitch. Continue the conversation naturally from where you left off. Say something brief like 'Sorry about that brief interruption. Now, where were we?' and continue helping the caller.";
           session.interruptionAcknowledged = true;
-        } else {
-          responseConfig.response.instructions =
-            "Continue the conversation naturally from where you left off. Do NOT apologise for any interruption — that has already been acknowledged earlier in this call. Just pick up exactly where you left off and keep helping the caller.";
         }
       } else {
         // FORCE the first greeting to include BOTH:
@@ -1954,6 +2037,11 @@ async function sendSessionConfig(
         const forcedGreeting = parts.join(" ");
 
         responseConfig.response.instructions = `Say this exact greeting verbatim, then wait for the caller. Do NOT mention call recording — that comes later after the caller explains why they called.\n"${forcedGreeting}"`;
+
+        // Mark the returning-caller welcome as delivered so reconnects don't repeat it.
+        if (isReturning && firstName) {
+          session.returningCallerGreeted = true;
+        }
       }
 
 
@@ -1970,6 +2058,38 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
 
   try {
     const args = JSON.parse(argumentsJson);
+
+    // Reconnect-safe duplicate guard for booking-class tool calls.
+    // If a successful booking with the same canonical key already exists in
+    // this call's ledger, refuse to call the tool again and tell the model
+    // to confirm the existing booking instead.
+    if (name === "create_booking" || name === "create_reservation" || name === "create_pickup_order") {
+      const key = bookingDedupeKey(name, args);
+      const existing = session.successfulBookings.find((b) => b.type === name && b.key === key);
+      if (existing) {
+        console.warn("[MediaStream] Duplicate booking blocked by reconnect-safe guard:", { name, key, existing });
+        result = {
+          success: false,
+          duplicate: true,
+          message:
+            `That ${name === "create_booking" ? "booking" : name === "create_reservation" ? "reservation" : "order"} was already confirmed earlier in this call` +
+            (existing.booking_code ? ` (reference ${existing.booking_code})` : "") +
+            `. Do NOT call ${name} again. Tell the caller it's already booked and confirm the existing details: ${existing.summary}.`,
+        };
+        // Skip the real tool execution entirely.
+        if (session.openAiWs?.readyState === WebSocket.OPEN) {
+          session.openAiWs.send(JSON.stringify({
+            type: "conversation.item.create",
+            item: { type: "function_call_output", call_id: callId, output: JSON.stringify(result) },
+          }));
+          session.openAiWs.send(JSON.stringify({
+            type: "response.create",
+            response: { output_modalities: session.useElevenLabs ? ["text"] : ["audio"] },
+          }));
+        }
+        return;
+      }
+    }
 
     switch (name) {
       // Salon tools
@@ -2048,6 +2168,44 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
   } catch (error) {
     console.error("[MediaStream] Tool execution error:", error);
     result = { success: false, message: "Sorry, there was an error processing that request." };
+  }
+
+  // Record successful booking-class tool calls in the reconnect-safe ledger
+  // so a later reconnect cannot trigger a duplicate booking.
+  try {
+    if (
+      result?.success === true &&
+      (name === "create_booking" || name === "create_reservation" || name === "create_pickup_order")
+    ) {
+      const args = JSON.parse(argumentsJson);
+      const key = bookingDedupeKey(name, args);
+      if (!session.successfulBookings.some((b) => b.type === name && b.key === key)) {
+        const summaryParts = [
+          args?.service_name && `service ${args.service_name}`,
+          args?.staff_name && `with ${args.staff_name}`,
+          args?.date && `on ${args.date}`,
+          args?.time && `at ${args.time}`,
+          args?.customer_name && `for ${args.customer_name}`,
+          args?.party_size && `party of ${args.party_size}`,
+        ].filter(Boolean);
+        session.successfulBookings.push({
+          type: name,
+          key,
+          summary: summaryParts.join(" "),
+          booking_code: result?.booking_code,
+          booking_id: result?.booking_id,
+          at: new Date().toISOString(),
+        });
+        console.log("[MediaStream] Recorded successful booking in ledger:", {
+          type: name,
+          key,
+          booking_code: result?.booking_code,
+          ledgerSize: session.successfulBookings.length,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("[MediaStream] Failed to update booking ledger:", err);
   }
 
   // Update the call tag in Calls tab based on what actually happened.
