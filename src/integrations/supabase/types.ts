@@ -1768,6 +1768,205 @@ export type Database = {
           },
         ]
       }
+      outbound_campaigns: {
+        Row: {
+          calling_days: string[]
+          calling_end_hour: number
+          calling_start_hour: number
+          calls_per_day_limit: number
+          created_at: string
+          delay_between_calls_seconds: number
+          id: string
+          name: string
+          status: Database["public"]["Enums"]["outbound_campaign_status"]
+          updated_at: string
+        }
+        Insert: {
+          calling_days?: string[]
+          calling_end_hour?: number
+          calling_start_hour?: number
+          calls_per_day_limit?: number
+          created_at?: string
+          delay_between_calls_seconds?: number
+          id?: string
+          name: string
+          status?: Database["public"]["Enums"]["outbound_campaign_status"]
+          updated_at?: string
+        }
+        Update: {
+          calling_days?: string[]
+          calling_end_hour?: number
+          calling_start_hour?: number
+          calls_per_day_limit?: number
+          created_at?: string
+          delay_between_calls_seconds?: number
+          id?: string
+          name?: string
+          status?: Database["public"]["Enums"]["outbound_campaign_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      outbound_demos: {
+        Row: {
+          call_summary: string | null
+          created_at: string
+          demo_date: string | null
+          demo_datetime: string
+          demo_time: string | null
+          id: string
+          lead_id: string
+          prospect_business: string | null
+          prospect_email: string | null
+          prospect_name: string | null
+          prospect_phone: string | null
+          reminder_1h_sent: boolean
+          reminder_24h_sent: boolean
+          status: Database["public"]["Enums"]["outbound_demo_status"]
+        }
+        Insert: {
+          call_summary?: string | null
+          created_at?: string
+          demo_date?: string | null
+          demo_datetime: string
+          demo_time?: string | null
+          id?: string
+          lead_id: string
+          prospect_business?: string | null
+          prospect_email?: string | null
+          prospect_name?: string | null
+          prospect_phone?: string | null
+          reminder_1h_sent?: boolean
+          reminder_24h_sent?: boolean
+          status?: Database["public"]["Enums"]["outbound_demo_status"]
+        }
+        Update: {
+          call_summary?: string | null
+          created_at?: string
+          demo_date?: string | null
+          demo_datetime?: string
+          demo_time?: string | null
+          id?: string
+          lead_id?: string
+          prospect_business?: string | null
+          prospect_email?: string | null
+          prospect_name?: string | null
+          prospect_phone?: string | null
+          reminder_1h_sent?: boolean
+          reminder_24h_sent?: boolean
+          status?: Database["public"]["Enums"]["outbound_demo_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbound_demos_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outbound_leads: {
+        Row: {
+          business_name: string | null
+          call_duration_seconds: number | null
+          call_recording_url: string | null
+          call_transcript: string | null
+          campaign_id: string
+          created_at: string
+          demo_booked: boolean
+          email: string | null
+          existing_solution: string | null
+          first_name: string | null
+          id: string
+          interest_level:
+            | Database["public"]["Enums"]["outbound_interest_level"]
+            | null
+          last_called_at: string | null
+          notes: string | null
+          phone_number: string
+          reason_not_interested: string | null
+          retry_count: number
+          status: Database["public"]["Enums"]["outbound_lead_status"]
+          twilio_call_sid: string | null
+        }
+        Insert: {
+          business_name?: string | null
+          call_duration_seconds?: number | null
+          call_recording_url?: string | null
+          call_transcript?: string | null
+          campaign_id: string
+          created_at?: string
+          demo_booked?: boolean
+          email?: string | null
+          existing_solution?: string | null
+          first_name?: string | null
+          id?: string
+          interest_level?:
+            | Database["public"]["Enums"]["outbound_interest_level"]
+            | null
+          last_called_at?: string | null
+          notes?: string | null
+          phone_number: string
+          reason_not_interested?: string | null
+          retry_count?: number
+          status?: Database["public"]["Enums"]["outbound_lead_status"]
+          twilio_call_sid?: string | null
+        }
+        Update: {
+          business_name?: string | null
+          call_duration_seconds?: number | null
+          call_recording_url?: string | null
+          call_transcript?: string | null
+          campaign_id?: string
+          created_at?: string
+          demo_booked?: boolean
+          email?: string | null
+          existing_solution?: string | null
+          first_name?: string | null
+          id?: string
+          interest_level?:
+            | Database["public"]["Enums"]["outbound_interest_level"]
+            | null
+          last_called_at?: string | null
+          notes?: string | null
+          phone_number?: string
+          reason_not_interested?: string | null
+          retry_count?: number
+          status?: Database["public"]["Enums"]["outbound_lead_status"]
+          twilio_call_sid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbound_leads_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outbound_settings: {
+        Row: {
+          from_number: string | null
+          id: string
+          outbound_prompt: string
+          updated_at: string
+        }
+        Insert: {
+          from_number?: string | null
+          id?: string
+          outbound_prompt: string
+          updated_at?: string
+        }
+        Update: {
+          from_number?: string | null
+          id?: string
+          outbound_prompt?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           admin_request_note: string | null
@@ -2956,6 +3155,19 @@ export type Database = {
         | "new_reservation"
         | "cancel_order"
       number_selection_type: "aivia_provided" | "port_existing" | "do_later"
+      outbound_campaign_status: "draft" | "active" | "paused" | "completed"
+      outbound_demo_status: "scheduled" | "completed" | "cancelled" | "no_show"
+      outbound_interest_level: "hot" | "warm" | "cold"
+      outbound_lead_status:
+        | "pending"
+        | "calling"
+        | "answered"
+        | "no_answer"
+        | "voicemail"
+        | "interested"
+        | "not_interested"
+        | "demo_booked"
+        | "do_not_call"
       payment_status: "unpaid" | "deposit_paid" | "paid_in_full"
       service_category_type:
         | "kids"
@@ -3121,6 +3333,20 @@ export const Constants = {
         "cancel_order",
       ],
       number_selection_type: ["aivia_provided", "port_existing", "do_later"],
+      outbound_campaign_status: ["draft", "active", "paused", "completed"],
+      outbound_demo_status: ["scheduled", "completed", "cancelled", "no_show"],
+      outbound_interest_level: ["hot", "warm", "cold"],
+      outbound_lead_status: [
+        "pending",
+        "calling",
+        "answered",
+        "no_answer",
+        "voicemail",
+        "interested",
+        "not_interested",
+        "demo_booked",
+        "do_not_call",
+      ],
       payment_status: ["unpaid", "deposit_paid", "paid_in_full"],
       service_category_type: [
         "kids",

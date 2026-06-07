@@ -1,84 +1,83 @@
-## Plan
+## Outbound Calling System (Admin Only)
 
-I’ll make one focused backend pass on the voice stream function to preserve full mid-call state across reconnects, stop repeated disclosures/greetings, block duplicate rebooking after a successful booking, then clean up the duplicate booking row and redeploy.
+Full build of an outbound calling engine accessible only to super_admin accounts. Scope matches the brief exactly.
 
-## What I found
+### 1. Database (single migration)
 
-- **Reconnect rehydration is incomplete today**: `rehydrateContext()` only reloads the **last 15 user/assistant messages** from `call_conversations`, skips system/tool state, and rebuilds `session.conversationHistory` from that subset (`supabase/functions/twilio-media-stream/index.ts:1537-1599`).
-- **Successful tool calls are not persisted into conversation history**: `logConversation()` only writes `{ role, content, timestamp }`, so the DB record has no structured `create_booking` success marker to protect against reconnect rebooking (`index.ts:5628-5650`).
-- **Only one reconnect flag currently survives locally**: `interruptionAcknowledged` exists on `StreamSession`, but `recordingDisclosureGiven` and `returningCallerGreeted` do not currently live there (`index.ts:139-223`).
-- **Reconnect prompt is not the requested silent continuation rule**: current reconnect instructions still inject an apology on first reconnect and do not explicitly forbid re-checking already confirmed details (`index.ts:1922-1931`).
-- **There are already duplicate confirmed bookings for this caller on 2026-06-09**:
-  - `JOH-3676` at **14:00** created **2026-06-05 15:55:26 UTC**
-  - `JOH-0131` at **16:00** created **2026-06-05 15:53:48 UTC**
-  Both are confirmed for the same caller/business/service/staff.
+Four new tables with RLS restricting all access to `super_admin` role:
 
-## Implementation
+- **outbound_campaigns** — name, status (draft/active/paused/completed), calling_days text[], calling_start_hour, calling_end_hour, calls_per_day_limit, delay_between_calls_seconds (default 30), timestamps.
+- **outbound_leads** — campaign_id FK, first_name, business_name, phone_number, email, status (pending/calling/answered/no_answer/voicemail/interested/not_interested/demo_booked/do_not_call), interest_level (hot/warm/cold), existing_solution, reason_not_interested, demo_booked bool, retry_count, last_called_at, call_transcript, call_recording_url, call_duration_seconds, notes.
+- **outbound_demos** — lead_id FK, demo_date, demo_time, demo_datetime, prospect_name/business/phone/email, call_summary, status, reminder_24h_sent, reminder_1h_sent.
+- **outbound_settings** — single row, outbound_prompt text, updated_at. Seeded with the default Aria prompt verbatim from the brief.
 
-### 1) Persist full reconnect state on `StreamSession`
-Update `StreamSession` in `supabase/functions/twilio-media-stream/index.ts` to carry reconnect-stable state for the whole call:
-- `conversationHistory` as the authoritative in-memory event log for the call
-- `recordingDisclosureGiven: boolean`
-- `interruptionAcknowledged: boolean`
-- `returningCallerGreeted: boolean`
-- a structured record of successful booking/reservation/order tool results for dedupe checks, keyed by type + business + service/date/time/customer where applicable
+GRANTs to `authenticated` + `service_role`; policies use `has_role(auth.uid(), 'super_admin')`.
 
-These values will be initialized once per call and **never reset during reconnects**.
+### 2. Edge Functions
 
-### 2) Save and restore conversation history properly
-Before any reconnect/session reinitialisation path, preserve the current full `session.conversationHistory` and use it as the primary restore source.
+- **twilio-outbound-call** — POST { lead_id }. Fetches lead, marks `calling`, dials via Twilio REST `Calls` with record=true, status_callback → `twilio-outbound-status`, recordingStatusCallback → `twilio-outbound-recording`, url → `twilio-outbound-twiml?lead_id=...`. Uses existing TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN.
+- **twilio-outbound-twiml** — returns `<Connect><Stream>` to existing `twilio-media-stream` WSS, with `<Parameter name="call_type" value="outbound"/>` and `<Parameter name="lead_id" .../>`.
+- **twilio-outbound-status** — handles no-answer/busy/failed → status=no_answer + retry_count++; completed → last_called_at=now.
+- **twilio-outbound-recording** — saves recording URL to lead.
+- **process-outbound-campaign** — cron worker. For each active campaign: check London-time window, day-of-week, daily call cap; pick next pending lead; invoke `twilio-outbound-call`; sleep `delay_between_calls_seconds` between leads inside the same run.
+- **send-demo-reminders** — cron. 24h + 1h reminder emails to Mo via Resend, sets `reminder_*_sent` flags.
 
-On OpenAI session re-init after reconnect:
-- inject the saved history back immediately as prior conversation items
-- include assistant, user, and structured tool success context needed for continuity
-- fall back to `call_conversations.messages` only if in-memory history is unexpectedly missing
-- log the restored **history length** and **estimated token count** at reconnect start so you can verify restoration on the next test call
+### 3. Modify `twilio-media-stream`
 
-### 3) Apply the exact reconnect continuation rule
-Replace the reconnect response instruction with the exact required text:
+When stream `customParameters` include `call_type=outbound` and `lead_id`:
+
+- Load lead + `outbound_settings.outbound_prompt`.
+- Substitute `{{first_name}}` and `{{business_name}}`.
+- Use as the Realtime system prompt instead of inbound receptionist prompt; skip business/customer rehydration paths.
+- At call end: save full transcript to lead, use a lightweight extraction pass (existing AI gateway) to derive interest_level, existing_solution, reason_not_interested, demo agreed + datetime + email; update lead.status; if demo booked → insert `outbound_demos` row, send Mo notification + prospect confirmation via Resend.
+
+All existing inbound behaviour, reconnect/dedupe/state persistence work from the prior fixes remains untouched.
+
+### 4. Admin Dashboard
+
+New sidebar entry **Outbound Campaigns** (rendered only when `has_role super_admin`) in `AdminDashboard.tsx`. Five tabs:
+
+1. **Campaigns** — table with status badges + KPIs (leads, calls, demos, success %), Create Campaign dialog (name, calling_days checkboxes, start/end hours, daily cap, delay seconds with helper text), row actions Start/Pause/Resume/Stop.
+2. **Leads** (inside a campaign) — table with colour-coded status/interest badges, recording play button, transcript dialog; side panel with all extracted fields. Import CSV (phone, first_name, business_name), Add Lead dialog, filter bar.
+3. **Demos** — Calendar/List toggle, demo cards with detail panel, mark Completed/No Show/Cancelled.
+4. **Results** — totals, answer/interest/demo rates, outcome distribution chart, calls/day line chart, top existing solutions, top rejection reasons (recharts).
+5. **AI Prompt** — full-width textarea bound to `outbound_settings.outbound_prompt`, Save Prompt, Reset to Default (restores seeded prompt), helper note "changes take effect on the next call made".
+
+### 5. Emails (Resend, from [info@aiviaapp.co.uk](mailto:info@aiviaapp.co.uk))
+
+Templates implemented inside the relevant edge functions:
+
+- Demo booked → Mo
+- Hot lead, no booking → Mo
+- Demo confirmation → prospect
+- 24h reminder → Mo
+- 1h reminder → Mo
+
+Bodies follow the brief verbatim.
+
+### 6. Scheduled Jobs
+
+Via `supabase--insert` (uses CRON_SECRET + project URL/anon key, per project pattern):
 
 ```text
-You are reconnecting mid-call. The conversation history above shows everything that was already discussed. Continue naturally from exactly where you left off. Do NOT re-introduce yourself. Do NOT re-deliver the recording disclosure. Do NOT apologise for any interruption unless this is the very first reconnect and interruptionAcknowledged is false. Do NOT re-check availability or re-discuss anything already confirmed. Simply continue as if the line never dropped.
+process-outbound-campaign  →  */1 * * * *
+send-demo-reminders        →  */30 * * * *
 ```
 
-I’ll make this the dominant reconnect instruction and keep the first-reconnect apology logic gated by `interruptionAcknowledged`.
+### 7. Default Prompt
 
-### 4) Prevent duplicate bookings after reconnect
-Add a reconnect-safe duplicate guard around `create_booking`:
-- whenever `create_booking` succeeds, store a structured success entry in session history/state
-- on reconnect, inspect restored history/state for prior successful `create_booking` results
-- if a booking for the **same service + date + time** already succeeded in the same call, block a second `create_booking`
-- instead, inject a system instruction telling the model the booking already exists and it must confirm the existing booking details rather than book again
+Seeded into `outbound_settings` exactly as supplied in the brief (Aria script, rule precedence, opening, pitch, objections, booking flow, conversation rules).
 
-I’ll apply the same pattern to reservation/order success tracking if the existing code path makes that low-risk in the same edit.
+### Technical details
 
-### 5) Clean up the duplicate booking data
-After the code fix, remove the extra duplicate booking row for caller `07491004439` on `2026-06-09`, keeping only the **most recently created confirmed row** per your instruction.
+- **Files added**: `supabase/functions/{twilio-outbound-call,twilio-outbound-twiml,twilio-outbound-status,twilio-outbound-recording,process-outbound-campaign,send-demo-reminders}/index.ts`; admin UI under `src/components/admin/outbound/` (CampaignsTab, LeadsTab, DemosTab, ResultsTab, PromptTab, dialogs, lead side panel).
+- **Files modified**: `supabase/functions/twilio-media-stream/index.ts` (outbound branch + post-call extraction/demo-booking hooks); `src/pages/AdminDashboard.tsx` (sidebar + route gating on super_admin).
+- **Secrets**: reuses TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, RESEND_API_KEY, LOVABLE_API_KEY, CRON_SECRET — all already configured.
+- **Twilio sender number**: uses the existing business-assigned Twilio number; if multiple exist I'll add a `from_number` column on `outbound_campaigns` defaulting to the first configured number — please confirm if you'd prefer a fixed number set in `outbound_settings` instead.
+- **Deploys**: all six new functions + modified `twilio-media-stream` redeployed at the end.
 
-Based on current data, that means:
-- **Keep** `0bf50194-fab2-426b-a5e7-8b5300b98acf` (`JOH-3676`, 14:00, created 15:55:26 UTC)
-- **Delete** `f6114033-edee-4e58-aef1-ab17d7084087` (`JOH-0131`, 16:00, created 15:53:48 UTC)
+### Open question
 
-## Validation after deploy
+The brief says "Sets the from number to the business's assigned Twilio phone number" — there's no single "business" on an outbound campaign. I'll default to using your primary Twilio number stored in env/config; let me know if campaigns should each pick their own caller ID. The plan looks perfect, please go ahead and build everything as described.
 
-I’ll verify and report back with:
-- reconnect start **history length**
-- reconnect start **estimated token count**
-- whether the exact reconnect continuation instruction is being sent
-- whether a prior successful `create_booking` is detected and blocks rebooking
-- confirmation that the duplicate row was deleted and the kept booking remains
-
-## Technical details
-
-- **Primary files**:
-  - `supabase/functions/twilio-media-stream/index.ts`
-- **Likely changes**:
-  - expand `StreamSession`
-  - strengthen reconnect scheduling + OpenAI session reinit path
-  - replace `rehydrateContext()` to restore from full saved history first
-  - persist structured tool success events alongside plain transcript history
-  - add duplicate guard in `create_booking` handling
-  - run a data cleanup on `public.bookings`
-- **Deployment**:
-  - redeploy `twilio-media-stream`
-  - inspect deployed logs for reconnect restoration metrics
+For the open question about the from number — please add a `from_number` text field to the `outbound_settings` table alongside the prompt. All campaigns use this single number to make outbound calls. Also add a From Number input field in the AI Prompt tab of the admin dashboard so Mo can set or update the outbound caller ID from there. Default it to empty and Mo will enter the UK Twilio number manually after setup.
