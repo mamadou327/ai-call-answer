@@ -616,6 +616,7 @@ Deno.serve(async (req) => {
     return new Response("Expected WebSocket", { status: 400 });
   }
   if (!OPENAI_API_KEY) return new Response("Missing OPENAI_API_KEY", { status: 500 });
+  if (!ELEVENLABS_API_KEY) return new Response("Missing ELEVENLABS_API_KEY", { status: 500 });
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { socket: twilioWs, response } = Deno.upgradeWebSocket(req);
@@ -623,6 +624,8 @@ Deno.serve(async (req) => {
   const session: OutboundSession = {
     leadId: "", lead: null, callSid: "", streamSid: null,
     openAiWs: null, twilioWs, systemPrompt: "", voice: "cedar",
+    elevenLabsVoiceId: DEFAULT_ELEVENLABS_VOICE_ID,
+    elevenLabsWs: null, ttsResponseId: null,
     transcript: [], pendingAssistant: "", pendingUser: "",
     closed: false, availability: null, demoBookedViaTool: null,
   };
@@ -645,7 +648,7 @@ Deno.serve(async (req) => {
           if (campaign?.voice) session.voice = campaign.voice;
 
           const [{ data: settings }, { data: avail }, { data: overrides }] = await Promise.all([
-            supabase.from("outbound_settings").select("outbound_prompt").limit(1).maybeSingle(),
+            supabase.from("outbound_settings").select("outbound_prompt, default_voice_id").limit(1).maybeSingle(),
             supabase.from("outbound_availability").select("*").limit(1).maybeSingle(),
             supabase.from("outbound_availability_overrides").select("*")
               .gte("date", new Date().toISOString().slice(0,10))
@@ -653,6 +656,10 @@ Deno.serve(async (req) => {
               .order("date", { ascending: true }),
           ]);
           session.availability = avail as AvailabilityConfig | null;
+          if ((settings as any)?.default_voice_id) {
+            session.elevenLabsVoiceId = (settings as any).default_voice_id;
+          }
+          console.log("[outbound] using ElevenLabs voice", session.elevenLabsVoiceId);
 
           const tpl = settings?.outbound_prompt || "";
           const baseInjected = applyPromptVars(tpl, lead);
