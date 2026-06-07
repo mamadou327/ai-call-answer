@@ -30,6 +30,7 @@ interface OutboundSession {
   openAiWs: WebSocket | null;
   twilioWs: WebSocket;
   systemPrompt: string;
+  voice: string;
   transcript: Array<{ role: "user" | "assistant"; text: string }>;
   pendingAssistant: string;
   pendingUser: string;
@@ -410,7 +411,7 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
           },
           output: {
             format: { type: "audio/pcmu" },
-            voice: "cedar",
+            voice: session.voice || "cedar",
           },
 
         },
@@ -519,7 +520,7 @@ Deno.serve(async (req) => {
 
   const session: OutboundSession = {
     leadId: "", lead: null, callSid: "", streamSid: null,
-    openAiWs: null, twilioWs, systemPrompt: "",
+    openAiWs: null, twilioWs, systemPrompt: "", voice: "cedar",
     transcript: [], pendingAssistant: "", pendingUser: "",
     closed: false, availability: null, demoBookedViaTool: null,
   };
@@ -537,6 +538,9 @@ Deno.serve(async (req) => {
           const { data: lead } = await supabase.from("outbound_leads").select("*").eq("id", session.leadId).maybeSingle();
           if (!lead) { console.error("[outbound] lead not found"); twilioWs.close(); return; }
           session.lead = lead;
+
+          const { data: campaign } = await supabase.from("outbound_campaigns").select("voice").eq("id", lead.campaign_id).maybeSingle();
+          if (campaign?.voice) session.voice = campaign.voice;
 
           const [{ data: settings }, { data: avail }, { data: overrides }] = await Promise.all([
             supabase.from("outbound_settings").select("outbound_prompt").limit(1).maybeSingle(),

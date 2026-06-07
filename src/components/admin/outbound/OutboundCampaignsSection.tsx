@@ -20,6 +20,7 @@ type Campaign = {
   id: string; name: string; status: "draft" | "active" | "paused" | "completed";
   calling_days: string[]; calling_start_hour: number; calling_end_hour: number;
   calls_per_day_limit: number; delay_between_calls_seconds: number;
+  voice: string;
   created_at: string;
 };
 type Lead = {
@@ -75,6 +76,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
     name: "", calling_days: ["Monday","Tuesday","Wednesday","Thursday","Friday"],
     calling_start_hour: 9, calling_end_hour: 18,
     calls_per_day_limit: 50, delay_between_calls_seconds: 30,
+    voice: "cedar",
   });
 
   const load = async () => {
@@ -134,7 +136,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead><TableHead>Status</TableHead>
-              <TableHead>Leads</TableHead><TableHead>Calls</TableHead>
+              <TableHead>Voice</TableHead><TableHead>Leads</TableHead><TableHead>Calls</TableHead>
               <TableHead>Demos</TableHead><TableHead>Success</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -147,6 +149,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                 <TableRow key={c.id} className="cursor-pointer" onClick={() => onOpen(c)}>
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell>{statusBadge(c.status)}</TableCell>
+                  <TableCell className="capitalize">{c.voice || "cedar"}</TableCell>
                   <TableCell>{st.leads}</TableCell>
                   <TableCell>{st.calls}</TableCell>
                   <TableCell>{st.demos}</TableCell>
@@ -165,7 +168,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                 </TableRow>
               );
             })}
-            {rows.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No campaigns yet</TableCell></TableRow>}
+            {rows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No campaigns yet</TableCell></TableRow>}
           </TableBody>
         </Table>}
       </CardContent>
@@ -212,6 +215,18 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                 <Input type="number" min={0} value={form.delay_between_calls_seconds}
                   onChange={e => setForm({...form, delay_between_calls_seconds: parseInt(e.target.value)||0})}/>
                 <p className="text-xs text-muted-foreground mt-1">Gap between individual calls, not between campaign checks.</p>
+              </div>
+              <div>
+                <Label>Voice</Label>
+                <Select value={form.voice} onValueChange={v => setForm({...form, voice: v})}>
+                  <SelectTrigger><SelectValue/></SelectTrigger>
+                  <SelectContent>
+                    {["alloy","ash","ballad","coral","echo","sage","shimmer","verse","cedar"].map(v => (
+                      <SelectItem key={v} value={v} className="capitalize">{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">OpenAI Realtime voice Aria will use.</p>
               </div>
             </div>
           </div>

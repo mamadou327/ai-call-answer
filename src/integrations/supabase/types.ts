@@ -1843,6 +1843,7 @@ export type Database = {
           name: string
           status: Database["public"]["Enums"]["outbound_campaign_status"]
           updated_at: string
+          voice: string
         }
         Insert: {
           calling_days?: string[]
@@ -1855,6 +1856,7 @@ export type Database = {
           name: string
           status?: Database["public"]["Enums"]["outbound_campaign_status"]
           updated_at?: string
+          voice?: string
         }
         Update: {
           calling_days?: string[]
@@ -1867,6 +1869,7 @@ export type Database = {
           name?: string
           status?: Database["public"]["Enums"]["outbound_campaign_status"]
           updated_at?: string
+          voice?: string
         }
         Relationships: []
       }
