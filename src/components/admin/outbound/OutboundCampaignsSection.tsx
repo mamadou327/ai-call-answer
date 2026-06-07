@@ -519,10 +519,13 @@ function DemosTab() {
               {monthGrid.map((cell, i) => (
                 <div key={i}
                   onClick={() => cell.date && setDayOpen(cell.date)}
-                  className={`border rounded-md min-h-[90px] p-1 ${cell.date ? "cursor-pointer hover:bg-muted/40" : "bg-muted/20"} ${cell.date && isToday(cell.date) ? "border-primary bg-primary/5" : ""}`}>
+                  className={`border rounded-md min-h-[90px] p-1 relative overflow-hidden ${cell.date ? "cursor-pointer hover:bg-muted/40" : "bg-muted/20"} ${cell.date && isToday(cell.date) ? "border-primary bg-primary/5" : ""} ${cell.fullBlocked ? "bg-red-50 border-red-300" : ""}`}>
                   {cell.date && (
                     <>
-                      <div className="text-xs font-medium mb-1">{cell.date.getDate()}</div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="text-xs font-medium">{cell.date.getDate()}</div>
+                        {cell.blocks.length > 0 && <div className="text-[9px] text-red-700 font-medium uppercase">Blocked</div>}
+                      </div>
                       <div className="space-y-1">
                         {cell.demos.slice(0, 3).map(d => (
                           <button key={d.id}
@@ -532,12 +535,18 @@ function DemosTab() {
                           </button>
                         ))}
                         {cell.demos.length > 3 && <div className="text-[10px] text-muted-foreground">+{cell.demos.length - 3} more</div>}
+                        {!cell.fullBlocked && cell.blocks.filter(b => b.start_time && b.end_time).slice(0,2).map(b => (
+                          <div key={b.id} className="text-[10px] bg-red-100 text-red-800 rounded px-1 py-0.5 truncate">
+                            Blocked {b.start_time?.slice(0,5)}–{b.end_time?.slice(0,5)}
+                          </div>
+                        ))}
                       </div>
                     </>
                   )}
                 </div>
               ))}
             </div>
+
 
             {demos.length === 0 && <p className="text-center text-muted-foreground py-4 text-sm">No demos booked yet</p>}
           </div>
