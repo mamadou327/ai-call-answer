@@ -1023,18 +1023,6 @@ function TestTab({ campaigns }: { campaigns: Campaign[] }) {
       </CardHeader>
       <CardContent className="space-y-4 max-w-xl">
         <div>
-          <Label>Campaign</Label>
-          <Select value={campaignId} onValueChange={setCampaignId}>
-            <SelectTrigger><SelectValue placeholder="Select a campaign"/></SelectTrigger>
-            <SelectContent>
-              {campaigns.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          {campaigns.length === 0 && (
-            <p className="text-xs text-muted-foreground mt-1">Create a campaign first — the test call reuses its prompt and settings.</p>
-          )}
-        </div>
-        <div>
           <Label>Phone number to call</Label>
           <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+447700900123"/>
           <p className="text-xs text-muted-foreground mt-1">International format including the country code.</p>
