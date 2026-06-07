@@ -27,6 +27,8 @@ import { AdminCallsTab } from "@/components/admin/AdminCallsTab";
 import { AdminDemoRequestsTab } from "@/components/admin/AdminDemoRequestsTab";
 import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare, Mail, Sparkles, Headphones } from "lucide-react";
 import { AiviaSalesKitTab } from "@/components/admin/AiviaSalesKitTab";
+import { OutboundCampaignsSection } from "@/components/admin/outbound/OutboundCampaignsSection";
+import { PhoneOutgoing } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { TIERS, type SubscriptionTier } from "@/lib/tiers";
 
@@ -122,7 +124,7 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "messages" | "demos" | "calls" | "aivia">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "messages" | "demos" | "calls" | "aivia" | "outbound">("analytics");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
     can_manage_business_numbers: false,
@@ -917,6 +919,15 @@ const AdminDashboard = () => {
             <Sparkles className="w-4 h-4 mr-2" />
             AIVIA
           </Button>
+          {isSuperAdmin && (
+            <Button
+              variant={activeTab === "outbound" ? "default" : "outline"}
+              onClick={() => setActiveTab("outbound")}
+            >
+              <PhoneOutgoing className="w-4 h-4 mr-2" />
+              Outbound Campaigns
+            </Button>
+          )}
         </div>
 
         {activeTab === "analytics" && (
