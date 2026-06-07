@@ -1,0 +1,64 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, range",
+  "Access-Control-Expose-Headers": "content-length, content-range, accept-ranges",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const url = new URL(req.url);
+    // path: /functions/v1/outbound-recording-proxy/{recordingSid}
+    const parts = url.pathname.split("/").filter(Boolean);
+    const last = parts[parts.length - 1] || "";
+    const recordingSid = last.replace(/\.mp3$/, "");
+
+    if (!recordingSid || !recordingSid.startsWith("RE")) {
+      return new Response("Bad request", { status: 400, headers: corsHeaders });
+    }
+
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const TWILIO_SID = Deno.env.get("TWILIO_ACCOUNT_SID")!;
+    const TWILIO_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN")!;
+    const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    // Verify recording belongs to an outbound lead (authorization check)
+    const { data: lead } = await supabase
+      .from("outbound_leads")
+      .select("id")
+      .ilike("call_recording_url", `%${recordingSid}%`)
+      .maybeSingle();
+
+    if (!lead) {
+      return new Response("Not found", { status: 404, headers: corsHeaders });
+    }
+
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Recordings/${recordingSid}.mp3`;
+    const auth = btoa(`${TWILIO_SID}:${TWILIO_TOKEN}`);
+    const range = req.headers.get("range");
+    const headers: Record<string, string> = { Authorization: `Basic ${auth}` };
+    if (range) headers["Range"] = range;
+
+    const res = await fetch(twilioUrl, { headers });
+    if (!res.ok && res.status !== 206) {
+      return new Response(`Upstream error ${res.status}`, { status: res.status, headers: corsHeaders });
+    }
+
+    const outHeaders = new Headers(corsHeaders);
+    outHeaders.set("Content-Type", "audio/mpeg");
+    outHeaders.set("Accept-Ranges", "bytes");
+    const cl = res.headers.get("content-length");
+    if (cl) outHeaders.set("Content-Length", cl);
+    const cr = res.headers.get("content-range");
+    if (cr) outHeaders.set("Content-Range", cr);
+
+    return new Response(res.body, { status: res.status, headers: outHeaders });
+  } catch (e) {
+    console.error("[outbound-recording-proxy] error", e);
+    return new Response("error", { status: 500, headers: corsHeaders });
+  }
+});
