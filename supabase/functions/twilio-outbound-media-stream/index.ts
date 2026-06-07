@@ -520,7 +520,7 @@ Deno.serve(async (req) => {
 
   const session: OutboundSession = {
     leadId: "", lead: null, callSid: "", streamSid: null,
-    openAiWs: null, twilioWs, systemPrompt: "",
+    openAiWs: null, twilioWs, systemPrompt: "", voice: "cedar",
     transcript: [], pendingAssistant: "", pendingUser: "",
     closed: false, availability: null, demoBookedViaTool: null,
   };
