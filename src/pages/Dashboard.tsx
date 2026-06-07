@@ -111,7 +111,7 @@ const Dashboard = () => {
     if (!business?.id) return;
     const checkUnpaidDeposits = async () => {
       try {
-        await supabase.functions.invoke('check-unpaid-deposits');
+        await supabase.functions.invoke('auto-cancel-unpaid-bookings');
       } catch (error) {
         console.error('Background deposit check failed:', error);
       }
