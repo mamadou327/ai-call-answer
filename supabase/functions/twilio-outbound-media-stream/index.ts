@@ -539,6 +539,9 @@ Deno.serve(async (req) => {
           if (!lead) { console.error("[outbound] lead not found"); twilioWs.close(); return; }
           session.lead = lead;
 
+          const { data: campaign } = await supabase.from("outbound_campaigns").select("voice").eq("id", lead.campaign_id).maybeSingle();
+          if (campaign?.voice) session.voice = campaign.voice;
+
           const [{ data: settings }, { data: avail }, { data: overrides }] = await Promise.all([
             supabase.from("outbound_settings").select("outbound_prompt").limit(1).maybeSingle(),
             supabase.from("outbound_availability").select("*").limit(1).maybeSingle(),
