@@ -422,6 +422,13 @@ function DemosTab() {
     else { load(); setSelected(null); }
   };
 
+  const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const overridesByDate = useMemo(() => {
+    const m: Record<string, Override[]> = {};
+    overrides.forEach(o => { (m[o.date] ||= []).push(o); });
+    return m;
+  }, [overrides]);
+
   // Build month grid
   const monthGrid = useMemo(() => {
     const year = cursor.getFullYear();
@@ -429,23 +436,45 @@ function DemosTab() {
     const first = new Date(year, month, 1);
     const startWeekday = (first.getDay() + 6) % 7; // Monday-first
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const cells: { date: Date | null; demos: Demo[] }[] = [];
-    for (let i = 0; i < startWeekday; i++) cells.push({ date: null, demos: [] });
+    const cells: { date: Date | null; demos: Demo[]; blocks: Override[]; fullBlocked: boolean }[] = [];
+    for (let i = 0; i < startWeekday; i++) cells.push({ date: null, demos: [], blocks: [], fullBlocked: false });
     for (let d = 1; d <= daysInMonth; d++) {
       const day = new Date(year, month, d);
       const dayDemos = demos.filter(x => {
         const xd = new Date(x.demo_datetime);
         return xd.getFullYear() === year && xd.getMonth() === month && xd.getDate() === d;
       });
-      cells.push({ date: day, demos: dayDemos });
+      const blocks = overridesByDate[ymdLocal(day)] || [];
+      const fullBlocked = blocks.some(b => !b.start_time && !b.end_time);
+      cells.push({ date: day, demos: dayDemos, blocks, fullBlocked });
     }
-    while (cells.length % 7 !== 0) cells.push({ date: null, demos: [] });
+    while (cells.length % 7 !== 0) cells.push({ date: null, demos: [], blocks: [], fullBlocked: false });
     return cells;
-  }, [cursor, demos]);
+  }, [cursor, demos, overridesByDate]);
 
   const monthLabel = cursor.toLocaleString(undefined, { month: "long", year: "numeric" });
   const today = new Date();
   const isToday = (d: Date) => d.toDateString() === today.toDateString();
+
+  const blockFullDay = async (d: Date) => {
+    const { error } = await supabase.from("outbound_availability_overrides").insert({ date: ymdLocal(d) });
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else { toast({ title: "Day blocked", description: "Aria will not book any demos on this day." }); load(); }
+  };
+  const blockTimeRange = async (d: Date) => {
+    if (!blockRange.start || !blockRange.end) { toast({ title: "Pick a start and end time", variant: "destructive" }); return; }
+    const { error } = await supabase.from("outbound_availability_overrides").insert({
+      date: ymdLocal(d), start_time: blockRange.start, end_time: blockRange.end,
+    });
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else { setBlockRange({ start: "", end: "" }); toast({ title: "Time range blocked" }); load(); }
+  };
+  const unblock = async (id: string) => {
+    const { error } = await supabase.from("outbound_availability_overrides").delete().eq("id", id);
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else load();
+  };
+
 
   return (
     <Card>
