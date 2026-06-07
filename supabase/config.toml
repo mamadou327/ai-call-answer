@@ -167,3 +167,24 @@ verify_jwt = true
 
 [functions.create-business-signup]
 verify_jwt = false
+
+[functions.twilio-outbound-call]
+verify_jwt = false
+
+[functions.twilio-outbound-twiml]
+verify_jwt = false
+
+[functions.twilio-outbound-status]
+verify_jwt = false
+
+[functions.twilio-outbound-recording]
+verify_jwt = false
+
+[functions.twilio-outbound-media-stream]
+verify_jwt = false
+
+[functions.process-outbound-campaign]
+verify_jwt = false
+
+[functions.send-demo-reminders]
+verify_jwt = false
