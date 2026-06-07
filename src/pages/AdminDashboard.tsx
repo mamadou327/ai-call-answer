@@ -1154,6 +1154,11 @@ const AdminDashboard = () => {
           <AiviaSalesKitTab />
         )}
 
+        {activeTab === "outbound" && isSuperAdmin && (
+          <OutboundCampaignsSection />
+        )}
+
+
       </div>
 
       {/* Business Details Dialog - Multi-step */}
