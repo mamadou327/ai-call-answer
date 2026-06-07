@@ -101,9 +101,21 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
   };
 
   const create = async () => {
-    if (!form.name.trim()) return;
+    if (!form.name.trim()) {
+      toast({ title: "Name required", description: "Enter a campaign name first.", variant: "destructive" });
+      return;
+    }
+    if (!form.calling_days || form.calling_days.length === 0) {
+      toast({ title: "Pick at least one day", description: "Select the days Aria is allowed to call.", variant: "destructive" });
+      return;
+    }
+    if (form.calling_end_hour <= form.calling_start_hour) {
+      toast({ title: "Invalid hours", description: "End hour must be after start hour.", variant: "destructive" });
+      return;
+    }
     const { error } = await supabase.from("outbound_campaigns").insert({ ...form, status: "draft" });
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+    if (error) { toast({ title: "Could not create campaign", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Campaign created" });
     setOpen(false); load();
   };
 
