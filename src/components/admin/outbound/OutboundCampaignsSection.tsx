@@ -406,7 +406,7 @@ function DemosTab() {
   useEffect(() => { load(); }, []);
 
   const setStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from("outbound_demos").update({ status }).eq("id", id);
+    const { error } = await supabase.from("outbound_demos").update({ status: status as any }).eq("id", id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else { load(); setSelected(null); }
   };
