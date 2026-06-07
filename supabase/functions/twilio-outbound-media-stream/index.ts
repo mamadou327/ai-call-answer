@@ -428,7 +428,20 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
     try {
       const msg = JSON.parse(event.data);
       switch (msg.type) {
-        case "response.output_audio.delta":
+        case "session.created":
+          console.log("[outbound] session.created — sending config");
+          sendSessionConfig();
+          break;
+        case "session.updated":
+          console.log("[outbound] session.updated — triggering greeting");
+          try {
+            ws.send(JSON.stringify({
+              type: "response.create",
+              response: { output_modalities: ["audio"] },
+            }));
+          } catch (_) {}
+          break;
+
         case "response.audio.delta":
           if (session.twilioWs.readyState === WebSocket.OPEN && session.streamSid) {
             session.twilioWs.send(JSON.stringify({
