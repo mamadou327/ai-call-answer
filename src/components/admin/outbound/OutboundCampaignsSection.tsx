@@ -1056,6 +1056,7 @@ export function OutboundCampaignsSection() {
         <TabsTrigger value="results">Results</TabsTrigger>
         <TabsTrigger value="availability">Availability</TabsTrigger>
         <TabsTrigger value="prompt">AI Prompt</TabsTrigger>
+        <TabsTrigger value="test">Test</TabsTrigger>
       </TabsList>
       <TabsContent value="campaigns" className="mt-4">
         <CampaignsTab onOpen={(c) => { setCampaign(c); setTab("leads"); }}/>
