@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, RotateCcw, Save } from "lucide-react";
+import { VoiceSelector } from "@/components/dashboard/settings/VoiceSelector";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -777,20 +778,30 @@ function PromptTab() {
   const [rowId, setRowId] = useState<string>("");
   const [prompt, setPrompt] = useState("");
   const [fromNumber, setFromNumber] = useState("");
+  const [defaultVoiceId, setDefaultVoiceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase.from("outbound_settings").select("*").limit(1).maybeSingle();
-      if (data) { setRowId(data.id); setPrompt(data.outbound_prompt || ""); setFromNumber(data.from_number || ""); }
+      if (data) {
+        setRowId(data.id);
+        setPrompt(data.outbound_prompt || "");
+        setFromNumber(data.from_number || "");
+        setDefaultVoiceId((data as any).default_voice_id || null);
+      }
       setLoading(false);
     })();
   }, []);
 
   const save = async () => {
     setSaving(true);
-    const { error } = await supabase.from("outbound_settings").update({ outbound_prompt: prompt, from_number: fromNumber || null }).eq("id", rowId);
+    const { error } = await supabase.from("outbound_settings").update({
+      outbound_prompt: prompt,
+      from_number: fromNumber || null,
+      default_voice_id: defaultVoiceId,
+    } as any).eq("id", rowId);
     setSaving(false);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else toast({ title: "Saved", description: "Changes take effect on the next call." });
@@ -809,6 +820,16 @@ function PromptTab() {
         <div>
           <Label>Outbound sales prompt</Label>
           <Textarea value={prompt} onChange={e => setPrompt(e.target.value)} className="min-h-[500px] font-mono text-xs"/>
+        </div>
+        <div>
+          <Label>Aria's voice</Label>
+          <p className="text-xs text-muted-foreground mb-2">ElevenLabs voice used for every outbound call. Same library the businesses pick from.</p>
+          <VoiceSelector
+            selectedVoiceId={defaultVoiceId}
+            onVoiceSelect={(id) => setDefaultVoiceId(id)}
+            primaryLanguage="en"
+            businessName="Aivia"
+          />
         </div>
         <div className="flex gap-2">
           <Button onClick={save} disabled={saving}><Save className="w-4 h-4 mr-1"/>Save Prompt</Button>

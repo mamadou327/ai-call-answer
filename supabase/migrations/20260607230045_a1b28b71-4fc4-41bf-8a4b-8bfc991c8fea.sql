@@ -1,0 +1,1 @@
+ALTER TABLE public.outbound_settings ADD COLUMN IF NOT EXISTS default_voice_id text;

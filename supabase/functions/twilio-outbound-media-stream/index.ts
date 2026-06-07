@@ -5,12 +5,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
+const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const FROM_EMAIL = "info@aiviaapp.co.uk";
 const MO_EMAIL = "mo@aiviaapp.co.uk";
+const DEFAULT_ELEVENLABS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"; // Sarah — calm British-ish female fallback
+const ELEVENLABS_MODEL_ID = "eleven_flash_v2_5"; // ~150-300ms first-byte, supports ulaw_8000
 
 interface AvailabilityConfig {
   weekly_hours: Record<string, { enabled: boolean; start: string; end: string }>;
@@ -30,7 +33,10 @@ interface OutboundSession {
   openAiWs: WebSocket | null;
   twilioWs: WebSocket;
   systemPrompt: string;
-  voice: string;
+  voice: string; // legacy OpenAI voice (unused now, kept for back-compat)
+  elevenLabsVoiceId: string;
+  elevenLabsWs: WebSocket | null;
+  ttsResponseId: string | null; // OpenAI response.id currently being synthesised
   transcript: Array<{ role: "user" | "assistant"; text: string }>;
   pendingAssistant: string;
   pendingUser: string;
@@ -379,9 +385,92 @@ const TOOLS = [
   },
 ];
 
+// ─── ElevenLabs streaming TTS ───────────────────────────────────────────────
+// Opens a fresh WS per OpenAI assistant response, streams text in, forwards
+// μ-law audio frames out to the Twilio media stream.
+function openElevenLabsStream(session: OutboundSession) {
+  if (session.elevenLabsWs) {
+    try { session.elevenLabsWs.close(); } catch (_) {}
+    session.elevenLabsWs = null;
+  }
+  const voiceId = session.elevenLabsVoiceId || DEFAULT_ELEVENLABS_VOICE_ID;
+  const url = `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input` +
+    `?model_id=${ELEVENLABS_MODEL_ID}` +
+    `&output_format=ulaw_8000` +
+    `&inactivity_timeout=20` +
+    `&auto_mode=true`;
+  const ws = new WebSocket(url);
+  session.elevenLabsWs = ws;
+
+  ws.onopen = () => {
+    // BOS — must be sent first.
+    try {
+      ws.send(JSON.stringify({
+        text: " ",
+        voice_settings: { stability: 0.5, similarity_boost: 0.8, speed: 1.0 },
+        xi_api_key: ELEVENLABS_API_KEY,
+      }));
+    } catch (e) { console.error("[outbound] EL BOS failed", e); }
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(typeof event.data === "string" ? event.data : new TextDecoder().decode(event.data));
+      if (data.audio && session.twilioWs.readyState === WebSocket.OPEN && session.streamSid) {
+        session.twilioWs.send(JSON.stringify({
+          event: "media",
+          streamSid: session.streamSid,
+          media: { payload: data.audio },
+        }));
+      }
+      if (data.error) console.error("[outbound] EL error", data.error);
+    } catch (e) { console.error("[outbound] EL parse", e); }
+  };
+
+  ws.onerror = (e) => console.error("[outbound] EL WS error", e);
+  ws.onclose = () => {
+    if (session.elevenLabsWs === ws) session.elevenLabsWs = null;
+  };
+}
+
+function sendTextToElevenLabs(session: OutboundSession, text: string) {
+  if (!text) return;
+  if (!session.elevenLabsWs || session.elevenLabsWs.readyState !== WebSocket.OPEN) return;
+  try {
+    session.elevenLabsWs.send(JSON.stringify({ text }));
+  } catch (e) { console.error("[outbound] EL send text failed", e); }
+}
+
+function closeElevenLabsStream(session: OutboundSession) {
+  if (!session.elevenLabsWs) return;
+  try {
+    if (session.elevenLabsWs.readyState === WebSocket.OPEN) {
+      // EOS — empty string signals end-of-stream and triggers final flush.
+      session.elevenLabsWs.send(JSON.stringify({ text: "" }));
+    }
+  } catch (_) {}
+  // Don't close immediately — let final audio chunks arrive. EL will close after EOS.
+}
+
+function interruptElevenLabsStream(session: OutboundSession) {
+  if (session.elevenLabsWs) {
+    try { session.elevenLabsWs.close(); } catch (_) {}
+    session.elevenLabsWs = null;
+  }
+  // Tell Twilio to drop any buffered audio so the prospect doesn't hear leftovers.
+  if (session.twilioWs.readyState === WebSocket.OPEN && session.streamSid) {
+    try {
+      session.twilioWs.send(JSON.stringify({
+        event: "clear",
+        streamSid: session.streamSid,
+      }));
+    } catch (_) {}
+  }
+}
+
 async function connectOpenAi(session: OutboundSession, supabase: any) {
-  // OpenAI Realtime GA endpoint — the Beta API ("openai-beta.realtime-v1" subprotocol)
-  // is no longer supported and silently kills the call with `beta_api_shape_disabled`.
+  // OpenAI Realtime GA endpoint — STT + LLM + tools only. Audio synthesis goes
+  // via ElevenLabs so we can use the same voice library businesses pick from.
   const ws = new WebSocket(
     "wss://api.openai.com/v1/realtime?model=gpt-realtime",
     ["realtime", `openai-insecure-api-key.${OPENAI_API_KEY}`],
@@ -395,7 +484,7 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
         type: "realtime",
         model: "gpt-realtime",
         instructions: session.systemPrompt,
-        output_modalities: ["audio"],
+        output_modalities: ["text"], // text only — ElevenLabs speaks it
         audio: {
           input: {
             format: { type: "audio/pcmu" },
@@ -409,11 +498,6 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
             },
             transcription: { model: "whisper-1" },
           },
-          output: {
-            format: { type: "audio/pcmu" },
-            voice: session.voice || "cedar",
-          },
-
         },
         tools: TOOLS,
         tool_choice: "auto",
@@ -423,9 +507,7 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
 
   ws.onopen = () => {
     console.log("[outbound] OpenAI WS open");
-    // Config is sent after we receive `session.created` from OpenAI.
   };
-
 
   ws.onmessage = async (event) => {
     try {
@@ -440,34 +522,53 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
           try {
             ws.send(JSON.stringify({
               type: "response.create",
-              response: { output_modalities: ["audio"] },
+              response: { output_modalities: ["text"] },
             }));
           } catch (_) {}
           break;
 
-        case "response.output_audio.delta":
-        case "response.audio.delta":
-
-          if (session.twilioWs.readyState === WebSocket.OPEN && session.streamSid) {
-            session.twilioWs.send(JSON.stringify({
-              event: "media", streamSid: session.streamSid, media: { payload: msg.delta },
-            }));
+        // Prospect started speaking — kill any in-flight TTS and cancel the response.
+        case "input_audio_buffer.speech_started":
+          interruptElevenLabsStream(session);
+          if (session.ttsResponseId) {
+            try { ws.send(JSON.stringify({ type: "response.cancel" })); } catch (_) {}
+            session.ttsResponseId = null;
           }
           break;
-        case "response.output_audio_transcript.delta":
-        case "response.audio_transcript.delta":
-          session.pendingAssistant += msg.delta || "";
+
+        case "response.created":
+          session.ttsResponseId = msg.response?.id || null;
+          openElevenLabsStream(session);
           break;
-        case "response.output_audio_transcript.done":
-        case "response.audio_transcript.done":
+
+        // GA event for streamed text deltas.
+        case "response.output_text.delta":
+        case "response.text.delta": {
+          const delta: string = msg.delta || "";
+          if (delta) {
+            session.pendingAssistant += delta;
+            sendTextToElevenLabs(session, delta);
+          }
+          break;
+        }
+
+        case "response.output_text.done":
+        case "response.text.done":
           if (session.pendingAssistant.trim()) {
             session.transcript.push({ role: "assistant", text: session.pendingAssistant.trim() });
             session.pendingAssistant = "";
           }
           break;
+
+        case "response.done":
+          closeElevenLabsStream(session);
+          session.ttsResponseId = null;
+          break;
+
         case "conversation.item.input_audio_transcription.completed":
           if (msg.transcript) session.transcript.push({ role: "user", text: msg.transcript });
           break;
+
         case "response.function_call_arguments.done": {
           const name = msg.name;
           const callId = msg.call_id;
@@ -508,12 +609,14 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
   ws.onclose = () => console.log("[outbound] OpenAI WS closed");
 }
 
+
 Deno.serve(async (req) => {
   const upgrade = req.headers.get("upgrade") || "";
   if (upgrade.toLowerCase() !== "websocket") {
     return new Response("Expected WebSocket", { status: 400 });
   }
   if (!OPENAI_API_KEY) return new Response("Missing OPENAI_API_KEY", { status: 500 });
+  if (!ELEVENLABS_API_KEY) return new Response("Missing ELEVENLABS_API_KEY", { status: 500 });
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { socket: twilioWs, response } = Deno.upgradeWebSocket(req);
@@ -521,6 +624,8 @@ Deno.serve(async (req) => {
   const session: OutboundSession = {
     leadId: "", lead: null, callSid: "", streamSid: null,
     openAiWs: null, twilioWs, systemPrompt: "", voice: "cedar",
+    elevenLabsVoiceId: DEFAULT_ELEVENLABS_VOICE_ID,
+    elevenLabsWs: null, ttsResponseId: null,
     transcript: [], pendingAssistant: "", pendingUser: "",
     closed: false, availability: null, demoBookedViaTool: null,
   };
@@ -543,7 +648,7 @@ Deno.serve(async (req) => {
           if (campaign?.voice) session.voice = campaign.voice;
 
           const [{ data: settings }, { data: avail }, { data: overrides }] = await Promise.all([
-            supabase.from("outbound_settings").select("outbound_prompt").limit(1).maybeSingle(),
+            supabase.from("outbound_settings").select("outbound_prompt, default_voice_id").limit(1).maybeSingle(),
             supabase.from("outbound_availability").select("*").limit(1).maybeSingle(),
             supabase.from("outbound_availability_overrides").select("*")
               .gte("date", new Date().toISOString().slice(0,10))
@@ -551,6 +656,10 @@ Deno.serve(async (req) => {
               .order("date", { ascending: true }),
           ]);
           session.availability = avail as AvailabilityConfig | null;
+          if ((settings as any)?.default_voice_id) {
+            session.elevenLabsVoiceId = (settings as any).default_voice_id;
+          }
+          console.log("[outbound] using ElevenLabs voice", session.elevenLabsVoiceId);
 
           const tpl = settings?.outbound_prompt || "";
           const baseInjected = applyPromptVars(tpl, lead);
@@ -598,6 +707,7 @@ ${availSummary}`;
         case "stop":
           console.log("[outbound] stream stop");
           try { session.openAiWs?.close(); } catch (_) {}
+          try { session.elevenLabsWs?.close(); } catch (_) {}
           await finalizeCall(session, supabase);
           break;
       }
@@ -608,6 +718,7 @@ ${availSummary}`;
 
   twilioWs.onclose = async () => {
     try { session.openAiWs?.close(); } catch (_) {}
+    try { session.elevenLabsWs?.close(); } catch (_) {}
     await finalizeCall(session, supabase);
   };
 
