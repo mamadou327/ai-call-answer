@@ -5,12 +5,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
+const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const FROM_EMAIL = "info@aiviaapp.co.uk";
 const MO_EMAIL = "mo@aiviaapp.co.uk";
+const DEFAULT_ELEVENLABS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"; // Sarah — calm British-ish female fallback
+const ELEVENLABS_MODEL_ID = "eleven_flash_v2_5"; // ~150-300ms first-byte, supports ulaw_8000
 
 interface AvailabilityConfig {
   weekly_hours: Record<string, { enabled: boolean; start: string; end: string }>;
