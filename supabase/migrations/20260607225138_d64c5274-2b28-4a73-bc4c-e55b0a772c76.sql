@@ -1,0 +1,1 @@
+ALTER TABLE public.outbound_campaigns ADD COLUMN IF NOT EXISTS voice text NOT NULL DEFAULT 'cedar';
