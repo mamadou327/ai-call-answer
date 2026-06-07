@@ -76,6 +76,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
     name: "", calling_days: ["Monday","Tuesday","Wednesday","Thursday","Friday"],
     calling_start_hour: 9, calling_end_hour: 18,
     calls_per_day_limit: 50, delay_between_calls_seconds: 30,
+    voice: "cedar",
   });
 
   const load = async () => {
