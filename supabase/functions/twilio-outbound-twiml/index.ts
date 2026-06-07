@@ -13,8 +13,8 @@ Deno.serve(async (req) => {
   const leadId = url.searchParams.get("lead_id") || "";
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const host = new URL(SUPABASE_URL).hostname;
-  // Outbound uses dedicated wss path with lead context; reuse twilio-media-stream
-  const mediaStreamUrl = `wss://${host}/functions/v1/twilio-media-stream/outbound`;
+  // Dedicated outbound media stream — runs the AI sales prompt with lead context.
+  const mediaStreamUrl = `wss://${host}/functions/v1/twilio-outbound-media-stream`;
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
