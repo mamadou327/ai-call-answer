@@ -411,7 +411,7 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
           },
           output: {
             format: { type: "audio/pcmu" },
-            voice: "cedar",
+            voice: session.voice || "cedar",
           },
 
         },
