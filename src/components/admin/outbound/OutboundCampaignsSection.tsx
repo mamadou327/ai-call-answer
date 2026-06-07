@@ -396,7 +396,9 @@ function DemosTab() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"calendar" | "list">("list");
   const [selected, setSelected] = useState<Demo | null>(null);
+  const [dayOpen, setDayOpen] = useState<Date | null>(null);
   const [cursor, setCursor] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+
 
   const load = async () => {
     setLoading(true);
@@ -478,13 +480,16 @@ function DemosTab() {
             </div>
             <div className="grid grid-cols-7 gap-1">
               {monthGrid.map((cell, i) => (
-                <div key={i} className={`border rounded-md min-h-[90px] p-1 ${cell.date && isToday(cell.date) ? "border-primary bg-primary/5" : ""} ${!cell.date ? "bg-muted/20" : ""}`}>
+                <div key={i}
+                  onClick={() => cell.date && setDayOpen(cell.date)}
+                  className={`border rounded-md min-h-[90px] p-1 ${cell.date ? "cursor-pointer hover:bg-muted/40" : "bg-muted/20"} ${cell.date && isToday(cell.date) ? "border-primary bg-primary/5" : ""}`}>
                   {cell.date && (
                     <>
                       <div className="text-xs font-medium mb-1">{cell.date.getDate()}</div>
                       <div className="space-y-1">
                         {cell.demos.slice(0, 3).map(d => (
-                          <button key={d.id} onClick={() => setSelected(d)}
+                          <button key={d.id}
+                            onClick={(e) => { e.stopPropagation(); setSelected(d); }}
                             className="w-full text-left text-[10px] bg-primary/10 hover:bg-primary/20 rounded px-1 py-0.5 truncate">
                             {new Date(d.demo_datetime).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})} {d.prospect_name || ""}
                           </button>
@@ -496,12 +501,55 @@ function DemosTab() {
                 </div>
               ))}
             </div>
+
             {demos.length === 0 && <p className="text-center text-muted-foreground py-4 text-sm">No demos booked yet</p>}
           </div>
          )}
       </CardContent>
 
+      <Dialog open={!!dayOpen} onOpenChange={(o) => !o && setDayOpen(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{dayOpen?.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</DialogTitle>
+            <DialogDescription>
+              {dayOpen && (() => {
+                const list = demos.filter(x => {
+                  const xd = new Date(x.demo_datetime);
+                  return xd.toDateString() === dayOpen.toDateString();
+                });
+                return `${list.length} demo${list.length === 1 ? "" : "s"} scheduled`;
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {dayOpen && (() => {
+              const list = demos
+                .filter(x => new Date(x.demo_datetime).toDateString() === dayOpen.toDateString())
+                .sort((a, b) => new Date(a.demo_datetime).getTime() - new Date(b.demo_datetime).getTime());
+              if (!list.length) return <p className="text-center text-muted-foreground py-6">No demos on this day</p>;
+              return list.map(d => (
+                <div key={d.id} className="border rounded-md p-3 cursor-pointer hover:bg-muted/50"
+                  onClick={() => { setSelected(d); setDayOpen(null); }}>
+                  <div className="flex justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{d.prospect_name || "—"} — {d.prospect_business || "—"}</div>
+                      <div className="text-sm text-muted-foreground">{d.prospect_phone || "—"}{d.prospect_email ? ` · ${d.prospect_email}` : ""}</div>
+                      {d.call_summary && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{d.call_summary}</div>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-medium">{new Date(d.demo_datetime).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})}</div>
+                      <div className="mt-1">{statusBadge(d.status)}</div>
+                    </div>
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>{selected?.prospect_name} — {selected?.prospect_business}</DialogTitle>
