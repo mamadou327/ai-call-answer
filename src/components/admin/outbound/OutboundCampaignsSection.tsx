@@ -636,12 +636,18 @@ function PromptTab() {
 export function OutboundCampaignsSection() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [tab, setTab] = useState("campaigns");
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+
+  useEffect(() => {
+    supabase.from("outbound_campaigns").select("*").order("created_at", { ascending: false })
+      .then(({ data }) => setCampaigns((data || []) as Campaign[]));
+  }, [tab]);
 
   return (
-    <Tabs value={tab} onValueChange={(v) => { setTab(v); if (v !== "leads") setCampaign(null); }}>
+    <Tabs value={tab} onValueChange={setTab}>
       <TabsList>
         <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
-        <TabsTrigger value="leads" disabled={!campaign}>Leads</TabsTrigger>
+        <TabsTrigger value="leads">Leads</TabsTrigger>
         <TabsTrigger value="demos">Demos</TabsTrigger>
         <TabsTrigger value="results">Results</TabsTrigger>
         <TabsTrigger value="prompt">AI Prompt</TabsTrigger>
@@ -650,7 +656,34 @@ export function OutboundCampaignsSection() {
         <CampaignsTab onOpen={(c) => { setCampaign(c); setTab("leads"); }}/>
       </TabsContent>
       <TabsContent value="leads" className="mt-4">
-        {campaign && <LeadsTab campaign={campaign} onBack={() => { setCampaign(null); setTab("campaigns"); }}/>}
+        {campaign ? (
+          <LeadsTab campaign={campaign} onBack={() => { setCampaign(null); setTab("campaigns"); }}/>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Leads</CardTitle>
+              <CardDescription>Pick a campaign to view and manage its leads.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {campaigns.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No campaigns yet. Create one in the Campaigns tab.</p>
+              ) : (
+                <div className="space-y-2">
+                  {campaigns.map(c => (
+                    <button key={c.id} onClick={() => setCampaign(c)}
+                      className="w-full text-left border rounded-md p-3 hover:bg-muted/50 flex justify-between items-center">
+                      <div>
+                        <div className="font-medium">{c.name}</div>
+                        <div className="text-xs text-muted-foreground">Created {new Date(c.created_at).toLocaleDateString()}</div>
+                      </div>
+                      {statusBadge(c.status)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </TabsContent>
       <TabsContent value="demos" className="mt-4"><DemosTab/></TabsContent>
       <TabsContent value="results" className="mt-4"><ResultsTab/></TabsContent>
@@ -658,3 +691,4 @@ export function OutboundCampaignsSection() {
     </Tabs>
   );
 }
+
