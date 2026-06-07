@@ -396,7 +396,9 @@ function DemosTab() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"calendar" | "list">("list");
   const [selected, setSelected] = useState<Demo | null>(null);
+  const [dayOpen, setDayOpen] = useState<Date | null>(null);
   const [cursor, setCursor] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+
 
   const load = async () => {
     setLoading(true);
