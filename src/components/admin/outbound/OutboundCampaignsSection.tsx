@@ -136,7 +136,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead><TableHead>Status</TableHead>
-              <TableHead>Leads</TableHead><TableHead>Calls</TableHead>
+              <TableHead>Voice</TableHead><TableHead>Leads</TableHead><TableHead>Calls</TableHead>
               <TableHead>Demos</TableHead><TableHead>Success</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
