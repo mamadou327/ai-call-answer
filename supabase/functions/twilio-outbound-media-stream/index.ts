@@ -707,6 +707,7 @@ ${availSummary}`;
         case "stop":
           console.log("[outbound] stream stop");
           try { session.openAiWs?.close(); } catch (_) {}
+          try { session.elevenLabsWs?.close(); } catch (_) {}
           await finalizeCall(session, supabase);
           break;
       }
@@ -717,6 +718,7 @@ ${availSummary}`;
 
   twilioWs.onclose = async () => {
     try { session.openAiWs?.close(); } catch (_) {}
+    try { session.elevenLabsWs?.close(); } catch (_) {}
     await finalizeCall(session, supabase);
   };
 
