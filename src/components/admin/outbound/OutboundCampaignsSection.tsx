@@ -149,6 +149,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                 <TableRow key={c.id} className="cursor-pointer" onClick={() => onOpen(c)}>
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell>{statusBadge(c.status)}</TableCell>
+                  <TableCell className="capitalize">{c.voice || "cedar"}</TableCell>
                   <TableCell>{st.leads}</TableCell>
                   <TableCell>{st.calls}</TableCell>
                   <TableCell>{st.demos}</TableCell>
