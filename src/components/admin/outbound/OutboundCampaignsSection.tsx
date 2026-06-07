@@ -168,7 +168,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                 </TableRow>
               );
             })}
-            {rows.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No campaigns yet</TableCell></TableRow>}
+            {rows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No campaigns yet</TableCell></TableRow>}
           </TableBody>
         </Table>}
       </CardContent>
