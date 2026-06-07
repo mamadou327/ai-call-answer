@@ -396,6 +396,7 @@ function DemosTab() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"calendar" | "list">("list");
   const [selected, setSelected] = useState<Demo | null>(null);
+  const [cursor, setCursor] = useState(() => { const d = new Date(); d.setDate(1); return d; });
 
   const load = async () => {
     setLoading(true);
@@ -411,15 +412,30 @@ function DemosTab() {
     else { load(); setSelected(null); }
   };
 
-  // simple calendar: group by date
-  const byDate = useMemo(() => {
-    const m: Record<string, Demo[]> = {};
-    demos.forEach(d => {
-      const k = new Date(d.demo_datetime).toLocaleDateString();
-      (m[k] = m[k] || []).push(d);
-    });
-    return m;
-  }, [demos]);
+  // Build month grid
+  const monthGrid = useMemo(() => {
+    const year = cursor.getFullYear();
+    const month = cursor.getMonth();
+    const first = new Date(year, month, 1);
+    const startWeekday = (first.getDay() + 6) % 7; // Monday-first
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: { date: Date | null; demos: Demo[] }[] = [];
+    for (let i = 0; i < startWeekday; i++) cells.push({ date: null, demos: [] });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const day = new Date(year, month, d);
+      const dayDemos = demos.filter(x => {
+        const xd = new Date(x.demo_datetime);
+        return xd.getFullYear() === year && xd.getMonth() === month && xd.getDate() === d;
+      });
+      cells.push({ date: day, demos: dayDemos });
+    }
+    while (cells.length % 7 !== 0) cells.push({ date: null, demos: [] });
+    return cells;
+  }, [cursor, demos]);
+
+  const monthLabel = cursor.toLocaleString(undefined, { month: "long", year: "numeric" });
+  const today = new Date();
+  const isToday = (d: Date) => d.toDateString() === today.toDateString();
 
   return (
     <Card>
@@ -451,22 +467,36 @@ function DemosTab() {
             {demos.length === 0 && <p className="text-center text-muted-foreground py-8">No demos booked yet</p>}
           </div>
          ) : (
-          <div className="space-y-4">
-            {Object.entries(byDate).map(([date, list]) => (
-              <div key={date}>
-                <h3 className="font-semibold mb-2">{date}</h3>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {list.map(d => (
-                    <div key={d.id} className="border rounded-md p-3 cursor-pointer hover:bg-muted/50" onClick={() => setSelected(d)}>
-                      <div className="font-medium">{d.prospect_name}</div>
-                      <div className="text-sm text-muted-foreground">{d.prospect_business} · {new Date(d.demo_datetime).toLocaleTimeString()}</div>
-                      <div className="mt-1">{statusBadge(d.status)}</div>
-                    </div>
-                  ))}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Button size="sm" variant="outline" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>←</Button>
+              <div className="font-semibold">{monthLabel}</div>
+              <Button size="sm" variant="outline" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}>→</Button>
+            </div>
+            <div className="grid grid-cols-7 gap-1 text-xs font-medium text-muted-foreground">
+              {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d => <div key={d} className="text-center py-1">{d}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {monthGrid.map((cell, i) => (
+                <div key={i} className={`border rounded-md min-h-[90px] p-1 ${cell.date && isToday(cell.date) ? "border-primary bg-primary/5" : ""} ${!cell.date ? "bg-muted/20" : ""}`}>
+                  {cell.date && (
+                    <>
+                      <div className="text-xs font-medium mb-1">{cell.date.getDate()}</div>
+                      <div className="space-y-1">
+                        {cell.demos.slice(0, 3).map(d => (
+                          <button key={d.id} onClick={() => setSelected(d)}
+                            className="w-full text-left text-[10px] bg-primary/10 hover:bg-primary/20 rounded px-1 py-0.5 truncate">
+                            {new Date(d.demo_datetime).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})} {d.prospect_name || ""}
+                          </button>
+                        ))}
+                        {cell.demos.length > 3 && <div className="text-[10px] text-muted-foreground">+{cell.demos.length - 3} more</div>}
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
-            ))}
-            {demos.length === 0 && <p className="text-center text-muted-foreground py-8">No demos booked yet</p>}
+              ))}
+            </div>
+            {demos.length === 0 && <p className="text-center text-muted-foreground py-4 text-sm">No demos booked yet</p>}
           </div>
          )}
       </CardContent>
@@ -495,6 +525,7 @@ function DemosTab() {
     </Card>
   );
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RESULTS TAB
@@ -636,12 +667,18 @@ function PromptTab() {
 export function OutboundCampaignsSection() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [tab, setTab] = useState("campaigns");
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+
+  useEffect(() => {
+    supabase.from("outbound_campaigns").select("*").order("created_at", { ascending: false })
+      .then(({ data }) => setCampaigns((data || []) as Campaign[]));
+  }, [tab]);
 
   return (
-    <Tabs value={tab} onValueChange={(v) => { setTab(v); if (v !== "leads") setCampaign(null); }}>
+    <Tabs value={tab} onValueChange={setTab}>
       <TabsList>
         <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
-        <TabsTrigger value="leads" disabled={!campaign}>Leads</TabsTrigger>
+        <TabsTrigger value="leads">Leads</TabsTrigger>
         <TabsTrigger value="demos">Demos</TabsTrigger>
         <TabsTrigger value="results">Results</TabsTrigger>
         <TabsTrigger value="prompt">AI Prompt</TabsTrigger>
@@ -650,7 +687,34 @@ export function OutboundCampaignsSection() {
         <CampaignsTab onOpen={(c) => { setCampaign(c); setTab("leads"); }}/>
       </TabsContent>
       <TabsContent value="leads" className="mt-4">
-        {campaign && <LeadsTab campaign={campaign} onBack={() => { setCampaign(null); setTab("campaigns"); }}/>}
+        {campaign ? (
+          <LeadsTab campaign={campaign} onBack={() => { setCampaign(null); setTab("campaigns"); }}/>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Leads</CardTitle>
+              <CardDescription>Pick a campaign to view and manage its leads.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {campaigns.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No campaigns yet. Create one in the Campaigns tab.</p>
+              ) : (
+                <div className="space-y-2">
+                  {campaigns.map(c => (
+                    <button key={c.id} onClick={() => setCampaign(c)}
+                      className="w-full text-left border rounded-md p-3 hover:bg-muted/50 flex justify-between items-center">
+                      <div>
+                        <div className="font-medium">{c.name}</div>
+                        <div className="text-xs text-muted-foreground">Created {new Date(c.created_at).toLocaleDateString()}</div>
+                      </div>
+                      {statusBadge(c.status)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </TabsContent>
       <TabsContent value="demos" className="mt-4"><DemosTab/></TabsContent>
       <TabsContent value="results" className="mt-4"><ResultsTab/></TabsContent>
@@ -658,3 +722,4 @@ export function OutboundCampaignsSection() {
     </Tabs>
   );
 }
+
