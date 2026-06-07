@@ -591,6 +591,43 @@ function DemosTab() {
               ));
             })()}
           </div>
+
+          {dayOpen && (
+            <div className="border-t pt-3 mt-3 space-y-3">
+              <div className="text-sm font-semibold">Block this day from the AI</div>
+              {(overridesByDate[ymdLocal(dayOpen)] || []).length > 0 && (
+                <div className="space-y-1">
+                  {(overridesByDate[ymdLocal(dayOpen)] || []).map(b => (
+                    <div key={b.id} className="flex items-center justify-between bg-red-50 border border-red-200 rounded px-2 py-1 text-xs">
+                      <span className="text-red-800">
+                        {b.start_time && b.end_time
+                          ? `${b.start_time.slice(0,5)}–${b.end_time.slice(0,5)} blocked`
+                          : "Whole day blocked"}
+                        {b.reason ? ` · ${b.reason}` : ""}
+                      </span>
+                      <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => unblock(b.id)}>Remove</Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2 items-end flex-wrap">
+                <Button size="sm" variant="outline" onClick={() => dayOpen && blockFullDay(dayOpen)}>Block whole day</Button>
+                <div className="flex items-end gap-2">
+                  <div>
+                    <Label className="text-xs">From</Label>
+                    <Input type="time" value={blockRange.start} onChange={e => setBlockRange({ ...blockRange, start: e.target.value })} className="w-28 h-8"/>
+                  </div>
+                  <div>
+                    <Label className="text-xs">To</Label>
+                    <Input type="time" value={blockRange.end} onChange={e => setBlockRange({ ...blockRange, end: e.target.value })} className="w-28 h-8"/>
+                  </div>
+                  <Button size="sm" onClick={() => dayOpen && blockTimeRange(dayOpen)}>Block range</Button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Aria will not book any demo inside a blocked window.</p>
+            </div>
+          )}
+
         </DialogContent>
       </Dialog>
 
