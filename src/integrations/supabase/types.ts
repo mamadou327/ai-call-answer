@@ -2014,18 +2014,21 @@ export type Database = {
       }
       outbound_settings: {
         Row: {
+          default_voice_id: string | null
           from_number: string | null
           id: string
           outbound_prompt: string
           updated_at: string
         }
         Insert: {
+          default_voice_id?: string | null
           from_number?: string | null
           id?: string
           outbound_prompt: string
           updated_at?: string
         }
         Update: {
+          default_voice_id?: string | null
           from_number?: string | null
           id?: string
           outbound_prompt?: string
