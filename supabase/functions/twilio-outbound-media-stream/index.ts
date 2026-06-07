@@ -442,7 +442,9 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
           } catch (_) {}
           break;
 
+        case "response.output_audio.delta":
         case "response.audio.delta":
+
           if (session.twilioWs.readyState === WebSocket.OPEN && session.streamSid) {
             session.twilioWs.send(JSON.stringify({
               event: "media", streamSid: session.streamSid, media: { payload: msg.delta },
