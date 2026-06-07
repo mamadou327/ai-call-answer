@@ -379,9 +379,11 @@ const TOOLS = [
 ];
 
 async function connectOpenAi(session: OutboundSession, supabase: any) {
+  // OpenAI Realtime GA endpoint — the Beta API ("openai-beta.realtime-v1" subprotocol)
+  // is no longer supported and silently kills the call with `beta_api_shape_disabled`.
   const ws = new WebSocket(
     "wss://api.openai.com/v1/realtime?model=gpt-realtime",
-    ["realtime", `openai-insecure-api-key.${OPENAI_API_KEY}`, "openai-beta.realtime-v1"],
+    ["realtime", `openai-insecure-api-key.${OPENAI_API_KEY}`],
   );
   session.openAiWs = ws;
 
@@ -390,20 +392,33 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
     ws.send(JSON.stringify({
       type: "session.update",
       session: {
-        modalities: ["text", "audio"],
+        type: "realtime",
+        model: "gpt-realtime",
         instructions: session.systemPrompt,
-        voice: "alloy",
-        input_audio_format: "g711_ulaw",
-        output_audio_format: "g711_ulaw",
-        input_audio_transcription: { model: "whisper-1" },
-        turn_detection: { type: "server_vad", threshold: 0.5, prefix_padding_ms: 300, silence_duration_ms: 600 },
-        temperature: 0.8,
+        output_modalities: ["audio"],
+        audio: {
+          input: {
+            format: { type: "audio/pcmu" },
+            turn_detection: {
+              type: "server_vad",
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 600,
+              create_response: true,
+            },
+            transcription: { model: "whisper-1" },
+          },
+          output: {
+            format: { type: "audio/pcmu" },
+            voice: "alloy",
+          },
+        },
         tools: TOOLS,
         tool_choice: "auto",
       },
     }));
     setTimeout(() => {
-      try { ws.send(JSON.stringify({ type: "response.create", response: { modalities: ["text", "audio"] } })); } catch (_) {}
+      try { ws.send(JSON.stringify({ type: "response.create", response: { output_modalities: ["audio"] } })); } catch (_) {}
     }, 400);
   };
 
@@ -411,6 +426,7 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
     try {
       const msg = JSON.parse(event.data);
       switch (msg.type) {
+        case "response.output_audio.delta":
         case "response.audio.delta":
           if (session.twilioWs.readyState === WebSocket.OPEN && session.streamSid) {
             session.twilioWs.send(JSON.stringify({
@@ -418,9 +434,11 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
             }));
           }
           break;
+        case "response.output_audio_transcript.delta":
         case "response.audio_transcript.delta":
           session.pendingAssistant += msg.delta || "";
           break;
+        case "response.output_audio_transcript.done":
         case "response.audio_transcript.done":
           if (session.pendingAssistant.trim()) {
             session.transcript.push({ role: "assistant", text: session.pendingAssistant.trim() });
