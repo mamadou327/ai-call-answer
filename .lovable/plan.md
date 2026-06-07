@@ -1,83 +1,57 @@
-## Outbound Calling System (Admin Only)
+## Goal
 
-Full build of an outbound calling engine accessible only to super_admin accounts. Scope matches the brief exactly.
+Give you full control of when Aria is allowed to book demos. She must:
+- Only offer slots inside your weekly working hours
+- Skip any date/time you've blocked from the calendar
+- Never double-book (avoid slots already in the demos calendar)
+- Apply sensible defaults: 15-min demo length, 15-min buffer, min 2-hour notice, max 4 demos/day (you can change these later)
 
-### 1. Database (single migration)
+---
 
-Four new tables with RLS restricting all access to `super_admin` role:
+## What you'll see in the admin
 
-- **outbound_campaigns** — name, status (draft/active/paused/completed), calling_days text[], calling_start_hour, calling_end_hour, calls_per_day_limit, delay_between_calls_seconds (default 30), timestamps.
-- **outbound_leads** — campaign_id FK, first_name, business_name, phone_number, email, status (pending/calling/answered/no_answer/voicemail/interested/not_interested/demo_booked/do_not_call), interest_level (hot/warm/cold), existing_solution, reason_not_interested, demo_booked bool, retry_count, last_called_at, call_transcript, call_recording_url, call_duration_seconds, notes.
-- **outbound_demos** — lead_id FK, demo_date, demo_time, demo_datetime, prospect_name/business/phone/email, call_summary, status, reminder_24h_sent, reminder_1h_sent.
-- **outbound_settings** — single row, outbound_prompt text, updated_at. Seeded with the default Aria prompt verbatim from the brief.
+A new **"Availability"** tab in the outbound section with two parts:
 
-GRANTs to `authenticated` + `service_role`; policies use `has_role(auth.uid(), 'super_admin')`.
+**1. Weekly hours** — for each weekday: enabled toggle + start/end time (e.g. Mon–Fri 10:00–17:00). Plus four guardrail fields: demo length, buffer between demos, minimum notice, max demos/day.
 
-### 2. Edge Functions
+**2. Calendar overrides** — on the existing Demos calendar, click any day to open the day view (already built), then a new "Block this day" or "Block a time range" action. Blocks show up visually on the calendar in red and override the weekly hours.
 
-- **twilio-outbound-call** — POST { lead_id }. Fetches lead, marks `calling`, dials via Twilio REST `Calls` with record=true, status_callback → `twilio-outbound-status`, recordingStatusCallback → `twilio-outbound-recording`, url → `twilio-outbound-twiml?lead_id=...`. Uses existing TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN.
-- **twilio-outbound-twiml** — returns `<Connect><Stream>` to existing `twilio-media-stream` WSS, with `<Parameter name="call_type" value="outbound"/>` and `<Parameter name="lead_id" .../>`.
-- **twilio-outbound-status** — handles no-answer/busy/failed → status=no_answer + retry_count++; completed → last_called_at=now.
-- **twilio-outbound-recording** — saves recording URL to lead.
-- **process-outbound-campaign** — cron worker. For each active campaign: check London-time window, day-of-week, daily call cap; pick next pending lead; invoke `twilio-outbound-call`; sleep `delay_between_calls_seconds` between leads inside the same run.
-- **send-demo-reminders** — cron. 24h + 1h reminder emails to Mo via Resend, sets `reminder_*_sent` flags.
+---
 
-### 3. Modify `twilio-media-stream`
+## How Aria uses it on the call
 
-When stream `customParameters` include `call_type=outbound` and `lead_id`:
+When a prospect agrees to a demo:
 
-- Load lead + `outbound_settings.outbound_prompt`.
-- Substitute `{{first_name}}` and `{{business_name}}`.
-- Use as the Realtime system prompt instead of inbound receptionist prompt; skip business/customer rehydration paths.
-- At call end: save full transcript to lead, use a lightweight extraction pass (existing AI gateway) to derive interest_level, existing_solution, reason_not_interested, demo agreed + datetime + email; update lead.status; if demo booked → insert `outbound_demos` row, send Mo notification + prospect confirmation via Resend.
+1. Aria calls a `get_available_slots` tool which returns the next ~10 free slots (e.g. "Tue 9 Jun 10:00, Tue 9 Jun 10:30, Wed 10 Jun 14:00…") computed live from: weekly hours − overrides − existing demos − minimum notice.
+2. She offers 2–3 of those naturally ("I've got Tuesday at 10 or Wednesday at 2, which works better?").
+3. When the prospect picks one, she calls `book_demo_slot` which re-validates the slot server-side and inserts into `outbound_demos`. If the slot was just taken or falls outside hours, the tool returns an error and Aria offers an alternative — she never verbally confirms before the DB succeeds (existing project rule).
 
-All existing inbound behaviour, reconnect/dedupe/state persistence work from the prior fixes remains untouched.
+---
 
-### 4. Admin Dashboard
+## Technical details
 
-New sidebar entry **Outbound Campaigns** (rendered only when `has_role super_admin`) in `AdminDashboard.tsx`. Five tabs:
+**Database** — new migration:
+- `outbound_availability` (single row, super_admin-owned): `weekly_hours jsonb` (per-weekday open/close), `demo_duration_minutes int default 15`, `buffer_minutes int default 15`, `min_notice_hours int default 2`, `max_demos_per_day int default 4`, `timezone text default 'Europe/London'`.
+- `outbound_availability_overrides`: `date date`, `start_time time null`, `end_time time null`, `reason text` — full-day block when both times null, otherwise time-range block.
+- Both tables: GRANTs, RLS restricted to `super_admin` via `has_role(auth.uid(), 'super_admin')`.
 
-1. **Campaigns** — table with status badges + KPIs (leads, calls, demos, success %), Create Campaign dialog (name, calling_days checkboxes, start/end hours, daily cap, delay seconds with helper text), row actions Start/Pause/Resume/Stop.
-2. **Leads** (inside a campaign) — table with colour-coded status/interest badges, recording play button, transcript dialog; side panel with all extracted fields. Import CSV (phone, first_name, business_name), Add Lead dialog, filter bar.
-3. **Demos** — Calendar/List toggle, demo cards with detail panel, mark Completed/No Show/Cancelled.
-4. **Results** — totals, answer/interest/demo rates, outcome distribution chart, calls/day line chart, top existing solutions, top rejection reasons (recharts).
-5. **AI Prompt** — full-width textarea bound to `outbound_settings.outbound_prompt`, Save Prompt, Reset to Default (restores seeded prompt), helper note "changes take effect on the next call made".
+**Edge function updates** to `twilio-outbound-media-stream`:
+- Inject availability summary into Aria's system prompt at session start (weekly hours + override notes for next 14 days).
+- Register two OpenAI Realtime tools: `get_available_slots(from_date, days=7)` and `book_demo_slot(datetime_iso, prospect_name, prospect_business, prospect_phone, prospect_email)`.
+- Slot computation runs server-side: generate candidate slots from weekly hours, subtract overrides, subtract existing `outbound_demos` (with buffer), enforce min-notice and daily cap.
+- `book_demo_slot` re-runs the same validation atomically before insert; on success returns `{ ok: true, demo_id }`, on failure returns `{ ok: false, reason }` so Aria offers an alternative.
 
-### 5. Emails (Resend, from [info@aiviaapp.co.uk](mailto:info@aiviaapp.co.uk))
+**Admin UI** — extend `OutboundCampaignsSection.tsx`:
+- New `AvailabilityTab` (weekday rows + guardrail fields, save button).
+- Day-detail dialog in `DemosTab` gets a "Block this day" / "Block a time range" action; red striping on blocked days in the month grid.
 
-Templates implemented inside the relevant edge functions:
+**Prompt** — append to the default Aria prompt:
+> Before suggesting any demo time, call `get_available_slots`. Offer 2–3 of the returned slots only. When the prospect chooses one, call `book_demo_slot` and wait for `ok: true` before confirming verbally. If `ok: false`, apologise briefly and offer one of the other returned slots.
 
-- Demo booked → Mo
-- Hot lead, no booking → Mo
-- Demo confirmation → prospect
-- 24h reminder → Mo
-- 1h reminder → Mo
+---
 
-Bodies follow the brief verbatim.
+## Out of scope (ask later if needed)
 
-### 6. Scheduled Jobs
-
-Via `supabase--insert` (uses CRON_SECRET + project URL/anon key, per project pattern):
-
-```text
-process-outbound-campaign  →  */1 * * * *
-send-demo-reminders        →  */30 * * * *
-```
-
-### 7. Default Prompt
-
-Seeded into `outbound_settings` exactly as supplied in the brief (Aria script, rule precedence, opening, pitch, objections, booking flow, conversation rules).
-
-### Technical details
-
-- **Files added**: `supabase/functions/{twilio-outbound-call,twilio-outbound-twiml,twilio-outbound-status,twilio-outbound-recording,process-outbound-campaign,send-demo-reminders}/index.ts`; admin UI under `src/components/admin/outbound/` (CampaignsTab, LeadsTab, DemosTab, ResultsTab, PromptTab, dialogs, lead side panel).
-- **Files modified**: `supabase/functions/twilio-media-stream/index.ts` (outbound branch + post-call extraction/demo-booking hooks); `src/pages/AdminDashboard.tsx` (sidebar + route gating on super_admin).
-- **Secrets**: reuses TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, RESEND_API_KEY, LOVABLE_API_KEY, CRON_SECRET — all already configured.
-- **Twilio sender number**: uses the existing business-assigned Twilio number; if multiple exist I'll add a `from_number` column on `outbound_campaigns` defaulting to the first configured number — please confirm if you'd prefer a fixed number set in `outbound_settings` instead.
-- **Deploys**: all six new functions + modified `twilio-media-stream` redeployed at the end.
-
-### Open question
-
-The brief says "Sets the from number to the business's assigned Twilio phone number" — there's no single "business" on an outbound campaign. I'll default to using your primary Twilio number stored in env/config; let me know if campaigns should each pick their own caller ID. The plan looks perfect, please go ahead and build everything as described.
-
-For the open question about the from number — please add a `from_number` text field to the `outbound_settings` table alongside the prompt. All campaigns use this single number to make outbound calls. Also add a From Number input field in the AI Prompt tab of the admin dashboard so Mo can set or update the outbound caller ID from there. Default it to empty and Mo will enter the UK Twilio number manually after setup.
+- Google Calendar sync (can be added on top later without breaking this).
+- Multi-user availability (this is super-admin only, for Mo).
+- Self-service reschedule by the prospect.
