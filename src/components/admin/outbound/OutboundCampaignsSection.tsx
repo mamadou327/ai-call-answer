@@ -390,29 +390,44 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
 // ─────────────────────────────────────────────────────────────────────────────
 // DEMOS TAB
 // ─────────────────────────────────────────────────────────────────────────────
+type Override = { id: string; date: string; start_time: string | null; end_time: string | null; reason: string | null };
+
 function DemosTab() {
   const { toast } = useToast();
   const [demos, setDemos] = useState<Demo[]>([]);
+  const [overrides, setOverrides] = useState<Override[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"calendar" | "list">("list");
   const [selected, setSelected] = useState<Demo | null>(null);
   const [dayOpen, setDayOpen] = useState<Date | null>(null);
   const [cursor, setCursor] = useState(() => { const d = new Date(); d.setDate(1); return d; });
-
+  const [blockRange, setBlockRange] = useState<{ start: string; end: string }>({ start: "", end: "" });
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("outbound_demos").select("*").order("demo_datetime", { ascending: true });
-    setDemos((data || []) as Demo[]);
+    const [{ data: dms }, { data: ovs }] = await Promise.all([
+      supabase.from("outbound_demos").select("*").order("demo_datetime", { ascending: true }),
+      supabase.from("outbound_availability_overrides").select("*").order("date", { ascending: true }),
+    ]);
+    setDemos((dms || []) as Demo[]);
+    setOverrides((ovs || []) as Override[]);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
 
   const setStatus = async (id: string, status: string) => {
     const { error } = await supabase.from("outbound_demos").update({ status: status as any }).eq("id", id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else { load(); setSelected(null); }
   };
+
+  const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const overridesByDate = useMemo(() => {
+    const m: Record<string, Override[]> = {};
+    overrides.forEach(o => { (m[o.date] ||= []).push(o); });
+    return m;
+  }, [overrides]);
 
   // Build month grid
   const monthGrid = useMemo(() => {
@@ -421,23 +436,45 @@ function DemosTab() {
     const first = new Date(year, month, 1);
     const startWeekday = (first.getDay() + 6) % 7; // Monday-first
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const cells: { date: Date | null; demos: Demo[] }[] = [];
-    for (let i = 0; i < startWeekday; i++) cells.push({ date: null, demos: [] });
+    const cells: { date: Date | null; demos: Demo[]; blocks: Override[]; fullBlocked: boolean }[] = [];
+    for (let i = 0; i < startWeekday; i++) cells.push({ date: null, demos: [], blocks: [], fullBlocked: false });
     for (let d = 1; d <= daysInMonth; d++) {
       const day = new Date(year, month, d);
       const dayDemos = demos.filter(x => {
         const xd = new Date(x.demo_datetime);
         return xd.getFullYear() === year && xd.getMonth() === month && xd.getDate() === d;
       });
-      cells.push({ date: day, demos: dayDemos });
+      const blocks = overridesByDate[ymdLocal(day)] || [];
+      const fullBlocked = blocks.some(b => !b.start_time && !b.end_time);
+      cells.push({ date: day, demos: dayDemos, blocks, fullBlocked });
     }
-    while (cells.length % 7 !== 0) cells.push({ date: null, demos: [] });
+    while (cells.length % 7 !== 0) cells.push({ date: null, demos: [], blocks: [], fullBlocked: false });
     return cells;
-  }, [cursor, demos]);
+  }, [cursor, demos, overridesByDate]);
 
   const monthLabel = cursor.toLocaleString(undefined, { month: "long", year: "numeric" });
   const today = new Date();
   const isToday = (d: Date) => d.toDateString() === today.toDateString();
+
+  const blockFullDay = async (d: Date) => {
+    const { error } = await supabase.from("outbound_availability_overrides").insert({ date: ymdLocal(d) });
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else { toast({ title: "Day blocked", description: "Aria will not book any demos on this day." }); load(); }
+  };
+  const blockTimeRange = async (d: Date) => {
+    if (!blockRange.start || !blockRange.end) { toast({ title: "Pick a start and end time", variant: "destructive" }); return; }
+    const { error } = await supabase.from("outbound_availability_overrides").insert({
+      date: ymdLocal(d), start_time: blockRange.start, end_time: blockRange.end,
+    });
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else { setBlockRange({ start: "", end: "" }); toast({ title: "Time range blocked" }); load(); }
+  };
+  const unblock = async (id: string) => {
+    const { error } = await supabase.from("outbound_availability_overrides").delete().eq("id", id);
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else load();
+  };
+
 
   return (
     <Card>
@@ -482,10 +519,13 @@ function DemosTab() {
               {monthGrid.map((cell, i) => (
                 <div key={i}
                   onClick={() => cell.date && setDayOpen(cell.date)}
-                  className={`border rounded-md min-h-[90px] p-1 ${cell.date ? "cursor-pointer hover:bg-muted/40" : "bg-muted/20"} ${cell.date && isToday(cell.date) ? "border-primary bg-primary/5" : ""}`}>
+                  className={`border rounded-md min-h-[90px] p-1 relative overflow-hidden ${cell.date ? "cursor-pointer hover:bg-muted/40" : "bg-muted/20"} ${cell.date && isToday(cell.date) ? "border-primary bg-primary/5" : ""} ${cell.fullBlocked ? "bg-red-50 border-red-300" : ""}`}>
                   {cell.date && (
                     <>
-                      <div className="text-xs font-medium mb-1">{cell.date.getDate()}</div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="text-xs font-medium">{cell.date.getDate()}</div>
+                        {cell.blocks.length > 0 && <div className="text-[9px] text-red-700 font-medium uppercase">Blocked</div>}
+                      </div>
                       <div className="space-y-1">
                         {cell.demos.slice(0, 3).map(d => (
                           <button key={d.id}
@@ -495,12 +535,18 @@ function DemosTab() {
                           </button>
                         ))}
                         {cell.demos.length > 3 && <div className="text-[10px] text-muted-foreground">+{cell.demos.length - 3} more</div>}
+                        {!cell.fullBlocked && cell.blocks.filter(b => b.start_time && b.end_time).slice(0,2).map(b => (
+                          <div key={b.id} className="text-[10px] bg-red-100 text-red-800 rounded px-1 py-0.5 truncate">
+                            Blocked {b.start_time?.slice(0,5)}–{b.end_time?.slice(0,5)}
+                          </div>
+                        ))}
                       </div>
                     </>
                   )}
                 </div>
               ))}
             </div>
+
 
             {demos.length === 0 && <p className="text-center text-muted-foreground py-4 text-sm">No demos booked yet</p>}
           </div>
@@ -545,6 +591,43 @@ function DemosTab() {
               ));
             })()}
           </div>
+
+          {dayOpen && (
+            <div className="border-t pt-3 mt-3 space-y-3">
+              <div className="text-sm font-semibold">Block this day from the AI</div>
+              {(overridesByDate[ymdLocal(dayOpen)] || []).length > 0 && (
+                <div className="space-y-1">
+                  {(overridesByDate[ymdLocal(dayOpen)] || []).map(b => (
+                    <div key={b.id} className="flex items-center justify-between bg-red-50 border border-red-200 rounded px-2 py-1 text-xs">
+                      <span className="text-red-800">
+                        {b.start_time && b.end_time
+                          ? `${b.start_time.slice(0,5)}–${b.end_time.slice(0,5)} blocked`
+                          : "Whole day blocked"}
+                        {b.reason ? ` · ${b.reason}` : ""}
+                      </span>
+                      <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => unblock(b.id)}>Remove</Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2 items-end flex-wrap">
+                <Button size="sm" variant="outline" onClick={() => dayOpen && blockFullDay(dayOpen)}>Block whole day</Button>
+                <div className="flex items-end gap-2">
+                  <div>
+                    <Label className="text-xs">From</Label>
+                    <Input type="time" value={blockRange.start} onChange={e => setBlockRange({ ...blockRange, start: e.target.value })} className="w-28 h-8"/>
+                  </div>
+                  <div>
+                    <Label className="text-xs">To</Label>
+                    <Input type="time" value={blockRange.end} onChange={e => setBlockRange({ ...blockRange, end: e.target.value })} className="w-28 h-8"/>
+                  </div>
+                  <Button size="sm" onClick={() => dayOpen && blockTimeRange(dayOpen)}>Block range</Button>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Aria will not book any demo inside a blocked window.</p>
+            </div>
+          )}
+
         </DialogContent>
       </Dialog>
 
@@ -710,6 +793,120 @@ function PromptTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// AVAILABILITY TAB
+// ─────────────────────────────────────────────────────────────────────────────
+type WeeklyHours = Record<string, { enabled: boolean; start: string; end: string }>;
+const WEEKDAY_KEYS = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"];
+
+function AvailabilityTab() {
+  const { toast } = useToast();
+  const [rowId, setRowId] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [hours, setHours] = useState<WeeklyHours>({});
+  const [duration, setDuration] = useState(15);
+  const [buffer, setBuffer] = useState(15);
+  const [minNotice, setMinNotice] = useState(2);
+  const [maxDay, setMaxDay] = useState(4);
+  const [tz, setTz] = useState("Europe/London");
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("outbound_availability").select("*").limit(1).maybeSingle();
+      if (data) {
+        setRowId(data.id);
+        setHours((data.weekly_hours as WeeklyHours) || {});
+        setDuration(data.demo_duration_minutes);
+        setBuffer(data.buffer_minutes);
+        setMinNotice(data.min_notice_hours);
+        setMaxDay(data.max_demos_per_day);
+        setTz(data.timezone);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("outbound_availability").update({
+      weekly_hours: hours,
+      demo_duration_minutes: duration,
+      buffer_minutes: buffer,
+      min_notice_hours: minNotice,
+      max_demos_per_day: maxDay,
+      timezone: tz,
+    }).eq("id", rowId);
+    setSaving(false);
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else toast({ title: "Availability saved", description: "Aria will use these rules on the next call." });
+  };
+
+  if (loading) return <Loader2 className="w-6 h-6 animate-spin mx-auto"/>;
+
+  const updateDay = (k: string, patch: Partial<{ enabled: boolean; start: string; end: string }>) => {
+    setHours({ ...hours, [k]: { ...(hours[k] || { enabled: false, start: "10:00", end: "17:00" }), ...patch } });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Availability</CardTitle>
+        <CardDescription>Aria only books demos inside these windows, respecting buffers and existing demos. Use the Demos calendar to block specific dates.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div>
+          <Label className="text-base">Weekly working hours</Label>
+          <div className="mt-3 space-y-2">
+            {WEEKDAY_KEYS.map(k => {
+              const h = hours[k] || { enabled: false, start: "10:00", end: "17:00" };
+              return (
+                <div key={k} className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 w-32">
+                    <Checkbox checked={h.enabled} onCheckedChange={(v) => updateDay(k, { enabled: !!v })}/>
+                    <span className="capitalize text-sm">{k}</span>
+                  </div>
+                  <Input type="time" value={h.start} onChange={e => updateDay(k, { start: e.target.value })} disabled={!h.enabled} className="w-32 h-9"/>
+                  <span className="text-sm text-muted-foreground">to</span>
+                  <Input type="time" value={h.end} onChange={e => updateDay(k, { end: e.target.value })} disabled={!h.enabled} className="w-32 h-9"/>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div>
+            <Label>Demo length (min)</Label>
+            <Input type="number" min={5} max={120} value={duration} onChange={e => setDuration(parseInt(e.target.value)||15)}/>
+          </div>
+          <div>
+            <Label>Buffer between demos (min)</Label>
+            <Input type="number" min={0} max={120} value={buffer} onChange={e => setBuffer(parseInt(e.target.value)||0)}/>
+          </div>
+          <div>
+            <Label>Minimum notice (hours)</Label>
+            <Input type="number" min={0} max={72} value={minNotice} onChange={e => setMinNotice(parseInt(e.target.value)||0)}/>
+          </div>
+          <div>
+            <Label>Max demos / day</Label>
+            <Input type="number" min={1} max={20} value={maxDay} onChange={e => setMaxDay(parseInt(e.target.value)||1)}/>
+          </div>
+        </div>
+
+        <div>
+          <Label>Timezone</Label>
+          <Input value={tz} onChange={e => setTz(e.target.value)} placeholder="Europe/London"/>
+          <p className="text-xs text-muted-foreground mt-1">IANA timezone name. All times above are interpreted in this zone.</p>
+        </div>
+
+        <Button onClick={save} disabled={saving}><Save className="w-4 h-4 mr-1"/>Save availability</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PARENT
 // ─────────────────────────────────────────────────────────────────────────────
 export function OutboundCampaignsSection() {
@@ -729,6 +926,7 @@ export function OutboundCampaignsSection() {
         <TabsTrigger value="leads">Leads</TabsTrigger>
         <TabsTrigger value="demos">Demos</TabsTrigger>
         <TabsTrigger value="results">Results</TabsTrigger>
+        <TabsTrigger value="availability">Availability</TabsTrigger>
         <TabsTrigger value="prompt">AI Prompt</TabsTrigger>
       </TabsList>
       <TabsContent value="campaigns" className="mt-4">
@@ -766,6 +964,7 @@ export function OutboundCampaignsSection() {
       </TabsContent>
       <TabsContent value="demos" className="mt-4"><DemosTab/></TabsContent>
       <TabsContent value="results" className="mt-4"><ResultsTab/></TabsContent>
+      <TabsContent value="availability" className="mt-4"><AvailabilityTab/></TabsContent>
       <TabsContent value="prompt" className="mt-4"><PromptTab/></TabsContent>
     </Tabs>
   );

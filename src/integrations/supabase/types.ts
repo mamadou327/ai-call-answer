@@ -1768,6 +1768,69 @@ export type Database = {
           },
         ]
       }
+      outbound_availability: {
+        Row: {
+          buffer_minutes: number
+          created_at: string
+          demo_duration_minutes: number
+          id: string
+          max_demos_per_day: number
+          min_notice_hours: number
+          timezone: string
+          updated_at: string
+          weekly_hours: Json
+        }
+        Insert: {
+          buffer_minutes?: number
+          created_at?: string
+          demo_duration_minutes?: number
+          id?: string
+          max_demos_per_day?: number
+          min_notice_hours?: number
+          timezone?: string
+          updated_at?: string
+          weekly_hours?: Json
+        }
+        Update: {
+          buffer_minutes?: number
+          created_at?: string
+          demo_duration_minutes?: number
+          id?: string
+          max_demos_per_day?: number
+          min_notice_hours?: number
+          timezone?: string
+          updated_at?: string
+          weekly_hours?: Json
+        }
+        Relationships: []
+      }
+      outbound_availability_overrides: {
+        Row: {
+          created_at: string
+          date: string
+          end_time: string | null
+          id: string
+          reason: string | null
+          start_time: string | null
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          end_time?: string | null
+          id?: string
+          reason?: string | null
+          start_time?: string | null
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          end_time?: string | null
+          id?: string
+          reason?: string | null
+          start_time?: string | null
+        }
+        Relationships: []
+      }
       outbound_campaigns: {
         Row: {
           calling_days: string[]
