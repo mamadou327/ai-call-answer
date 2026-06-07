@@ -30,6 +30,7 @@ interface OutboundSession {
   openAiWs: WebSocket | null;
   twilioWs: WebSocket;
   systemPrompt: string;
+  voice: string;
   transcript: Array<{ role: "user" | "assistant"; text: string }>;
   pendingAssistant: string;
   pendingUser: string;
