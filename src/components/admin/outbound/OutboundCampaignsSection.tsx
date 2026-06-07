@@ -1095,6 +1095,7 @@ export function OutboundCampaignsSection() {
       <TabsContent value="results" className="mt-4"><ResultsTab/></TabsContent>
       <TabsContent value="availability" className="mt-4"><AvailabilityTab/></TabsContent>
       <TabsContent value="prompt" className="mt-4"><PromptTab/></TabsContent>
+      <TabsContent value="test" className="mt-4"><TestTab campaigns={campaigns}/></TabsContent>
     </Tabs>
   );
 }
