@@ -480,13 +480,16 @@ function DemosTab() {
             </div>
             <div className="grid grid-cols-7 gap-1">
               {monthGrid.map((cell, i) => (
-                <div key={i} className={`border rounded-md min-h-[90px] p-1 ${cell.date && isToday(cell.date) ? "border-primary bg-primary/5" : ""} ${!cell.date ? "bg-muted/20" : ""}`}>
+                <div key={i}
+                  onClick={() => cell.date && setDayOpen(cell.date)}
+                  className={`border rounded-md min-h-[90px] p-1 ${cell.date ? "cursor-pointer hover:bg-muted/40" : "bg-muted/20"} ${cell.date && isToday(cell.date) ? "border-primary bg-primary/5" : ""}`}>
                   {cell.date && (
                     <>
                       <div className="text-xs font-medium mb-1">{cell.date.getDate()}</div>
                       <div className="space-y-1">
                         {cell.demos.slice(0, 3).map(d => (
-                          <button key={d.id} onClick={() => setSelected(d)}
+                          <button key={d.id}
+                            onClick={(e) => { e.stopPropagation(); setSelected(d); }}
                             className="w-full text-left text-[10px] bg-primary/10 hover:bg-primary/20 rounded px-1 py-0.5 truncate">
                             {new Date(d.demo_datetime).toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"})} {d.prospect_name || ""}
                           </button>
@@ -498,6 +501,7 @@ function DemosTab() {
                 </div>
               ))}
             </div>
+
             {demos.length === 0 && <p className="text-center text-muted-foreground py-4 text-sm">No demos booked yet</p>}
           </div>
          )}
