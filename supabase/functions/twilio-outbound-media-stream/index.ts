@@ -387,8 +387,7 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
   );
   session.openAiWs = ws;
 
-  ws.onopen = () => {
-    console.log("[outbound] OpenAI WS open");
+  const sendSessionConfig = () => {
     ws.send(JSON.stringify({
       type: "session.update",
       session: {
@@ -417,10 +416,13 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
         tool_choice: "auto",
       },
     }));
-    setTimeout(() => {
-      try { ws.send(JSON.stringify({ type: "response.create", response: { output_modalities: ["audio"] } })); } catch (_) {}
-    }, 400);
   };
+
+  ws.onopen = () => {
+    console.log("[outbound] OpenAI WS open");
+    // Config is sent after we receive `session.created` from OpenAI.
+  };
+
 
   ws.onmessage = async (event) => {
     try {
