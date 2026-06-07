@@ -400,17 +400,19 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
             format: { type: "audio/pcmu" },
             turn_detection: {
               type: "server_vad",
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 600,
+              threshold: 0.6,
+              prefix_padding_ms: 400,
+              silence_duration_ms: 900,
               create_response: true,
+              interrupt_response: true,
             },
             transcription: { model: "whisper-1" },
           },
           output: {
             format: { type: "audio/pcmu" },
-            voice: "alloy",
+            voice: "cedar",
           },
+
         },
         tools: TOOLS,
         tool_choice: "auto",
@@ -555,9 +557,20 @@ Deno.serve(async (req) => {
 
 Today is ${today} (${session.availability?.timezone || "Europe/London"}).
 
+CONVERSATION STYLE — NON-NEGOTIABLE:
+- Speak ONE short thought at a time. Never deliver more than 1–2 sentences in a single turn before stopping to listen.
+- After you ask ANY question, STOP TALKING completely and wait for the prospect to answer. Do NOT continue with the next line of your script until they have spoken.
+- Your opening MUST be only the greeting + the confirmation question, e.g. "Good afternoon — am I speaking with {{first_name}}?" Then stop. Do not introduce yourself, do not mention Aivia, do not pitch anything until they actually confirm it is them.
+- If they say "yes" or "speaking", THEN do your AI disclosure in one short sentence and ask if now is an okay moment. Then stop again.
+- If they interrupt, immediately stop talking and listen.
+- Match the prospect's energy. Be warm, human, a little casual. Use natural fillers ("right", "got it", "totally") sparingly.
+- Never monologue. Never stack 3 things in one breath. If you catch yourself about to say "and also" — stop instead.
+- When you don't know something, say so honestly and offer to have Mo follow up.
+- If they say no twice, gracefully wrap up and end the call.
+
 DEMO BOOKING RULES — FOLLOW EXACTLY:
 1. Before proposing ANY specific date or time, call the tool get_available_slots.
-2. Offer only 2 or 3 of the returned slots, spoken naturally (e.g. "I've got Tuesday at 10am or Wednesday at 2pm, which works better?"). Never invent times.
+2. Offer only 2 or 3 of the returned slots, spoken naturally (e.g. "I've got Tuesday at 10am or Wednesday at 2pm, which works better?"). Never invent times. Then stop and wait.
 3. When the prospect picks a specific slot, call book_demo_slot with the exact datetime_iso from get_available_slots.
 4. WAIT for the tool result. If ok: true, then verbally confirm the booking. If ok: false, briefly apologise and offer one of the other slots.
 5. Ask for their email so we can send the confirmation, and pass it as prospect_email when you book.
@@ -565,6 +578,7 @@ DEMO BOOKING RULES — FOLLOW EXACTLY:
 
 CURRENT AVAILABILITY (for your context — always re-check via get_available_slots before offering):
 ${availSummary}`;
+
 
           await connectOpenAi(session, supabase);
           break;
