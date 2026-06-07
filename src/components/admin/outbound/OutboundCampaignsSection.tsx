@@ -216,6 +216,18 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                   onChange={e => setForm({...form, delay_between_calls_seconds: parseInt(e.target.value)||0})}/>
                 <p className="text-xs text-muted-foreground mt-1">Gap between individual calls, not between campaign checks.</p>
               </div>
+              <div>
+                <Label>Voice</Label>
+                <Select value={form.voice} onValueChange={v => setForm({...form, voice: v})}>
+                  <SelectTrigger><SelectValue/></SelectTrigger>
+                  <SelectContent>
+                    {["alloy","ash","ballad","coral","echo","sage","shimmer","verse","cedar"].map(v => (
+                      <SelectItem key={v} value={v} className="capitalize">{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">OpenAI Realtime voice Aria will use.</p>
+              </div>
             </div>
           </div>
           <DialogFooter>
