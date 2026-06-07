@@ -33,7 +33,10 @@ interface OutboundSession {
   openAiWs: WebSocket | null;
   twilioWs: WebSocket;
   systemPrompt: string;
-  voice: string;
+  voice: string; // legacy OpenAI voice (unused now, kept for back-compat)
+  elevenLabsVoiceId: string;
+  elevenLabsWs: WebSocket | null;
+  ttsResponseId: string | null; // OpenAI response.id currently being synthesised
   transcript: Array<{ role: "user" | "assistant"; text: string }>;
   pendingAssistant: string;
   pendingUser: string;
