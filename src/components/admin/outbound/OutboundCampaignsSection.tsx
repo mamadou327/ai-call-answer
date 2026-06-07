@@ -919,6 +919,122 @@ function AvailabilityTab() {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TEST TAB — place a one-off outbound call to a number you choose
+// ─────────────────────────────────────────────────────────────────────────────
+function TestTab({ campaigns }: { campaigns: Campaign[] }) {
+  const { toast } = useToast();
+  const [campaignId, setCampaignId] = useState<string>("");
+  const [phone, setPhone] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [businessName, setBusinessName] = useState("");
+  const [placing, setPlacing] = useState(false);
+  const [lastResult, setLastResult] = useState<{ ok: boolean; message: string; sid?: string; leadId?: string } | null>(null);
+
+  useEffect(() => {
+    if (!campaignId && campaigns.length) setCampaignId(campaigns[0].id);
+  }, [campaigns, campaignId]);
+
+  const placeTestCall = async () => {
+    if (!campaignId) {
+      toast({ title: "Pick a campaign", description: "Test calls reuse a campaign's settings and prompt.", variant: "destructive" });
+      return;
+    }
+    const normalized = phone.trim();
+    if (!/^\+?[0-9\s\-()]{7,}$/.test(normalized)) {
+      toast({ title: "Invalid phone number", description: "Use international format, e.g. +447700900123.", variant: "destructive" });
+      return;
+    }
+    setPlacing(true);
+    setLastResult(null);
+    try {
+      const { data: lead, error: leadErr } = await supabase
+        .from("outbound_leads")
+        .insert({
+          campaign_id: campaignId,
+          phone_number: normalized,
+          first_name: firstName.trim() || "Test",
+          business_name: businessName.trim() || "Test Call",
+          status: "pending",
+        })
+        .select("id")
+        .single();
+      if (leadErr || !lead) throw new Error(leadErr?.message || "Failed to create test lead");
+
+      const { data, error } = await supabase.functions.invoke("twilio-outbound-call", {
+        body: { lead_id: lead.id },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Call did not start");
+
+      setLastResult({ ok: true, message: "Call placed — your phone should ring shortly.", sid: data.sid, leadId: lead.id });
+      toast({ title: "Test call placed", description: `Twilio SID: ${data.sid}` });
+    } catch (e: any) {
+      setLastResult({ ok: false, message: e.message || String(e) });
+      toast({ title: "Test call failed", description: e.message || String(e), variant: "destructive" });
+    } finally {
+      setPlacing(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Test outbound call</CardTitle>
+        <CardDescription>
+          Place a live call to any number using a campaign's settings and Aria's current prompt. A temporary lead is
+          created so the call also appears in Leads and Results.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 max-w-xl">
+        <div>
+          <Label>Campaign</Label>
+          <Select value={campaignId} onValueChange={setCampaignId}>
+            <SelectTrigger><SelectValue placeholder="Select a campaign"/></SelectTrigger>
+            <SelectContent>
+              {campaigns.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {campaigns.length === 0 && (
+            <p className="text-xs text-muted-foreground mt-1">Create a campaign first — the test call reuses its prompt and settings.</p>
+          )}
+        </div>
+        <div>
+          <Label>Phone number to call</Label>
+          <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+447700900123"/>
+          <p className="text-xs text-muted-foreground mt-1">International format including the country code.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Prospect name (optional)</Label>
+            <Input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Test"/>
+          </div>
+          <div>
+            <Label>Business name (optional)</Label>
+            <Input value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="Test Call"/>
+          </div>
+        </div>
+        <Button onClick={placeTestCall} disabled={placing || !campaignId}>
+          {placing ? <Loader2 className="w-4 h-4 mr-1 animate-spin"/> : <Play className="w-4 h-4 mr-1"/>}
+          Place test call
+        </Button>
+        {lastResult && (
+          <div className={`text-sm rounded-md border p-3 ${lastResult.ok ? "bg-green-50 border-green-200 text-green-900" : "bg-red-50 border-red-200 text-red-900"}`}>
+            <div className="font-medium">{lastResult.ok ? "Call placed" : "Call failed"}</div>
+            <div className="mt-1">{lastResult.message}</div>
+            {lastResult.sid && <div className="mt-1 text-xs opacity-80">Twilio SID: {lastResult.sid}</div>}
+          </div>
+        )}
+        <div className="text-xs text-muted-foreground border-t pt-3">
+          The test call bypasses campaign day/hour windows because it's manually triggered, but Aria still respects
+          your Availability settings when offering demo slots. Recording and transcript appear under Leads once the
+          call ends.
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PARENT
 // ─────────────────────────────────────────────────────────────────────────────
 export function OutboundCampaignsSection() {
