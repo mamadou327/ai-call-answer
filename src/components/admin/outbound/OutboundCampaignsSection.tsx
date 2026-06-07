@@ -20,6 +20,7 @@ type Campaign = {
   id: string; name: string; status: "draft" | "active" | "paused" | "completed";
   calling_days: string[]; calling_start_hour: number; calling_end_hour: number;
   calls_per_day_limit: number; delay_between_calls_seconds: number;
+  voice: string;
   created_at: string;
 };
 type Lead = {
