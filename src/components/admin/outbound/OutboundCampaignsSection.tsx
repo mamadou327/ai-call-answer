@@ -390,23 +390,31 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
 // ─────────────────────────────────────────────────────────────────────────────
 // DEMOS TAB
 // ─────────────────────────────────────────────────────────────────────────────
+type Override = { id: string; date: string; start_time: string | null; end_time: string | null; reason: string | null };
+
 function DemosTab() {
   const { toast } = useToast();
   const [demos, setDemos] = useState<Demo[]>([]);
+  const [overrides, setOverrides] = useState<Override[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"calendar" | "list">("list");
   const [selected, setSelected] = useState<Demo | null>(null);
   const [dayOpen, setDayOpen] = useState<Date | null>(null);
   const [cursor, setCursor] = useState(() => { const d = new Date(); d.setDate(1); return d; });
-
+  const [blockRange, setBlockRange] = useState<{ start: string; end: string }>({ start: "", end: "" });
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("outbound_demos").select("*").order("demo_datetime", { ascending: true });
-    setDemos((data || []) as Demo[]);
+    const [{ data: dms }, { data: ovs }] = await Promise.all([
+      supabase.from("outbound_demos").select("*").order("demo_datetime", { ascending: true }),
+      supabase.from("outbound_availability_overrides").select("*").order("date", { ascending: true }),
+    ]);
+    setDemos((dms || []) as Demo[]);
+    setOverrides((ovs || []) as Override[]);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
 
   const setStatus = async (id: string, status: string) => {
     const { error } = await supabase.from("outbound_demos").update({ status: status as any }).eq("id", id);
