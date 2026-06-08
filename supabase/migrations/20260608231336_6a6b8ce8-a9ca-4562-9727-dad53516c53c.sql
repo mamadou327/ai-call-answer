@@ -1,0 +1,1 @@
+ALTER TABLE public.outbound_settings DROP COLUMN IF EXISTS outbound_prompt;

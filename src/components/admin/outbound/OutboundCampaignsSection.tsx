@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,8 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, RotateCcw, Save } from "lucide-react";
-import { VoiceSelector } from "@/components/dashboard/settings/VoiceSelector";
+import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save } from "lucide-react";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -769,17 +767,11 @@ function ResultsTab() {
 // ─────────────────────────────────────────────────────────────────────────────
 // PROMPT TAB
 // ─────────────────────────────────────────────────────────────────────────────
-const DEFAULT_PROMPT = `You are Aria, an AI calling on behalf of Aivia. You are calling {{first_name}} at {{business_name}}. You are genuinely an AI and you say so from the very start because you are a live demonstration of the product you are selling. Every business owner who hears how natural and professional you sound is already experiencing what Aivia would do for their business every single day.
-
-Your only goal is to have a genuine conversation and if they are a good fit book a free 15 minute demo call with Mo the founder of Aivia.`;
-
 function PromptTab() {
   const { toast } = useToast();
   const [rowId, setRowId] = useState<string>("");
-  const [prompt, setPrompt] = useState("");
   const [fromNumber, setFromNumber] = useState("");
   const [retellAgentId, setRetellAgentId] = useState("");
-  const [defaultVoiceId, setDefaultVoiceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -790,10 +782,8 @@ function PromptTab() {
       const { data } = await supabase.from("outbound_settings").select("*").limit(1).maybeSingle();
       if (data) {
         setRowId(data.id);
-        setPrompt(data.outbound_prompt || "");
         setFromNumber(data.from_number || "");
         setRetellAgentId((data as any).retell_agent_id || "");
-        setDefaultVoiceId((data as any).default_voice_id || null);
       }
       setLoading(false);
     })();
@@ -802,10 +792,8 @@ function PromptTab() {
   const save = async () => {
     setSaving(true);
     const { error } = await supabase.from("outbound_settings").update({
-      outbound_prompt: prompt,
       from_number: fromNumber || null,
       retell_agent_id: retellAgentId || null,
-      default_voice_id: defaultVoiceId,
     } as any).eq("id", rowId);
     setSaving(false);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -825,7 +813,10 @@ function PromptTab() {
 
   return (
     <Card>
-      <CardHeader><CardTitle>AI Prompt</CardTitle><CardDescription>Changes take effect on the next call made.</CardDescription></CardHeader>
+      <CardHeader>
+        <CardTitle>Retell Settings</CardTitle>
+        <CardDescription>The prompt itself is managed inside Retell on the agent. Aivia only needs the agent ID and the caller ID.</CardDescription>
+      </CardHeader>
       <CardContent className="space-y-4">
         <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
           <Label className="text-xs uppercase tracking-wide">Retell webhook URL</Label>
@@ -846,24 +837,8 @@ function PromptTab() {
           <Label>Outbound caller ID (E.164 Twilio number)</Label>
           <Input value={fromNumber} onChange={e => setFromNumber(e.target.value)} placeholder="+44..."/>
         </div>
-        <div>
-          <Label>Outbound sales prompt</Label>
-          <p className="text-xs text-muted-foreground mb-1">Sent to Retell as <code>system_prompt_injection</code>. Use <code>{`{{first_name}}`}</code> and <code>{`{{business_name}}`}</code> — they're replaced per lead before the call.</p>
-          <Textarea value={prompt} onChange={e => setPrompt(e.target.value)} className="min-h-[500px] font-mono text-xs"/>
-        </div>
-        <div>
-          <Label>Aria's voice (legacy — Retell uses the voice configured on the agent)</Label>
-          <p className="text-xs text-muted-foreground mb-2">Voice is now set inside Retell on the agent itself. This selector is kept for reference only.</p>
-          <VoiceSelector
-            selectedVoiceId={defaultVoiceId}
-            onVoiceSelect={(id) => setDefaultVoiceId(id)}
-            primaryLanguage="en"
-            businessName="Aivia"
-          />
-        </div>
         <div className="flex gap-2">
           <Button onClick={save} disabled={saving}><Save className="w-4 h-4 mr-1"/>Save</Button>
-          <Button variant="outline" onClick={() => setPrompt(DEFAULT_PROMPT)}><RotateCcw className="w-4 h-4 mr-1"/>Reset prompt to default</Button>
         </div>
       </CardContent>
     </Card>
@@ -1109,7 +1084,7 @@ export function OutboundCampaignsSection() {
         <TabsTrigger value="demos">Demos</TabsTrigger>
         <TabsTrigger value="results">Results</TabsTrigger>
         <TabsTrigger value="availability">Availability</TabsTrigger>
-        <TabsTrigger value="prompt">AI Prompt</TabsTrigger>
+        <TabsTrigger value="prompt">Retell Settings</TabsTrigger>
         <TabsTrigger value="test">Test</TabsTrigger>
       </TabsList>
       <TabsContent value="campaigns" className="mt-4">

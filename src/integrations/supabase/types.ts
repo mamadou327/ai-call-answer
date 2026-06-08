@@ -2020,7 +2020,6 @@ export type Database = {
           default_voice_id: string | null
           from_number: string | null
           id: string
-          outbound_prompt: string
           retell_agent_id: string | null
           updated_at: string
         }
@@ -2028,7 +2027,6 @@ export type Database = {
           default_voice_id?: string | null
           from_number?: string | null
           id?: string
-          outbound_prompt: string
           retell_agent_id?: string | null
           updated_at?: string
         }
@@ -2036,7 +2034,6 @@ export type Database = {
           default_voice_id?: string | null
           from_number?: string | null
           id?: string
-          outbound_prompt?: string
           retell_agent_id?: string | null
           updated_at?: string
         }
