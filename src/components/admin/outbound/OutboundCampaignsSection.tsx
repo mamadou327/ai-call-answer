@@ -1084,7 +1084,7 @@ export function OutboundCampaignsSection() {
         <TabsTrigger value="demos">Demos</TabsTrigger>
         <TabsTrigger value="results">Results</TabsTrigger>
         <TabsTrigger value="availability">Availability</TabsTrigger>
-        <TabsTrigger value="prompt">AI Prompt</TabsTrigger>
+        <TabsTrigger value="prompt">Retell Settings</TabsTrigger>
         <TabsTrigger value="test">Test</TabsTrigger>
       </TabsList>
       <TabsContent value="campaigns" className="mt-4">
