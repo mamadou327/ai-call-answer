@@ -778,9 +778,12 @@ function PromptTab() {
   const [rowId, setRowId] = useState<string>("");
   const [prompt, setPrompt] = useState("");
   const [fromNumber, setFromNumber] = useState("");
+  const [retellAgentId, setRetellAgentId] = useState("");
   const [defaultVoiceId, setDefaultVoiceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const webhookUrl = `${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/retell-call-webhook`;
 
   useEffect(() => {
     (async () => {
@@ -789,6 +792,7 @@ function PromptTab() {
         setRowId(data.id);
         setPrompt(data.outbound_prompt || "");
         setFromNumber(data.from_number || "");
+        setRetellAgentId((data as any).retell_agent_id || "");
         setDefaultVoiceId((data as any).default_voice_id || null);
       }
       setLoading(false);
@@ -800,11 +804,21 @@ function PromptTab() {
     const { error } = await supabase.from("outbound_settings").update({
       outbound_prompt: prompt,
       from_number: fromNumber || null,
+      retell_agent_id: retellAgentId || null,
       default_voice_id: defaultVoiceId,
     } as any).eq("id", rowId);
     setSaving(false);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else toast({ title: "Saved", description: "Changes take effect on the next call." });
+  };
+
+  const copyWebhook = async () => {
+    try {
+      await navigator.clipboard.writeText(webhookUrl);
+      toast({ title: "Copied", description: "Webhook URL copied to clipboard." });
+    } catch {
+      toast({ title: "Could not copy", description: webhookUrl, variant: "destructive" });
+    }
   };
 
   if (loading) return <Loader2 className="w-6 h-6 animate-spin mx-auto"/>;
@@ -813,17 +827,33 @@ function PromptTab() {
     <Card>
       <CardHeader><CardTitle>AI Prompt</CardTitle><CardDescription>Changes take effect on the next call made.</CardDescription></CardHeader>
       <CardContent className="space-y-4">
+        <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+          <Label className="text-xs uppercase tracking-wide">Retell webhook URL</Label>
+          <p className="text-xs text-muted-foreground">
+            In Retell, open the Outreach Dialer agent → Settings → Webhook URL and paste this. Save in Retell after pasting.
+          </p>
+          <div className="flex gap-2">
+            <Input readOnly value={webhookUrl} className="font-mono text-xs"/>
+            <Button type="button" variant="outline" onClick={copyWebhook}>Copy</Button>
+          </div>
+        </div>
+        <div>
+          <Label>Retell Agent ID</Label>
+          <Input value={retellAgentId} onChange={e => setRetellAgentId(e.target.value)} placeholder="agent_..."/>
+          <p className="text-xs text-muted-foreground mt-1">Find this in your Retell dashboard under Agents. Copy the ID that starts with <code>agent_</code>.</p>
+        </div>
         <div>
           <Label>Outbound caller ID (E.164 Twilio number)</Label>
           <Input value={fromNumber} onChange={e => setFromNumber(e.target.value)} placeholder="+44..."/>
         </div>
         <div>
           <Label>Outbound sales prompt</Label>
+          <p className="text-xs text-muted-foreground mb-1">Sent to Retell as <code>system_prompt_injection</code>. Use <code>{`{{first_name}}`}</code> and <code>{`{{business_name}}`}</code> — they're replaced per lead before the call.</p>
           <Textarea value={prompt} onChange={e => setPrompt(e.target.value)} className="min-h-[500px] font-mono text-xs"/>
         </div>
         <div>
-          <Label>Aria's voice</Label>
-          <p className="text-xs text-muted-foreground mb-2">ElevenLabs voice used for every outbound call. Same library the businesses pick from.</p>
+          <Label>Aria's voice (legacy — Retell uses the voice configured on the agent)</Label>
+          <p className="text-xs text-muted-foreground mb-2">Voice is now set inside Retell on the agent itself. This selector is kept for reference only.</p>
           <VoiceSelector
             selectedVoiceId={defaultVoiceId}
             onVoiceSelect={(id) => setDefaultVoiceId(id)}
@@ -832,8 +862,8 @@ function PromptTab() {
           />
         </div>
         <div className="flex gap-2">
-          <Button onClick={save} disabled={saving}><Save className="w-4 h-4 mr-1"/>Save Prompt</Button>
-          <Button variant="outline" onClick={() => setPrompt(DEFAULT_PROMPT)}><RotateCcw className="w-4 h-4 mr-1"/>Reset to default</Button>
+          <Button onClick={save} disabled={saving}><Save className="w-4 h-4 mr-1"/>Save</Button>
+          <Button variant="outline" onClick={() => setPrompt(DEFAULT_PROMPT)}><RotateCcw className="w-4 h-4 mr-1"/>Reset prompt to default</Button>
         </div>
       </CardContent>
     </Card>
