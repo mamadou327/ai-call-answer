@@ -1952,6 +1952,7 @@ export type Database = {
           notes: string | null
           phone_number: string
           reason_not_interested: string | null
+          retell_call_id: string | null
           retry_count: number
           status: Database["public"]["Enums"]["outbound_lead_status"]
           twilio_call_sid: string | null
@@ -1975,6 +1976,7 @@ export type Database = {
           notes?: string | null
           phone_number: string
           reason_not_interested?: string | null
+          retell_call_id?: string | null
           retry_count?: number
           status?: Database["public"]["Enums"]["outbound_lead_status"]
           twilio_call_sid?: string | null
@@ -1998,6 +2000,7 @@ export type Database = {
           notes?: string | null
           phone_number?: string
           reason_not_interested?: string | null
+          retell_call_id?: string | null
           retry_count?: number
           status?: Database["public"]["Enums"]["outbound_lead_status"]
           twilio_call_sid?: string | null
@@ -2018,6 +2021,7 @@ export type Database = {
           from_number: string | null
           id: string
           outbound_prompt: string
+          retell_agent_id: string | null
           updated_at: string
         }
         Insert: {
@@ -2025,6 +2029,7 @@ export type Database = {
           from_number?: string | null
           id?: string
           outbound_prompt: string
+          retell_agent_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -2032,6 +2037,7 @@ export type Database = {
           from_number?: string | null
           id?: string
           outbound_prompt?: string
+          retell_agent_id?: string | null
           updated_at?: string
         }
         Relationships: []
