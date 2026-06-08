@@ -14,6 +14,7 @@ const FROM_EMAIL = "info@aiviaapp.co.uk";
 const MO_EMAIL = "mo@aiviaapp.co.uk";
 const DEFAULT_ELEVENLABS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"; // Sarah — calm British-ish female fallback
 const ELEVENLABS_MODEL_ID = "eleven_flash_v2_5"; // ~150-300ms first-byte, supports ulaw_8000
+const OPENAI_REALTIME_MODEL = "gpt-realtime"; // mirrored from inbound twilio-media-stream for consistency
 
 interface AvailabilityConfig {
   weekly_hours: Record<string, { enabled: boolean; start: string; end: string }>;
