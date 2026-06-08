@@ -1,34 +1,19 @@
-## Simplify Retell integration — drop prompt injection
+## Fix Duplicate Retell Webhook Processing
 
-### 1. `twilio-outbound-call` edge function
+### Problem
+Retell retries webhooks when it does not receive a 200 response within its timeout window. The `retell-call-webhook` edge function re-processes the same call on retries, running AI extraction again, re-inserting demo records, and re-sending notification emails.
 
-- Remove `agent_config_override` entirely from the Retell `register-phone-call` body. Keep only `agent_id`, `audio_encoding`, `audio_websocket_protocol`, `sample_rate`, and `retell_llm_dynamic_variables: { first_name, business_name }`.
-- Stop reading `outbound_prompt` from `outbound_settings`. Select only `from_number` and `retell_agent_id`.
-- Drop the `promptTemplate`/`systemPromptInjection` variables.
+### Fix 1 — Idempotent Early Return
+In `supabase/functions/retell-call-webhook/index.ts`, immediately after fetching the lead by `retell_call_id`, check if `lead.call_transcript` is already populated. If it is, return HTTP 200 immediately with no side effects — no AI extraction, no DB updates, no emails.
 
-### 2. Admin UI — `OutboundCampaignsSection.tsx`, AI Prompt tab
+### Fix 2 — Database Unique Constraint
+Add a unique index on `outbound_demos(lead_id)` so that duplicate demo insertions are rejected at the database level even if the early return is somehow bypassed.
 
-Strip the tab down to two inputs:
-- **Retell Agent ID** (`retell_agent_id`) — helper text pointing to Retell dashboard.
-- **From Number** (`from_number`).
+### Deployment
+Re-deploy `retell-call-webhook` after the code change.
 
-Remove:
-- Prompt textarea and any `outbound_prompt` state, save logic, helper copy about `{{first_name}}` / `{{business_name}}`.
+---
 
-Keep the read-only webhook URL display for Mo to copy.
-
-Consider renaming the tab label from "AI Prompt" to "Retell Settings" since prompts are no longer managed here (confirm in build mode if desired, otherwise leave label).
-
-### 3. Database
-
-Add a migration that drops `outbound_settings.outbound_prompt` (column exists — previous migration only added `retell_agent_id`, but the column was present from earlier outbound work). Final shape of `outbound_settings`: existing id/timestamps + `from_number` + `retell_agent_id`.
-
-If for any reason dropping is risky (other code references), the fallback is to leave the column and simply stop reading/writing it. Plan A is to drop.
-
-### 4. Deploy
-
-Redeploy `twilio-outbound-call` only. No changes to `twilio-outbound-twiml` or `retell-call-webhook`.
-
-### What stays the same
-
-Retell SIP bridging, webhook processing with Gemini extraction, demo emails, all inbound voice, campaigns, scheduling, analytics.
+**Files touched:**
+- `supabase/functions/retell-call-webhook/index.ts` — add early-return guard
+- Database migration — `CREATE UNIQUE INDEX IF NOT EXISTS outbound_demos_lead_id_unique ON outbound_demos(lead_id)`
