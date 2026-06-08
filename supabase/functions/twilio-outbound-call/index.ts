@@ -35,26 +35,22 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await supabase
       .from("outbound_settings")
-      .select("from_number, retell_agent_id, outbound_prompt")
+      .select("from_number, retell_agent_id")
       .limit(1)
       .maybeSingle();
 
     const fromNumber = settings?.from_number;
     const retellAgentId = (settings as any)?.retell_agent_id;
-    const promptTemplate = settings?.outbound_prompt || "";
 
     if (!fromNumber) {
       return new Response(JSON.stringify({ error: "No outbound from_number configured in outbound_settings" }), { status: 400, headers: corsHeaders });
     }
     if (!retellAgentId) {
-      return new Response(JSON.stringify({ error: "No retell_agent_id configured in outbound_settings (AI Prompt tab)" }), { status: 400, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "No retell_agent_id configured in outbound_settings (Retell Settings tab)" }), { status: 400, headers: corsHeaders });
     }
 
     const firstName = lead.first_name || "there";
     const businessName = lead.business_name || "your business";
-    const systemPromptInjection = promptTemplate
-      .replaceAll("{{first_name}}", firstName)
-      .replaceAll("{{business_name}}", businessName);
 
     // Step 1: register the call with Retell
     const retellRes = await fetch("https://api.retellai.com/v2/register-phone-call", {
@@ -71,10 +67,6 @@ Deno.serve(async (req) => {
         retell_llm_dynamic_variables: {
           first_name: firstName,
           business_name: businessName,
-        },
-        agent_config_override: {
-          llm_websocket_url: null,
-          system_prompt_injection: systemPromptInjection,
         },
       }),
     });
