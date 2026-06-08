@@ -18,6 +18,10 @@ Deno.serve(async (req) => {
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const TWILIO_SID = Deno.env.get("TWILIO_ACCOUNT_SID")!;
     const TWILIO_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN")!;
+    const RETELL_API_KEY = Deno.env.get("RETELL_API_KEY");
+    if (!RETELL_API_KEY) {
+      return new Response(JSON.stringify({ error: "RETELL_API_KEY not configured" }), { status: 500, headers: corsHeaders });
+    }
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
     const { data: lead, error: leadErr } = await supabase
@@ -31,17 +35,61 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await supabase
       .from("outbound_settings")
-      .select("from_number")
+      .select("from_number, retell_agent_id, outbound_prompt")
       .limit(1)
       .maybeSingle();
 
     const fromNumber = settings?.from_number;
+    const retellAgentId = (settings as any)?.retell_agent_id;
+    const promptTemplate = settings?.outbound_prompt || "";
+
     if (!fromNumber) {
       return new Response(JSON.stringify({ error: "No outbound from_number configured in outbound_settings" }), { status: 400, headers: corsHeaders });
     }
+    if (!retellAgentId) {
+      return new Response(JSON.stringify({ error: "No retell_agent_id configured in outbound_settings (AI Prompt tab)" }), { status: 400, headers: corsHeaders });
+    }
 
+    const firstName = lead.first_name || "there";
+    const businessName = lead.business_name || "your business";
+    const systemPromptInjection = promptTemplate
+      .replaceAll("{{first_name}}", firstName)
+      .replaceAll("{{business_name}}", businessName);
+
+    // Step 1: register the call with Retell
+    const retellRes = await fetch("https://api.retellai.com/v2/register-phone-call", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RETELL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        agent_id: retellAgentId,
+        audio_encoding: "mulaw",
+        audio_websocket_protocol: "twilio",
+        sample_rate: 8000,
+        retell_llm_dynamic_variables: {
+          first_name: firstName,
+          business_name: businessName,
+        },
+        agent_config_override: {
+          llm_websocket_url: null,
+          system_prompt_injection: systemPromptInjection,
+        },
+      }),
+    });
+    const retellData = await retellRes.json();
+    if (!retellRes.ok || !retellData?.call_id) {
+      console.error("[twilio-outbound-call] Retell register error", retellRes.status, retellData);
+      return new Response(JSON.stringify({ error: "retell_register_failed", detail: retellData }), { status: 500, headers: corsHeaders });
+    }
+    const retellCallId: string = retellData.call_id;
+
+    await supabase.from("outbound_leads").update({ retell_call_id: retellCallId } as any).eq("id", lead_id);
+
+    // Step 2: dial via Twilio, pointing at TwiML that bridges to Retell SIP
     const base = SUPABASE_URL;
-    const twimlUrl = `${base}/functions/v1/twilio-outbound-twiml?lead_id=${encodeURIComponent(lead_id)}`;
+    const twimlUrl = `${base}/functions/v1/twilio-outbound-twiml?call_id=${encodeURIComponent(retellCallId)}&lead_id=${encodeURIComponent(lead_id)}`;
     const statusUrl = `${base}/functions/v1/twilio-outbound-status`;
     const recordingUrl = `${base}/functions/v1/twilio-outbound-recording`;
 
@@ -78,7 +126,7 @@ Deno.serve(async (req) => {
       last_called_at: new Date().toISOString(),
     }).eq("id", lead_id);
 
-    return new Response(JSON.stringify({ ok: true, sid: data.sid }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ ok: true, sid: data.sid, retell_call_id: retellCallId }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("[twilio-outbound-call] error", e);
     return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: corsHeaders });
