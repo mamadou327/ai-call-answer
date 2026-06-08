@@ -94,6 +94,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, note: "no lead matched" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    if (lead.call_transcript) {
+      console.log("[retell-webhook] already processed, skipping", callId);
+      return new Response(JSON.stringify({ ok: true, note: "already processed" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const startMs = Number(call.start_timestamp || 0);
     const endMs = Number(call.end_timestamp || 0);
     const durationSec = startMs && endMs ? Math.max(0, Math.round((endMs - startMs) / 1000)) : null;
