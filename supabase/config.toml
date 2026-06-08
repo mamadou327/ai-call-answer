@@ -180,7 +180,7 @@ verify_jwt = false
 [functions.twilio-outbound-recording]
 verify_jwt = false
 
-[functions.twilio-outbound-media-stream]
+[functions.retell-call-webhook]
 verify_jwt = false
 
 [functions.process-outbound-campaign]
