@@ -473,7 +473,7 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
   // OpenAI Realtime GA endpoint — STT + LLM + tools only. Audio synthesis goes
   // via ElevenLabs so we can use the same voice library businesses pick from.
   const ws = new WebSocket(
-    "wss://api.openai.com/v1/realtime?model=gpt-realtime",
+    `wss://api.openai.com/v1/realtime?model=${OPENAI_REALTIME_MODEL}`,
     ["realtime", `openai-insecure-api-key.${OPENAI_API_KEY}`],
   );
   session.openAiWs = ws;
@@ -483,7 +483,7 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
       type: "session.update",
       session: {
         type: "realtime",
-        model: "gpt-realtime",
+        model: OPENAI_REALTIME_MODEL,
         instructions: session.systemPrompt,
         output_modalities: ["text"], // text only — ElevenLabs speaks it
         audio: {
@@ -491,9 +491,9 @@ async function connectOpenAi(session: OutboundSession, supabase: any) {
             format: { type: "audio/pcmu" },
             turn_detection: {
               type: "server_vad",
-              threshold: 0.6,
-              prefix_padding_ms: 400,
-              silence_duration_ms: 900,
+              threshold: 0.75,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 2500,
               create_response: true,
               interrupt_response: true,
             },
