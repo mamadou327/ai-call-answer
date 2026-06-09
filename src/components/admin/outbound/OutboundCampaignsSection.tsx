@@ -465,6 +465,22 @@ function DemosTab() {
     else { load(); setSelected(null); }
   };
 
+  const deleteDemo = async (id: string) => {
+    if (!confirm("Delete this demo? This cannot be undone.")) return;
+    const { error } = await supabase.from("outbound_demos").delete().eq("id", id);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Demo deleted" });
+    setSelected(null);
+    load();
+  };
+
+  const formatDemoWhen = (iso: string) => {
+    const d = new Date(iso);
+    const date = d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    return `${date} at ${time}`;
+  };
+
   const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   const overridesByDate = useMemo(() => {
     const m: Record<string, Override[]> = {};
