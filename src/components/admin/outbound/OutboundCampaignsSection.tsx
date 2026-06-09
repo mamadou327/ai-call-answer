@@ -556,7 +556,7 @@ function DemosTab() {
                     <div className="text-sm text-muted-foreground">{d.prospect_phone}</div>
                   </div>
                   <div className="text-right">
-                    <div>{new Date(d.demo_datetime).toLocaleString()}</div>
+                    <div className="font-medium">{formatDemoWhen(d.demo_datetime)}</div>
                     {statusBadge(d.status)}
                   </div>
                 </div>
