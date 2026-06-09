@@ -373,8 +373,9 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 <TableCell onClick={e => e.stopPropagation()}>
                   {l.call_recording_url ? <audio controls src={l.call_recording_url} className="h-8"/> : "—"}
                 </TableCell>
-                <TableCell onClick={e => e.stopPropagation()}>
+                <TableCell onClick={e => e.stopPropagation()} className="space-x-1">
                   {l.call_transcript && <Button size="sm" variant="ghost" onClick={() => setSelected(l)}><FileText className="w-4 h-4"/></Button>}
+                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => deleteLead(l.id, l.first_name || l.business_name || l.phone_number)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
             ))}
