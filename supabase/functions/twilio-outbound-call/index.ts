@@ -51,6 +51,12 @@ Deno.serve(async (req) => {
 
     const firstName = lead.first_name || "there";
     const businessName = lead.business_name || "your business";
+    const currentDate = new Date().toLocaleDateString("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
 
     // Step 1: register the call with Retell
     const retellRes = await fetch("https://api.retellai.com/v2/register-phone-call", {
@@ -67,6 +73,7 @@ Deno.serve(async (req) => {
         retell_llm_dynamic_variables: {
           first_name: firstName,
           business_name: businessName,
+          current_date: currentDate,
         },
       }),
     });
