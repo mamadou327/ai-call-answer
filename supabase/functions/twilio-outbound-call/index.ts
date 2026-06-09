@@ -83,7 +83,6 @@ Deno.serve(async (req) => {
     const base = SUPABASE_URL;
     const twimlUrl = `${base}/functions/v1/twilio-outbound-twiml?call_id=${encodeURIComponent(retellCallId)}&lead_id=${encodeURIComponent(lead_id)}`;
     const statusUrl = `${base}/functions/v1/twilio-outbound-status`;
-    const recordingUrl = `${base}/functions/v1/twilio-outbound-recording`;
 
     const body = new URLSearchParams({
       To: lead.phone_number,
@@ -91,10 +90,9 @@ Deno.serve(async (req) => {
       Url: twimlUrl,
       StatusCallback: statusUrl,
       StatusCallbackMethod: "POST",
-      Record: "true",
-      RecordingStatusCallback: recordingUrl,
-      RecordingStatusCallbackMethod: "POST",
     });
+    // NOTE: Twilio-side recording intentionally disabled. Retell records on its side and
+    // sends the recording URL back via call_analyzed. Twilio's recording plays a start beep.
     ["initiated", "ringing", "answered", "completed", "no-answer", "busy", "failed"].forEach((s) =>
       body.append("StatusCallbackEvent", s)
     );
