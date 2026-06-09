@@ -97,6 +97,16 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
 
   const setStatus = async (id: string, status: Campaign["status"]) => {
     const { error } = await supabase.from("outbound_campaigns").update({ status }).eq("id", id);
+
+  const deleteCampaign = async (id: string, name: string) => {
+    if (!confirm(`Delete campaign "${name}"? This will also delete all its leads. This cannot be undone.`)) return;
+    const { error } = await supabase.from("outbound_campaigns").delete().eq("id", id);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Campaign deleted" });
+    load();
+  };
+  const _setStatus = async (id: string, status: Campaign["status"]) => {
+    const { error } = await supabase.from("outbound_campaigns").update({ status }).eq("id", id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else load();
   };
