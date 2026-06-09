@@ -71,7 +71,16 @@ Deno.serve(async (req) => {
     const body = await req.json();
     console.log("[retell-webhook] event", body?.event, "call_id", body?.call?.call_id || body?.call_id);
 
-    // Retell sends events wrapped: { event: "call_ended"|"call_analyzed", call: {...} }
+    // Only process call_analyzed events. Retell fires call_started/call_ended/call_analyzed —
+    // processing more than one causes duplicate emails and analysis runs.
+    if (body?.event && body.event !== "call_analyzed") {
+      console.log("[retell-webhook] ignoring event", body.event);
+      return new Response(JSON.stringify({ ok: true, note: "ignored" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Retell sends events wrapped: { event: "call_analyzed", call: {...} }
     const call = body?.call || body;
     const callId: string | undefined = call?.call_id;
     if (!callId) {
