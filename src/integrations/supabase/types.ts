@@ -1954,6 +1954,7 @@ export type Database = {
           reason_not_interested: string | null
           retell_call_id: string | null
           retry_count: number
+          sms_sent: boolean
           status: Database["public"]["Enums"]["outbound_lead_status"]
           twilio_call_sid: string | null
         }
@@ -1978,6 +1979,7 @@ export type Database = {
           reason_not_interested?: string | null
           retell_call_id?: string | null
           retry_count?: number
+          sms_sent?: boolean
           status?: Database["public"]["Enums"]["outbound_lead_status"]
           twilio_call_sid?: string | null
         }
@@ -2002,6 +2004,7 @@ export type Database = {
           reason_not_interested?: string | null
           retell_call_id?: string | null
           retry_count?: number
+          sms_sent?: boolean
           status?: Database["public"]["Enums"]["outbound_lead_status"]
           twilio_call_sid?: string | null
         }
@@ -2023,6 +2026,7 @@ export type Database = {
           demo_start_hour: number
           from_number: string | null
           id: string
+          mo_phone_number: string | null
           retell_agent_id: string | null
           updated_at: string
         }
@@ -2033,6 +2037,7 @@ export type Database = {
           demo_start_hour?: number
           from_number?: string | null
           id?: string
+          mo_phone_number?: string | null
           retell_agent_id?: string | null
           updated_at?: string
         }
@@ -2043,6 +2048,7 @@ export type Database = {
           demo_start_hour?: number
           from_number?: string | null
           id?: string
+          mo_phone_number?: string | null
           retell_agent_id?: string | null
           updated_at?: string
         }
