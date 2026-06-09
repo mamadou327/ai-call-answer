@@ -279,6 +279,14 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "" }); load(); }
   };
+  const deleteLead = async (id: string, name: string) => {
+    if (!confirm(`Delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
+    const { error } = await supabase.from("outbound_leads").delete().eq("id", id);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Lead deleted" });
+    load();
+  };
+
 
   const importCSV = async (file: File) => {
     const text = await file.text();
