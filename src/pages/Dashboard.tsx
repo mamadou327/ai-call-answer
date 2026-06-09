@@ -106,24 +106,9 @@ const Dashboard = () => {
     };
   }, [business?.id]);
 
-  // Background polling for unpaid deposit checks every 15 seconds
-  useEffect(() => {
-    if (!business?.id) return;
-    const checkUnpaidDeposits = async () => {
-      try {
-        await supabase.functions.invoke('auto-cancel-unpaid-bookings');
-      } catch (error) {
-        console.error('Background deposit check failed:', error);
-      }
-    };
-
-    // Initial check
-    checkUnpaidDeposits();
-
-    // Poll every 15 seconds
-    const intervalId = setInterval(checkUnpaidDeposits, 15000);
-    return () => clearInterval(intervalId);
-  }, [business?.id]);
+  // Unpaid deposit auto-cancellation runs on a server-side cron schedule.
+  // Do NOT invoke `auto-cancel-unpaid-bookings` from the browser — it requires
+  // the cron secret and will return 401 for user sessions.
   useEffect(() => {
     const checkUser = async () => {
       const {
