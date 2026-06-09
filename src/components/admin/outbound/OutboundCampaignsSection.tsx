@@ -105,7 +105,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
     toast({ title: "Campaign deleted" });
     load();
   };
-  const _setStatus = async (id: string, status: Campaign["status"]) => {
+  const setStatus = async (id: string, status: Campaign["status"]) => {
     const { error } = await supabase.from("outbound_campaigns").update({ status }).eq("id", id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else load();
