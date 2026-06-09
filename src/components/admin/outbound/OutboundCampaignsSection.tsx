@@ -95,9 +95,6 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
   };
   useEffect(() => { load(); }, []);
 
-  const setStatus = async (id: string, status: Campaign["status"]) => {
-    const { error } = await supabase.from("outbound_campaigns").update({ status }).eq("id", id);
-
   const deleteCampaign = async (id: string, name: string) => {
     if (!confirm(`Delete campaign "${name}"? This will also delete all its leads. This cannot be undone.`)) return;
     const { error } = await supabase.from("outbound_campaigns").delete().eq("id", id);
