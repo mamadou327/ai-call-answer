@@ -6,22 +6,60 @@ const corsHeaders = {
 };
 
 const MO_EMAIL = "mo@aiviaapp.co.uk";
+const BUSINESS_TIME_ZONE = "Europe/London";
+
+function getBusinessCurrentYear(date = new Date()): number {
+  return Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: BUSINESS_TIME_ZONE,
+      year: "numeric",
+    }).format(date)
+  );
+}
+
+function transcriptMentionsExplicitYear(transcript: string): boolean {
+  return /\b20\d{2}\b/.test(transcript);
+}
+
+function normalizeInferredDemoDatetime(rawValue: string, transcript: string): string | null {
+  const parsed = new Date(rawValue);
+  if (isNaN(parsed.getTime())) return null;
+
+  if (transcriptMentionsExplicitYear(transcript)) {
+    return parsed.toISOString();
+  }
+
+  const now = new Date();
+  const currentYear = getBusinessCurrentYear(now);
+  const inferred = new Date(parsed);
+
+  if (inferred.getUTCFullYear() !== currentYear) {
+    inferred.setUTCFullYear(currentYear);
+    if (inferred.getTime() < now.getTime() - 5 * 60 * 1000) {
+      inferred.setUTCFullYear(currentYear + 1);
+    }
+  }
+
+  return inferred.toISOString();
+}
 
 async function extractWithAI(transcript: string): Promise<any> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) return null;
 
   const todayStr = new Date().toLocaleDateString("en-GB", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Europe/London",
+    weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: BUSINESS_TIME_ZONE,
   });
   const nowIso = new Date().toISOString();
+  const currentYear = getBusinessCurrentYear();
 
   const sys = `You read sales call transcripts and reply with ONLY a JSON object (no markdown, no prose) with this exact shape:
 {"interest_level":"hot|warm|cold","existing_solution":string|null,"reason_not_interested":string|null,"demo_booked":boolean,"demo_datetime":string|null,"prospect_email":string|null}
 
 CRITICAL DATE CONTEXT:
-- Today is ${todayStr}. Current instant: ${nowIso}. Timezone: Europe/London.
+- Today is ${todayStr}. Current instant: ${nowIso}. Timezone: ${BUSINESS_TIME_ZONE}. Current year: ${currentYear}.
 - Resolve every relative phrase ("tomorrow", "next Tuesday", "the 15th", "in two weeks") against TODAY.
+- If the caller does NOT explicitly say a year, you MUST infer the year from today: use ${currentYear}, or ${currentYear + 1} only if the ${currentYear} date would already be in the past.
 - demo_datetime MUST be an ISO 8601 datetime string on or AFTER today. Never output a date in the past or in a prior year.
 - If no specific date and time were agreed, set demo_datetime to null and demo_booked to false.`;
 
@@ -138,6 +176,23 @@ Deno.serve(async (req) => {
     }
 
     if (analysis) {
+      if (analysis.demo_booked && analysis.demo_datetime) {
+        const normalized = normalizeInferredDemoDatetime(analysis.demo_datetime, transcript);
+        if (!normalized) {
+          console.warn("[retell-webhook] rejecting demo_booked with unparseable datetime", analysis.demo_datetime);
+          analysis.demo_booked = false;
+          analysis.demo_datetime = null;
+        } else {
+          if (normalized !== analysis.demo_datetime) {
+            console.warn("[retell-webhook] corrected inferred demo year", {
+              from: analysis.demo_datetime,
+              to: normalized,
+            });
+          }
+          analysis.demo_datetime = normalized;
+        }
+      }
+
       // Guard: reject demo bookings with missing, unparseable, or past datetimes
       if (analysis.demo_booked) {
         const dt = analysis.demo_datetime ? new Date(analysis.demo_datetime) : null;
