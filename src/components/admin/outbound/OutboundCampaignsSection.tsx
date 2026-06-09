@@ -279,6 +279,14 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "" }); load(); }
   };
+  const deleteLead = async (id: string, name: string) => {
+    if (!confirm(`Delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
+    const { error } = await supabase.from("outbound_leads").delete().eq("id", id);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Lead deleted" });
+    load();
+  };
+
 
   const importCSV = async (file: File) => {
     const text = await file.text();
@@ -365,8 +373,9 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 <TableCell onClick={e => e.stopPropagation()}>
                   {l.call_recording_url ? <audio controls src={l.call_recording_url} className="h-8"/> : "—"}
                 </TableCell>
-                <TableCell onClick={e => e.stopPropagation()}>
+                <TableCell onClick={e => e.stopPropagation()} className="space-x-1">
                   {l.call_transcript && <Button size="sm" variant="ghost" onClick={() => setSelected(l)}><FileText className="w-4 h-4"/></Button>}
+                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => deleteLead(l.id, l.first_name || l.business_name || l.phone_number)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -456,6 +465,22 @@ function DemosTab() {
     else { load(); setSelected(null); }
   };
 
+  const deleteDemo = async (id: string) => {
+    if (!confirm("Delete this demo? This cannot be undone.")) return;
+    const { error } = await supabase.from("outbound_demos").delete().eq("id", id);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Demo deleted" });
+    setSelected(null);
+    load();
+  };
+
+  const formatDemoWhen = (iso: string) => {
+    const d = new Date(iso);
+    const date = d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    return `${date} at ${time}`;
+  };
+
   const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   const overridesByDate = useMemo(() => {
     const m: Record<string, Override[]> = {};
@@ -531,7 +556,7 @@ function DemosTab() {
                     <div className="text-sm text-muted-foreground">{d.prospect_phone}</div>
                   </div>
                   <div className="text-right">
-                    <div>{new Date(d.demo_datetime).toLocaleString()}</div>
+                    <div className="font-medium">{formatDemoWhen(d.demo_datetime)}</div>
                     {statusBadge(d.status)}
                   </div>
                 </div>
@@ -670,18 +695,20 @@ function DemosTab() {
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>{selected?.prospect_name} — {selected?.prospect_business}</DialogTitle>
-            <DialogDescription>{selected && new Date(selected.demo_datetime).toLocaleString()}</DialogDescription>
+            <DialogDescription>{selected && formatDemoWhen(selected.demo_datetime)}</DialogDescription>
           </DialogHeader>
           {selected && (
             <div className="space-y-3 text-sm">
               <div>{statusBadge(selected.status)}</div>
+              <div><b>Scheduled for:</b> {formatDemoWhen(selected.demo_datetime)}</div>
               <div><b>Phone:</b> {selected.prospect_phone}</div>
               <div><b>Email:</b> {selected.prospect_email || "—"}</div>
               <div><b>Summary:</b><br/>{selected.call_summary || "—"}</div>
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2 flex-wrap">
                 <Button size="sm" onClick={() => setStatus(selected.id, "completed")}>Mark Completed</Button>
                 <Button size="sm" variant="outline" onClick={() => setStatus(selected.id, "no_show")}>No Show</Button>
                 <Button size="sm" variant="outline" onClick={() => setStatus(selected.id, "cancelled")}>Cancel</Button>
+                <Button size="sm" variant="outline" className="text-destructive hover:text-destructive ml-auto" onClick={() => deleteDemo(selected.id)}><Trash2 className="w-4 h-4 mr-1"/>Delete</Button>
               </div>
             </div>
           )}
