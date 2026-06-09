@@ -191,3 +191,7 @@ verify_jwt = false
 
 [functions.outbound-recording-proxy]
 verify_jwt = false
+
+[functions.check-demo-availability]
+verify_jwt = false
+
