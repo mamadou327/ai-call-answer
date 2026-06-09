@@ -1062,6 +1062,11 @@ function TestTab({ campaigns }: { campaigns: Campaign[] }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 max-w-xl">
+        {campaigns.length === 0 && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 text-sm p-3">
+            You need at least one campaign before placing a test call. Create one in the <b>Campaigns</b> tab — test calls reuse its voice, prompt, and settings.
+          </div>
+        )}
         <div>
           <Label>Phone number to call</Label>
           <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+447700900123"/>
