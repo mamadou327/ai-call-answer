@@ -138,6 +138,17 @@ Deno.serve(async (req) => {
     }
 
     if (analysis) {
+      // Guard: reject demo bookings with missing, unparseable, or past datetimes
+      if (analysis.demo_booked) {
+        const dt = analysis.demo_datetime ? new Date(analysis.demo_datetime) : null;
+        const valid = dt && !isNaN(dt.getTime()) && dt.getTime() >= Date.now() - 5 * 60 * 1000;
+        if (!valid) {
+          console.warn("[retell-webhook] rejecting demo_booked with invalid/past datetime", analysis.demo_datetime);
+          analysis.demo_booked = false;
+          analysis.demo_datetime = null;
+        }
+      }
+
       update.interest_level = analysis.interest_level || null;
       update.existing_solution = analysis.existing_solution || null;
       update.reason_not_interested = analysis.reason_not_interested || null;
