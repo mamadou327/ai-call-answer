@@ -1,52 +1,31 @@
-## Outbound calling fixes (Lovable side: 1–4)
+# Fix: Demos booked in the wrong year/month
 
-Fixes 5–7 are Retell dashboard changes you'll do yourself.
+## Root cause
 
-### Fix 1 — Only process `call_analyzed` events
-In `supabase/functions/retell-call-webhook/index.ts`, immediately after parsing the JSON body and logging the event, short-circuit any event that isn't `call_analyzed` (so `call_ended`, `call_started`, etc. all return 200 with no side effects). This is the real duplicate-processing fix. The existing `lead.call_transcript` early-return guard stays as a belt-and-braces safety.
+In `supabase/functions/retell-call-webhook/index.ts`, the AI extractor (`extractWithAI`) asks Gemini to return `demo_datetime` as an ISO 8601 string, but the system prompt never tells the model what today's date is. When a caller says "next Tuesday" or "May 15th", the model falls back to its training-data sense of "now" — which is why it produced a May 2024 date even though we're in June 2026.
 
-### Fix 2 — Remove Twilio recording (kill the beep)
-In `supabase/functions/twilio-outbound-call/index.ts`, drop from the Twilio call params:
-- `Record: "true"`
-- `RecordingStatusCallback`
-- `RecordingStatusCallbackMethod`
+There is also no sanity check: any past date the model returns gets written straight into `outbound_demos.demo_datetime` and emailed out.
 
-Retell already records on its side and the URL arrives via `call.recording_url` in `call_analyzed`, which `retell-call-webhook` already reads — no changes needed there.
+## Fix
 
-The `twilio-outbound-recording` edge function becomes dead code but I'll leave it in place (no harm, avoids touching `config.toml` / unrelated infra).
+Two small changes to `extractWithAI` in `supabase/functions/retell-call-webhook/index.ts`:
 
-### Fix 3 — Calendar availability check
-New edge function `supabase/functions/check-demo-availability/index.ts` (`verify_jwt = false`):
-- POST body: `{ demo_datetime: string (ISO 8601) }`
-- Validates input with Zod.
-- Queries `outbound_demos` for rows with `status = 'scheduled'` where `demo_datetime` is within ±30 minutes of the proposed time.
-- Returns `{ available: true }` or `{ available: false, conflict: "<ISO datetime of nearest existing demo>" }`.
-- Full CORS headers, always returns 200 on success, 400 on bad input.
+1. **Inject the real current date/time into the system prompt** so the model resolves relative phrases ("tomorrow", "next Friday", "the 15th") against the actual call date. Use Europe/London time since that matches the business.
+   - Include full weekday, date, and timezone, e.g. `Today is Tuesday, 9 June 2026 (Europe/London).`
+   - Explicit rule: "All relative dates must resolve to a date on or after today. Never output a date in the past."
 
-Add a `[functions.check-demo-availability]` block to `supabase/config.toml` with `verify_jwt = false`.
+2. **Post-extraction guard**: after parsing the JSON, if `demo_booked` is true and `demo_datetime` is either missing, unparseable, or in the past, treat the booking as not confirmed (`demo_booked = false`, `demo_datetime = null`) and log a warning. This prevents bad data from reaching `outbound_demos` and stops the wrong-date email going out.
 
-You'll then wire this up in the Retell agent as a custom function `check_calendar_availability` pointing at:
-`https://zyqzypyncugihrawhppg.supabase.co/functions/v1/check-demo-availability`
+No schema changes, no client changes, no changes to other functions.
 
-### Fix 4 — Demo email deduplication
-In `retell-call-webhook`, restructure the demo-booked branch so the confirmation emails (to Mo + prospect) only send when the `outbound_demos` insert actually succeeded with a new row. Because we already have a `UNIQUE INDEX` on `outbound_demos(lead_id)`, I'll:
-- Capture the insert result; if it errored with a unique-violation (Postgres code `23505`), log "demo already exists, skipping emails" and skip both emails.
-- Only on a clean insert do we build the HTML and call `sendEmail` for Mo and the prospect.
-- Build the email HTML once into a single variable (no accidental duplication).
+## Technical details
 
-This combined with Fix 1 means: one webhook processed → one DB insert → one email pair, ever.
+- File: `supabase/functions/retell-call-webhook/index.ts`, function `extractWithAI` and the block that handles `analysis.demo_booked`.
+- Date string built with `new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Europe/London" })`.
+- Past-date check: `new Date(analysis.demo_datetime).getTime() < Date.now() - 5 * 60 * 1000` (5-minute grace).
+- Aligns with the project rule "System prompt: always inject full calendar date and dynamic timezone".
 
-### Deployment
-After edits, deploy: `retell-call-webhook`, `twilio-outbound-call`, `check-demo-availability`.
+## Out of scope
 
-### What does NOT change
-- `twilio-outbound-twiml` (SIP bridge to Retell)
-- `twilio-outbound-status`
-- Retell registration call / dynamic variables
-- DB schema (no migration needed — unique index already exists)
-- Admin UI (Retell Settings tab)
-
-### Out of scope (you handle in Retell)
-- Fix 5: spell numbers as words in the agent prompt
-- Fix 6: mandatory email-capture rule in the BOOKING A DEMO section
-- Fix 7: Interruption Sensitivity → 1.0
+- Changing the Retell agent prompt itself (you control that in Retell).
+- Backfilling the existing wrongly-dated demo row — delete it from the Demos tab once this ships.
