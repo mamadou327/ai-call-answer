@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save } from "lucide-react";
+import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2 } from "lucide-react";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -95,6 +95,13 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
   };
   useEffect(() => { load(); }, []);
 
+  const deleteCampaign = async (id: string, name: string) => {
+    if (!confirm(`Delete campaign "${name}"? This will also delete all its leads. This cannot be undone.`)) return;
+    const { error } = await supabase.from("outbound_campaigns").delete().eq("id", id);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Campaign deleted" });
+    load();
+  };
   const setStatus = async (id: string, status: Campaign["status"]) => {
     const { error } = await supabase.from("outbound_campaigns").update({ status }).eq("id", id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -163,6 +170,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                     {c.status !== "completed" && (
                       <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "completed")}><Square className="w-3 h-3"/></Button>
                     )}
+                    <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => deleteCampaign(c.id, c.name)}><Trash2 className="w-3 h-3"/></Button>
                   </TableCell>
                 </TableRow>
               );
