@@ -335,7 +335,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
             <SelectTrigger className="w-48"><SelectValue/></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
-              {["pending","calling","answered","no_answer","voicemail","interested","not_interested","demo_booked","do_not_call"].map(s =>
+              {["pending","calling","answered","no_answer","voicemail","called_back","interested","not_interested","demo_booked","do_not_call"].map(s =>
                 <SelectItem key={s} value={s}>{s.replace(/_/g," ")}</SelectItem>)}
             </SelectContent>
           </Select>
