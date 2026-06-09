@@ -808,10 +808,13 @@ function PromptTab() {
   const [rowId, setRowId] = useState<string>("");
   const [fromNumber, setFromNumber] = useState("");
   const [retellAgentId, setRetellAgentId] = useState("");
+  const [moPhoneNumber, setMoPhoneNumber] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const webhookUrl = `${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/retell-call-webhook`;
+
+  const voicemailScript = `Hi {{first_name}}, this is Aria calling on behalf of Aivia. I tried to reach you about how {{business_name}} could automatically answer every call you are currently missing. If that sounds interesting, call Mo directly on ${moPhoneNumber || "[your number]"} or visit aiviaapp.co.uk. Have a great day.`;
 
   useEffect(() => {
     (async () => {
@@ -820,6 +823,7 @@ function PromptTab() {
         setRowId(data.id);
         setFromNumber(data.from_number || "");
         setRetellAgentId((data as any).retell_agent_id || "");
+        setMoPhoneNumber((data as any).mo_phone_number || "");
       }
       setLoading(false);
     })();
@@ -830,18 +834,19 @@ function PromptTab() {
     const { error } = await supabase.from("outbound_settings").update({
       from_number: fromNumber || null,
       retell_agent_id: retellAgentId || null,
+      mo_phone_number: moPhoneNumber || null,
     } as any).eq("id", rowId);
     setSaving(false);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else toast({ title: "Saved", description: "Changes take effect on the next call." });
   };
 
-  const copyWebhook = async () => {
+  const copyText = async (text: string, label: string) => {
     try {
-      await navigator.clipboard.writeText(webhookUrl);
-      toast({ title: "Copied", description: "Webhook URL copied to clipboard." });
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Copied", description: `${label} copied to clipboard.` });
     } catch {
-      toast({ title: "Could not copy", description: webhookUrl, variant: "destructive" });
+      toast({ title: "Could not copy", description: text, variant: "destructive" });
     }
   };
 
@@ -861,7 +866,7 @@ function PromptTab() {
           </p>
           <div className="flex gap-2">
             <Input readOnly value={webhookUrl} className="font-mono text-xs"/>
-            <Button type="button" variant="outline" onClick={copyWebhook}>Copy</Button>
+            <Button type="button" variant="outline" onClick={() => copyText(webhookUrl, "Webhook URL")}>Copy</Button>
           </div>
         </div>
         <div>
@@ -873,8 +878,21 @@ function PromptTab() {
           <Label>Outbound caller ID (E.164 Twilio number)</Label>
           <Input value={fromNumber} onChange={e => setFromNumber(e.target.value)} placeholder="+44..."/>
         </div>
+        <div>
+          <Label>Mo's callback number (E.164)</Label>
+          <Input value={moPhoneNumber} onChange={e => setMoPhoneNumber(e.target.value)} placeholder="+44..."/>
+          <p className="text-xs text-muted-foreground mt-1">Your callback number — shown in SMS and voicemail to prospects.</p>
+        </div>
         <div className="flex gap-2">
           <Button onClick={save} disabled={saving}><Save className="w-4 h-4 mr-1"/>Save</Button>
+        </div>
+        <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+          <Label className="text-xs uppercase tracking-wide">Recommended voicemail script — paste this into Retell</Label>
+          <p className="text-xs text-muted-foreground">
+            Configure this in Retell on the Outreach Dialer agent's voicemail message field. <code>{"{{first_name}}"}</code> and <code>{"{{business_name}}"}</code> are dynamic variables Aivia passes per call.
+          </p>
+          <Textarea readOnly value={voicemailScript} rows={5} className="font-mono text-xs"/>
+          <Button type="button" variant="outline" size="sm" onClick={() => copyText(voicemailScript, "Voicemail script")}>Copy script</Button>
         </div>
       </CardContent>
     </Card>
