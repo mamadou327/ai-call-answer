@@ -52,6 +52,7 @@ const statusBadge = (status: string) => {
     not_interested: "bg-red-100 text-red-800 border-red-300",
     demo_booked: "bg-green-100 text-green-800 border-green-300",
     do_not_call: "bg-red-100 text-red-800 border-red-300",
+    called_back: "bg-purple-100 text-purple-800 border-purple-300",
     hot: "bg-amber-100 text-amber-800 border-amber-300",
     warm: "bg-yellow-100 text-yellow-800 border-yellow-300",
     cold: "bg-slate-100 text-slate-700",
