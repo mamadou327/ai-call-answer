@@ -2018,6 +2018,9 @@ export type Database = {
       outbound_settings: {
         Row: {
           default_voice_id: string | null
+          demo_available_days: string[]
+          demo_end_hour: number
+          demo_start_hour: number
           from_number: string | null
           id: string
           retell_agent_id: string | null
@@ -2025,6 +2028,9 @@ export type Database = {
         }
         Insert: {
           default_voice_id?: string | null
+          demo_available_days?: string[]
+          demo_end_hour?: number
+          demo_start_hour?: number
           from_number?: string | null
           id?: string
           retell_agent_id?: string | null
@@ -2032,6 +2038,9 @@ export type Database = {
         }
         Update: {
           default_voice_id?: string | null
+          demo_available_days?: string[]
+          demo_end_hour?: number
+          demo_start_hour?: number
           from_number?: string | null
           id?: string
           retell_agent_id?: string | null
