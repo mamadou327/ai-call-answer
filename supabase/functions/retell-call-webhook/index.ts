@@ -144,39 +144,44 @@ Deno.serve(async (req) => {
     const businessName = lead.business_name || "Unknown business";
 
     if (analysis?.demo_booked && analysis.demo_datetime) {
-      try {
-        await supabase.from("outbound_demos").insert({
-          lead_id: lead.id,
-          demo_datetime: analysis.demo_datetime,
-          prospect_name: firstName,
-          prospect_business: businessName,
-          prospect_phone: lead.phone_number,
-          prospect_email: analysis.prospect_email || lead.email || null,
-          call_summary: transcript.slice(0, 2000),
-          status: "scheduled",
-        } as any);
-      } catch (e) {
-        console.error("[retell-webhook] demo insert failed", e);
-      }
+      const { error: insertError } = await supabase.from("outbound_demos").insert({
+        lead_id: lead.id,
+        demo_datetime: analysis.demo_datetime,
+        prospect_name: firstName,
+        prospect_business: businessName,
+        prospect_phone: lead.phone_number,
+        prospect_email: analysis.prospect_email || lead.email || null,
+        call_summary: transcript.slice(0, 2000),
+        status: "scheduled",
+      } as any);
 
-      const html = `
-        <h2>Demo Booked</h2>
-        <p><strong>Name:</strong> ${firstName}</p>
-        <p><strong>Business:</strong> ${businessName}</p>
-        <p><strong>Phone:</strong> ${lead.phone_number}</p>
-        <p><strong>Email:</strong> ${analysis.prospect_email || lead.email || "—"}</p>
-        <p><strong>When:</strong> ${analysis.demo_datetime}</p>
-        ${recordingUrl ? `<p><a href="${recordingUrl}">Recording</a></p>` : ""}
-      `;
-      await sendEmail(MO_EMAIL, `Demo Booked — ${firstName} from ${businessName}`, html);
+      if (insertError) {
+        // 23505 = unique_violation on outbound_demos_lead_id_unique → already booked, do NOT email again
+        if ((insertError as any).code === "23505") {
+          console.log("[retell-webhook] demo already exists for lead, skipping emails", lead.id);
+        } else {
+          console.error("[retell-webhook] demo insert failed", insertError);
+        }
+      } else {
+        const html = `
+          <h2>Demo Booked</h2>
+          <p><strong>Name:</strong> ${firstName}</p>
+          <p><strong>Business:</strong> ${businessName}</p>
+          <p><strong>Phone:</strong> ${lead.phone_number}</p>
+          <p><strong>Email:</strong> ${analysis.prospect_email || lead.email || "—"}</p>
+          <p><strong>When:</strong> ${analysis.demo_datetime}</p>
+          ${recordingUrl ? `<p><a href="${recordingUrl}">Recording</a></p>` : ""}
+        `;
+        await sendEmail(MO_EMAIL, `Demo Booked — ${firstName} from ${businessName}`, html);
 
-      const prospectEmail = analysis.prospect_email || lead.email;
-      if (prospectEmail) {
-        await sendEmail(
-          prospectEmail,
-          `Your Aivia demo with Mo`,
-          `<p>Hi ${firstName},</p><p>This is a quick note to confirm your Aivia demo on <strong>${analysis.demo_datetime}</strong>.</p><p>Mo will call you then. Reply to this email if you need to reschedule.</p><p>— Aivia</p>`
-        );
+        const prospectEmail = analysis.prospect_email || lead.email;
+        if (prospectEmail) {
+          await sendEmail(
+            prospectEmail,
+            `Your Aivia demo with Mo`,
+            `<p>Hi ${firstName},</p><p>This is a quick note to confirm your Aivia demo on <strong>${analysis.demo_datetime}</strong>.</p><p>Mo will call you then. Reply to this email if you need to reschedule.</p><p>— Aivia</p>`
+          );
+        }
       }
     } else if (analysis?.interest_level === "hot") {
       const html = `
