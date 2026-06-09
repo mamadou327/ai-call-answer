@@ -3249,6 +3249,7 @@ export type Database = {
         | "not_interested"
         | "demo_booked"
         | "do_not_call"
+        | "called_back"
       payment_status: "unpaid" | "deposit_paid" | "paid_in_full"
       service_category_type:
         | "kids"
@@ -3427,6 +3428,7 @@ export const Constants = {
         "not_interested",
         "demo_booked",
         "do_not_call",
+        "called_back",
       ],
       payment_status: ["unpaid", "deposit_paid", "paid_in_full"],
       service_category_type: [

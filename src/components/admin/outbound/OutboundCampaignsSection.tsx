@@ -52,6 +52,7 @@ const statusBadge = (status: string) => {
     not_interested: "bg-red-100 text-red-800 border-red-300",
     demo_booked: "bg-green-100 text-green-800 border-green-300",
     do_not_call: "bg-red-100 text-red-800 border-red-300",
+    called_back: "bg-purple-100 text-purple-800 border-purple-300",
     hot: "bg-amber-100 text-amber-800 border-amber-300",
     warm: "bg-yellow-100 text-yellow-800 border-yellow-300",
     cold: "bg-slate-100 text-slate-700",
@@ -334,7 +335,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
             <SelectTrigger className="w-48"><SelectValue/></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
-              {["pending","calling","answered","no_answer","voicemail","interested","not_interested","demo_booked","do_not_call"].map(s =>
+              {["pending","calling","answered","no_answer","voicemail","called_back","interested","not_interested","demo_booked","do_not_call"].map(s =>
                 <SelectItem key={s} value={s}>{s.replace(/_/g," ")}</SelectItem>)}
             </SelectContent>
           </Select>
