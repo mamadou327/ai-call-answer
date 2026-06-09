@@ -11,9 +11,19 @@ async function extractWithAI(transcript: string): Promise<any> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) return null;
 
+  const todayStr = new Date().toLocaleDateString("en-GB", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Europe/London",
+  });
+  const nowIso = new Date().toISOString();
+
   const sys = `You read sales call transcripts and reply with ONLY a JSON object (no markdown, no prose) with this exact shape:
 {"interest_level":"hot|warm|cold","existing_solution":string|null,"reason_not_interested":string|null,"demo_booked":boolean,"demo_datetime":string|null,"prospect_email":string|null}
-demo_datetime must be an ISO 8601 datetime string if a specific date and time were agreed, otherwise null.`;
+
+CRITICAL DATE CONTEXT:
+- Today is ${todayStr}. Current instant: ${nowIso}. Timezone: Europe/London.
+- Resolve every relative phrase ("tomorrow", "next Tuesday", "the 15th", "in two weeks") against TODAY.
+- demo_datetime MUST be an ISO 8601 datetime string on or AFTER today. Never output a date in the past or in a prior year.
+- If no specific date and time were agreed, set demo_datetime to null and demo_booked to false.`;
 
   try {
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
