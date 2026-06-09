@@ -42,7 +42,17 @@ Deno.serve(async (req) => {
     const fromNumber = (params.From || "").trim();
     const toNumber = (params.To || "").trim();
     const callSid = params.CallSid || "";
-    console.log("[twilio-inbound-sales] inbound", { fromNumber, toNumber, callSid });
+
+    const normalisePhone = (raw: string): string => {
+      let n = raw.replace(/\s+/g, "").replace(/[^\d+]/g, "");
+      if (n.startsWith("00")) n = "+" + n.slice(2);
+      if (n.startsWith("07") || n.startsWith("01") || n.startsWith("02")) n = "+44" + n.slice(1);
+      if (!n.startsWith("+")) n = "+" + n;
+      return n;
+    };
+    const normalisedFrom = normalisePhone(fromNumber);
+
+    console.log("[twilio-inbound-sales] inbound", { fromNumber, normalisedFrom, toNumber, callSid });
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -76,11 +86,23 @@ Deno.serve(async (req) => {
       const { data } = await supabase
         .from("outbound_leads")
         .select("id, first_name, business_name, status, call_transcript, last_called_at")
-        .eq("phone_number", fromNumber)
+        .eq("phone_number", normalisedFrom)
         .order("last_called_at", { ascending: false, nullsFirst: false })
         .limit(1)
         .maybeSingle();
       lead = data || null;
+
+      // Fallback: try the raw From value if normalisation changed it
+      if (!lead && normalisedFrom !== fromNumber) {
+        const { data: fallback } = await supabase
+          .from("outbound_leads")
+          .select("id, first_name, business_name, status, call_transcript, last_called_at")
+          .eq("phone_number", fromNumber)
+          .order("last_called_at", { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle();
+        lead = fallback || null;
+      }
     }
 
     const isCallback = !!lead;
