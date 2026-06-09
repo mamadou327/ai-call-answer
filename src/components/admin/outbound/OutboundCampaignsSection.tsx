@@ -695,18 +695,20 @@ function DemosTab() {
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>{selected?.prospect_name} — {selected?.prospect_business}</DialogTitle>
-            <DialogDescription>{selected && new Date(selected.demo_datetime).toLocaleString()}</DialogDescription>
+            <DialogDescription>{selected && formatDemoWhen(selected.demo_datetime)}</DialogDescription>
           </DialogHeader>
           {selected && (
             <div className="space-y-3 text-sm">
               <div>{statusBadge(selected.status)}</div>
+              <div><b>Scheduled for:</b> {formatDemoWhen(selected.demo_datetime)}</div>
               <div><b>Phone:</b> {selected.prospect_phone}</div>
               <div><b>Email:</b> {selected.prospect_email || "—"}</div>
               <div><b>Summary:</b><br/>{selected.call_summary || "—"}</div>
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2 flex-wrap">
                 <Button size="sm" onClick={() => setStatus(selected.id, "completed")}>Mark Completed</Button>
                 <Button size="sm" variant="outline" onClick={() => setStatus(selected.id, "no_show")}>No Show</Button>
                 <Button size="sm" variant="outline" onClick={() => setStatus(selected.id, "cancelled")}>Cancel</Button>
+                <Button size="sm" variant="outline" className="text-destructive hover:text-destructive ml-auto" onClick={() => deleteDemo(selected.id)}><Trash2 className="w-4 h-4 mr-1"/>Delete</Button>
               </div>
             </div>
           )}
