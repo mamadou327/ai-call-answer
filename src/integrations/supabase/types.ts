@@ -2028,6 +2028,7 @@ export type Database = {
           id: string
           mo_phone_number: string | null
           retell_agent_id: string | null
+          sms_sender_id: string
           updated_at: string
         }
         Insert: {
@@ -2039,6 +2040,7 @@ export type Database = {
           id?: string
           mo_phone_number?: string | null
           retell_agent_id?: string | null
+          sms_sender_id?: string
           updated_at?: string
         }
         Update: {
@@ -2050,6 +2052,7 @@ export type Database = {
           id?: string
           mo_phone_number?: string | null
           retell_agent_id?: string | null
+          sms_sender_id?: string
           updated_at?: string
         }
         Relationships: []
