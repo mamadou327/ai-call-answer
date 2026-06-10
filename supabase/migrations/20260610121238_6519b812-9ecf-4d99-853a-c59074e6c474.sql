@@ -1,0 +1,3 @@
+ALTER TABLE public.outbound_leads ADD COLUMN IF NOT EXISTS business_type text DEFAULT NULL;
+ALTER TABLE public.outbound_leads DROP CONSTRAINT IF EXISTS outbound_leads_business_type_check;
+ALTER TABLE public.outbound_leads ADD CONSTRAINT outbound_leads_business_type_check CHECK (business_type IS NULL OR business_type IN ('salon','barbershop','restaurant','spa','clinic','trades','estate_agent','beauty','other'));

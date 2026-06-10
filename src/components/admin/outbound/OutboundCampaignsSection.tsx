@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2 } from "lucide-react";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const BUSINESS_TYPES = ["salon","barbershop","restaurant","spa","clinic","trades","estate_agent","beauty","other"] as const;
+const businessTypeLabel = (v: string) => v.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
 type Campaign = {
   id: string; name: string; status: "draft" | "active" | "paused" | "completed";
@@ -31,6 +33,7 @@ type Lead = {
   call_duration_seconds: number | null; call_recording_url: string | null;
   call_transcript: string | null; last_called_at: string | null; created_at: string;
   sms_sent: boolean;
+  business_type: string | null;
 };
 type Demo = {
   id: string; lead_id: string; demo_datetime: string;
@@ -260,8 +263,9 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [interestFilter, setInterestFilter] = useState<string>("all");
   const [smsFilter, setSmsFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
-  const [newLead, setNewLead] = useState({ first_name: "", business_name: "", phone_number: "" });
+  const [newLead, setNewLead] = useState<{ first_name: string; business_name: string; phone_number: string; business_type: string }>({ first_name: "", business_name: "", phone_number: "", business_type: "" });
   const [selected, setSelected] = useState<Lead | null>(null);
 
   const load = async () => {
@@ -275,14 +279,22 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const filtered = useMemo(() => leads.filter(l =>
     (statusFilter === "all" || l.status === statusFilter) &&
     (interestFilter === "all" || l.interest_level === interestFilter) &&
-    (smsFilter === "all" || (smsFilter === "sent" ? l.sms_sent : !l.sms_sent))
-  ), [leads, statusFilter, interestFilter, smsFilter]);
+    (smsFilter === "all" || (smsFilter === "sent" ? l.sms_sent : !l.sms_sent)) &&
+    (typeFilter === "all" || (typeFilter === "none" ? !l.business_type : l.business_type === typeFilter))
+  ), [leads, statusFilter, interestFilter, smsFilter, typeFilter]);
 
   const addLead = async () => {
     if (!newLead.phone_number.trim()) return;
-    const { error } = await supabase.from("outbound_leads").insert({ ...newLead, campaign_id: campaign.id });
+    const payload: any = {
+      first_name: newLead.first_name || null,
+      business_name: newLead.business_name || null,
+      phone_number: newLead.phone_number,
+      business_type: newLead.business_type || null,
+      campaign_id: campaign.id,
+    };
+    const { error } = await supabase.from("outbound_leads").insert(payload);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "" }); load(); }
+    else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "" }); load(); }
   };
   const deleteLead = async (id: string, name: string) => {
     if (!confirm(`Delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
@@ -292,22 +304,24 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     load();
   };
 
-
   const importCSV = async (file: File) => {
     const text = await file.text();
     const lines = text.split(/\r?\n/).filter(l => l.trim());
     if (lines.length < 2) return;
     const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
     const idx = (k: string) => headers.indexOf(k);
-    const phoneI = idx("phone"); const firstI = idx("first_name"); const bizI = idx("business_name");
+    const phoneI = idx("phone"); const firstI = idx("first_name"); const bizI = idx("business_name"); const typeI = idx("business_type");
     if (phoneI < 0) { toast({ title: "CSV missing 'phone' column", variant: "destructive" }); return; }
+    const allowed = new Set<string>(BUSINESS_TYPES as readonly string[]);
     const rows = lines.slice(1).map(l => {
       const cols = l.split(",").map(c => c.trim());
+      const rawType = typeI >= 0 ? (cols[typeI] || "").toLowerCase() : "";
       return {
         campaign_id: campaign.id,
         phone_number: cols[phoneI],
         first_name: firstI >= 0 ? cols[firstI] : null,
         business_name: bizI >= 0 ? cols[bizI] : null,
+        business_type: allowed.has(rawType) ? rawType : null,
       };
     }).filter(r => r.phone_number);
     if (!rows.length) return;
@@ -334,6 +348,9 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
             <Button onClick={() => setAddOpen(true)}><Plus className="w-4 h-4 mr-1"/>Add Lead</Button>
           </div>
         </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          CSV columns: <code>phone</code> (required), <code>first_name</code>, <code>business_name</code>, <code>business_type</code> (optional — one of: {BUSINESS_TYPES.join(", ")}).
+        </p>
         <div className="flex gap-2 mt-3">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-48"><SelectValue/></SelectTrigger>
@@ -360,6 +377,14 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
               <SelectItem value="not_sent">SMS not sent</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-48"><SelectValue/></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All business types</SelectItem>
+              <SelectItem value="none">No type set</SelectItem>
+              {BUSINESS_TYPES.map(t => <SelectItem key={t} value={t}>{businessTypeLabel(t)}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
       <CardContent>
@@ -367,7 +392,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead><TableHead>Business</TableHead><TableHead>Phone</TableHead>
+              <TableHead>Name</TableHead><TableHead>Business</TableHead><TableHead>Type</TableHead><TableHead>Phone</TableHead>
               <TableHead>Status</TableHead><TableHead>Interest</TableHead><TableHead>SMS</TableHead>
               <TableHead>Solution</TableHead><TableHead>Duration</TableHead>
               <TableHead>Recording</TableHead><TableHead></TableHead>
@@ -378,6 +403,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
               <TableRow key={l.id} className="cursor-pointer" onClick={() => setSelected(l)}>
                 <TableCell>{l.first_name || "—"}</TableCell>
                 <TableCell>{l.business_name || "—"}</TableCell>
+                <TableCell>{l.business_type ? <Badge variant="outline" className="text-xs">{businessTypeLabel(l.business_type)}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
                 <TableCell>{l.phone_number}</TableCell>
                 <TableCell>{statusBadge(l.status)}</TableCell>
                 <TableCell>{l.interest_level ? statusBadge(l.interest_level) : "—"}</TableCell>
@@ -397,7 +423,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
           </TableBody>
         </Table>}
       </CardContent>
@@ -409,6 +435,16 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
             <div><Label>First name</Label><Input value={newLead.first_name} onChange={e => setNewLead({...newLead, first_name: e.target.value})}/></div>
             <div><Label>Business name</Label><Input value={newLead.business_name} onChange={e => setNewLead({...newLead, business_name: e.target.value})}/></div>
             <div><Label>Phone (E.164)</Label><Input value={newLead.phone_number} onChange={e => setNewLead({...newLead, phone_number: e.target.value})} placeholder="+447..."/></div>
+            <div>
+              <Label>Business type</Label>
+              <Select value={newLead.business_type || "__none"} onValueChange={v => setNewLead({...newLead, business_type: v === "__none" ? "" : v})}>
+                <SelectTrigger><SelectValue placeholder="— None —"/></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">— None —</SelectItem>
+                  {BUSINESS_TYPES.map(t => <SelectItem key={t} value={t}>{businessTypeLabel(t)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
