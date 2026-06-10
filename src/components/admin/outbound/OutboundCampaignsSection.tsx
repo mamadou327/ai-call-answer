@@ -274,8 +274,9 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
 
   const filtered = useMemo(() => leads.filter(l =>
     (statusFilter === "all" || l.status === statusFilter) &&
-    (interestFilter === "all" || l.interest_level === interestFilter)
-  ), [leads, statusFilter, interestFilter]);
+    (interestFilter === "all" || l.interest_level === interestFilter) &&
+    (smsFilter === "all" || (smsFilter === "sent" ? l.sms_sent : !l.sms_sent))
+  ), [leads, statusFilter, interestFilter, smsFilter]);
 
   const addLead = async () => {
     if (!newLead.phone_number.trim()) return;
