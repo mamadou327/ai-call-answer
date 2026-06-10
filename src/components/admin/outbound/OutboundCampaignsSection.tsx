@@ -263,8 +263,9 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [interestFilter, setInterestFilter] = useState<string>("all");
   const [smsFilter, setSmsFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
-  const [newLead, setNewLead] = useState({ first_name: "", business_name: "", phone_number: "" });
+  const [newLead, setNewLead] = useState<{ first_name: string; business_name: string; phone_number: string; business_type: string }>({ first_name: "", business_name: "", phone_number: "", business_type: "" });
   const [selected, setSelected] = useState<Lead | null>(null);
 
   const load = async () => {
@@ -278,14 +279,29 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const filtered = useMemo(() => leads.filter(l =>
     (statusFilter === "all" || l.status === statusFilter) &&
     (interestFilter === "all" || l.interest_level === interestFilter) &&
-    (smsFilter === "all" || (smsFilter === "sent" ? l.sms_sent : !l.sms_sent))
-  ), [leads, statusFilter, interestFilter, smsFilter]);
+    (smsFilter === "all" || (smsFilter === "sent" ? l.sms_sent : !l.sms_sent)) &&
+    (typeFilter === "all" || (typeFilter === "none" ? !l.business_type : l.business_type === typeFilter))
+  ), [leads, statusFilter, interestFilter, smsFilter, typeFilter]);
 
   const addLead = async () => {
     if (!newLead.phone_number.trim()) return;
-    const { error } = await supabase.from("outbound_leads").insert({ ...newLead, campaign_id: campaign.id });
+    const payload: any = {
+      first_name: newLead.first_name || null,
+      business_name: newLead.business_name || null,
+      phone_number: newLead.phone_number,
+      business_type: newLead.business_type || null,
+      campaign_id: campaign.id,
+    };
+    const { error } = await supabase.from("outbound_leads").insert(payload);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "" }); load(); }
+    else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "" }); load(); }
+  };
+  const deleteLead = async (id: string, name: string) => {
+    if (!confirm(`Delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
+    const { error } = await supabase.from("outbound_leads").delete().eq("id", id);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Lead deleted" });
+    load();
   };
   const deleteLead = async (id: string, name: string) => {
     if (!confirm(`Delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
