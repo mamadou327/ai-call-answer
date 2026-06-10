@@ -843,17 +843,24 @@ function PromptTab() {
         setFromNumber(data.from_number || "");
         setRetellAgentId((data as any).retell_agent_id || "");
         setMoPhoneNumber((data as any).mo_phone_number || "");
+        setSmsSenderId((data as any).sms_sender_id || "Aivia");
       }
       setLoading(false);
     })();
   }, []);
 
   const save = async () => {
+    const trimmedSender = smsSenderId.trim();
+    if (!/^[A-Za-z0-9]{1,11}$/.test(trimmedSender)) {
+      toast({ title: "Invalid SMS Sender Name", description: "Max 11 characters, letters and numbers only.", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("outbound_settings").update({
       from_number: fromNumber || null,
       retell_agent_id: retellAgentId || null,
       mo_phone_number: moPhoneNumber || null,
+      sms_sender_id: trimmedSender,
     } as any).eq("id", rowId);
     setSaving(false);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
