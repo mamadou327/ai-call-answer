@@ -827,6 +827,7 @@ function PromptTab() {
   const [fromNumber, setFromNumber] = useState("");
   const [retellAgentId, setRetellAgentId] = useState("");
   const [moPhoneNumber, setMoPhoneNumber] = useState("");
+  const [smsSenderId, setSmsSenderId] = useState("Aivia");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
