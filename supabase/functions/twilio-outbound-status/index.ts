@@ -78,11 +78,8 @@ Deno.serve(async (req) => {
 
     // Auto SMS follow-up after a no-answer.
     if (isNoAnswer) {
-      const priorAttempts = lead.retry_count || 0;
       if ((lead as any).sms_sent) {
         console.info(`[twilio-outbound-status] SMS skipped lead=${lead.id} reason=already_sent status=${status}`);
-      } else if (priorAttempts < 1) {
-        console.info(`[twilio-outbound-status] SMS skipped lead=${lead.id} reason=retry_count_zero status=${status} prior_attempts=${priorAttempts}`);
       } else if (!lead.phone_number) {
         console.warn(`[twilio-outbound-status] SMS skipped lead=${lead.id} reason=no_phone_number`);
       } else {
@@ -96,7 +93,7 @@ Deno.serve(async (req) => {
         if (!fromNumber || !moPhone) {
           console.warn(`[twilio-outbound-status] SMS skipped lead=${lead.id} reason=missing_settings from_number=${!!fromNumber} mo_phone_number=${!!moPhone}`);
         } else {
-          console.info(`[twilio-outbound-status] sending SMS lead=${lead.id} to=${lead.phone_number} status=${status} prior_attempts=${priorAttempts}`);
+          console.info(`[twilio-outbound-status] sending SMS lead=${lead.id} to=${lead.phone_number} status=${status}`);
           const ok = await sendFollowUpSms({
             to: lead.phone_number,
             from: fromNumber,
