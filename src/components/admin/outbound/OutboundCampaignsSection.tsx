@@ -827,6 +827,7 @@ function PromptTab() {
   const [fromNumber, setFromNumber] = useState("");
   const [retellAgentId, setRetellAgentId] = useState("");
   const [moPhoneNumber, setMoPhoneNumber] = useState("");
+  const [smsSenderId, setSmsSenderId] = useState("Aivia");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -842,17 +843,24 @@ function PromptTab() {
         setFromNumber(data.from_number || "");
         setRetellAgentId((data as any).retell_agent_id || "");
         setMoPhoneNumber((data as any).mo_phone_number || "");
+        setSmsSenderId((data as any).sms_sender_id || "Aivia");
       }
       setLoading(false);
     })();
   }, []);
 
   const save = async () => {
+    const trimmedSender = smsSenderId.trim();
+    if (!/^[A-Za-z0-9]{1,11}$/.test(trimmedSender)) {
+      toast({ title: "Invalid SMS Sender Name", description: "Max 11 characters, letters and numbers only.", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("outbound_settings").update({
       from_number: fromNumber || null,
       retell_agent_id: retellAgentId || null,
       mo_phone_number: moPhoneNumber || null,
+      sms_sender_id: trimmedSender,
     } as any).eq("id", rowId);
     setSaving(false);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -903,6 +911,11 @@ function PromptTab() {
           {!moPhoneNumber && (
             <p className="text-xs text-amber-600 mt-1">⚠️ SMS follow-ups are disabled until this number is set.</p>
           )}
+        </div>
+        <div>
+          <Label>SMS Sender Name</Label>
+          <Input value={smsSenderId} onChange={e => setSmsSenderId(e.target.value)} placeholder="Aivia" maxLength={11}/>
+          <p className="text-xs text-muted-foreground mt-1">Max 11 characters, letters and numbers only. Recipients see this instead of a phone number.</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={save} disabled={saving}><Save className="w-4 h-4 mr-1"/>Save</Button>

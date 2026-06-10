@@ -1,0 +1,2 @@
+ALTER TABLE public.outbound_settings ADD COLUMN IF NOT EXISTS sms_sender_id text NOT NULL DEFAULT 'Aivia';
+UPDATE public.outbound_settings SET sms_sender_id = 'Aivia' WHERE sms_sender_id IS NULL OR sms_sender_id = '';
