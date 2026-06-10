@@ -1,31 +1,35 @@
-## Goal
+## Add business type to outbound calling
 
-Switch outbound SMS follow-ups to use a Twilio Alphanumeric Sender ID (default "Aivia") instead of the UK landline `from_number`, and make the sender ID configurable from the admin Retell Settings tab.
-
-## Changes
+Allowed values: `salon`, `barbershop`, `restaurant`, `spa`, `clinic`, `trades`, `estate_agent`, `beauty`, `other`.
 
 ### 1. Database
-Add a new column to `outbound_settings`:
-- `sms_sender_id text not null default 'Aivia'`
-- Backfill any existing row so it has the default.
+Migration on `outbound_leads`:
+- Add `business_type text` nullable, default `null`.
+- Add CHECK constraint allowing only the 9 values above (or null).
 
-### 2. Edge function — `supabase/functions/twilio-outbound-status/index.ts`
-- Select `sms_sender_id` alongside `from_number` and `mo_phone_number` from `outbound_settings`.
-- In `sendFollowUpSms`, use `sms_sender_id` (fallback to `"Aivia"`) as the SMS `From` instead of `fromNumber`.
-- Drop `from_number` from the "missing settings" guard for SMS (voice calls still need it, but SMS no longer does). Keep the `mo_phone_number` guard.
-- Update log messages to reflect the new field.
-- Redeploy the function.
+### 2. CSV import (`OutboundCampaignsSection.tsx` → `importCSV`)
+- Detect optional `business_type` header as 4th column.
+- Normalize to lowercase, validate against allowed list, save `null` if invalid/missing.
+- Update the import helper/instructions text to: `Columns: phone (required), first_name, business_name, business_type (optional — salon, barbershop, restaurant, spa, clinic, trades, estate_agent, beauty, other)`.
 
-### 3. Admin UI — `src/components/admin/outbound/OutboundCampaignsSection.tsx` (Retell Settings tab)
-- Add a new text input **"SMS Sender Name"** bound to `outbound_settings.sms_sender_id`.
-- Helper text: *"Max 11 characters, letters and numbers only. Recipients see this instead of a phone number."*
-- Client-side validation: trim, enforce `^[A-Za-z0-9]{1,11}$` on save; show inline error and block save if invalid.
-- Include the field in the existing save handler / upsert payload.
+### 3. Add Lead dialog
+- Add a `Select` "Business type" with a blank default ("—") plus the 9 options.
+- Persist `business_type` (or null when blank) on insert.
+- Extend `newLead` state shape and reset on close.
 
-## Out of scope
-- Voice `from_number` is unchanged.
-- No backfill of SMS to previously-failed leads (still pending your earlier go-ahead).
+### 4. Leads table
+- Add a "Type" column rendering a small `Badge` (outline variant) showing the value (with underscores replaced by spaces, capitalised). Hide when null.
+- Add a `Select` filter "All types" + 9 options above the table, included in the `filtered` useMemo.
 
-## Technical notes
-- Alphanumeric Sender IDs work out of the box for UK numbers — one-way only (no replies), which matches the current "Call Mo on…" copy.
-- Twilio rejects sender IDs >11 chars or with spaces/punctuation, hence the client-side regex.
+### 5. Retell dynamic variable (`supabase/functions/twilio-outbound-call/index.ts`)
+- Select `business_type` from `outbound_leads`.
+- In `retell_llm_dynamic_variables`, add `business_type: lead.business_type?.trim() || "service business"`.
+- Redeploy `twilio-outbound-call`.
+
+### 6. Types
+- `Lead` type gains `business_type: string | null`.
+
+### Technical notes
+- CHECK constraint: `business_type IS NULL OR business_type IN ('salon','barbershop','restaurant','spa','clinic','trades','estate_agent','beauty','other')`.
+- No RLS changes (column added to existing table).
+- `src/integrations/supabase/types.ts` regenerates after migration approval; do code edits after.

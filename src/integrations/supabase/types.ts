@@ -1935,6 +1935,7 @@ export type Database = {
       outbound_leads: {
         Row: {
           business_name: string | null
+          business_type: string | null
           call_duration_seconds: number | null
           call_recording_url: string | null
           call_transcript: string | null
@@ -1960,6 +1961,7 @@ export type Database = {
         }
         Insert: {
           business_name?: string | null
+          business_type?: string | null
           call_duration_seconds?: number | null
           call_recording_url?: string | null
           call_transcript?: string | null
@@ -1985,6 +1987,7 @@ export type Database = {
         }
         Update: {
           business_name?: string | null
+          business_type?: string | null
           call_duration_seconds?: number | null
           call_recording_url?: string | null
           call_transcript?: string | null
