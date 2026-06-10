@@ -51,6 +51,9 @@ Deno.serve(async (req) => {
 
     const firstName = lead.first_name || "there";
     const businessName = lead.business_name || "your business";
+    const businessType = (lead as any).business_type && String((lead as any).business_type).trim()
+      ? String((lead as any).business_type).trim()
+      : "service business";
     const currentDate = new Date().toLocaleDateString("en-GB", {
       weekday: "long",
       day: "numeric",
