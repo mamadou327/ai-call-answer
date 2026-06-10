@@ -259,6 +259,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [interestFilter, setInterestFilter] = useState<string>("all");
+  const [smsFilter, setSmsFilter] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
   const [newLead, setNewLead] = useState({ first_name: "", business_name: "", phone_number: "" });
   const [selected, setSelected] = useState<Lead | null>(null);
