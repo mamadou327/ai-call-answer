@@ -93,18 +93,18 @@ Deno.serve(async (req) => {
       } else {
         const { data: settings } = await supabase
           .from("outbound_settings")
-          .select("from_number, mo_phone_number")
+          .select("sms_sender_id, mo_phone_number")
           .limit(1)
           .maybeSingle();
-        const fromNumber = (settings as any)?.from_number;
+        const senderId = ((settings as any)?.sms_sender_id || "Aivia").trim() || "Aivia";
         const moPhone = (settings as any)?.mo_phone_number;
-        if (!fromNumber || !moPhone) {
-          console.warn(`[twilio-outbound-status] SMS skipped lead=${lead.id} reason=missing_settings from_number=${!!fromNumber} mo_phone_number=${!!moPhone}`);
+        if (!moPhone) {
+          console.warn(`[twilio-outbound-status] SMS skipped lead=${lead.id} reason=missing_mo_phone_number`);
         } else {
-          console.info(`[twilio-outbound-status] sending SMS lead=${lead.id} to=${lead.phone_number} status=${status}`);
+          console.info(`[twilio-outbound-status] sending SMS lead=${lead.id} to=${lead.phone_number} from=${senderId} status=${status}`);
           const ok = await sendFollowUpSms({
             to: lead.phone_number,
-            from: fromNumber,
+            from: senderId,
             firstName: lead.first_name || "",
             businessName: lead.business_name || "",
             moPhone,
