@@ -1,82 +1,20 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-interface TestSmsRequest {
-  to: string;
-  message?: string;
-}
-
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const messagebirdApiKey = Deno.env.get('MESSAGEBIRD_API_KEY');
-    
-    if (!messagebirdApiKey) {
-      console.error('MESSAGEBIRD_API_KEY not configured');
-      return new Response(
-        JSON.stringify({ error: 'MessageBird API key not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const { to, message }: TestSmsRequest = await req.json();
-    
-    if (!to) {
-      return new Response(
-        JSON.stringify({ error: 'Phone number (to) is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const smsMessage = message || '✅ Aivia SMS Test - Your MessageBird integration is working correctly!';
-    
-    console.log(`Sending test SMS to ${to}`);
-
-    // Send SMS via MessageBird API
-    const response = await fetch('https://rest.messagebird.com/messages', {
-      method: 'POST',
-      headers: {
-        'Authorization': `AccessKey ${messagebirdApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        originator: 'Aivia',
-        recipients: [to.replace(/\s/g, '')],
-        body: smsMessage,
-      }),
-    });
-
-    const result = await response.json();
-    
-    if (!response.ok) {
-      console.error('MessageBird API error:', result);
-      return new Response(
-        JSON.stringify({ error: 'Failed to send SMS', details: result }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('SMS sent successfully:', result);
-
-    return new Response(
-      JSON.stringify({ success: true, messageId: result.id }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
-  } catch (error: unknown) {
-    console.error('Error sending test SMS:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
+Deno.serve(async (_req) => {
+  const sid = Deno.env.get("TWILIO_ACCOUNT_SID")!;
+  const tok = Deno.env.get("TWILIO_AUTH_TOKEN")!;
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const { data: s } = await supabase.from("outbound_settings").select("sms_sender_id, mo_phone_number").limit(1).maybeSingle();
+  const from = ((s as any)?.sms_sender_id || "Aivia").trim();
+  const to = (s as any)?.mo_phone_number;
+  const body = `Hi Mo, test from ${from} via Aivia — alphanumeric sender working. (Replies not supported on this sender.)`;
+  const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    method: "POST",
+    headers: { Authorization: `Basic ${btoa(`${sid}:${tok}`)}`, "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ To: to, From: from, Body: body }).toString(),
+  });
+  const text = await r.text();
+  return new Response(JSON.stringify({ status: r.status, to, from, response: text }), {
+    headers: { "Content-Type": "application/json" },
+  });
 });
