@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
     const callSid = params.CallSid;
     const status = params.CallStatus;
     const durationStr = params.CallDuration;
+    const answeredBy = params.AnsweredBy || ""; // machine_start, machine_end_beep, machine_end_silence, machine_end_other, fax, human, unknown
     if (!callSid) return new Response("ok", { headers: corsHeaders });
 
     const { data: lead } = await supabase
@@ -62,13 +63,20 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!lead) return new Response("ok", { headers: corsHeaders });
 
+    const isMachine = answeredBy.startsWith("machine_") || answeredBy === "fax";
+    const isNoAnswer = status === "no-answer" || status === "busy" || status === "failed" || isMachine;
+
+    console.info(`[twilio-outbound-status] lead=${lead.id} status=${status} answered_by=${answeredBy || "-"} is_machine=${isMachine}`);
+
     const update: Record<string, unknown> = {};
-    const isNoAnswer = status === "no-answer" || status === "busy" || status === "failed";
     if (isNoAnswer) {
       if (!["interested", "demo_booked", "not_interested", "do_not_call"].includes(lead.status)) {
         update.status = "no_answer";
       }
-      update.retry_count = (lead.retry_count || 0) + 1;
+      // Only bump retry_count on terminal Twilio statuses (not on the async AMD callback)
+      if (status === "no-answer" || status === "busy" || status === "failed" || status === "completed") {
+        update.retry_count = (lead.retry_count || 0) + 1;
+      }
     }
     if (status === "completed") {
       update.last_called_at = new Date().toISOString();

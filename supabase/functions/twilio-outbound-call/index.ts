@@ -97,6 +97,12 @@ Deno.serve(async (req) => {
       Url: twimlUrl,
       StatusCallback: statusUrl,
       StatusCallbackMethod: "POST",
+      // Answering Machine Detection — async so it doesn't delay call connect.
+      // AnsweredBy will be delivered on the status callback (machine_start, fax, human, unknown, etc.)
+      MachineDetection: "DetectMessageEnd",
+      AsyncAmd: "true",
+      AsyncAmdStatusCallback: statusUrl,
+      AsyncAmdStatusCallbackMethod: "POST",
     });
     // NOTE: Twilio-side recording intentionally disabled. Retell records on its side and
     // sends the recording URL back via call_analyzed. Twilio's recording plays a start beep.

@@ -209,9 +209,13 @@ Deno.serve(async (req) => {
       update.reason_not_interested = analysis.reason_not_interested || null;
       update.demo_booked = !!analysis.demo_booked;
 
+      // If Twilio already flagged this call as no_answer (e.g. voicemail picked up via AMD),
+      // don't overwrite the status based on a voicemail-greeting transcript.
+      const alreadyNoAnswer = lead.status === "no_answer";
       if (analysis.demo_booked) update.status = "demo_booked";
       else if (analysis.interest_level === "hot" || analysis.interest_level === "warm") update.status = "interested";
-      else if (analysis.interest_level === "cold") update.status = "not_interested";
+      else if (analysis.interest_level === "cold" && !alreadyNoAnswer) update.status = "not_interested";
+      else if (alreadyNoAnswer) console.info(`[retell-webhook] preserving no_answer status for lead=${lead.id}`);
     }
 
     await supabase.from("outbound_leads").update(update).eq("id", lead.id);
