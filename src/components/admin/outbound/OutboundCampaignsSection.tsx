@@ -900,6 +900,9 @@ function PromptTab() {
           <Label>Mo's callback number (E.164)</Label>
           <Input value={moPhoneNumber} onChange={e => setMoPhoneNumber(e.target.value)} placeholder="+44..."/>
           <p className="text-xs text-muted-foreground mt-1">Your callback number — shown in SMS and voicemail to prospects.</p>
+          {!moPhoneNumber && (
+            <p className="text-xs text-amber-600 mt-1">⚠️ SMS follow-ups are disabled until this number is set.</p>
+          )}
         </div>
         <div className="flex gap-2">
           <Button onClick={save} disabled={saving}><Save className="w-4 h-4 mr-1"/>Save</Button>

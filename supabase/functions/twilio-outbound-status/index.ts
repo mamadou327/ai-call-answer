@@ -76,28 +76,39 @@ Deno.serve(async (req) => {
     }
     if (Object.keys(update).length) await supabase.from("outbound_leads").update(update).eq("id", lead.id);
 
-    // Auto SMS follow-up after a no-answer when at least one prior attempt was made.
-    if (isNoAnswer && (lead.retry_count || 0) > 0 && !(lead as any).sms_sent && lead.phone_number) {
-      const { data: settings } = await supabase
-        .from("outbound_settings")
-        .select("from_number, mo_phone_number")
-        .limit(1)
-        .maybeSingle();
-      const fromNumber = (settings as any)?.from_number;
-      const moPhone = (settings as any)?.mo_phone_number;
-      if (fromNumber && moPhone) {
-        const ok = await sendFollowUpSms({
-          to: lead.phone_number,
-          from: fromNumber,
-          firstName: lead.first_name || "",
-          businessName: lead.business_name || "",
-          moPhone,
-        });
-        if (ok) {
-          await supabase.from("outbound_leads").update({ sms_sent: true }).eq("id", lead.id);
-        }
+    // Auto SMS follow-up after a no-answer.
+    if (isNoAnswer) {
+      const priorAttempts = lead.retry_count || 0;
+      if ((lead as any).sms_sent) {
+        console.info(`[twilio-outbound-status] SMS skipped lead=${lead.id} reason=already_sent status=${status}`);
+      } else if (priorAttempts < 1) {
+        console.info(`[twilio-outbound-status] SMS skipped lead=${lead.id} reason=retry_count_zero status=${status} prior_attempts=${priorAttempts}`);
+      } else if (!lead.phone_number) {
+        console.warn(`[twilio-outbound-status] SMS skipped lead=${lead.id} reason=no_phone_number`);
       } else {
-        console.warn("[twilio-outbound-status] skipping SMS — missing from_number or mo_phone_number");
+        const { data: settings } = await supabase
+          .from("outbound_settings")
+          .select("from_number, mo_phone_number")
+          .limit(1)
+          .maybeSingle();
+        const fromNumber = (settings as any)?.from_number;
+        const moPhone = (settings as any)?.mo_phone_number;
+        if (!fromNumber || !moPhone) {
+          console.warn(`[twilio-outbound-status] SMS skipped lead=${lead.id} reason=missing_settings from_number=${!!fromNumber} mo_phone_number=${!!moPhone}`);
+        } else {
+          console.info(`[twilio-outbound-status] sending SMS lead=${lead.id} to=${lead.phone_number} status=${status} prior_attempts=${priorAttempts}`);
+          const ok = await sendFollowUpSms({
+            to: lead.phone_number,
+            from: fromNumber,
+            firstName: lead.first_name || "",
+            businessName: lead.business_name || "",
+            moPhone,
+          });
+          if (ok) {
+            console.info(`[twilio-outbound-status] SMS sent lead=${lead.id}`);
+            await supabase.from("outbound_leads").update({ sms_sent: true }).eq("id", lead.id);
+          }
+        }
       }
     }
 
