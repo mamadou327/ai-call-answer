@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
         if (!fromNumber || !moPhone) {
           console.warn(`[twilio-outbound-status] SMS skipped lead=${lead.id} reason=missing_settings from_number=${!!fromNumber} mo_phone_number=${!!moPhone}`);
         } else {
-          console.info(`[twilio-outbound-status] sending SMS lead=${lead.id} to=${lead.phone_number} status=${status} prior_attempts=${priorAttempts}`);
+          console.info(`[twilio-outbound-status] sending SMS lead=${lead.id} to=${lead.phone_number} status=${status}`);
           const ok = await sendFollowUpSms({
             to: lead.phone_number,
             from: fromNumber,
