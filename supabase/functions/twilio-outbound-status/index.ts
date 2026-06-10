@@ -20,9 +20,19 @@ async function sendFollowUpSms(opts: {
   }
   const firstName = (opts.firstName || "there").trim() || "there";
   const businessName = (opts.businessName || "your business").trim() || "your business";
+
+  function formatPhone(phone: string): string {
+    const trimmed = phone.trim();
+    if (trimmed.startsWith("+44") && trimmed.length === 13) {
+      const rest = trimmed.slice(3);
+      return "0" + rest.slice(0, 4) + " " + rest.slice(4);
+    }
+    return trimmed;
+  }
+
   const body =
-    `Hi ${firstName}, I tried calling ${businessName} earlier. I'm Aria from Aivia — we've built an AI receptionist that answers every call your team misses, takes bookings and sends confirmations automatically, 24/7. ` +
-    `Most businesses lose over a third of their calls while busy and those people rarely call back. Worth a quick chat with Mo? Call ${opts.moPhone} or visit aiviaapp.co.uk`;
+    `Hi ${firstName}, I tried calling ${businessName} earlier. I'm Aria from Aivia we've built an AI receptionist that answers every call your team misses, takes bookings and sends confirmations automatically, 24/7. ` +
+    `Most businesses lose over a third of their calls while busy and those people rarely call back. Worth a quick chat with Mo? Call ${formatPhone(opts.moPhone)} or visit aiviaapp.co.uk`;
 
   const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
   const params = new URLSearchParams({ To: opts.to, From: opts.from, Body: body });
