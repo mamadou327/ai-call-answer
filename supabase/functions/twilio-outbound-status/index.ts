@@ -21,9 +21,8 @@ async function sendFollowUpSms(opts: {
   const firstName = (opts.firstName || "there").trim() || "there";
   const businessName = (opts.businessName || "your business").trim() || "your business";
   const body =
-    `Hi ${firstName}, I tried calling you earlier about how ${businessName} could stop missing calls while the team is busy. ` +
-    `Most businesses miss more than they realise — happy to show you how to fix it. ` +
-    `Call me back on ${opts.moPhone} or visit aiviaapp.co.uk — Mo from Aivia`;
+    `Hi ${firstName}, I tried calling ${businessName} earlier. I'm Aria from Aivia — we've built an AI receptionist that answers every call your team misses, takes bookings and sends confirmations automatically, 24/7. ` +
+    `Most businesses lose over a third of their calls while busy and those people rarely call back. Worth a quick chat with Mo? Call ${opts.moPhone} or visit aiviaapp.co.uk`;
 
   const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
   const params = new URLSearchParams({ To: opts.to, From: opts.from, Body: body });
