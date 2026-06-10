@@ -430,6 +430,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 {selected.interest_level && statusBadge(selected.interest_level)}
               </div>
               <div><b>Email:</b> {selected.email || "—"}</div>
+              <div><b>SMS sent:</b> {selected.sms_sent ? "Yes" : "No"}</div>
               <div><b>Existing solution:</b> {selected.existing_solution || "—"}</div>
               <div><b>Reason not interested:</b> {selected.reason_not_interested || "—"}</div>
               <div><b>Last called:</b> {selected.last_called_at ? new Date(selected.last_called_at).toLocaleString() : "—"}</div>
