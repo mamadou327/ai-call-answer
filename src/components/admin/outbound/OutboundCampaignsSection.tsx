@@ -30,6 +30,7 @@ type Lead = {
   reason_not_interested: string | null; demo_booked: boolean;
   call_duration_seconds: number | null; call_recording_url: string | null;
   call_transcript: string | null; last_called_at: string | null; created_at: string;
+  sms_sent: boolean;
 };
 type Demo = {
   id: string; lead_id: string; demo_datetime: string;
