@@ -381,6 +381,11 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 <TableCell>{l.phone_number}</TableCell>
                 <TableCell>{statusBadge(l.status)}</TableCell>
                 <TableCell>{l.interest_level ? statusBadge(l.interest_level) : "—"}</TableCell>
+                <TableCell>
+                  {l.sms_sent
+                    ? <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">Sent</Badge>
+                    : <Badge variant="outline" className="bg-muted text-muted-foreground">Not sent</Badge>}
+                </TableCell>
                 <TableCell className="max-w-[180px] truncate">{l.existing_solution || "—"}</TableCell>
                 <TableCell>{l.call_duration_seconds ? `${l.call_duration_seconds}s` : "—"}</TableCell>
                 <TableCell onClick={e => e.stopPropagation()}>
