@@ -77,6 +77,7 @@ Deno.serve(async (req) => {
           first_name: firstName,
           business_name: businessName,
           current_date: currentDate,
+          business_type: businessType,
         },
       }),
     });
