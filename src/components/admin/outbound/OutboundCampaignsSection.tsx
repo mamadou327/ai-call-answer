@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2 } from "lucide-react";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const BUSINESS_TYPES = ["salon","barbershop","restaurant","spa","clinic","trades","estate_agent","beauty","other"] as const;
+const businessTypeLabel = (v: string) => v.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
 type Campaign = {
   id: string; name: string; status: "draft" | "active" | "paused" | "completed";
