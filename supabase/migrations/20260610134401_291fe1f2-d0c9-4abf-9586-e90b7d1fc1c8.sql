@@ -1,0 +1,1 @@
+UPDATE public.outbound_leads SET call_recording_url = 'https://dxc03zgurdly9.cloudfront.net/cac71b45b29a8a36c6aa715c141f7aa3f0e3f962f5aa7aac858d5800c2f96ce5/recording.wav', call_duration_seconds = 56 WHERE id = 'c20cb85a-e354-4dec-9b34-488113619495';
