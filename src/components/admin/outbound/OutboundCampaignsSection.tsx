@@ -912,6 +912,11 @@ function PromptTab() {
             <p className="text-xs text-amber-600 mt-1">⚠️ SMS follow-ups are disabled until this number is set.</p>
           )}
         </div>
+        <div>
+          <Label>SMS Sender Name</Label>
+          <Input value={smsSenderId} onChange={e => setSmsSenderId(e.target.value)} placeholder="Aivia" maxLength={11}/>
+          <p className="text-xs text-muted-foreground mt-1">Max 11 characters, letters and numbers only. Recipients see this instead of a phone number.</p>
+        </div>
         <div className="flex gap-2">
           <Button onClick={save} disabled={saving}><Save className="w-4 h-4 mr-1"/>Save</Button>
         </div>
