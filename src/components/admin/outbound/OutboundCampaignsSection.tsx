@@ -377,6 +377,14 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
               <SelectItem value="not_sent">SMS not sent</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-48"><SelectValue/></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All business types</SelectItem>
+              <SelectItem value="none">No type set</SelectItem>
+              {BUSINESS_TYPES.map(t => <SelectItem key={t} value={t}>{businessTypeLabel(t)}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
       <CardContent>
