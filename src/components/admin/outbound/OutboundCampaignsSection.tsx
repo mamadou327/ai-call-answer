@@ -352,6 +352,14 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
               <SelectItem value="cold">Cold</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={smsFilter} onValueChange={setSmsFilter}>
+            <SelectTrigger className="w-48"><SelectValue/></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All SMS statuses</SelectItem>
+              <SelectItem value="sent">SMS sent</SelectItem>
+              <SelectItem value="not_sent">SMS not sent</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
       <CardContent>
