@@ -348,6 +348,9 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
             <Button onClick={() => setAddOpen(true)}><Plus className="w-4 h-4 mr-1"/>Add Lead</Button>
           </div>
         </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          CSV columns: <code>phone</code> (required), <code>first_name</code>, <code>business_name</code>, <code>business_type</code> (optional — one of: {BUSINESS_TYPES.join(", ")}).
+        </p>
         <div className="flex gap-2 mt-3">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-48"><SelectValue/></SelectTrigger>
