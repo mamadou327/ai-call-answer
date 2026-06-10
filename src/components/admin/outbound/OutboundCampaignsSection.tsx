@@ -30,6 +30,7 @@ type Lead = {
   reason_not_interested: string | null; demo_booked: boolean;
   call_duration_seconds: number | null; call_recording_url: string | null;
   call_transcript: string | null; last_called_at: string | null; created_at: string;
+  sms_sent: boolean;
 };
 type Demo = {
   id: string; lead_id: string; demo_datetime: string;
@@ -258,6 +259,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [interestFilter, setInterestFilter] = useState<string>("all");
+  const [smsFilter, setSmsFilter] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
   const [newLead, setNewLead] = useState({ first_name: "", business_name: "", phone_number: "" });
   const [selected, setSelected] = useState<Lead | null>(null);
@@ -272,8 +274,9 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
 
   const filtered = useMemo(() => leads.filter(l =>
     (statusFilter === "all" || l.status === statusFilter) &&
-    (interestFilter === "all" || l.interest_level === interestFilter)
-  ), [leads, statusFilter, interestFilter]);
+    (interestFilter === "all" || l.interest_level === interestFilter) &&
+    (smsFilter === "all" || (smsFilter === "sent" ? l.sms_sent : !l.sms_sent))
+  ), [leads, statusFilter, interestFilter, smsFilter]);
 
   const addLead = async () => {
     if (!newLead.phone_number.trim()) return;
@@ -349,6 +352,14 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
               <SelectItem value="cold">Cold</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={smsFilter} onValueChange={setSmsFilter}>
+            <SelectTrigger className="w-48"><SelectValue/></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All SMS statuses</SelectItem>
+              <SelectItem value="sent">SMS sent</SelectItem>
+              <SelectItem value="not_sent">SMS not sent</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
       <CardContent>
@@ -357,7 +368,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead><TableHead>Business</TableHead><TableHead>Phone</TableHead>
-              <TableHead>Status</TableHead><TableHead>Interest</TableHead>
+              <TableHead>Status</TableHead><TableHead>Interest</TableHead><TableHead>SMS</TableHead>
               <TableHead>Solution</TableHead><TableHead>Duration</TableHead>
               <TableHead>Recording</TableHead><TableHead></TableHead>
             </TableRow>
@@ -370,6 +381,11 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 <TableCell>{l.phone_number}</TableCell>
                 <TableCell>{statusBadge(l.status)}</TableCell>
                 <TableCell>{l.interest_level ? statusBadge(l.interest_level) : "—"}</TableCell>
+                <TableCell>
+                  {l.sms_sent
+                    ? <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">Sent</Badge>
+                    : <Badge variant="outline" className="bg-muted text-muted-foreground">Not sent</Badge>}
+                </TableCell>
                 <TableCell className="max-w-[180px] truncate">{l.existing_solution || "—"}</TableCell>
                 <TableCell>{l.call_duration_seconds ? `${l.call_duration_seconds}s` : "—"}</TableCell>
                 <TableCell onClick={e => e.stopPropagation()}>
@@ -381,7 +397,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
           </TableBody>
         </Table>}
       </CardContent>
@@ -414,6 +430,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 {selected.interest_level && statusBadge(selected.interest_level)}
               </div>
               <div><b>Email:</b> {selected.email || "—"}</div>
+              <div><b>SMS sent:</b> {selected.sms_sent ? "Yes" : "No"}</div>
               <div><b>Existing solution:</b> {selected.existing_solution || "—"}</div>
               <div><b>Reason not interested:</b> {selected.reason_not_interested || "—"}</div>
               <div><b>Last called:</b> {selected.last_called_at ? new Date(selected.last_called_at).toLocaleString() : "—"}</div>
