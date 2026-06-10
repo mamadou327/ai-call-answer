@@ -303,14 +303,6 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     toast({ title: "Lead deleted" });
     load();
   };
-  const deleteLead = async (id: string, name: string) => {
-    if (!confirm(`Delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
-    const { error } = await supabase.from("outbound_leads").delete().eq("id", id);
-    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Lead deleted" });
-    load();
-  };
-
 
   const importCSV = async (file: File) => {
     const text = await file.text();
@@ -318,15 +310,18 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     if (lines.length < 2) return;
     const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
     const idx = (k: string) => headers.indexOf(k);
-    const phoneI = idx("phone"); const firstI = idx("first_name"); const bizI = idx("business_name");
+    const phoneI = idx("phone"); const firstI = idx("first_name"); const bizI = idx("business_name"); const typeI = idx("business_type");
     if (phoneI < 0) { toast({ title: "CSV missing 'phone' column", variant: "destructive" }); return; }
+    const allowed = new Set<string>(BUSINESS_TYPES as readonly string[]);
     const rows = lines.slice(1).map(l => {
       const cols = l.split(",").map(c => c.trim());
+      const rawType = typeI >= 0 ? (cols[typeI] || "").toLowerCase() : "";
       return {
         campaign_id: campaign.id,
         phone_number: cols[phoneI],
         first_name: firstI >= 0 ? cols[firstI] : null,
         business_name: bizI >= 0 ? cols[bizI] : null,
+        business_type: allowed.has(rawType) ? rawType : null,
       };
     }).filter(r => r.phone_number);
     if (!rows.length) return;
