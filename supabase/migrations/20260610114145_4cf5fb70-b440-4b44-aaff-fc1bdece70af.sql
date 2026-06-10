@@ -1,0 +1,1 @@
+UPDATE outbound_settings SET sms_sender_id = 'AIVIA';
