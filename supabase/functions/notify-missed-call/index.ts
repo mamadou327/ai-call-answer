@@ -9,6 +9,16 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Internal-only: require shared secret
+  const internalSecret = Deno.env.get("CRON_SECRET");
+  const provided = req.headers.get("x-internal-secret");
+  if (!internalSecret || provided !== internalSecret) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   try {
     const body = await req.json();
     const { business_id, caller_phone, caller_name, reason, call_sid } = body;

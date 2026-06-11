@@ -524,6 +524,7 @@ Deno.serve(async (req) => {
       try {
         await supabase.functions.invoke("check-call-usage", {
           body: { businessId: business.id },
+          headers: { "x-internal-secret": Deno.env.get("CRON_SECRET") ?? "" },
         });
       } catch (e) {
         console.error("[MediaStream] check-call-usage invoke failed", e);
@@ -533,7 +534,10 @@ Deno.serve(async (req) => {
   }
   // Always run the threshold check (async-style, awaited briefly) so 75/90% notifications fire
   try {
-    supabase.functions.invoke("check-call-usage", { body: { businessId: business.id } });
+    supabase.functions.invoke("check-call-usage", {
+      body: { businessId: business.id },
+      headers: { "x-internal-secret": Deno.env.get("CRON_SECRET") ?? "" },
+    });
   } catch (_) { /* non-blocking */ }
   // ─────────────────────────────────────────────────────────────────────────
 

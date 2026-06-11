@@ -39,6 +39,16 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Internal-only: require shared secret from the caller (twilio-media-stream)
+  const internalSecret = Deno.env.get("CRON_SECRET");
+  const provided = req.headers.get("x-internal-secret");
+  if (!internalSecret || provided !== internalSecret) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
