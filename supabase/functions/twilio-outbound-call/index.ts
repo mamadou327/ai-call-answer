@@ -5,6 +5,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const getTimeOfDay = (): string => {
+  const hour = parseInt(new Date().toLocaleString("en-GB", {
+    timeZone: "Europe/London", hour: "numeric", hour12: false
+  }));
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -51,6 +60,25 @@ Deno.serve(async (req) => {
 
     const firstName = lead.first_name?.trim() || "";
     const has_name = firstName && firstName.length > 0 ? "true" : "false";
+
+    const phone = lead.phone_number || "";
+    const is_mobile = (
+      phone.startsWith("07") ||
+      phone.startsWith("+447") ||
+      phone.startsWith("447")
+    ) ? "true" : "false";
+
+    const timeOfDay = getTimeOfDay();
+
+    let open_with: string;
+    if (has_name === "true" && is_mobile === "true") {
+      open_with = `Hi ${firstName}, good ${timeOfDay} — hope I am not catching you at a bad time.`;
+    } else if (has_name === "true" && is_mobile === "false") {
+      open_with = `Hi there, could I speak with ${firstName} please?`;
+    } else {
+      open_with = `Hi there, sorry to bother you — is the owner or manager around?`;
+    }
+
     const businessName = lead.business_name || "your business";
     const businessType = (lead as any).business_type && String((lead as any).business_type).trim()
       ? String((lead as any).business_type).trim()
@@ -93,6 +121,9 @@ Deno.serve(async (req) => {
           current_date: currentDate,
           business_type: businessType,
           next_7_days: next7Days,
+          is_mobile: is_mobile,
+          open_with: open_with,
+          time_of_day: timeOfDay,
         },
       }),
     });
