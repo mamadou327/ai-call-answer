@@ -394,7 +394,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
             <TableRow>
               <TableHead>Name</TableHead><TableHead>Business</TableHead><TableHead>Type</TableHead><TableHead>Phone</TableHead>
               <TableHead>Status</TableHead><TableHead>Interest</TableHead><TableHead>SMS</TableHead>
-              <TableHead>Solution</TableHead><TableHead>Duration</TableHead>
+              <TableHead>Solution</TableHead><TableHead>Duration</TableHead><TableHead>Last called</TableHead>
               <TableHead>Recording</TableHead><TableHead></TableHead>
             </TableRow>
           </TableHeader>
@@ -414,6 +414,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </TableCell>
                 <TableCell className="max-w-[180px] truncate">{l.existing_solution || "—"}</TableCell>
                 <TableCell>{l.call_duration_seconds ? `${l.call_duration_seconds}s` : "—"}</TableCell>
+                <TableCell className="whitespace-nowrap text-xs">{l.last_called_at ? new Date(l.last_called_at).toLocaleString() : "—"}</TableCell>
                 <TableCell onClick={e => e.stopPropagation()}>
                   {l.call_recording_url ? <audio controls src={l.call_recording_url} className="h-8"/> : "—"}
                 </TableCell>
@@ -423,7 +424,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
           </TableBody>
         </Table>}
       </CardContent>
