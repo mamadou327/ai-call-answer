@@ -394,7 +394,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
             <TableRow>
               <TableHead>Name</TableHead><TableHead>Business</TableHead><TableHead>Type</TableHead><TableHead>Phone</TableHead>
               <TableHead>Status</TableHead><TableHead>Interest</TableHead><TableHead>SMS</TableHead>
-              <TableHead>Solution</TableHead><TableHead>Duration</TableHead>
+              <TableHead>Solution</TableHead><TableHead>Duration</TableHead><TableHead>Last called</TableHead>
               <TableHead>Recording</TableHead><TableHead></TableHead>
             </TableRow>
           </TableHeader>
