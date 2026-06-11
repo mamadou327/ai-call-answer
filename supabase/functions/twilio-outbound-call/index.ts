@@ -54,12 +54,24 @@ Deno.serve(async (req) => {
     const businessType = (lead as any).business_type && String((lead as any).business_type).trim()
       ? String((lead as any).business_type).trim()
       : "service business";
-    const currentDate = new Date().toLocaleDateString("en-GB", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+    const now = new Date();
+
+    const formatSpokenDate = (date: Date) =>
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/London",
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).format(date);
+
+    const currentDate = formatSpokenDate(now);
+
+    const next7Days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() + i + 1);
+      return formatSpokenDate(d);
+    }).join(" | ");
 
     // Step 1: register the call with Retell
     const retellRes = await fetch("https://api.retellai.com/v2/register-phone-call", {
@@ -78,6 +90,7 @@ Deno.serve(async (req) => {
           business_name: businessName,
           current_date: currentDate,
           business_type: businessType,
+          next_7_days: next7Days,
         },
       }),
     });
