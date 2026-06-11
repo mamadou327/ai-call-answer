@@ -121,6 +121,9 @@ Deno.serve(async (req) => {
           current_date: currentDate,
           business_type: businessType,
           next_7_days: next7Days,
+          is_mobile: is_mobile,
+          open_with: open_with,
+          time_of_day: timeOfDay,
         },
       }),
     });
