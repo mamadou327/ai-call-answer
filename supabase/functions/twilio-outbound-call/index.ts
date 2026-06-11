@@ -5,6 +5,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const getTimeOfDay = (): string => {
+  const hour = parseInt(new Date().toLocaleString("en-GB", {
+    timeZone: "Europe/London", hour: "numeric", hour12: false
+  }));
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
