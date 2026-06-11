@@ -61,17 +61,36 @@ const handler = async (req: Request): Promise<Response> => {
     const { staffEmail, staffName, businessId, businessName }: StaffInviteWithCodeRequest = await req.json();
     console.log("Request data:", { staffEmail, staffName, businessId, businessName });
 
+    // AuthZ: verify caller is the owner of this business
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const token = authHeader.replace("Bearer ", "");
+    const authClient = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: userData, error: userErr } = await authClient.auth.getUser(token);
+    if (userErr || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get or refresh the join code
+    // Verify the caller owns the business; also fetch the join code fields
     const { data: business, error: fetchError } = await supabase
       .from("businesses")
-      .select("staff_join_code, staff_join_expires_at")
+      .select("owner_id, staff_join_code, staff_join_expires_at")
       .eq("id", businessId)
       .single();
 
     if (fetchError) {
       throw new Error(`Failed to fetch business: ${fetchError.message}`);
+    }
+
+    if (!business || business.owner_id !== userData.user.id) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
     }
 
     let joinCode = business?.staff_join_code;
