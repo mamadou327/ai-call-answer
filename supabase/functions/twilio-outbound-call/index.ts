@@ -88,6 +88,7 @@ Deno.serve(async (req) => {
         sample_rate: 8000,
         retell_llm_dynamic_variables: {
           first_name: firstName,
+          has_name: has_name,
           business_name: businessName,
           current_date: currentDate,
           business_type: businessType,
