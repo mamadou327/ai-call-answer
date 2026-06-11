@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
     }
 
     const firstName = lead.first_name || "there";
+    const has_name = firstName && firstName.trim().length > 0 && firstName !== "there" ? "true" : "false";
     const businessName = lead.business_name || "your business";
     const businessType = (lead as any).business_type && String((lead as any).business_type).trim()
       ? String((lead as any).business_type).trim()
