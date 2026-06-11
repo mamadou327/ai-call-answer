@@ -414,6 +414,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </TableCell>
                 <TableCell className="max-w-[180px] truncate">{l.existing_solution || "—"}</TableCell>
                 <TableCell>{l.call_duration_seconds ? `${l.call_duration_seconds}s` : "—"}</TableCell>
+                <TableCell className="whitespace-nowrap text-xs">{l.last_called_at ? new Date(l.last_called_at).toLocaleString() : "—"}</TableCell>
                 <TableCell onClick={e => e.stopPropagation()}>
                   {l.call_recording_url ? <audio controls src={l.call_recording_url} className="h-8"/> : "—"}
                 </TableCell>
