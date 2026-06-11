@@ -49,8 +49,8 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "No retell_agent_id configured in outbound_settings (Retell Settings tab)" }), { status: 400, headers: corsHeaders });
     }
 
-    const firstName = lead.first_name || "there";
-    const has_name = firstName && firstName.trim().length > 0 && firstName !== "there" ? "true" : "false";
+    const firstName = lead.first_name?.trim() || "";
+    const has_name = firstName && firstName.length > 0 ? "true" : "false";
     const businessName = lead.business_name || "your business";
     const businessType = (lead as any).business_type && String((lead as any).business_type).trim()
       ? String((lead as any).business_type).trim()
