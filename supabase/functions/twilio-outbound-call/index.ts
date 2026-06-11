@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
     }
 
     const firstName = lead.first_name || "there";
+    const has_name = firstName && firstName.trim().length > 0 && firstName !== "there" ? "true" : "false";
     const businessName = lead.business_name || "your business";
     const businessType = (lead as any).business_type && String((lead as any).business_type).trim()
       ? String((lead as any).business_type).trim()
@@ -87,6 +88,7 @@ Deno.serve(async (req) => {
         sample_rate: 8000,
         retell_llm_dynamic_variables: {
           first_name: firstName,
+          has_name: has_name,
           business_name: businessName,
           current_date: currentDate,
           business_type: businessType,
