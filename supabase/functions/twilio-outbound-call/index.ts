@@ -60,6 +60,25 @@ Deno.serve(async (req) => {
 
     const firstName = lead.first_name?.trim() || "";
     const has_name = firstName && firstName.length > 0 ? "true" : "false";
+
+    const phone = lead.phone_number || "";
+    const is_mobile = (
+      phone.startsWith("07") ||
+      phone.startsWith("+447") ||
+      phone.startsWith("447")
+    ) ? "true" : "false";
+
+    const timeOfDay = getTimeOfDay();
+
+    let open_with: string;
+    if (has_name === "true" && is_mobile === "true") {
+      open_with = `Hi ${firstName}, good ${timeOfDay} — hope I am not catching you at a bad time.`;
+    } else if (has_name === "true" && is_mobile === "false") {
+      open_with = `Hi there, could I speak with ${firstName} please?`;
+    } else {
+      open_with = `Hi there, sorry to bother you — is the owner or manager around?`;
+    }
+
     const businessName = lead.business_name || "your business";
     const businessType = (lead as any).business_type && String((lead as any).business_type).trim()
       ? String((lead as any).business_type).trim()
