@@ -74,6 +74,89 @@ const statusBadge = (status: string) => {
   return <Badge variant="outline" className={map[status] || ""}>{status.replace(/_/g, " ")}</Badge>;
 };
 
+// Format a timestamp in Europe/London
+const fmtLondon = (iso?: string | null) => {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleString("en-GB", { timeZone: "Europe/London" });
+  } catch { return iso; }
+};
+
+function EmailStatsBar({ leads }: { leads: any[] }) {
+  const total = leads.length;
+  const withEmail = leads.filter(l => l.email).length;
+  let sentCount = 0;
+  let openedLeads = 0;
+  let repliedLeads = 0;
+  leads.forEach(l => {
+    [1, 2, 3].forEach(n => {
+      const s = l[`email${n}_status`];
+      if (s === "sent" || s === "opened" || s === "replied") sentCount++;
+    });
+    if (l.email1_opened_at || l.email2_opened_at || l.email3_opened_at) openedLeads++;
+    if (l.sequence_status === "responded") repliedLeads++;
+  });
+  const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0);
+  return (
+    <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+      <span><b className="text-foreground">{withEmail}</b> with email</span>
+      <span><b className="text-foreground">{sentCount}</b> emails sent</span>
+      <span><b className="text-foreground">{openedLeads}</b> opened ({pct(openedLeads, withEmail)}%)</span>
+      <span><b className="text-foreground">{repliedLeads}</b> replied ({pct(repliedLeads, withEmail)}%)</span>
+    </div>
+  );
+}
+
+function EmailDot({ status, ts, label }: { status: string; ts?: string | null; label: string }) {
+  const color: Record<string, string> = {
+    pending: "bg-muted-foreground/30",
+    sent: "bg-blue-500",
+    opened: "bg-purple-500",
+    replied: "bg-green-500",
+    bounced: "bg-red-500",
+    failed: "bg-red-500",
+    complained: "bg-red-500",
+  };
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={`inline-block w-2.5 h-2.5 rounded-full ${color[status] || "bg-muted-foreground/30"}`} />
+        </TooltipTrigger>
+        <TooltipContent>
+          <div className="text-xs">{label}: {status}{ts ? ` · ${fmtLondon(ts)}` : ""}</div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function EmailDots({ lead }: { lead: any }) {
+  if (!lead.email) return <span className="text-xs text-muted-foreground">—</span>;
+  const dotFor = (n: number) => {
+    const status = lead[`email${n}_status`] || "pending";
+    const ts = lead[`email${n}_opened_at`] || lead[`email${n}_sent_at`];
+    return <EmailDot key={n} status={status} ts={ts} label={`Email ${n}`} />;
+  };
+  return (
+    <div className="flex items-center gap-1.5">
+      {[1, 2, 3].map(dotFor)}
+      {lead.sequence_status === "responded" && (
+        <Badge variant="outline" className="ml-1 bg-green-100 text-green-800 border-green-300 text-[10px]">replied</Badge>
+      )}
+    </div>
+  );
+}
+
+async function markLeadReplied(leadId: string) {
+  await supabase
+    .from("outbound_leads")
+    .update({ sequence_status: "responded", status: "interested" })
+    .eq("id", leadId);
+}
+
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CAMPAIGNS TAB
 // ─────────────────────────────────────────────────────────────────────────────
