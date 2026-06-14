@@ -357,7 +357,10 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           </div>
         </div>
         <p className="text-xs text-muted-foreground mt-2">
-          CSV columns: <code>phone</code> (required), <code>first_name</code>, <code>business_name</code>, <code>business_type</code> (optional — one of: {BUSINESS_TYPES.join(", ")}).
+          CSV columns: <code>phone</code> (required), <code>first_name</code>, <code>business_name</code>, <code>business_type</code>, <code>email</code> (all optional).
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Leads with email addresses will receive the email sequence. Leads without will be called only.
         </p>
         <div className="flex gap-2 mt-3">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
