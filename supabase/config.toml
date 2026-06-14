@@ -195,3 +195,12 @@ verify_jwt = false
 [functions.check-demo-availability]
 verify_jwt = false
 
+
+[functions.send-outbound-emails]
+verify_jwt = false
+
+[functions.track-email-open]
+verify_jwt = false
+
+[functions.check-email-replies]
+verify_jwt = false

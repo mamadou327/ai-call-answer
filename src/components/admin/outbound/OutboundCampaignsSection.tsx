@@ -12,7 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2 } from "lucide-react";
+import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2, CheckCircle2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { EmailSequencePanel } from "./EmailSequencePanel";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const BUSINESS_TYPES = ["salon","barbershop","restaurant","spa","clinic","trades","estate_agent","beauty","other"] as const;
@@ -34,6 +36,10 @@ type Lead = {
   call_transcript: string | null; last_called_at: string | null; created_at: string;
   sms_sent: boolean;
   business_type: string | null;
+  email1_status?: string | null; email1_sent_at?: string | null; email1_opened_at?: string | null;
+  email2_status?: string | null; email2_sent_at?: string | null; email2_opened_at?: string | null;
+  email3_status?: string | null; email3_sent_at?: string | null; email3_opened_at?: string | null;
+  sequence_status?: string | null; sequence_step?: number | null;
 };
 type Demo = {
   id: string; lead_id: string; demo_datetime: string;
@@ -67,6 +73,89 @@ const statusBadge = (status: string) => {
   };
   return <Badge variant="outline" className={map[status] || ""}>{status.replace(/_/g, " ")}</Badge>;
 };
+
+// Format a timestamp in Europe/London
+const fmtLondon = (iso?: string | null) => {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleString("en-GB", { timeZone: "Europe/London" });
+  } catch { return iso; }
+};
+
+function EmailStatsBar({ leads }: { leads: any[] }) {
+  const total = leads.length;
+  const withEmail = leads.filter(l => l.email).length;
+  let sentCount = 0;
+  let openedLeads = 0;
+  let repliedLeads = 0;
+  leads.forEach(l => {
+    [1, 2, 3].forEach(n => {
+      const s = l[`email${n}_status`];
+      if (s === "sent" || s === "opened" || s === "replied") sentCount++;
+    });
+    if (l.email1_opened_at || l.email2_opened_at || l.email3_opened_at) openedLeads++;
+    if (l.sequence_status === "responded") repliedLeads++;
+  });
+  const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0);
+  return (
+    <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+      <span><b className="text-foreground">{withEmail}</b> with email</span>
+      <span><b className="text-foreground">{sentCount}</b> emails sent</span>
+      <span><b className="text-foreground">{openedLeads}</b> opened ({pct(openedLeads, withEmail)}%)</span>
+      <span><b className="text-foreground">{repliedLeads}</b> replied ({pct(repliedLeads, withEmail)}%)</span>
+    </div>
+  );
+}
+
+function EmailDot({ status, ts, label }: { status: string; ts?: string | null; label: string }) {
+  const color: Record<string, string> = {
+    pending: "bg-muted-foreground/30",
+    sent: "bg-blue-500",
+    opened: "bg-purple-500",
+    replied: "bg-green-500",
+    bounced: "bg-red-500",
+    failed: "bg-red-500",
+    complained: "bg-red-500",
+  };
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={`inline-block w-2.5 h-2.5 rounded-full ${color[status] || "bg-muted-foreground/30"}`} />
+        </TooltipTrigger>
+        <TooltipContent>
+          <div className="text-xs">{label}: {status}{ts ? ` · ${fmtLondon(ts)}` : ""}</div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function EmailDots({ lead }: { lead: any }) {
+  if (!lead.email) return <span className="text-xs text-muted-foreground">—</span>;
+  const dotFor = (n: number) => {
+    const status = lead[`email${n}_status`] || "pending";
+    const ts = lead[`email${n}_opened_at`] || lead[`email${n}_sent_at`];
+    return <EmailDot key={n} status={status} ts={ts} label={`Email ${n}`} />;
+  };
+  return (
+    <div className="flex items-center gap-1.5">
+      {[1, 2, 3].map(dotFor)}
+      {lead.sequence_status === "responded" && (
+        <Badge variant="outline" className="ml-1 bg-green-100 text-green-800 border-green-300 text-[10px]">replied</Badge>
+      )}
+    </div>
+  );
+}
+
+async function markLeadReplied(leadId: string) {
+  await supabase
+    .from("outbound_leads")
+    .update({ sequence_status: "responded", status: "interested" })
+    .eq("id", leadId);
+}
+
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CAMPAIGNS TAB
@@ -265,7 +354,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const [smsFilter, setSmsFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
-  const [newLead, setNewLead] = useState<{ first_name: string; business_name: string; phone_number: string; business_type: string }>({ first_name: "", business_name: "", phone_number: "", business_type: "" });
+  const [newLead, setNewLead] = useState<{ first_name: string; business_name: string; phone_number: string; business_type: string; email: string }>({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" });
   const [selected, setSelected] = useState<Lead | null>(null);
 
   const load = async () => {
@@ -290,11 +379,12 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
       business_name: newLead.business_name || null,
       phone_number: newLead.phone_number,
       business_type: newLead.business_type || null,
+      email: newLead.email || null,
       campaign_id: campaign.id,
     };
     const { error } = await supabase.from("outbound_leads").insert(payload);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "" }); load(); }
+    else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" }); load(); }
   };
   const deleteLead = async (id: string, name: string) => {
     if (!confirm(`Delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
@@ -310,18 +400,20 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     if (lines.length < 2) return;
     const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
     const idx = (k: string) => headers.indexOf(k);
-    const phoneI = idx("phone"); const firstI = idx("first_name"); const bizI = idx("business_name"); const typeI = idx("business_type");
+    const phoneI = idx("phone"); const firstI = idx("first_name"); const bizI = idx("business_name"); const typeI = idx("business_type"); const emailI = idx("email");
     if (phoneI < 0) { toast({ title: "CSV missing 'phone' column", variant: "destructive" }); return; }
     const allowed = new Set<string>(BUSINESS_TYPES as readonly string[]);
     const rows = lines.slice(1).map(l => {
       const cols = l.split(",").map(c => c.trim());
       const rawType = typeI >= 0 ? (cols[typeI] || "").toLowerCase() : "";
+      const emailVal = emailI >= 0 ? (cols[emailI] || "").trim() : "";
       return {
         campaign_id: campaign.id,
         phone_number: cols[phoneI],
         first_name: firstI >= 0 ? cols[firstI] : null,
         business_name: bizI >= 0 ? cols[bizI] : null,
         business_type: allowed.has(rawType) ? rawType : null,
+        email: emailVal || null,
       };
     }).filter(r => r.phone_number);
     if (!rows.length) return;
@@ -337,6 +429,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           <div>
             <Button variant="ghost" size="sm" onClick={onBack}><ChevronLeft className="w-4 h-4 mr-1"/>Back to campaigns</Button>
             <CardTitle className="mt-2">{campaign.name} — Leads</CardTitle>
+            <EmailStatsBar leads={leads} />
           </div>
           <div className="flex gap-2">
             <label className="inline-flex items-center">
@@ -348,8 +441,21 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
             <Button onClick={() => setAddOpen(true)}><Plus className="w-4 h-4 mr-1"/>Add Lead</Button>
           </div>
         </div>
+        <div className="mt-3">
+          <EmailSequencePanel
+            campaignId={campaign.id}
+            eligibleCounts={{
+              1: leads.filter(l => l.email && (l.sequence_status ?? "active") === "active" && (l.email1_status ?? "pending") === "pending").length,
+              2: leads.filter(l => l.email && (l.sequence_status ?? "active") === "active" && (l.email2_status ?? "pending") === "pending").length,
+              3: leads.filter(l => l.email && (l.sequence_status ?? "active") === "active" && (l.email3_status ?? "pending") === "pending").length,
+            }}
+          />
+        </div>
         <p className="text-xs text-muted-foreground mt-2">
-          CSV columns: <code>phone</code> (required), <code>first_name</code>, <code>business_name</code>, <code>business_type</code> (optional — one of: {BUSINESS_TYPES.join(", ")}).
+          CSV columns: <code>phone</code> (required), <code>first_name</code>, <code>business_name</code>, <code>business_type</code>, <code>email</code> (all optional).
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Leads with email addresses will receive the email sequence. Leads without will be called only.
         </p>
         <div className="flex gap-2 mt-3">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -393,6 +499,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead><TableHead>Business</TableHead><TableHead>Type</TableHead><TableHead>Phone</TableHead>
+              <TableHead>Email</TableHead><TableHead>Seq</TableHead>
               <TableHead>Status</TableHead><TableHead>Interest</TableHead><TableHead>SMS</TableHead>
               <TableHead>Solution</TableHead><TableHead>Duration</TableHead><TableHead>Last called</TableHead>
               <TableHead>Recording</TableHead><TableHead></TableHead>
@@ -405,6 +512,8 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 <TableCell>{l.business_name || "—"}</TableCell>
                 <TableCell>{l.business_type ? <Badge variant="outline" className="text-xs">{businessTypeLabel(l.business_type)}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
                 <TableCell>{l.phone_number}</TableCell>
+                <TableCell className="max-w-[160px] truncate" title={l.email || ""}>{l.email || <span className="text-muted-foreground">—</span>}</TableCell>
+                <TableCell onClick={e => e.stopPropagation()}><EmailDots lead={l} /></TableCell>
                 <TableCell>{statusBadge(l.status)}</TableCell>
                 <TableCell>{l.interest_level ? statusBadge(l.interest_level) : "—"}</TableCell>
                 <TableCell>
@@ -420,11 +529,16 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </TableCell>
                 <TableCell onClick={e => e.stopPropagation()} className="space-x-1">
                   {l.call_transcript && <Button size="sm" variant="ghost" onClick={() => setSelected(l)}><FileText className="w-4 h-4"/></Button>}
+                  {l.email && l.sequence_status !== "responded" && (
+                    <Button size="sm" variant="ghost" title="Mark replied" onClick={async () => { await markLeadReplied(l.id); load(); }}>
+                      <CheckCircle2 className="w-4 h-4 text-green-600"/>
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => deleteLead(l.id, l.first_name || l.business_name || l.phone_number)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={14} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
           </TableBody>
         </Table>}
       </CardContent>
@@ -436,6 +550,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
             <div><Label>First name</Label><Input value={newLead.first_name} onChange={e => setNewLead({...newLead, first_name: e.target.value})}/></div>
             <div><Label>Business name</Label><Input value={newLead.business_name} onChange={e => setNewLead({...newLead, business_name: e.target.value})}/></div>
             <div><Label>Phone (E.164)</Label><Input value={newLead.phone_number} onChange={e => setNewLead({...newLead, phone_number: e.target.value})} placeholder="+447..."/></div>
+            <div><Label>Email (optional)</Label><Input type="email" value={newLead.email} onChange={e => setNewLead({...newLead, email: e.target.value})} placeholder="owner@business.com"/></div>
             <div>
               <Label>Business type</Label>
               <Select value={newLead.business_type || "__none"} onValueChange={v => setNewLead({...newLead, business_type: v === "__none" ? "" : v})}>
@@ -467,6 +582,28 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 {selected.interest_level && statusBadge(selected.interest_level)}
               </div>
               <div><b>Email:</b> {selected.email || "—"}</div>
+              <div><b>Sequence:</b> {selected.sequence_status || "active"} (step {selected.sequence_step || 0})</div>
+              <div className="border rounded-md p-2 space-y-1 bg-muted/30">
+                <div className="font-medium text-xs uppercase text-muted-foreground">Email sequence timeline</div>
+                {[1,2,3].map(n => {
+                  const status = (selected as any)[`email${n}_status`] || "pending";
+                  const sent = (selected as any)[`email${n}_sent_at`];
+                  const opened = (selected as any)[`email${n}_opened_at`];
+                  return (
+                    <div key={n} className="flex items-center gap-2 text-xs">
+                      <EmailDot status={status} ts={opened || sent} label={`Email ${n}`} />
+                      <span>Email {n}: {status}</span>
+                      {sent && <span className="text-muted-foreground">· sent {fmtLondon(sent)}</span>}
+                      {opened && <span className="text-muted-foreground">· opened {fmtLondon(opened)}</span>}
+                    </div>
+                  );
+                })}
+                {selected.email && selected.sequence_status !== "responded" && (
+                  <Button size="sm" variant="outline" className="mt-2" onClick={async () => { await markLeadReplied(selected.id); setSelected(null); load(); }}>
+                    <CheckCircle2 className="w-3 h-3 mr-1"/>Mark replied
+                  </Button>
+                )}
+              </div>
               <div><b>SMS sent:</b> {selected.sms_sent ? "Yes" : "No"}</div>
               <div><b>Existing solution:</b> {selected.existing_solution || "—"}</div>
               <div><b>Reason not interested:</b> {selected.reason_not_interested || "—"}</div>

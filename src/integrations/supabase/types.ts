@@ -1932,6 +1932,107 @@ export type Database = {
           },
         ]
       }
+      outbound_email_log: {
+        Row: {
+          campaign_id: string | null
+          id: string
+          lead_id: string | null
+          message_id: string | null
+          opened_at: string | null
+          replied_at: string | null
+          resend_email_id: string | null
+          sent_at: string
+          status: string | null
+          step_number: number | null
+          subject: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          id?: string
+          lead_id?: string | null
+          message_id?: string | null
+          opened_at?: string | null
+          replied_at?: string | null
+          resend_email_id?: string | null
+          sent_at?: string
+          status?: string | null
+          step_number?: number | null
+          subject?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          id?: string
+          lead_id?: string | null
+          message_id?: string | null
+          opened_at?: string | null
+          replied_at?: string | null
+          resend_email_id?: string | null
+          sent_at?: string
+          status?: string | null
+          step_number?: number | null
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbound_email_log_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbound_email_log_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outbound_email_templates: {
+        Row: {
+          body_html: string
+          campaign_id: string
+          created_at: string
+          delay_days: number | null
+          id: string
+          is_reply: boolean | null
+          step_number: number
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          body_html: string
+          campaign_id: string
+          created_at?: string
+          delay_days?: number | null
+          id?: string
+          is_reply?: boolean | null
+          step_number: number
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          body_html?: string
+          campaign_id?: string
+          created_at?: string
+          delay_days?: number | null
+          id?: string
+          is_reply?: boolean | null
+          step_number?: number
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbound_email_templates_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outbound_leads: {
         Row: {
           business_name: string | null
@@ -1943,6 +2044,15 @@ export type Database = {
           created_at: string
           demo_booked: boolean
           email: string | null
+          email1_opened_at: string | null
+          email1_sent_at: string | null
+          email1_status: string | null
+          email2_opened_at: string | null
+          email2_sent_at: string | null
+          email2_status: string | null
+          email3_opened_at: string | null
+          email3_sent_at: string | null
+          email3_status: string | null
           existing_solution: string | null
           first_name: string | null
           id: string
@@ -1955,6 +2065,8 @@ export type Database = {
           reason_not_interested: string | null
           retell_call_id: string | null
           retry_count: number
+          sequence_status: string | null
+          sequence_step: number | null
           sms_sent: boolean
           status: Database["public"]["Enums"]["outbound_lead_status"]
           twilio_call_sid: string | null
@@ -1969,6 +2081,15 @@ export type Database = {
           created_at?: string
           demo_booked?: boolean
           email?: string | null
+          email1_opened_at?: string | null
+          email1_sent_at?: string | null
+          email1_status?: string | null
+          email2_opened_at?: string | null
+          email2_sent_at?: string | null
+          email2_status?: string | null
+          email3_opened_at?: string | null
+          email3_sent_at?: string | null
+          email3_status?: string | null
           existing_solution?: string | null
           first_name?: string | null
           id?: string
@@ -1981,6 +2102,8 @@ export type Database = {
           reason_not_interested?: string | null
           retell_call_id?: string | null
           retry_count?: number
+          sequence_status?: string | null
+          sequence_step?: number | null
           sms_sent?: boolean
           status?: Database["public"]["Enums"]["outbound_lead_status"]
           twilio_call_sid?: string | null
@@ -1995,6 +2118,15 @@ export type Database = {
           created_at?: string
           demo_booked?: boolean
           email?: string | null
+          email1_opened_at?: string | null
+          email1_sent_at?: string | null
+          email1_status?: string | null
+          email2_opened_at?: string | null
+          email2_sent_at?: string | null
+          email2_status?: string | null
+          email3_opened_at?: string | null
+          email3_sent_at?: string | null
+          email3_status?: string | null
           existing_solution?: string | null
           first_name?: string | null
           id?: string
@@ -2007,6 +2139,8 @@ export type Database = {
           reason_not_interested?: string | null
           retell_call_id?: string | null
           retry_count?: number
+          sequence_status?: string | null
+          sequence_step?: number | null
           sms_sent?: boolean
           status?: Database["public"]["Enums"]["outbound_lead_status"]
           twilio_call_sid?: string | null
