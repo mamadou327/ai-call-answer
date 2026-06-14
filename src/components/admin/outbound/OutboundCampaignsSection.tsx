@@ -550,6 +550,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
             <div><Label>First name</Label><Input value={newLead.first_name} onChange={e => setNewLead({...newLead, first_name: e.target.value})}/></div>
             <div><Label>Business name</Label><Input value={newLead.business_name} onChange={e => setNewLead({...newLead, business_name: e.target.value})}/></div>
             <div><Label>Phone (E.164)</Label><Input value={newLead.phone_number} onChange={e => setNewLead({...newLead, phone_number: e.target.value})} placeholder="+447..."/></div>
+            <div><Label>Email (optional)</Label><Input type="email" value={newLead.email} onChange={e => setNewLead({...newLead, email: e.target.value})} placeholder="owner@business.com"/></div>
             <div>
               <Label>Business type</Label>
               <Select value={newLead.business_type || "__none"} onValueChange={v => setNewLead({...newLead, business_type: v === "__none" ? "" : v})}>
