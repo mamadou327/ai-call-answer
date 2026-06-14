@@ -345,6 +345,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           <div>
             <Button variant="ghost" size="sm" onClick={onBack}><ChevronLeft className="w-4 h-4 mr-1"/>Back to campaigns</Button>
             <CardTitle className="mt-2">{campaign.name} — Leads</CardTitle>
+            <EmailStatsBar leads={leads} />
           </div>
           <div className="flex gap-2">
             <label className="inline-flex items-center">
