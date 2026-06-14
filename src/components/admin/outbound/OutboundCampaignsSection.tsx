@@ -379,11 +379,12 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
       business_name: newLead.business_name || null,
       phone_number: newLead.phone_number,
       business_type: newLead.business_type || null,
+      email: newLead.email || null,
       campaign_id: campaign.id,
     };
     const { error } = await supabase.from("outbound_leads").insert(payload);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "" }); load(); }
+    else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" }); load(); }
   };
   const deleteLead = async (id: string, name: string) => {
     if (!confirm(`Delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
