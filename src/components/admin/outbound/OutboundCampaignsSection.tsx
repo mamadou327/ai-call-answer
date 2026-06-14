@@ -580,6 +580,28 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 {selected.interest_level && statusBadge(selected.interest_level)}
               </div>
               <div><b>Email:</b> {selected.email || "—"}</div>
+              <div><b>Sequence:</b> {selected.sequence_status || "active"} (step {selected.sequence_step || 0})</div>
+              <div className="border rounded-md p-2 space-y-1 bg-muted/30">
+                <div className="font-medium text-xs uppercase text-muted-foreground">Email sequence timeline</div>
+                {[1,2,3].map(n => {
+                  const status = (selected as any)[`email${n}_status`] || "pending";
+                  const sent = (selected as any)[`email${n}_sent_at`];
+                  const opened = (selected as any)[`email${n}_opened_at`];
+                  return (
+                    <div key={n} className="flex items-center gap-2 text-xs">
+                      <EmailDot status={status} ts={opened || sent} label={`Email ${n}`} />
+                      <span>Email {n}: {status}</span>
+                      {sent && <span className="text-muted-foreground">· sent {fmtLondon(sent)}</span>}
+                      {opened && <span className="text-muted-foreground">· opened {fmtLondon(opened)}</span>}
+                    </div>
+                  );
+                })}
+                {selected.email && selected.sequence_status !== "responded" && (
+                  <Button size="sm" variant="outline" className="mt-2" onClick={async () => { await markLeadReplied(selected.id); setSelected(null); load(); }}>
+                    <CheckCircle2 className="w-3 h-3 mr-1"/>Mark replied
+                  </Button>
+                )}
+              </div>
               <div><b>SMS sent:</b> {selected.sms_sent ? "Yes" : "No"}</div>
               <div><b>Existing solution:</b> {selected.existing_solution || "—"}</div>
               <div><b>Reason not interested:</b> {selected.reason_not_interested || "—"}</div>
