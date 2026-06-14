@@ -498,6 +498,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead><TableHead>Business</TableHead><TableHead>Type</TableHead><TableHead>Phone</TableHead>
+              <TableHead>Email</TableHead><TableHead>Seq</TableHead>
               <TableHead>Status</TableHead><TableHead>Interest</TableHead><TableHead>SMS</TableHead>
               <TableHead>Solution</TableHead><TableHead>Duration</TableHead><TableHead>Last called</TableHead>
               <TableHead>Recording</TableHead><TableHead></TableHead>
@@ -510,6 +511,8 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 <TableCell>{l.business_name || "—"}</TableCell>
                 <TableCell>{l.business_type ? <Badge variant="outline" className="text-xs">{businessTypeLabel(l.business_type)}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
                 <TableCell>{l.phone_number}</TableCell>
+                <TableCell className="max-w-[160px] truncate" title={l.email || ""}>{l.email || <span className="text-muted-foreground">—</span>}</TableCell>
+                <TableCell onClick={e => e.stopPropagation()}><EmailDots lead={l} /></TableCell>
                 <TableCell>{statusBadge(l.status)}</TableCell>
                 <TableCell>{l.interest_level ? statusBadge(l.interest_level) : "—"}</TableCell>
                 <TableCell>
@@ -525,11 +528,16 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </TableCell>
                 <TableCell onClick={e => e.stopPropagation()} className="space-x-1">
                   {l.call_transcript && <Button size="sm" variant="ghost" onClick={() => setSelected(l)}><FileText className="w-4 h-4"/></Button>}
+                  {l.email && l.sequence_status !== "responded" && (
+                    <Button size="sm" variant="ghost" title="Mark replied" onClick={async () => { await markLeadReplied(l.id); load(); }}>
+                      <CheckCircle2 className="w-4 h-4 text-green-600"/>
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => deleteLead(l.id, l.first_name || l.business_name || l.phone_number)}><Trash2 className="w-4 h-4"/></Button>
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={14} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
           </TableBody>
         </Table>}
       </CardContent>
