@@ -357,6 +357,16 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
             <Button onClick={() => setAddOpen(true)}><Plus className="w-4 h-4 mr-1"/>Add Lead</Button>
           </div>
         </div>
+        <div className="mt-3">
+          <EmailSequencePanel
+            campaignId={campaign.id}
+            eligibleCounts={{
+              1: leads.filter(l => l.email && (l.sequence_status ?? "active") === "active" && (l.email1_status ?? "pending") === "pending").length,
+              2: leads.filter(l => l.email && (l.sequence_status ?? "active") === "active" && (l.email2_status ?? "pending") === "pending").length,
+              3: leads.filter(l => l.email && (l.sequence_status ?? "active") === "active" && (l.email3_status ?? "pending") === "pending").length,
+            }}
+          />
+        </div>
         <p className="text-xs text-muted-foreground mt-2">
           CSV columns: <code>phone</code> (required), <code>first_name</code>, <code>business_name</code>, <code>business_type</code>, <code>email</code> (all optional).
         </p>
