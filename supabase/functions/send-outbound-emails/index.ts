@@ -37,10 +37,26 @@ Deno.serve(async (req) => {
       .eq("step_number", step_number)
       .maybeSingle();
     if (tErr || !template) {
-      return new Response(JSON.stringify({ error: "Template not found for this step" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: `No email template saved for Step ${step_number}. Open the Email Sequence panel, fill in the subject and body, click Save, then try again.`,
+        }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+    if (!template.subject?.trim() || !template.body_html?.trim()) {
+      return new Response(
+        JSON.stringify({
+          error: `Step ${step_number} template is missing a subject or body. Edit the Email Sequence panel and save before sending.`,
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const stepCol = `email${step_number}_status`;
