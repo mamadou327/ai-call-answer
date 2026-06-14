@@ -34,6 +34,10 @@ type Lead = {
   call_transcript: string | null; last_called_at: string | null; created_at: string;
   sms_sent: boolean;
   business_type: string | null;
+  email1_status?: string | null; email1_sent_at?: string | null; email1_opened_at?: string | null;
+  email2_status?: string | null; email2_sent_at?: string | null; email2_opened_at?: string | null;
+  email3_status?: string | null; email3_sent_at?: string | null; email3_opened_at?: string | null;
+  sequence_status?: string | null; sequence_step?: number | null;
 };
 type Demo = {
   id: string; lead_id: string; demo_datetime: string;
