@@ -316,18 +316,20 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     if (lines.length < 2) return;
     const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
     const idx = (k: string) => headers.indexOf(k);
-    const phoneI = idx("phone"); const firstI = idx("first_name"); const bizI = idx("business_name"); const typeI = idx("business_type");
+    const phoneI = idx("phone"); const firstI = idx("first_name"); const bizI = idx("business_name"); const typeI = idx("business_type"); const emailI = idx("email");
     if (phoneI < 0) { toast({ title: "CSV missing 'phone' column", variant: "destructive" }); return; }
     const allowed = new Set<string>(BUSINESS_TYPES as readonly string[]);
     const rows = lines.slice(1).map(l => {
       const cols = l.split(",").map(c => c.trim());
       const rawType = typeI >= 0 ? (cols[typeI] || "").toLowerCase() : "";
+      const emailVal = emailI >= 0 ? (cols[emailI] || "").trim() : "";
       return {
         campaign_id: campaign.id,
         phone_number: cols[phoneI],
         first_name: firstI >= 0 ? cols[firstI] : null,
         business_name: bizI >= 0 ? cols[bizI] : null,
         business_type: allowed.has(rawType) ? rawType : null,
+        email: emailVal || null,
       };
     }).filter(r => r.phone_number);
     if (!rows.length) return;
