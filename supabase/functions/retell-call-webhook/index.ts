@@ -212,10 +212,21 @@ Deno.serve(async (req) => {
       // If Twilio already flagged this call as no_answer (e.g. voicemail picked up via AMD),
       // don't overwrite the status based on a voicemail-greeting transcript.
       const alreadyNoAnswer = lead.status === "no_answer";
-      if (analysis.demo_booked) update.status = "demo_booked";
-      else if (analysis.interest_level === "hot" || analysis.interest_level === "warm") update.status = "interested";
-      else if (analysis.interest_level === "cold" && !alreadyNoAnswer) update.status = "not_interested";
-      else if (alreadyNoAnswer) console.info(`[retell-webhook] preserving no_answer status for lead=${lead.id}`);
+      if (analysis.demo_booked) {
+        update.status = "demo_booked";
+        update.sequence_status = "demo_booked";
+      } else if (analysis.interest_level === "hot" || analysis.interest_level === "warm") {
+        update.status = "interested";
+      } else if (analysis.interest_level === "cold" && !alreadyNoAnswer) {
+        update.status = "not_interested";
+        update.sequence_status = "not_interested";
+      } else if (alreadyNoAnswer) {
+        console.info(`[retell-webhook] preserving no_answer status for lead=${lead.id}`);
+      }
+      if (analysis.do_not_call) {
+        update.status = "do_not_call";
+        update.sequence_status = "do_not_call";
+      }
     }
 
     await supabase.from("outbound_leads").update(update).eq("id", lead.id);
