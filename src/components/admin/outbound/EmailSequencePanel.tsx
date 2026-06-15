@@ -202,7 +202,7 @@ export function EmailSequencePanel({ campaignId, eligibleCounts }: { campaignId:
                       onChange={(e) => update(n, { body_html: e.target.value })}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Variables: <code>{`{{first_name}}`}</code>, <code>{`{{business_name}}`}</code>, <code>{`{{business_type}}`}</code>
+                      Variables: <code>{`{{first_name}}`}</code>, <code>{`{{business_name}}`}</code>, <code>{`{{business_type}}`}</code>, <code>{`{{business_type_plural}}`}</code>
                     </p>
                   </div>
                   <div className="flex gap-4 items-center">
