@@ -18,7 +18,18 @@ import { EmailSequencePanel } from "./EmailSequencePanel";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const BUSINESS_TYPES = ["salon","barbershop","restaurant","spa","clinic","trades","estate_agent","beauty","other"] as const;
-const businessTypeLabel = (v: string) => v.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+const businessTypeLabels: Record<string, string> = {
+  salon: "Salons",
+  barbershop: "Barbershops",
+  restaurant: "Restaurants",
+  spa: "Spas",
+  clinic: "Clinics",
+  trades: "Trades",
+  estate_agent: "Estate Agencies",
+  beauty: "Beauty",
+  other: "Other",
+};
+const businessTypeLabel = (v: string) => businessTypeLabels[v] || v.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
 type Campaign = {
   id: string; name: string; status: "draft" | "active" | "paused" | "completed";
