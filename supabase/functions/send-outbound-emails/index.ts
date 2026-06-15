@@ -10,11 +10,24 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 const FROM = "Mo Laye <mo@aiviaapp.co.uk>";
 
+const businessTypePlural: Record<string, string> = {
+  salon: "salons",
+  barbershop: "barbershops",
+  restaurant: "restaurants",
+  spa: "spas",
+  clinic: "clinics",
+  trades: "trades",
+  estate_agent: "estate agencies",
+  beauty: "beauty businesses",
+  other: "businesses",
+};
+
 const fill = (s: string, lead: any) =>
   (s || "")
     .replaceAll("{{first_name}}", lead.first_name || "there")
     .replaceAll("{{business_name}}", lead.business_name || "your business")
-    .replaceAll("{{business_type}}", lead.business_type || "business");
+    .replaceAll("{{business_type}}", lead.business_type || "business")
+    .replaceAll("{{business_type_plural}}", businessTypePlural[lead.business_type] || "businesses");
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });

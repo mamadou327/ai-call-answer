@@ -15,7 +15,7 @@ const DEFAULTS: Record<number, { subject: string; body_html: string; is_reply: b
   1: {
     subject: "{{business_name}} calls",
     body_html: `<p>Hi {{first_name}},</p>
-<p>I'm Mo, founder of Aivia. I've been looking at {{business_type}}s across London and something keeps coming up that I wanted to flag about {{business_name}}.</p>
+<p>I'm Mo, founder of Aivia. I've been looking at {{business_type_plural}} across London and something keeps coming up that I wanted to flag about {{business_name}}.</p>
 <p>Most businesses like yours are losing bookings every week to competitors — not because the service is worse but because nobody picks up the phone when the team is busy. The caller just rings the next place.</p>
 <p>I built something that fixes this completely. Worth a quick chat?</p>
 <p>Mo<br/>Aivia — aiviaapp.co.uk</p>`,
