@@ -373,7 +373,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={create}>Create</Button>
+            <Button onClick={save}>{editing ? "Save" : "Create"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
