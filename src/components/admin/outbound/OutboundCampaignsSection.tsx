@@ -177,12 +177,14 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
   const [stats, setStats] = useState<Record<string, { leads: number; calls: number; demos: number }>>({});
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
+  const [editing, setEditing] = useState<Campaign | null>(null);
+  const emptyForm = {
     name: "", calling_days: ["Monday","Tuesday","Wednesday","Thursday","Friday"],
     calling_start_hour: 9, calling_end_hour: 18,
     calls_per_day_limit: 50, delay_between_calls_seconds: 30,
     voice: "cedar",
-  });
+  };
+  const [form, setForm] = useState(emptyForm);
 
   const load = async () => {
     setLoading(true);
