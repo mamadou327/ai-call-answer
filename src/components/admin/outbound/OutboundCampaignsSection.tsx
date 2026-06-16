@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2, CheckCircle2 } from "lucide-react";
+import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2, CheckCircle2, Pencil } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmailSequencePanel } from "./EmailSequencePanel";
 
@@ -177,12 +177,14 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
   const [stats, setStats] = useState<Record<string, { leads: number; calls: number; demos: number }>>({});
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
+  const [editing, setEditing] = useState<Campaign | null>(null);
+  const emptyForm = {
     name: "", calling_days: ["Monday","Tuesday","Wednesday","Thursday","Friday"],
     calling_start_hour: 9, calling_end_hour: 18,
     calls_per_day_limit: 50, delay_between_calls_seconds: 30,
     voice: "cedar",
-  });
+  };
+  const [form, setForm] = useState(emptyForm);
 
   const load = async () => {
     setLoading(true);
@@ -214,7 +216,26 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
     else load();
   };
 
-  const create = async () => {
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setOpen(true);
+  };
+  const openEdit = (c: Campaign) => {
+    setEditing(c);
+    setForm({
+      name: c.name,
+      calling_days: c.calling_days || [],
+      calling_start_hour: c.calling_start_hour,
+      calling_end_hour: c.calling_end_hour,
+      calls_per_day_limit: c.calls_per_day_limit,
+      delay_between_calls_seconds: c.delay_between_calls_seconds,
+      voice: c.voice || "cedar",
+    });
+    setOpen(true);
+  };
+
+  const save = async () => {
     if (!form.name.trim()) {
       toast({ title: "Name required", description: "Enter a campaign name first.", variant: "destructive" });
       return;
@@ -227,9 +248,15 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
       toast({ title: "Invalid hours", description: "End hour must be after start hour.", variant: "destructive" });
       return;
     }
-    const { error } = await supabase.from("outbound_campaigns").insert({ ...form, status: "draft" });
-    if (error) { toast({ title: "Could not create campaign", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Campaign created" });
+    if (editing) {
+      const { error } = await supabase.from("outbound_campaigns").update(form).eq("id", editing.id);
+      if (error) { toast({ title: "Could not save campaign", description: error.message, variant: "destructive" }); return; }
+      toast({ title: "Campaign updated" });
+    } else {
+      const { error } = await supabase.from("outbound_campaigns").insert({ ...form, status: "draft" });
+      if (error) { toast({ title: "Could not create campaign", description: error.message, variant: "destructive" }); return; }
+      toast({ title: "Campaign created" });
+    }
     setOpen(false); load();
   };
 
@@ -240,7 +267,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
           <CardTitle>Campaigns</CardTitle>
           <CardDescription>Manage outbound calling campaigns</CardDescription>
         </div>
-        <Button onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1"/>Create Campaign</Button>
+        <Button onClick={openCreate}><Plus className="w-4 h-4 mr-1"/>Create Campaign</Button>
       </CardHeader>
       <CardContent>
         {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto"/> :
@@ -276,6 +303,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                     {c.status !== "completed" && (
                       <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "completed")}><Square className="w-3 h-3"/></Button>
                     )}
+                    <Button size="sm" variant="outline" onClick={() => openEdit(c)}><Pencil className="w-3 h-3"/></Button>
                     <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => deleteCampaign(c.id, c.name)}><Trash2 className="w-3 h-3"/></Button>
                   </TableCell>
                 </TableRow>
@@ -288,7 +316,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Create Campaign</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? "Edit Campaign" : "Create Campaign"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Campaign name</Label>
@@ -345,7 +373,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={create}>Create</Button>
+            <Button onClick={save}>{editing ? "Save" : "Create"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
