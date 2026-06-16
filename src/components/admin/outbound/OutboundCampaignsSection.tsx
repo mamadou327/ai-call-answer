@@ -324,6 +324,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
             </div>
             <div>
               <Label>Calling days</Label>
+              <p className="text-xs text-muted-foreground">All days and hours are in UK time (Europe/London).</p>
               <div className="flex flex-wrap gap-3 mt-2">
                 {DAYS.map(d => (
                   <label key={d} className="flex items-center gap-2 text-sm">
