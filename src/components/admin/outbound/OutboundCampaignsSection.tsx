@@ -316,7 +316,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Create Campaign</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? "Edit Campaign" : "Create Campaign"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Campaign name</Label>
