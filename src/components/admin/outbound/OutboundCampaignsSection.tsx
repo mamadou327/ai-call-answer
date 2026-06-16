@@ -216,7 +216,26 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
     else load();
   };
 
-  const create = async () => {
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setOpen(true);
+  };
+  const openEdit = (c: Campaign) => {
+    setEditing(c);
+    setForm({
+      name: c.name,
+      calling_days: c.calling_days || [],
+      calling_start_hour: c.calling_start_hour,
+      calling_end_hour: c.calling_end_hour,
+      calls_per_day_limit: c.calls_per_day_limit,
+      delay_between_calls_seconds: c.delay_between_calls_seconds,
+      voice: c.voice || "cedar",
+    });
+    setOpen(true);
+  };
+
+  const save = async () => {
     if (!form.name.trim()) {
       toast({ title: "Name required", description: "Enter a campaign name first.", variant: "destructive" });
       return;
@@ -229,9 +248,15 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
       toast({ title: "Invalid hours", description: "End hour must be after start hour.", variant: "destructive" });
       return;
     }
-    const { error } = await supabase.from("outbound_campaigns").insert({ ...form, status: "draft" });
-    if (error) { toast({ title: "Could not create campaign", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Campaign created" });
+    if (editing) {
+      const { error } = await supabase.from("outbound_campaigns").update(form).eq("id", editing.id);
+      if (error) { toast({ title: "Could not save campaign", description: error.message, variant: "destructive" }); return; }
+      toast({ title: "Campaign updated" });
+    } else {
+      const { error } = await supabase.from("outbound_campaigns").insert({ ...form, status: "draft" });
+      if (error) { toast({ title: "Could not create campaign", description: error.message, variant: "destructive" }); return; }
+      toast({ title: "Campaign created" });
+    }
     setOpen(false); load();
   };
 
