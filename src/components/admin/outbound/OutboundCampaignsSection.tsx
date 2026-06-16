@@ -303,6 +303,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                     {c.status !== "completed" && (
                       <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "completed")}><Square className="w-3 h-3"/></Button>
                     )}
+                    <Button size="sm" variant="outline" onClick={() => openEdit(c)}><Pencil className="w-3 h-3"/></Button>
                     <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => deleteCampaign(c.id, c.name)}><Trash2 className="w-3 h-3"/></Button>
                   </TableCell>
                 </TableRow>
