@@ -99,8 +99,11 @@ Deno.serve(async (req) => {
     const next7Days = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(now);
       d.setDate(d.getDate() + i + 1);
-      return formatSpokenDate(d);
-    }).join(" | ");
+      const day = d.toLocaleDateString("en-GB", { timeZone: "Europe/London", weekday: "long" });
+      const date = d.toLocaleDateString("en-GB", { timeZone: "Europe/London", day: "numeric" });
+      const month = d.toLocaleDateString("en-GB", { timeZone: "Europe/London", month: "long" });
+      return `${day} = ${date} ${month}`;
+    }).join(", ");
 
     // Step 1: register the call with Retell
     const retellRes = await fetch("https://api.retellai.com/v2/register-phone-call", {
