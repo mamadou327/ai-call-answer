@@ -267,7 +267,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
           <CardTitle>Campaigns</CardTitle>
           <CardDescription>Manage outbound calling campaigns</CardDescription>
         </div>
-        <Button onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1"/>Create Campaign</Button>
+        <Button onClick={openCreate}><Plus className="w-4 h-4 mr-1"/>Create Campaign</Button>
       </CardHeader>
       <CardContent>
         {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto"/> :
