@@ -60,10 +60,10 @@ Deno.serve(async (req) => {
         },
       );
     }
-    if (!template.subject?.trim() || !template.body_html?.trim()) {
+    if ((!template.is_reply && !template.subject?.trim()) || !template.body_html?.trim()) {
       return new Response(
         JSON.stringify({
-          error: `Step ${step_number} template is missing a subject or body. Edit the Email Sequence panel and save before sending.`,
+          error: `Step ${step_number} template is missing a body${!template.is_reply ? " or subject" : ""}. Edit the Email Sequence panel and save before sending.`,
         }),
         {
           status: 400,
