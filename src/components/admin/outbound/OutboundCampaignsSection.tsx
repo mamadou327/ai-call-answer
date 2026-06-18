@@ -556,7 +556,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 <TableCell onClick={e => e.stopPropagation()}><EmailDots lead={l} /></TableCell>
                 <TableCell onClick={e => e.stopPropagation()}>
                   <Select value={l.status} onValueChange={async (val) => {
-                    const { error } = await supabase.from("outbound_leads").update({ status: val }).eq("id", l.id);
+                    const { error } = await supabase.from("outbound_leads").update({ status: val as any }).eq("id", l.id);
                     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
                     else load();
                   }}>
