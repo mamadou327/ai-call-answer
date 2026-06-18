@@ -617,9 +617,25 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           </DialogHeader>
           {selected && (
             <div className="space-y-3 text-sm">
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap items-center">
                 {statusBadge(selected.status)}
                 {selected.interest_level && statusBadge(selected.interest_level)}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Change status:</span>
+                <Select value={selected.status} onValueChange={async (val) => {
+                  const { error } = await supabase.from("outbound_leads").update({ status: val as any }).eq("id", selected.id);
+                  if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+                  setSelected({ ...selected, status: val as any });
+                  load();
+                }}>
+                  <SelectTrigger className="w-44 h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["pending","calling","answered","no_answer","voicemail","called_back","interested","not_interested","demo_booked","do_not_call"].map(s => (
+                      <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div><b>Email:</b> {selected.email || "—"}</div>
               <div><b>Sequence:</b> {selected.sequence_status || "active"} (step {selected.sequence_step || 0})</div>
