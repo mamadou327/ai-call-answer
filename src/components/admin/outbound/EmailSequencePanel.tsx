@@ -114,8 +114,11 @@ export function EmailSequencePanel({ campaignId, eligibleCounts }: { campaignId:
     try {
       // Ensure templates are persisted before sending (defaults are client-side only until saved)
       const t = templates[sendStep];
-      if (!t?.subject?.trim() || !t?.body_html?.trim()) {
-        throw new Error(`Step ${sendStep} needs a subject and body. Save the template first.`);
+      if (!t?.body_html?.trim()) {
+        throw new Error(`Step ${sendStep} needs a body. Save the template first.`);
+      }
+      if (!t.is_reply && !t?.subject?.trim()) {
+        throw new Error(`Step ${sendStep} needs a subject. Save the template first.`);
       }
       await supabase
         .from("outbound_email_templates")
