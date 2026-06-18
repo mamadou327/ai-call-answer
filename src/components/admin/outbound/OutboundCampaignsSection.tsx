@@ -554,7 +554,20 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 <TableCell>{l.phone_number}</TableCell>
                 <TableCell className="max-w-[160px] truncate" title={l.email || ""}>{l.email || <span className="text-muted-foreground">—</span>}</TableCell>
                 <TableCell onClick={e => e.stopPropagation()}><EmailDots lead={l} /></TableCell>
-                <TableCell>{statusBadge(l.status)}</TableCell>
+                <TableCell onClick={e => e.stopPropagation()}>
+                  <Select value={l.status} onValueChange={async (val) => {
+                    const { error } = await supabase.from("outbound_leads").update({ status: val }).eq("id", l.id);
+                    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+                    else load();
+                  }}>
+                    <SelectTrigger className="w-36 h-7 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["pending","calling","answered","no_answer","voicemail","called_back","interested","not_interested","demo_booked","do_not_call"].map(s => (
+                        <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
                 <TableCell>{l.interest_level ? statusBadge(l.interest_level) : "—"}</TableCell>
                 <TableCell>
                   {l.sms_sent
