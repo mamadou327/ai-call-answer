@@ -259,6 +259,24 @@ export const RestaurantOrderQueue = ({ orders, currency = "GBP", businessId, onO
                             </Button>
                           )}
                         </div>
+                        <Select
+                          value={order.status}
+                          onValueChange={(val) => {
+                            if (val !== order.status) updateOrderStatus(order.id, val);
+                          }}
+                        >
+                          <SelectTrigger className="w-full h-7 text-xs mt-1" onClick={(e) => e.stopPropagation()}>
+                            <SelectValue placeholder="Set status..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="confirmed">Confirmed</SelectItem>
+                            <SelectItem value="preparing">Preparing</SelectItem>
+                            <SelectItem value="ready">Ready</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     );
                   })}
