@@ -548,7 +548,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           </TableHeader>
           <TableBody>
             {filtered.map(l => (
-              <TableRow key={l.id} className="cursor-pointer" onClick={() => setSelected(l)}>
+              <TableRow key={l.id} className="cursor-pointer" onClick={() => setSelected({...l})}>
                 <TableCell>{l.first_name || "—"}</TableCell>
                 <TableCell>{l.business_name || "—"}</TableCell>
                 <TableCell>{l.business_type ? <Badge variant="outline" className="text-xs">{businessTypeLabel(l.business_type)}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
