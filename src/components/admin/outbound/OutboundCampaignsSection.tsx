@@ -47,6 +47,7 @@ type Lead = {
   call_transcript: string | null; last_called_at: string | null; created_at: string;
   sms_sent: boolean;
   business_type: string | null;
+  notes: string | null;
   email1_status?: string | null; email1_sent_at?: string | null; email1_opened_at?: string | null;
   email2_status?: string | null; email2_sent_at?: string | null; email2_opened_at?: string | null;
   email3_status?: string | null; email3_sent_at?: string | null; email3_opened_at?: string | null;
@@ -547,7 +548,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           </TableHeader>
           <TableBody>
             {filtered.map(l => (
-              <TableRow key={l.id} className="cursor-pointer" onClick={() => setSelected(l)}>
+              <TableRow key={l.id} className="cursor-pointer" onClick={() => setSelected({...l})}>
                 <TableCell>{l.first_name || "—"}</TableCell>
                 <TableCell>{l.business_name || "—"}</TableCell>
                 <TableCell>{l.business_type ? <Badge variant="outline" className="text-xs">{businessTypeLabel(l.business_type)}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
@@ -609,68 +610,135 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+      <Dialog open={!!selected} onOpenChange={(o) => { if (!o) setSelected(null); }}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selected?.first_name} — {selected?.business_name}</DialogTitle>
             <DialogDescription>{selected?.phone_number}</DialogDescription>
           </DialogHeader>
           {selected && (
-            <div className="space-y-3 text-sm">
-              <div className="flex gap-2 flex-wrap items-center">
-                {statusBadge(selected.status)}
-                {selected.interest_level && statusBadge(selected.interest_level)}
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>First name</Label>
+                  <Input value={selected.first_name || ""} onChange={e => setSelected({ ...selected, first_name: e.target.value || null })} />
+                </div>
+                <div>
+                  <Label>Business name</Label>
+                  <Input value={selected.business_name || ""} onChange={e => setSelected({ ...selected, business_name: e.target.value || null })} />
+                </div>
+                <div>
+                  <Label>Phone</Label>
+                  <Input value={selected.phone_number} onChange={e => setSelected({ ...selected, phone_number: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input value={selected.email || ""} onChange={e => setSelected({ ...selected, email: e.target.value || null })} />
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={selected.status} onValueChange={val => setSelected({ ...selected, status: val })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["pending","calling","answered","no_answer","voicemail","called_back","interested","not_interested","demo_booked","do_not_call"].map(s => (
+                        <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Interest level</Label>
+                  <Select value={selected.interest_level || "__none"} onValueChange={val => setSelected({ ...selected, interest_level: val === "__none" ? null : val })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">— None —</SelectItem>
+                      {["hot","warm","cold"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Business type</Label>
+                  <Select value={selected.business_type || "__none"} onValueChange={val => setSelected({ ...selected, business_type: val === "__none" ? null : val })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">— None —</SelectItem>
+                      {BUSINESS_TYPES.map(t => <SelectItem key={t} value={t}>{businessTypeLabel(t)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Existing solution</Label>
+                  <Input value={selected.existing_solution || ""} onChange={e => setSelected({ ...selected, existing_solution: e.target.value || null })} />
+                </div>
+              </div>
+              <div>
+                <Label>Reason not interested</Label>
+                <Input value={selected.reason_not_interested || ""} onChange={e => setSelected({ ...selected, reason_not_interested: e.target.value || null })} />
+              </div>
+              <div>
+                <Label>Notes</Label>
+                <Textarea value={selected.notes || ""} onChange={e => setSelected({ ...selected, notes: e.target.value || null })} rows={3} />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Change status:</span>
-                <Select value={selected.status} onValueChange={async (val) => {
-                  const { error } = await supabase.from("outbound_leads").update({ status: val as any }).eq("id", selected.id);
+                <Checkbox checked={selected.demo_booked} onCheckedChange={v => setSelected({ ...selected, demo_booked: v === true })} id="demo_booked" />
+                <Label htmlFor="demo_booked" className="cursor-pointer">Demo booked</Label>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={async () => {
+                  const { error } = await supabase.from("outbound_leads").update({
+                    first_name: selected.first_name,
+                    business_name: selected.business_name,
+                    phone_number: selected.phone_number,
+                    email: selected.email,
+                    status: selected.status as any,
+                    interest_level: selected.interest_level as any,
+                    business_type: selected.business_type,
+                    existing_solution: selected.existing_solution,
+                    reason_not_interested: selected.reason_not_interested,
+                    notes: selected.notes,
+                    demo_booked: selected.demo_booked,
+                  }).eq("id", selected.id);
                   if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-                  setSelected({ ...selected, status: val as any });
+                  toast({ title: "Lead updated" });
                   load();
                 }}>
-                  <SelectTrigger className="w-44 h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {["pending","calling","answered","no_answer","voicemail","called_back","interested","not_interested","demo_booked","do_not_call"].map(s => (
-                      <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <Save className="w-4 h-4 mr-1" />Save changes
+                </Button>
               </div>
-              <div><b>Email:</b> {selected.email || "—"}</div>
-              <div><b>Sequence:</b> {selected.sequence_status || "active"} (step {selected.sequence_step || 0})</div>
-              <div className="border rounded-md p-2 space-y-1 bg-muted/30">
-                <div className="font-medium text-xs uppercase text-muted-foreground">Email sequence timeline</div>
-                {[1,2,3].map(n => {
-                  const status = (selected as any)[`email${n}_status`] || "pending";
-                  const sent = (selected as any)[`email${n}_sent_at`];
-                  const opened = (selected as any)[`email${n}_opened_at`];
-                  return (
-                    <div key={n} className="flex items-center gap-2 text-xs">
-                      <EmailDot status={status} ts={opened || sent} label={`Email ${n}`} />
-                      <span>Email {n}: {status}</span>
-                      {sent && <span className="text-muted-foreground">· sent {fmtLondon(sent)}</span>}
-                      {opened && <span className="text-muted-foreground">· opened {fmtLondon(opened)}</span>}
-                    </div>
-                  );
-                })}
-                {selected.email && selected.sequence_status !== "responded" && (
-                  <Button size="sm" variant="outline" className="mt-2" onClick={async () => { await markLeadReplied(selected.id); setSelected(null); load(); }}>
-                    <CheckCircle2 className="w-3 h-3 mr-1"/>Mark replied
-                  </Button>
+
+              <div className="border-t pt-3 space-y-3">
+                <div><b>Sequence:</b> {selected.sequence_status || "active"} (step {selected.sequence_step || 0})</div>
+                <div className="border rounded-md p-2 space-y-1 bg-muted/30">
+                  <div className="font-medium text-xs uppercase text-muted-foreground">Email sequence timeline</div>
+                  {[1,2,3].map(n => {
+                    const status = (selected as any)[`email${n}_status`] || "pending";
+                    const sent = (selected as any)[`email${n}_sent_at`];
+                    const opened = (selected as any)[`email${n}_opened_at`];
+                    return (
+                      <div key={n} className="flex items-center gap-2 text-xs">
+                        <EmailDot status={status} ts={opened || sent} label={`Email ${n}`} />
+                        <span>Email {n}: {status}</span>
+                        {sent && <span className="text-muted-foreground">· sent {fmtLondon(sent)}</span>}
+                        {opened && <span className="text-muted-foreground">· opened {fmtLondon(opened)}</span>}
+                      </div>
+                    );
+                  })}
+                  {selected.email && selected.sequence_status !== "responded" && (
+                    <Button size="sm" variant="outline" className="mt-2" onClick={async () => { await markLeadReplied(selected.id); setSelected(null); load(); }}>
+                      <CheckCircle2 className="w-3 h-3 mr-1"/>Mark replied
+                    </Button>
+                  )}
+                </div>
+                <div><b>SMS sent:</b> {selected.sms_sent ? "Yes" : "No"}</div>
+                <div><b>Last called:</b> {selected.last_called_at ? new Date(selected.last_called_at).toLocaleString() : "—"}</div>
+                {selected.call_recording_url && <audio controls src={selected.call_recording_url} className="w-full"/>}
+                {selected.call_transcript && (
+                  <div>
+                    <b>Transcript</b>
+                    <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap mt-1">{selected.call_transcript}</pre>
+                  </div>
                 )}
               </div>
-              <div><b>SMS sent:</b> {selected.sms_sent ? "Yes" : "No"}</div>
-              <div><b>Existing solution:</b> {selected.existing_solution || "—"}</div>
-              <div><b>Reason not interested:</b> {selected.reason_not_interested || "—"}</div>
-              <div><b>Last called:</b> {selected.last_called_at ? new Date(selected.last_called_at).toLocaleString() : "—"}</div>
-              {selected.call_recording_url && <audio controls src={selected.call_recording_url} className="w-full"/>}
-              {selected.call_transcript && (
-                <div>
-                  <b>Transcript</b>
-                  <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap mt-1">{selected.call_transcript}</pre>
-                </div>
-              )}
             </div>
           )}
         </DialogContent>
