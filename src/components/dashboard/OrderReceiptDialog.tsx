@@ -273,23 +273,43 @@ export const OrderReceiptDialog = ({
 
           {/* Action Buttons */}
           {onUpdateStatus && (
-            <div className="flex gap-2 pt-2">
-              {nextStatus && (
-                <Button
-                  className="flex-1"
-                  onClick={() => onUpdateStatus(order.id, nextStatus)}
-                >
-                  Mark as {statusConfig[nextStatus]?.label || nextStatus}
-                </Button>
-              )}
-              {order.status !== "cancelled" && order.status !== "completed" && (
-                <Button
-                  variant="destructive"
-                  onClick={() => onUpdateStatus(order.id, "cancelled")}
-                >
-                  Cancel Order
-                </Button>
-              )}
+            <div className="space-y-2 pt-2">
+              <div className="flex gap-2">
+                {nextStatus && (
+                  <Button
+                    className="flex-1"
+                    onClick={() => onUpdateStatus(order.id, nextStatus)}
+                  >
+                    Mark as {statusConfig[nextStatus]?.label || nextStatus}
+                  </Button>
+                )}
+                {order.status !== "cancelled" && order.status !== "completed" && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => onUpdateStatus(order.id, "cancelled")}
+                  >
+                    Cancel Order
+                  </Button>
+                )}
+              </div>
+              <Select
+                value={order.status}
+                onValueChange={(val) => {
+                  if (val !== order.status) onUpdateStatus(order.id, val);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Set status..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">New</SelectItem>
+                  <SelectItem value="confirmed">Confirmed</SelectItem>
+                  <SelectItem value="preparing">Preparing</SelectItem>
+                  <SelectItem value="ready">Ready</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           )}
         </div>
