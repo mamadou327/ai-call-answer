@@ -269,6 +269,23 @@ export function OrdersTab({ businessId, currency = "GBP", averagePrepTime = 20, 
                       Mark as {statusConfig[nextStatus]?.label || nextStatus}
                     </Button>
                   )}
+                  <Select
+                    value={order.status}
+                    onValueChange={(val) => {
+                      if (val !== order.status) updateOrderStatus(order.id, val);
+                    }}
+                  >
+                    <SelectTrigger className="w-full h-7 text-xs mt-1" onClick={(e) => e.stopPropagation()}>
+                      <SelectValue placeholder="Set status..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">New</SelectItem>
+                      <SelectItem value="preparing">Preparing</SelectItem>
+                      <SelectItem value="ready">Ready</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </CardContent>
               </Card>
             );
