@@ -38,6 +38,7 @@ type Campaign = {
   calls_per_day_limit: number; delay_between_calls_seconds: number;
   voice: string;
   created_at: string;
+  archived_at: string | null;
 };
 type Lead = {
   id: string; campaign_id: string; first_name: string | null; business_name: string | null;
