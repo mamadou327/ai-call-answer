@@ -185,6 +185,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Campaign | null>(null);
   const [view, setView] = useState<"active" | "archived">("active");
+  const [historyFor, setHistoryFor] = useState<Campaign | null>(null);
   const emptyForm = {
     name: "", calling_days: ["Monday","Tuesday","Wednesday","Thursday","Friday"],
     calling_start_hour: 9, calling_end_hour: 18,
