@@ -60,6 +60,7 @@ type Demo = {
   prospect_phone: string | null; prospect_email: string | null;
   call_summary: string | null; status: string;
 };
+type CampaignProcessResult = { placed?: number; skipped?: string; day?: string; hour?: number };
 
 const statusBadge = (status: string) => {
   const map: Record<string, string> = {
@@ -225,7 +226,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
       });
       if (error) throw error;
 
-      const result = (data?.summary || [])[0] as { placed?: number; skipped?: string; day?: string; hour?: number } | undefined;
+      const result = (data?.summary || [])[0] as CampaignProcessResult | undefined;
       if (!result) {
         toast({ title: "Campaign not started", description: "No matching campaign was found to activate.", variant: "destructive" });
       } else if (result.skipped === "day_not_allowed") {
@@ -239,9 +240,9 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
       } else {
         toast({ title: "Campaign activated", description: `${result.placed} call${result.placed === 1 ? "" : "s"} started.` });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Failed to trigger campaign processing", e);
-      toast({ title: "Could not start campaign", description: e?.message || "Please try again.", variant: "destructive" });
+      toast({ title: "Could not start campaign", description: e instanceof Error ? e.message : "Please try again.", variant: "destructive" });
     } finally {
       load();
     }
