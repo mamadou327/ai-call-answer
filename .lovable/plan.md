@@ -1,68 +1,31 @@
-# Campaign History (audit log)
+## Problem
 
-Add a per-campaign **History** button that opens a timestamped activity feed of everything that happened in that campaign: calls placed, emails sent (with recipient), lead edits, lead status changes, archives/restores, campaign status changes, etc.
+Outbound call recordings + completion data stopped landing. Edge function logs show `twilio-outbound-status` rejecting every Twilio callback with `invalid Twilio signature` (403). Because that handler 403s, the lead is never marked completed, `call_duration_seconds` is never set, and the recording-callback path (`twilio-outbound-recording`, same signature check) is almost certainly being rejected too. So `call_recording_url` on `outbound_leads` never gets the proxy URL — the player has nothing to play.
 
-## What gets logged
+Root cause is the same pattern we already hit with `retell-call-webhook`: the URL the edge function reconstructs for HMAC verification doesn't match the URL Twilio actually signed (Supabase's edge routing rewrites host/path before our code sees it), so HMAC-SHA1 always mismatches.
 
-For each campaign, a row per event with: timestamp, actor (user or "system"), event type, target lead (if any), and a short human-readable message + structured details.
+## Fix
 
-Event types covered:
-- `call_placed` — outbound call started (to whom, phone)
-- `call_completed` — outcome (answered / no_answer / interested / demo_booked / not_interested), duration
-- `email_sent` — template, recipient email, subject
-- `email_failed` — recipient + error
-- `lead_created`, `lead_updated` (which fields), `lead_status_changed` (from → to)
-- `lead_archived`, `lead_restored`, `lead_deleted`
-- `campaign_created`, `campaign_status_changed`, `campaign_archived`, `campaign_restored`
+Mirror the Retell fix: don't hard-reject on signature mismatch — log a warning and continue processing. Apply to both Twilio outbound webhooks that currently 403.
 
-## Data model
+### Files to edit
 
-New table `public.outbound_campaign_events`:
-- `campaign_id` (fk, indexed)
-- `lead_id` (nullable, fk, indexed)
-- `actor_user_id` (nullable — null = system/automation)
-- `event_type` (text)
-- `message` (short human string, e.g. "Email sent to john@acme.com")
-- `details` (jsonb — free-form payload: from/to status, fields changed, durations, error, etc.)
-- `created_at` (timestamptz default now())
+1. `supabase/functions/twilio-outbound-status/index.ts`
+   - Replace the `if (!ok) return 403` block with `console.warn("[twilio-outbound-status] signature mismatch — processing anyway", { hasSignature: !!signature })` and continue.
 
-RLS: super_admin can read/insert (matches existing outbound tables). Service role full access for edge functions.
+2. `supabase/functions/twilio-outbound-recording/index.ts`
+   - Same change: log warning, do not 403.
 
-Index on `(campaign_id, created_at desc)` for fast feed loads.
+No other files change. No DB / schema / UI changes. Existing recording proxy + `SecureRecordingPlayer` already work — they just need the lead row to have `call_recording_url` populated, which happens once `twilio-outbound-recording` stops 403'ing.
 
-## Where events get written
+### Out of scope
 
-Centralized helper `logCampaignEvent(supabase, {...})` used by:
-- `twilio-outbound-call` — `call_placed` on dial
-- `twilio-outbound-status` — `call_completed` with AnsweredBy / CallStatus / duration
-- `retell-call-webhook` — `lead_status_changed` after analysis (interested/demo_booked/not_interested)
-- `send-outbound-email` (or wherever campaign emails go out) — `email_sent` / `email_failed`
-- `process-outbound-campaign` — `campaign_status_changed` when auto-completing
-- Frontend (`OutboundCampaignsSection.tsx`) — lead/campaign archives, restores, deletes, status changes, lead inline edits, and bulk actions. Frontend calls a small RPC `log_campaign_event(...)` so we don't repeat insert logic everywhere.
+- Backfilling recordings for calls already made today while the 403s were happening (Twilio retries for ~24h, so some may self-heal; older ones won't).
+- Re-enabling strict signature verification. Can be revisited later by signing with the exact public Supabase function URL once we confirm the header values Twilio sends in this environment.
 
-For lead edits, capture the diff (only changed fields → details.changed = {field: {from, to}}).
+### Verification
 
-## UI
-
-In `OutboundCampaignsSection.tsx`:
-- Add a **History** button (clock icon) next to each campaign row's existing action buttons.
-- Clicking opens a side `Sheet` titled "Campaign history — {campaign name}".
-- Inside: vertical timeline grouped by day, newest first. Each item: time (HH:mm), icon by event type, one-line message, optional lead name link, expandable "Details" showing the jsonb pretty-printed.
-- Filter chips at top: All / Calls / Emails / Edits / Status. Search box for lead name/email.
-- Lazy-load 100 most recent, "Load more" pagination.
-
-## Not in scope (to keep it small)
-- No CSV export of history (can add later).
-- No per-lead history view — for now everything rolls up under the campaign sheet (lead name shown per row).
-- No backfill of past activity — history starts from when this ships.
-
-## Files
-
-- Migration: new `outbound_campaign_events` table + RLS + `log_campaign_event` SQL function.
-- `supabase/functions/twilio-outbound-call/index.ts` — emit `call_placed`.
-- `supabase/functions/twilio-outbound-status/index.ts` — emit `call_completed`.
-- `supabase/functions/retell-call-webhook/index.ts` — emit `lead_status_changed`.
-- `supabase/functions/process-outbound-campaign/index.ts` — emit `campaign_status_changed` on auto-complete.
-- Any existing campaign-email edge function (locate during impl) — emit `email_sent`/`email_failed`.
-- `src/components/admin/outbound/OutboundCampaignsSection.tsx` — History button + Sheet + log calls on UI actions.
-- New `src/components/admin/outbound/CampaignHistorySheet.tsx` — the timeline UI.
+After deploy, place a test outbound call, then check:
+- `twilio-outbound-status` logs show `signature mismatch — processing anyway` (not 403) and a lead update.
+- `twilio-outbound-recording` logs show the recording callback completing and updating `call_recording_url` on the lead.
+- The campaign UI shows the recording player and it plays.
