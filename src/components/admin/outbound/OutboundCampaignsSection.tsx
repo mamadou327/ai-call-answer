@@ -360,10 +360,10 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                   <TableCell className="text-right space-x-1" onClick={e => e.stopPropagation()}>
                     {view === "active" ? (
                       <>
-                        {c.status !== "active" && c.status !== "completed" && (
-                          <Button size="sm" variant="outline" onClick={() => activateCampaign(c)}><Play className="w-3 h-3"/></Button>
+                        {c.status !== "active" && (
+                          <Button size="sm" variant="outline" onClick={() => c.status === "completed" ? setStatus(c.id, "active") : activateCampaign(c)}><Play className="w-3 h-3"/></Button>
                         )}
-                        {c.status === "active" && (
+                        {c.status !== "paused" && c.status !== "draft" && (
                           <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "paused")}><Pause className="w-3 h-3"/></Button>
                         )}
                         {c.status !== "completed" && (
