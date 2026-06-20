@@ -450,7 +450,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
 
   const filteredIds = useMemo(() => filtered.map(l => l.id), [filtered]);
   const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
-  const someFilteredSelected = filteredIds.some(id => selectedIds.has(id));
+  
   const toggleOne = (id: string, checked: boolean) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
