@@ -211,6 +211,23 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
   };
   useEffect(() => { load(); }, []);
 
+  // One-shot: backfill any missing call recordings from Twilio (silent, super_admin-only fn).
+  useEffect(() => {
+    const KEY = "outbound_recordings_backfilled_v1";
+    if (sessionStorage.getItem(KEY)) return;
+    sessionStorage.setItem(KEY, "1");
+    supabase.functions.invoke("backfill-outbound-recordings", { body: {} })
+      .then(({ data, error }) => {
+        if (error) { console.warn("[backfill-recordings] error", error); return; }
+        const updated = (data?.results || []).filter((r: any) => r.updated).length;
+        if (updated > 0) {
+          toast({ title: "Recordings restored", description: `Recovered ${updated} call recording${updated === 1 ? "" : "s"} from Twilio.` });
+          load();
+        }
+      })
+      .catch((e) => console.warn("[backfill-recordings] failed", e));
+  }, []);
+
   const activeRows = useMemo(() => rows.filter(r => !r.archived_at), [rows]);
   const archivedRows = useMemo(() => rows.filter(r => r.archived_at), [rows]);
   const visibleRows = view === "active" ? activeRows : archivedRows;
