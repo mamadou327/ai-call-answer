@@ -222,6 +222,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
       .update({ archived_at: new Date().toISOString(), archived_by: u.user?.id ?? null } as any)
       .eq("id", id);
     if (error) { toast({ title: "Archive failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({ campaign_id: id, event_type: "campaign_archived", message: "Campaign archived" });
     toast({ title: "Campaign archived", description: "Find it in the Archived view to restore or delete forever." });
     load();
   };
@@ -231,6 +232,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
       .update({ archived_at: null, archived_by: null } as any)
       .eq("id", id);
     if (error) { toast({ title: "Restore failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({ campaign_id: id, event_type: "campaign_restored", message: "Campaign restored from archive" });
     toast({ title: "Campaign restored" });
     load();
   };
@@ -242,9 +244,16 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
     load();
   };
   const setStatus = async (id: string, status: Campaign["status"]) => {
+    const prev = rows.find(r => r.id === id)?.status;
     const { error } = await supabase.from("outbound_campaigns").update({ status }).eq("id", id);
-    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else load();
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: id,
+      event_type: "campaign_status_changed",
+      message: `Campaign status changed from ${prev ?? "unknown"} to ${status}`,
+      details: { from: prev ?? null, to: status },
+    });
+    load();
   };
 
   const activateCampaign = async (campaign: Campaign) => {
