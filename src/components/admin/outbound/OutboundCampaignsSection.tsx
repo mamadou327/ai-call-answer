@@ -1004,7 +1004,8 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
               </div>
               <div className="flex justify-end">
                 <Button onClick={async () => {
-                  const { error } = await supabase.from("outbound_leads").update({
+                  const before = leads.find(l => l.id === selected.id);
+                  const updates: any = {
                     first_name: selected.first_name,
                     business_name: selected.business_name,
                     phone_number: selected.phone_number,
@@ -1016,8 +1017,35 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                     reason_not_interested: selected.reason_not_interested,
                     notes: selected.notes,
                     demo_booked: selected.demo_booked,
-                  }).eq("id", selected.id);
+                  };
+                  const { error } = await supabase.from("outbound_leads").update(updates).eq("id", selected.id);
                   if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+                  if (before) {
+                    const changed: Record<string, { from: unknown; to: unknown }> = {};
+                    for (const k of Object.keys(updates)) {
+                      const b = (before as any)[k] ?? null;
+                      const a = (updates as any)[k] ?? null;
+                      if (JSON.stringify(b) !== JSON.stringify(a)) changed[k] = { from: b, to: a };
+                    }
+                    if (Object.keys(changed).length) {
+                      const label = leadLabel(selected);
+                      if (changed.status) {
+                        logCampaignEvent({
+                          campaign_id: campaign.id, lead_id: selected.id,
+                          event_type: "lead_status_changed",
+                          message: `${label}: status ${changed.status.from} → ${changed.status.to}`,
+                          details: { changed },
+                        });
+                      } else {
+                        logCampaignEvent({
+                          campaign_id: campaign.id, lead_id: selected.id,
+                          event_type: "lead_updated",
+                          message: `${label}: edited (${Object.keys(changed).join(", ")})`,
+                          details: { changed },
+                        });
+                      }
+                    }
+                  }
                   toast({ title: "Lead updated" });
                   load();
                 }}>
