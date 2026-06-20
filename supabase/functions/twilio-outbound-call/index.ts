@@ -212,15 +212,18 @@ Deno.serve(async (req) => {
       last_called_at: new Date().toISOString(),
     }).eq("id", lead_id);
 
+    console.info(`[twilio-outbound-call] call placed lead=${lead_id} sid=${data.sid} campaign_id=${lead.campaign_id || "(none)"}`);
     if (lead.campaign_id) {
       const label = lead.business_name || lead.first_name || lead.phone_number || "lead";
-      await supabase.rpc("log_campaign_event", {
+      const { error: logErr } = await supabase.rpc("log_campaign_event", {
         p_campaign_id: lead.campaign_id,
         p_event_type: "call_placed",
         p_message: `Call placed to ${label} (${lead.phone_number})`,
         p_lead_id: lead_id,
         p_details: { twilio_sid: data.sid, retell_call_id: retellCallId, voice: (settings as any)?.voice ?? null },
       });
+      if (logErr) console.error("[twilio-outbound-call] log_campaign_event failed", logErr);
+      else console.info(`[twilio-outbound-call] logged call_placed for campaign=${lead.campaign_id}`);
     }
 
 
