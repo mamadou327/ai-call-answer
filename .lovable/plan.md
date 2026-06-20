@@ -1,45 +1,68 @@
-# Archive instead of delete for campaigns and leads
+# Campaign History (audit log)
 
-Replace destructive delete with a two-step flow: **Archive** (soft, reversible) → **Archive view** → **Delete forever** (hard, with confirm).
+Add a per-campaign **History** button that opens a timestamped activity feed of everything that happened in that campaign: calls placed, emails sent (with recipient), lead edits, lead status changes, archives/restores, campaign status changes, etc.
 
-## DB changes
+## What gets logged
 
-Add to both `outbound_campaigns` and `outbound_leads`:
-- `archived_at timestamptz null`
-- `archived_by uuid null` (auth user id, for audit)
+For each campaign, a row per event with: timestamp, actor (user or "system"), event type, target lead (if any), and a short human-readable message + structured details.
 
-No status enum changes — archived is orthogonal to `status`. Indexes on `archived_at` for fast filtering.
+Event types covered:
+- `call_placed` — outbound call started (to whom, phone)
+- `call_completed` — outcome (answered / no_answer / interested / demo_booked / not_interested), duration
+- `email_sent` — template, recipient email, subject
+- `email_failed` — recipient + error
+- `lead_created`, `lead_updated` (which fields), `lead_status_changed` (from → to)
+- `lead_archived`, `lead_restored`, `lead_deleted`
+- `campaign_created`, `campaign_status_changed`, `campaign_archived`, `campaign_restored`
 
-Update the existing `process-outbound-campaign` edge function to ignore rows where `archived_at is not null` (one extra `.is("archived_at", null)` on the campaign and leads queries) so archived items never get auto-dialed.
+## Data model
 
-## UI changes (`OutboundCampaignsSection.tsx` only)
+New table `public.outbound_campaign_events`:
+- `campaign_id` (fk, indexed)
+- `lead_id` (nullable, fk, indexed)
+- `actor_user_id` (nullable — null = system/automation)
+- `event_type` (text)
+- `message` (short human string, e.g. "Email sent to john@acme.com")
+- `details` (jsonb — free-form payload: from/to status, fields changed, durations, error, etc.)
+- `created_at` (timestamptz default now())
 
-### Campaigns tab
-- Replace the red Trash button on each row with an **Archive** button (box-arrow icon).
-- Add an **"Archived"** toggle/filter at the top ("Active campaigns" | "Archived"). Default = Active.
-- In the Archived view, each row shows two buttons:
-  - **Restore** → sets `archived_at = null`
-  - **Delete forever** (red) → hard delete with `confirm("This permanently deletes the campaign and ALL its leads, calls, recordings. Cannot be undone.")`
-- Active list query: `.is("archived_at", null)`. Archived list: `.not("archived_at", "is", null)`.
+RLS: super_admin can read/insert (matches existing outbound tables). Service role full access for edge functions.
 
-### Leads tab (inside a campaign)
-- Replace the per-row trash with **Archive** (icon).
-- Add the same toggle ("Active leads" | "Archived") above the table; default Active.
-- Bulk action bar (the one we just added) gains an **Archive selected** button alongside **Call again**. In Archived view it shows **Restore selected** and **Delete forever**.
-- The bulk "Call again" excludes archived leads automatically (they're not in the Active view anyway).
+Index on `(campaign_id, created_at desc)` for fast feed loads.
 
-### Confirms & toasts
-- Archive: no confirm (it's reversible) — toast "Archived. Undo" with a 6-second Undo button that restores.
-- Delete forever: hard confirm dialog naming what will be lost.
+## Where events get written
 
-## Files touched
+Centralized helper `logCampaignEvent(supabase, {...})` used by:
+- `twilio-outbound-call` — `call_placed` on dial
+- `twilio-outbound-status` — `call_completed` with AnsweredBy / CallStatus / duration
+- `retell-call-webhook` — `lead_status_changed` after analysis (interested/demo_booked/not_interested)
+- `send-outbound-email` (or wherever campaign emails go out) — `email_sent` / `email_failed`
+- `process-outbound-campaign` — `campaign_status_changed` when auto-completing
+- Frontend (`OutboundCampaignsSection.tsx`) — lead/campaign archives, restores, deletes, status changes, lead inline edits, and bulk actions. Frontend calls a small RPC `log_campaign_event(...)` so we don't repeat insert logic everywhere.
 
-- `src/components/admin/outbound/OutboundCampaignsSection.tsx` — campaigns list, leads table, bulk bar, archive view toggles, restore/delete-forever handlers.
-- `supabase/functions/process-outbound-campaign/index.ts` — add `archived_at is null` filters on campaign + lead queries.
-- One DB migration adding the two columns + indexes on both tables.
+For lead edits, capture the diff (only changed fields → details.changed = {field: {from, to}}).
 
-## Not in scope
+## UI
 
-- No retention policy / auto-purge of archived rows (can add later).
-- No archive view for demos (separate table, can do in a follow-up if you want).
-- No changes to RLS — archive is just a column, existing policies still apply.
+In `OutboundCampaignsSection.tsx`:
+- Add a **History** button (clock icon) next to each campaign row's existing action buttons.
+- Clicking opens a side `Sheet` titled "Campaign history — {campaign name}".
+- Inside: vertical timeline grouped by day, newest first. Each item: time (HH:mm), icon by event type, one-line message, optional lead name link, expandable "Details" showing the jsonb pretty-printed.
+- Filter chips at top: All / Calls / Emails / Edits / Status. Search box for lead name/email.
+- Lazy-load 100 most recent, "Load more" pagination.
+
+## Not in scope (to keep it small)
+- No CSV export of history (can add later).
+- No per-lead history view — for now everything rolls up under the campaign sheet (lead name shown per row).
+- No backfill of past activity — history starts from when this ships.
+
+## Files
+
+- Migration: new `outbound_campaign_events` table + RLS + `log_campaign_event` SQL function.
+- `supabase/functions/twilio-outbound-call/index.ts` — emit `call_placed`.
+- `supabase/functions/twilio-outbound-status/index.ts` — emit `call_completed`.
+- `supabase/functions/retell-call-webhook/index.ts` — emit `lead_status_changed`.
+- `supabase/functions/process-outbound-campaign/index.ts` — emit `campaign_status_changed` on auto-complete.
+- Any existing campaign-email edge function (locate during impl) — emit `email_sent`/`email_failed`.
+- `src/components/admin/outbound/OutboundCampaignsSection.tsx` — History button + Sheet + log calls on UI actions.
+- New `src/components/admin/outbound/CampaignHistorySheet.tsx` — the timeline UI.

@@ -12,10 +12,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2, CheckCircle2, Pencil, Archive, ArchiveRestore } from "lucide-react";
+import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2, CheckCircle2, Pencil, Archive, ArchiveRestore, History } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmailSequencePanel } from "./EmailSequencePanel";
 import { SecureRecordingPlayer } from "./SecureRecordingPlayer";
+import { CampaignHistorySheet, logCampaignEvent } from "./CampaignHistorySheet";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const BUSINESS_TYPES = ["salon","barbershop","restaurant","spa","clinic","trades","estate_agent","beauty","other"] as const;
@@ -184,6 +185,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Campaign | null>(null);
   const [view, setView] = useState<"active" | "archived">("active");
+  const [historyFor, setHistoryFor] = useState<Campaign | null>(null);
   const emptyForm = {
     name: "", calling_days: ["Monday","Tuesday","Wednesday","Thursday","Friday"],
     calling_start_hour: 9, calling_end_hour: 18,
@@ -220,6 +222,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
       .update({ archived_at: new Date().toISOString(), archived_by: u.user?.id ?? null } as any)
       .eq("id", id);
     if (error) { toast({ title: "Archive failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({ campaign_id: id, event_type: "campaign_archived", message: "Campaign archived" });
     toast({ title: "Campaign archived", description: "Find it in the Archived view to restore or delete forever." });
     load();
   };
@@ -229,6 +232,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
       .update({ archived_at: null, archived_by: null } as any)
       .eq("id", id);
     if (error) { toast({ title: "Restore failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({ campaign_id: id, event_type: "campaign_restored", message: "Campaign restored from archive" });
     toast({ title: "Campaign restored" });
     load();
   };
@@ -240,9 +244,16 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
     load();
   };
   const setStatus = async (id: string, status: Campaign["status"]) => {
+    const prev = rows.find(r => r.id === id)?.status;
     const { error } = await supabase.from("outbound_campaigns").update({ status }).eq("id", id);
-    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else load();
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: id,
+      event_type: "campaign_status_changed",
+      message: `Campaign status changed from ${prev ?? "unknown"} to ${status}`,
+      details: { from: prev ?? null, to: status },
+    });
+    load();
   };
 
   const activateCampaign = async (campaign: Campaign) => {
@@ -307,12 +318,34 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
       return;
     }
     if (editing) {
+      const changed: Record<string, { from: unknown; to: unknown }> = {};
+      for (const k of Object.keys(form) as (keyof typeof form)[]) {
+        const before = (editing as any)[k];
+        const after = (form as any)[k];
+        if (JSON.stringify(before) !== JSON.stringify(after)) changed[k] = { from: before ?? null, to: after ?? null };
+      }
       const { error } = await supabase.from("outbound_campaigns").update(form).eq("id", editing.id);
       if (error) { toast({ title: "Could not save campaign", description: error.message, variant: "destructive" }); return; }
+      if (Object.keys(changed).length) {
+        logCampaignEvent({
+          campaign_id: editing.id,
+          event_type: "campaign_updated",
+          message: `Campaign settings updated (${Object.keys(changed).join(", ")})`,
+          details: { changed },
+        });
+      }
       toast({ title: "Campaign updated" });
     } else {
-      const { error } = await supabase.from("outbound_campaigns").insert({ ...form, status: "draft" });
+      const { data: created, error } = await supabase.from("outbound_campaigns").insert({ ...form, status: "draft" }).select("id").maybeSingle();
       if (error) { toast({ title: "Could not create campaign", description: error.message, variant: "destructive" }); return; }
+      if (created?.id) {
+        logCampaignEvent({
+          campaign_id: created.id,
+          event_type: "campaign_created",
+          message: `Campaign "${form.name}" created`,
+          details: { ...form },
+        });
+      }
       toast({ title: "Campaign created" });
     }
     setOpen(false); load();
@@ -358,6 +391,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                   <TableCell>{st.demos}</TableCell>
                   <TableCell>{pct}%</TableCell>
                   <TableCell className="text-right space-x-1" onClick={e => e.stopPropagation()}>
+                    <Button size="sm" variant="outline" title="History" onClick={() => setHistoryFor(c)}><History className="w-3 h-3"/></Button>
                     {view === "active" ? (
                       <>
                         {c.status !== "active" && (
@@ -452,6 +486,15 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {historyFor && (
+        <CampaignHistorySheet
+          open={!!historyFor}
+          onOpenChange={(o) => { if (!o) setHistoryFor(null); }}
+          campaignId={historyFor.id}
+          campaignName={historyFor.name}
+        />
+      )}
     </Card>
   );
 }
@@ -552,6 +595,9 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     }
   };
 
+  const leadLabel = (l: { first_name?: string | null; business_name?: string | null; phone_number?: string }) =>
+    (l.business_name || l.first_name || l.phone_number || "lead") as string;
+
   const addLead = async () => {
     if (!newLead.phone_number.trim()) return;
     const payload: any = {
@@ -562,23 +608,42 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
       email: newLead.email || null,
       campaign_id: campaign.id,
     };
-    const { error } = await supabase.from("outbound_leads").insert(payload);
-    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" }); load(); }
+    const { data: created, error } = await supabase.from("outbound_leads").insert(payload).select("id").maybeSingle();
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+    if (created?.id) {
+      logCampaignEvent({
+        campaign_id: campaign.id,
+        lead_id: created.id,
+        event_type: "lead_created",
+        message: `Lead added: ${leadLabel(payload)}`,
+        details: payload,
+      });
+    }
+    setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" }); load();
   };
   const archiveLead = async (id: string) => {
+    const lead = leads.find(l => l.id === id);
     const { data: u } = await supabase.auth.getUser();
     const { error } = await supabase.from("outbound_leads")
       .update({ archived_at: new Date().toISOString(), archived_by: u.user?.id ?? null } as any)
       .eq("id", id);
     if (error) { toast({ title: "Archive failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id, lead_id: id, event_type: "lead_archived",
+      message: `Archived lead${lead ? `: ${leadLabel(lead)}` : ""}`,
+    });
     toast({ title: "Lead archived" });
     load();
   };
   const restoreLead = async (id: string) => {
+    const lead = leads.find(l => l.id === id);
     const { error } = await supabase.from("outbound_leads")
       .update({ archived_at: null, archived_by: null } as any).eq("id", id);
     if (error) { toast({ title: "Restore failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id, lead_id: id, event_type: "lead_restored",
+      message: `Restored lead${lead ? `: ${leadLabel(lead)}` : ""}`,
+    });
     toast({ title: "Lead restored" });
     load();
   };
@@ -586,6 +651,11 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     if (!confirm(`Permanently delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
     const { error } = await supabase.from("outbound_leads").delete().eq("id", id);
     if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id, event_type: "lead_deleted",
+      message: `Deleted lead${name ? `: ${name}` : ""} forever`,
+      details: { lead_id: id, name },
+    });
     toast({ title: "Lead deleted forever" });
     load();
   };
@@ -597,6 +667,11 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
       .update({ archived_at: new Date().toISOString(), archived_by: u.user?.id ?? null } as any)
       .in("id", ids);
     if (error) { toast({ title: "Archive failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id, event_type: "lead_archived",
+      message: `${ids.length} lead${ids.length === 1 ? "" : "s"} archived in bulk`,
+      details: { lead_ids: ids },
+    });
     toast({ title: `${ids.length} lead${ids.length === 1 ? "" : "s"} archived` });
     setSelectedIds(new Set()); load();
   };
@@ -606,6 +681,11 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     const { error } = await supabase.from("outbound_leads")
       .update({ archived_at: null, archived_by: null } as any).in("id", ids);
     if (error) { toast({ title: "Restore failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id, event_type: "lead_restored",
+      message: `${ids.length} lead${ids.length === 1 ? "" : "s"} restored in bulk`,
+      details: { lead_ids: ids },
+    });
     toast({ title: `${ids.length} lead${ids.length === 1 ? "" : "s"} restored` });
     setSelectedIds(new Set()); load();
   };
@@ -615,6 +695,11 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     if (!confirm(`Permanently delete ${ids.length} lead${ids.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
     const { error } = await supabase.from("outbound_leads").delete().in("id", ids);
     if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id, event_type: "lead_deleted",
+      message: `${ids.length} lead${ids.length === 1 ? "" : "s"} deleted forever`,
+      details: { lead_ids: ids },
+    });
     toast({ title: `${ids.length} lead${ids.length === 1 ? "" : "s"} deleted forever` });
     setSelectedIds(new Set()); load();
   };
@@ -644,8 +729,14 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     }).filter(r => r.phone_number);
     if (!rows.length) return;
     const { error } = await supabase.from("outbound_leads").insert(rows);
-    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { toast({ title: `Imported ${rows.length} leads` }); load(); }
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id,
+      event_type: "leads_imported",
+      message: `Imported ${rows.length} lead${rows.length === 1 ? "" : "s"} from CSV`,
+      details: { count: rows.length },
+    });
+    toast({ title: `Imported ${rows.length} leads` }); load();
   };
 
   return (
@@ -913,7 +1004,8 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
               </div>
               <div className="flex justify-end">
                 <Button onClick={async () => {
-                  const { error } = await supabase.from("outbound_leads").update({
+                  const before = leads.find(l => l.id === selected.id);
+                  const updates: any = {
                     first_name: selected.first_name,
                     business_name: selected.business_name,
                     phone_number: selected.phone_number,
@@ -925,8 +1017,35 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                     reason_not_interested: selected.reason_not_interested,
                     notes: selected.notes,
                     demo_booked: selected.demo_booked,
-                  }).eq("id", selected.id);
+                  };
+                  const { error } = await supabase.from("outbound_leads").update(updates).eq("id", selected.id);
                   if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+                  if (before) {
+                    const changed: Record<string, { from: unknown; to: unknown }> = {};
+                    for (const k of Object.keys(updates)) {
+                      const b = (before as any)[k] ?? null;
+                      const a = (updates as any)[k] ?? null;
+                      if (JSON.stringify(b) !== JSON.stringify(a)) changed[k] = { from: b, to: a };
+                    }
+                    if (Object.keys(changed).length) {
+                      const label = leadLabel(selected);
+                      if (changed.status) {
+                        logCampaignEvent({
+                          campaign_id: campaign.id, lead_id: selected.id,
+                          event_type: "lead_status_changed",
+                          message: `${label}: status ${changed.status.from} → ${changed.status.to}`,
+                          details: { changed },
+                        });
+                      } else {
+                        logCampaignEvent({
+                          campaign_id: campaign.id, lead_id: selected.id,
+                          event_type: "lead_updated",
+                          message: `${label}: edited (${Object.keys(changed).join(", ")})`,
+                          details: { changed },
+                        });
+                      }
+                    }
+                  }
                   toast({ title: "Lead updated" });
                   load();
                 }}>

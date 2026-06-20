@@ -212,6 +212,18 @@ Deno.serve(async (req) => {
       last_called_at: new Date().toISOString(),
     }).eq("id", lead_id);
 
+    if (lead.campaign_id) {
+      const label = lead.business_name || lead.first_name || lead.phone_number || "lead";
+      await supabase.rpc("log_campaign_event", {
+        p_campaign_id: lead.campaign_id,
+        p_event_type: "call_placed",
+        p_message: `Call placed to ${label} (${lead.phone_number})`,
+        p_lead_id: lead_id,
+        p_details: { twilio_sid: data.sid, retell_call_id: retellCallId, voice: (settings as any)?.voice ?? null },
+      });
+    }
+
+
     return new Response(JSON.stringify({ ok: true, sid: data.sid, retell_call_id: retellCallId }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("[twilio-outbound-call] error", e);

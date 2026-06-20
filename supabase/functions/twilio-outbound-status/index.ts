@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
 
     const { data: lead } = await supabase
       .from("outbound_leads")
-      .select("id, retry_count, status, first_name, business_name, phone_number, sms_sent")
+      .select("id, campaign_id, retry_count, status, first_name, business_name, phone_number, sms_sent")
       .eq("twilio_call_sid", callSid)
       .maybeSingle();
     if (!lead) return new Response("ok", { headers: corsHeaders });
@@ -119,7 +119,6 @@ Deno.serve(async (req) => {
       if (!["interested", "demo_booked", "not_interested", "do_not_call"].includes(lead.status)) {
         update.status = "no_answer";
       }
-      // Only bump retry_count on terminal Twilio statuses (not on the async AMD callback)
       if (status === "no-answer" || status === "busy" || status === "failed" || status === "completed") {
         update.retry_count = (lead.retry_count || 0) + 1;
       }
@@ -129,6 +128,28 @@ Deno.serve(async (req) => {
       if (durationStr) update.call_duration_seconds = parseInt(durationStr, 10) || null;
     }
     if (Object.keys(update).length) await supabase.from("outbound_leads").update(update).eq("id", lead.id);
+
+    // Log call completion to campaign history (terminal Twilio statuses only)
+    if ((lead as any).campaign_id && (status === "completed" || status === "no-answer" || status === "busy" || status === "failed")) {
+      const label = lead.business_name || lead.first_name || lead.phone_number || "lead";
+      const durSec = durationStr ? parseInt(durationStr, 10) || 0 : 0;
+      await supabase.rpc("log_campaign_event", {
+        p_campaign_id: (lead as any).campaign_id,
+        p_event_type: "call_completed",
+        p_message:
+          status === "completed"
+            ? `Call to ${label} completed${durSec ? ` (${durSec}s)` : ""}${isMachine ? " — voicemail" : ""}`
+            : `Call to ${label} ${status}${isMachine ? " (voicemail)" : ""}`,
+        p_lead_id: lead.id,
+        p_details: {
+          twilio_status: status,
+          answered_by: answeredBy || null,
+          duration_seconds: durSec || null,
+          is_machine: isMachine,
+        },
+      });
+    }
+
 
     // Auto SMS follow-up after a no-answer.
     if (isNoAnswer) {

@@ -261,6 +261,40 @@ Deno.serve(async (req) => {
 
     await supabase.from("outbound_leads").update(update).eq("id", lead.id);
 
+    // Log post-call analysis to campaign history
+    if (lead.campaign_id) {
+      const label = lead.business_name || lead.first_name || lead.phone_number || "lead";
+      const newStatus = (update as any).status;
+      if (newStatus && newStatus !== lead.status) {
+        await supabase.rpc("log_campaign_event", {
+          p_campaign_id: lead.campaign_id,
+          p_event_type: "lead_status_changed",
+          p_message: `${label}: status ${lead.status} → ${newStatus} (after call)`,
+          p_lead_id: lead.id,
+          p_details: {
+            from: lead.status,
+            to: newStatus,
+            interest_level: analysis?.interest_level ?? null,
+            demo_booked: !!analysis?.demo_booked,
+            duration_seconds: durationSec,
+            has_transcript: !!transcript,
+          },
+        });
+      } else if (transcript) {
+        await supabase.rpc("log_campaign_event", {
+          p_campaign_id: lead.campaign_id,
+          p_event_type: "call_analyzed",
+          p_message: `${label}: call analysed${durationSec ? ` (${durationSec}s)` : ""}`,
+          p_lead_id: lead.id,
+          p_details: {
+            interest_level: analysis?.interest_level ?? null,
+            duration_seconds: durationSec,
+          },
+        });
+      }
+    }
+
+
     const firstName = lead.first_name || "Unknown";
     const businessName = lead.business_name || "Unknown business";
 
