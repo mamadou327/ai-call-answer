@@ -60,6 +60,7 @@ type Demo = {
   prospect_phone: string | null; prospect_email: string | null;
   call_summary: string | null; status: string;
 };
+type CampaignProcessResult = { placed?: number; skipped?: string; day?: string; hour?: number };
 
 const statusBadge = (status: string) => {
   const map: Record<string, string> = {
@@ -218,6 +219,35 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
     else load();
   };
 
+  const activateCampaign = async (campaign: Campaign) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("process-outbound-campaign", {
+        body: { campaign_id: campaign.id, activate: true },
+      });
+      if (error) throw error;
+
+      const result = (data?.summary || [])[0] as CampaignProcessResult | undefined;
+      if (!result) {
+        toast({ title: "Campaign not started", description: "No matching campaign was found to activate.", variant: "destructive" });
+      } else if (result.skipped === "day_not_allowed") {
+        toast({ title: "Campaign stays deactivated", description: `Today (${result.day}) is not in this campaign's calling days.`, variant: "destructive" });
+      } else if (result.skipped === "outside_hours") {
+        toast({ title: "Campaign stays deactivated", description: `It is outside this campaign's calling hours right now.`, variant: "destructive" });
+      } else if (result.skipped === "daily_cap") {
+        toast({ title: "Campaign not started", description: "This campaign has already reached today's call limit.", variant: "destructive" });
+      } else if ((result.placed || 0) === 0) {
+        toast({ title: "Campaign activated", description: "There are no pending leads to call right now." });
+      } else {
+        toast({ title: "Campaign activated", description: `${result.placed} call${result.placed === 1 ? "" : "s"} started.` });
+      }
+    } catch (e: unknown) {
+      console.error("Failed to trigger campaign processing", e);
+      toast({ title: "Could not start campaign", description: e instanceof Error ? e.message : "Please try again.", variant: "destructive" });
+    } finally {
+      load();
+    }
+  };
+
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
@@ -297,16 +327,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                   <TableCell>{pct}%</TableCell>
                   <TableCell className="text-right space-x-1" onClick={e => e.stopPropagation()}>
                     {c.status !== "active" && c.status !== "completed" && (
-                      <Button size="sm" variant="outline" onClick={async () => {
-                        await setStatus(c.id, "active");
-                        try {
-                          await supabase.functions.invoke("process-outbound-campaign", {
-                            body: { campaign_id: c.id, force: true },
-                          });
-                        } catch (e) {
-                          console.error("Failed to trigger campaign processing", e);
-                        }
-                      }}><Play className="w-3 h-3"/></Button>
+                      <Button size="sm" variant="outline" onClick={() => activateCampaign(c)}><Play className="w-3 h-3"/></Button>
                     )}
                     {c.status === "active" && (
                       <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "paused")}><Pause className="w-3 h-3"/></Button>
