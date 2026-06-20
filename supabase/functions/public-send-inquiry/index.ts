@@ -124,7 +124,7 @@ serve(async (req) => {
         from: "Aivia <notifications@aivia.app>",
         to: [recipientEmail],
         reply_to: customerEmail,
-        subject: `New inquiry from ${customerName} - ${business.business_name}`,
+        subject: `New inquiry from ${String(customerName).replace(/[\r\n]/g, " ").slice(0, 120)} - ${String(business.business_name).replace(/[\r\n]/g, " ").slice(0, 120)}`,
         html: `
           <!DOCTYPE html>
           <html>
