@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     const RETELL_API_KEY = Deno.env.get("RETELL_API_KEY") || "";
     const { data: leads, error } = await supabase
       .from("outbound_leads")
-      .select("id, twilio_call_sid, retell_call_id, call_duration_seconds, transcript")
+      .select("id, twilio_call_sid, retell_call_id, call_duration_seconds, call_transcript")
       .is("call_recording_url", null)
       .not("twilio_call_sid", "is", null);
     if (error) throw error;
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
 
       const update: Record<string, unknown> = { call_recording_url: recordingUrl };
       if (duration && !(lead as any).call_duration_seconds) update.call_duration_seconds = duration;
-      if (transcript && !(lead as any).transcript) update.transcript = transcript;
+      if (transcript && !(lead as any).call_transcript) update.call_transcript = transcript;
       const { error: upErr } = await supabase
         .from("outbound_leads")
         .update(update)
