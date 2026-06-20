@@ -1117,13 +1117,41 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </div>
                 <div><b>SMS sent:</b> {selected.sms_sent ? "Yes" : "No"}</div>
                 <div><b>Last called:</b> {selected.last_called_at ? new Date(selected.last_called_at).toLocaleString() : "—"}</div>
-                {selected.call_recording_url && <SecureRecordingPlayer url={selected.call_recording_url} className="w-full"/>}
-                {selected.call_transcript && (
-                  <div>
-                    <b>Transcript</b>
-                    <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap mt-1">{selected.call_transcript}</pre>
+                <div className="space-y-3 pt-2">
+                  <div className="font-medium text-xs uppercase text-muted-foreground">
+                    Call history {callHistory.length > 0 && `(${callHistory.length})`}
                   </div>
-                )}
+                  {historyLoading ? (
+                    <div className="text-xs text-muted-foreground">Loading…</div>
+                  ) : callHistory.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">No calls recorded yet.</div>
+                  ) : (
+                    callHistory.map((c, idx) => (
+                      <div key={c.id} className="border rounded p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium">
+                            Attempt {callHistory.length - idx} · {new Date(c.called_at).toLocaleString()}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {c.duration_seconds != null ? `${c.duration_seconds}s` : "—"}
+                            {c.outcome ? ` · ${c.outcome}` : ""}
+                          </span>
+                        </div>
+                        {c.recording_url ? (
+                          <SecureRecordingPlayer url={c.recording_url} className="w-full" />
+                        ) : (
+                          <div className="text-xs text-muted-foreground">No recording</div>
+                        )}
+                        {c.transcript && (
+                          <details>
+                            <summary className="text-xs cursor-pointer text-muted-foreground hover:text-foreground">Transcript</summary>
+                            <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap mt-1">{c.transcript}</pre>
+                          </details>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           )}
