@@ -132,6 +132,7 @@ Deno.serve(async (req) => {
         .select("id")
         .eq("campaign_id", c.id)
         .eq("status", "pending")
+        .is("archived_at", null)
         .order("created_at", { ascending: true })
         .limit(remainingCap);
 
