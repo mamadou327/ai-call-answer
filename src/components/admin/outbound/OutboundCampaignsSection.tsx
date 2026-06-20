@@ -318,12 +318,34 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
       return;
     }
     if (editing) {
+      const changed: Record<string, { from: unknown; to: unknown }> = {};
+      for (const k of Object.keys(form) as (keyof typeof form)[]) {
+        const before = (editing as any)[k];
+        const after = (form as any)[k];
+        if (JSON.stringify(before) !== JSON.stringify(after)) changed[k] = { from: before ?? null, to: after ?? null };
+      }
       const { error } = await supabase.from("outbound_campaigns").update(form).eq("id", editing.id);
       if (error) { toast({ title: "Could not save campaign", description: error.message, variant: "destructive" }); return; }
+      if (Object.keys(changed).length) {
+        logCampaignEvent({
+          campaign_id: editing.id,
+          event_type: "campaign_updated",
+          message: `Campaign settings updated (${Object.keys(changed).join(", ")})`,
+          details: { changed },
+        });
+      }
       toast({ title: "Campaign updated" });
     } else {
-      const { error } = await supabase.from("outbound_campaigns").insert({ ...form, status: "draft" });
+      const { data: created, error } = await supabase.from("outbound_campaigns").insert({ ...form, status: "draft" }).select("id").maybeSingle();
       if (error) { toast({ title: "Could not create campaign", description: error.message, variant: "destructive" }); return; }
+      if (created?.id) {
+        logCampaignEvent({
+          campaign_id: created.id,
+          event_type: "campaign_created",
+          message: `Campaign "${form.name}" created`,
+          details: { ...form },
+        });
+      }
       toast({ title: "Campaign created" });
     }
     setOpen(false); load();
