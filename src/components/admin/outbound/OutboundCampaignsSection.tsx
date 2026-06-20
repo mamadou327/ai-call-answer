@@ -325,7 +325,13 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
           <CardTitle>Campaigns</CardTitle>
           <CardDescription>Manage outbound calling campaigns</CardDescription>
         </div>
-        <Button onClick={openCreate}><Plus className="w-4 h-4 mr-1"/>Create Campaign</Button>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-md border p-0.5">
+            <Button size="sm" variant={view === "active" ? "default" : "ghost"} className="h-7 px-2" onClick={() => setView("active")}>Active ({activeRows.length})</Button>
+            <Button size="sm" variant={view === "archived" ? "default" : "ghost"} className="h-7 px-2" onClick={() => setView("archived")}>Archived ({archivedRows.length})</Button>
+          </div>
+          {view === "active" && <Button onClick={openCreate}><Plus className="w-4 h-4 mr-1"/>Create Campaign</Button>}
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto"/> :
@@ -339,7 +345,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map(c => {
+            {visibleRows.map(c => {
               const st = stats[c.id] || { leads: 0, calls: 0, demos: 0 };
               const pct = st.calls ? Math.round((st.demos / st.calls) * 100) : 0;
               return (
@@ -352,25 +358,35 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                   <TableCell>{st.demos}</TableCell>
                   <TableCell>{pct}%</TableCell>
                   <TableCell className="text-right space-x-1" onClick={e => e.stopPropagation()}>
-                    {c.status !== "active" && c.status !== "completed" && (
-                      <Button size="sm" variant="outline" onClick={() => activateCampaign(c)}><Play className="w-3 h-3"/></Button>
+                    {view === "active" ? (
+                      <>
+                        {c.status !== "active" && c.status !== "completed" && (
+                          <Button size="sm" variant="outline" onClick={() => activateCampaign(c)}><Play className="w-3 h-3"/></Button>
+                        )}
+                        {c.status === "active" && (
+                          <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "paused")}><Pause className="w-3 h-3"/></Button>
+                        )}
+                        {c.status !== "completed" && (
+                          <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "completed")}><Square className="w-3 h-3"/></Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => openEdit(c)}><Pencil className="w-3 h-3"/></Button>
+                        <Button size="sm" variant="outline" title="Archive" onClick={() => archiveCampaign(c.id)}><Archive className="w-3 h-3"/></Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="sm" variant="outline" title="Restore" onClick={() => restoreCampaign(c.id)}><ArchiveRestore className="w-3 h-3"/></Button>
+                        <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" title="Delete forever" onClick={() => deleteForever(c.id, c.name)}><Trash2 className="w-3 h-3"/></Button>
+                      </>
                     )}
-                    {c.status === "active" && (
-                      <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "paused")}><Pause className="w-3 h-3"/></Button>
-                    )}
-                    {c.status !== "completed" && (
-                      <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "completed")}><Square className="w-3 h-3"/></Button>
-                    )}
-                    <Button size="sm" variant="outline" onClick={() => openEdit(c)}><Pencil className="w-3 h-3"/></Button>
-                    <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => deleteCampaign(c.id, c.name)}><Trash2 className="w-3 h-3"/></Button>
                   </TableCell>
                 </TableRow>
               );
             })}
-            {rows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No campaigns yet</TableCell></TableRow>}
+            {visibleRows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">{view === "active" ? "No campaigns yet" : "No archived campaigns"}</TableCell></TableRow>}
           </TableBody>
         </Table>}
       </CardContent>
+
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
