@@ -18,11 +18,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { lead_id } = await req.json();
-    if (!lead_id) {
-      return new Response(JSON.stringify({ error: "lead_id required" }), { status: 400, headers: corsHeaders });
-    }
-
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const TWILIO_SID = Deno.env.get("TWILIO_ACCOUNT_SID")!;
@@ -32,6 +27,41 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "RETELL_API_KEY not configured" }), { status: 500, headers: corsHeaders });
     }
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    // Auth: cron secret, service role bearer, or super_admin user JWT
+    const authHeader = req.headers.get("Authorization") || "";
+    const headerSecret = req.headers.get("x-cron-secret") || "";
+    const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const provided = headerSecret || bearer;
+    const { data: cronSecret } = await supabase.rpc("get_cron_secret");
+    let isAuthorized =
+      (provided && cronSecret && provided === cronSecret) ||
+      (bearer && bearer === SERVICE_KEY);
+    if (!isAuthorized && bearer) {
+      try {
+        const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+          global: { headers: { Authorization: `Bearer ${bearer}` } },
+        });
+        const { data: u } = await userClient.auth.getUser();
+        if (u?.user?.id) {
+          const { data: isAdmin } = await supabase.rpc("has_role", {
+            _user_id: u.user.id, _role: "super_admin",
+          });
+          if (isAdmin) isAuthorized = true;
+        }
+      } catch (_e) { /* ignore */ }
+    }
+    if (!isAuthorized) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { lead_id } = await req.json();
+    if (!lead_id) {
+      return new Response(JSON.stringify({ error: "lead_id required" }), { status: 400, headers: corsHeaders });
+    }
+
 
     const { data: lead, error: leadErr } = await supabase
       .from("outbound_leads")
