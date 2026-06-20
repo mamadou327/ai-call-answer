@@ -35,6 +35,7 @@ Deno.serve(async (req) => {
     }
     if (!authorized) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
 
+    // ------- 1. Backfill missing call_recording_url from Twilio -------
     const { data: leads, error } = await supabase
       .from("outbound_leads")
       .select("id, twilio_call_sid")
@@ -64,7 +65,71 @@ Deno.serve(async (req) => {
       results.push({ lead: lead.id, sid, recordingSid: rec.sid, updated: !upErr, err: upErr?.message });
     }
 
-    return new Response(JSON.stringify({ ok: true, processed: results.length, results }, null, 2), {
+    // ------- 2. Backfill missing campaign history events for recent calls -------
+    // Any lead with a twilio_call_sid + campaign_id that has no call_placed event yet.
+    const { data: callLeads } = await supabase
+      .from("outbound_leads")
+      .select("id, campaign_id, twilio_call_sid, business_name, first_name, phone_number, last_called_at, call_duration_seconds, status, retell_call_id")
+      .not("twilio_call_sid", "is", null)
+      .not("campaign_id", "is", null);
+
+    const eventsBackfilled: any[] = [];
+    for (const l of callLeads || []) {
+      const { data: existing } = await supabase
+        .from("outbound_campaign_events")
+        .select("id")
+        .eq("lead_id", (l as any).id)
+        .eq("event_type", "call_placed")
+        .limit(1);
+      if (existing && existing.length > 0) continue;
+
+      const label = (l as any).business_name || (l as any).first_name || (l as any).phone_number || "lead";
+      const calledAt = (l as any).last_called_at || new Date().toISOString();
+
+      // Insert call_placed at last_called_at (backdated).
+      const { error: e1 } = await supabase.from("outbound_campaign_events").insert({
+        campaign_id: (l as any).campaign_id,
+        lead_id: (l as any).id,
+        event_type: "call_placed",
+        message: `Call placed to ${label} (${(l as any).phone_number || "?"})`,
+        details: {
+          twilio_sid: (l as any).twilio_call_sid,
+          retell_call_id: (l as any).retell_call_id ?? null,
+          backfilled: true,
+        },
+        created_at: calledAt,
+      } as any);
+      if (e1) { eventsBackfilled.push({ lead: (l as any).id, error: e1.message }); continue; }
+
+      // Insert call_completed if we have a terminal-looking status.
+      const terminal = ["interested", "not_interested", "demo_booked", "do_not_call", "no_answer"];
+      if (terminal.includes((l as any).status)) {
+        const dur = (l as any).call_duration_seconds || 0;
+        const completedAt = new Date(new Date(calledAt).getTime() + Math.max(dur, 1) * 1000).toISOString();
+        await supabase.from("outbound_campaign_events").insert({
+          campaign_id: (l as any).campaign_id,
+          lead_id: (l as any).id,
+          event_type: "call_completed",
+          message: `Call to ${label} completed${dur ? ` (${dur}s)` : ""}`,
+          details: {
+            twilio_sid: (l as any).twilio_call_sid,
+            duration_seconds: dur || null,
+            final_status: (l as any).status,
+            backfilled: true,
+          },
+          created_at: completedAt,
+        } as any);
+      }
+      eventsBackfilled.push({ lead: (l as any).id, ok: true });
+    }
+
+    return new Response(JSON.stringify({
+      ok: true,
+      recordings_processed: results.length,
+      recordings: results,
+      events_backfilled: eventsBackfilled.length,
+      events: eventsBackfilled,
+    }, null, 2), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
