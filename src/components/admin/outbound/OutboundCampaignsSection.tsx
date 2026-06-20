@@ -566,13 +566,59 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" }); load(); }
   };
-  const deleteLead = async (id: string, name: string) => {
-    if (!confirm(`Delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
-    const { error } = await supabase.from("outbound_leads").delete().eq("id", id);
-    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Lead deleted" });
+  const archiveLead = async (id: string) => {
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase.from("outbound_leads")
+      .update({ archived_at: new Date().toISOString(), archived_by: u.user?.id ?? null } as any)
+      .eq("id", id);
+    if (error) { toast({ title: "Archive failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Lead archived" });
     load();
   };
+  const restoreLead = async (id: string) => {
+    const { error } = await supabase.from("outbound_leads")
+      .update({ archived_at: null, archived_by: null } as any).eq("id", id);
+    if (error) { toast({ title: "Restore failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Lead restored" });
+    load();
+  };
+  const deleteLeadForever = async (id: string, name: string) => {
+    if (!confirm(`Permanently delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
+    const { error } = await supabase.from("outbound_leads").delete().eq("id", id);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Lead deleted forever" });
+    load();
+  };
+  const bulkArchive = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase.from("outbound_leads")
+      .update({ archived_at: new Date().toISOString(), archived_by: u.user?.id ?? null } as any)
+      .in("id", ids);
+    if (error) { toast({ title: "Archive failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${ids.length} lead${ids.length === 1 ? "" : "s"} archived` });
+    setSelectedIds(new Set()); load();
+  };
+  const bulkRestore = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    const { error } = await supabase.from("outbound_leads")
+      .update({ archived_at: null, archived_by: null } as any).in("id", ids);
+    if (error) { toast({ title: "Restore failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${ids.length} lead${ids.length === 1 ? "" : "s"} restored` });
+    setSelectedIds(new Set()); load();
+  };
+  const bulkDeleteForever = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    if (!confirm(`Permanently delete ${ids.length} lead${ids.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    const { error } = await supabase.from("outbound_leads").delete().in("id", ids);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${ids.length} lead${ids.length === 1 ? "" : "s"} deleted forever` });
+    setSelectedIds(new Set()); load();
+  };
+
 
   const importCSV = async (file: File) => {
     const text = await file.text();
