@@ -143,12 +143,10 @@ const StaffDashboard = () => {
       return;
     }
 
-    // Load business info
-    const { data: business } = await supabase
-      .from("businesses")
-      .select("id, business_name")
-      .eq("id", membership.business_id)
-      .single();
+    // Load business info via safe RPC (staff cannot read sensitive business columns directly)
+    const { data: businessRows } = await supabase
+      .rpc("get_business_summary_for_staff", { _business_id: membership.business_id });
+    const business = Array.isArray(businessRows) ? businessRows[0] : null;
 
     if (business) {
       setBusinessName(business.business_name);

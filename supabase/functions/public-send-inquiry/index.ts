@@ -7,6 +7,16 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const escHtml = (s: string | null | undefined) =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const escUri = (s: string | null | undefined) => encodeURIComponent(String(s ?? ""));
+
 interface InquiryRequest {
   businessSlug: string;
   customerName: string;
@@ -114,7 +124,7 @@ serve(async (req) => {
         from: "Aivia <notifications@aivia.app>",
         to: [recipientEmail],
         reply_to: customerEmail,
-        subject: `New inquiry from ${customerName} - ${business.business_name}`,
+        subject: `New inquiry from ${String(customerName).replace(/[\r\n]/g, " ").slice(0, 120)} - ${String(business.business_name).replace(/[\r\n]/g, " ").slice(0, 120)}`,
         html: `
           <!DOCTYPE html>
           <html>
@@ -133,18 +143,18 @@ serve(async (req) => {
                 <td style="padding: 32px;">
                   <div style="background-color: #f8fafc; border-radius: 8px; padding: 24px; margin-bottom: 24px;">
                     <h2 style="margin: 0 0 16px 0; font-size: 18px; color: #1e293b;">Contact Details</h2>
-                    <p style="margin: 8px 0; color: #475569;"><strong>Name:</strong> ${customerName}</p>
-                    <p style="margin: 8px 0; color: #475569;"><strong>Email:</strong> <a href="mailto:${customerEmail}" style="color: #3b82f6;">${customerEmail}</a></p>
-                    ${customerPhone ? `<p style="margin: 8px 0; color: #475569;"><strong>Phone:</strong> <a href="tel:${customerPhone}" style="color: #3b82f6;">${customerPhone}</a></p>` : ""}
+                    <p style="margin: 8px 0; color: #475569;"><strong>Name:</strong> ${escHtml(customerName)}</p>
+                    <p style="margin: 8px 0; color: #475569;"><strong>Email:</strong> <a href="mailto:${escUri(customerEmail)}" style="color: #3b82f6;">${escHtml(customerEmail)}</a></p>
+                    ${customerPhone ? `<p style="margin: 8px 0; color: #475569;"><strong>Phone:</strong> <a href="tel:${escUri(customerPhone)}" style="color: #3b82f6;">${escHtml(customerPhone)}</a></p>` : ""}
                   </div>
                   
                   <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 0 8px 8px 0;">
                     <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #1e40af;">Message</h3>
-                    <p style="margin: 0; color: #1e293b; white-space: pre-wrap;">${message}</p>
+                    <p style="margin: 0; color: #1e293b; white-space: pre-wrap;">${escHtml(message)}</p>
                   </div>
                   
                   <div style="margin-top: 24px; text-align: center;">
-                    <a href="mailto:${customerEmail}?subject=Re: Your inquiry to ${business.business_name}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Reply to Customer</a>
+                    <a href="mailto:${escUri(customerEmail)}?subject=Re:%20Your%20inquiry%20to%20${escUri(business.business_name)}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Reply to Customer</a>
                   </div>
                 </td>
               </tr>

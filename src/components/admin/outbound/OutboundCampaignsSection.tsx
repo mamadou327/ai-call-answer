@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2, CheckCircle2, Pencil } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmailSequencePanel } from "./EmailSequencePanel";
+import { SecureRecordingPlayer } from "./SecureRecordingPlayer";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const BUSINESS_TYPES = ["salon","barbershop","restaurant","spa","clinic","trades","estate_agent","beauty","other"] as const;
@@ -573,7 +574,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 <TableCell>{l.call_duration_seconds ? `${l.call_duration_seconds}s` : "—"}</TableCell>
                 <TableCell className="whitespace-nowrap text-xs">{l.last_called_at ? new Date(l.last_called_at).toLocaleString() : "—"}</TableCell>
                 <TableCell onClick={e => e.stopPropagation()}>
-                  {l.call_recording_url ? <audio controls src={l.call_recording_url} className="h-8"/> : "—"}
+                  {l.call_recording_url ? <SecureRecordingPlayer url={l.call_recording_url} className="h-8"/> : "—"}
                 </TableCell>
                 <TableCell onClick={e => e.stopPropagation()} className="space-x-1">
                   {l.call_transcript && <Button size="sm" variant="ghost" onClick={() => setSelected(l)}><FileText className="w-4 h-4"/></Button>}
@@ -738,7 +739,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </div>
                 <div><b>SMS sent:</b> {selected.sms_sent ? "Yes" : "No"}</div>
                 <div><b>Last called:</b> {selected.last_called_at ? new Date(selected.last_called_at).toLocaleString() : "—"}</div>
-                {selected.call_recording_url && <audio controls src={selected.call_recording_url} className="w-full"/>}
+                {selected.call_recording_url && <SecureRecordingPlayer url={selected.call_recording_url} className="w-full"/>}
                 {selected.call_transcript && (
                   <div>
                     <b>Transcript</b>
