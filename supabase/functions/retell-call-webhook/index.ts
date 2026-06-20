@@ -181,6 +181,27 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, note: "no lead matched" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Always record this call attempt to history (idempotent on retell_call_id)
+    try {
+      const startMsHist = Number(call.start_timestamp || 0);
+      const endMsHist = Number(call.end_timestamp || 0);
+      const durHist = startMsHist && endMsHist ? Math.max(0, Math.round((endMsHist - startMsHist) / 1000)) : null;
+      const calledAt = startMsHist ? new Date(startMsHist).toISOString() : new Date().toISOString();
+      await supabase.from("outbound_lead_calls").upsert({
+        lead_id: lead.id,
+        campaign_id: lead.campaign_id,
+        retell_call_id: callId,
+        twilio_call_sid: lead.twilio_call_sid || null,
+        recording_url: call.recording_url || null,
+        transcript: call.transcript || null,
+        duration_seconds: durHist,
+        outcome: lead.status || null,
+        called_at: calledAt,
+      } as any, { onConflict: "retell_call_id" });
+    } catch (e) {
+      console.error("[retell-webhook] failed to write call history", e);
+    }
+
     if (lead.call_transcript) {
       console.log("[retell-webhook] already processed, skipping", callId);
       return new Response(JSON.stringify({ ok: true, note: "already processed" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
