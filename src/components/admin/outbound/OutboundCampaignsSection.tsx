@@ -627,10 +627,29 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
         </div>
       </CardHeader>
       <CardContent>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center justify-between mb-3 p-2 px-3 rounded-md border bg-muted/40 sticky top-0 z-10">
+            <div className="text-sm"><b>{selectedIds.size}</b> selected</div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())} disabled={retrying}>Clear</Button>
+              <Button size="sm" onClick={retrySelected} disabled={retrying}>
+                {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin"/> : <Play className="w-3 h-3 mr-1"/>}
+                Call again
+              </Button>
+            </div>
+          </div>
+        )}
         {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto"/> :
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8">
+                <Checkbox
+                  checked={allFilteredSelected}
+                  onCheckedChange={(v) => toggleAllFiltered(v === true)}
+                  aria-label="Select all filtered"
+                />
+              </TableHead>
               <TableHead>Name</TableHead><TableHead>Business</TableHead><TableHead>Type</TableHead><TableHead>Phone</TableHead>
               <TableHead>Email</TableHead><TableHead>Seq</TableHead>
               <TableHead>Status</TableHead><TableHead>Interest</TableHead><TableHead>SMS</TableHead>
@@ -640,7 +659,10 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           </TableHeader>
           <TableBody>
             {filtered.map(l => (
-              <TableRow key={l.id} className="cursor-pointer" onClick={() => setSelected({...l})}>
+              <TableRow key={l.id} className="cursor-pointer" onClick={() => setSelected({...l})} data-state={selectedIds.has(l.id) ? "selected" : undefined}>
+                <TableCell onClick={e => e.stopPropagation()}>
+                  <Checkbox checked={selectedIds.has(l.id)} onCheckedChange={(v) => toggleOne(l.id, v === true)} aria-label="Select lead"/>
+                </TableCell>
                 <TableCell>{l.first_name || "—"}</TableCell>
                 <TableCell>{l.business_name || "—"}</TableCell>
                 <TableCell>{l.business_type ? <Badge variant="outline" className="text-xs">{businessTypeLabel(l.business_type)}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
@@ -671,7 +693,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={14} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={15} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
           </TableBody>
         </Table>}
       </CardContent>
