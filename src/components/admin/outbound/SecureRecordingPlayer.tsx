@@ -13,12 +13,21 @@ export function SecureRecordingPlayer({ url, className }: { url: string; classNa
     let cancelled = false;
     (async () => {
       try {
-        // url shape: https://<project>/functions/v1/outbound-recording-proxy/<SID>.mp3
-        const match = url.match(/outbound-recording-proxy\/([^/?#]+)/);
-        if (!match) {
-          setError("invalid url");
+        if (!url) {
+          setError("no url");
           return;
         }
+        // Retell / external CDN recordings — play directly.
+        const match = url.match(/outbound-recording-proxy\/([^/?#]+)/);
+        if (!match) {
+          if (/^https?:\/\//i.test(url)) {
+            if (!cancelled) setSrc(url);
+          } else {
+            setError("invalid url");
+          }
+          return;
+        }
+        // Twilio proxy path — needs short-lived signed token.
         const session = (await supabase.auth.getSession()).data.session;
         const token = session?.access_token;
         if (!token) {
