@@ -35,10 +35,14 @@ Deno.serve(async (req) => {
     }
     if (!authorized) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
 
-    // ------- 1. Backfill missing call_recording_url from Twilio -------
+    // ------- 1. Backfill missing call_recording_url -------
+    // Recordings on this project come from Retell (cloudfront.net), not Twilio.
+    // For each lead missing a recording, fetch from Retell using retell_call_id; fall
+    // back to Twilio Recordings API only if Retell can't provide one.
+    const RETELL_API_KEY = Deno.env.get("RETELL_API_KEY") || "";
     const { data: leads, error } = await supabase
       .from("outbound_leads")
-      .select("id, twilio_call_sid")
+      .select("id, twilio_call_sid, retell_call_id, call_duration_seconds, call_transcript")
       .is("call_recording_url", null)
       .not("twilio_call_sid", "is", null);
     if (error) throw error;
@@ -47,22 +51,57 @@ Deno.serve(async (req) => {
     const results: any[] = [];
     for (const lead of leads || []) {
       const sid = (lead as any).twilio_call_sid as string;
-      const r = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Calls/${sid}/Recordings.json`,
-        { headers: { Authorization: `Basic ${auth}` } },
-      );
-      if (!r.ok) { results.push({ lead: lead.id, sid, status: r.status, error: await r.text() }); continue; }
-      const body = await r.json();
-      const rec = (body.recordings || [])[0];
-      if (!rec) { results.push({ lead: lead.id, sid, recordings: 0 }); continue; }
-      const proxyUrl = `${SUPABASE_URL}/functions/v1/outbound-recording-proxy/${rec.sid}.mp3`;
-      const update: Record<string, unknown> = { call_recording_url: proxyUrl };
-      if (rec.duration) update.call_duration_seconds = parseInt(rec.duration, 10) || null;
+      const retellId = (lead as any).retell_call_id as string | null;
+      let recordingUrl: string | null = null;
+      let duration: number | null = null;
+      let transcript: string | null = null;
+      let source: string = "none";
+
+      // Try Retell first.
+      if (retellId && RETELL_API_KEY) {
+        const rr = await fetch(`https://api.retellai.com/v2/get-call/${retellId}`, {
+          headers: { Authorization: `Bearer ${RETELL_API_KEY}` },
+        });
+        if (rr.ok) {
+          const rb = await rr.json();
+          if (rb?.recording_url) {
+            recordingUrl = rb.recording_url as string;
+            source = "retell";
+            if (rb.duration_ms) duration = Math.round((rb.duration_ms as number) / 1000);
+            if (rb.transcript) transcript = rb.transcript as string;
+          }
+        } else {
+          results.push({ lead: lead.id, retellId, retell_status: rr.status });
+        }
+      }
+
+      // Fallback: Twilio
+      if (!recordingUrl) {
+        const r = await fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Calls/${sid}/Recordings.json`,
+          { headers: { Authorization: `Basic ${auth}` } },
+        );
+        if (r.ok) {
+          const body = await r.json();
+          const rec = (body.recordings || [])[0];
+          if (rec) {
+            recordingUrl = `${SUPABASE_URL}/functions/v1/outbound-recording-proxy/${rec.sid}.mp3`;
+            source = "twilio";
+            if (rec.duration) duration = parseInt(rec.duration, 10) || null;
+          }
+        }
+      }
+
+      if (!recordingUrl) { results.push({ lead: lead.id, sid, recordings: 0, source }); continue; }
+
+      const update: Record<string, unknown> = { call_recording_url: recordingUrl };
+      if (duration && !(lead as any).call_duration_seconds) update.call_duration_seconds = duration;
+      if (transcript && !(lead as any).call_transcript) update.call_transcript = transcript;
       const { error: upErr } = await supabase
         .from("outbound_leads")
         .update(update)
         .eq("id", lead.id);
-      results.push({ lead: lead.id, sid, recordingSid: rec.sid, updated: !upErr, err: upErr?.message });
+      results.push({ lead: lead.id, sid, source, updated: !upErr, err: upErr?.message });
     }
 
     // ------- 2. Backfill missing campaign history events for recent calls -------
