@@ -38,10 +38,25 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    // Auth: cron secret or service-role bearer (this is a polling job, not user-facing)
+    const authHeader = req.headers.get("Authorization") || "";
+    const headerSecret = req.headers.get("x-cron-secret") || "";
+    const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const provided = headerSecret || bearer;
+    const { data: cronSecret } = await supabase.rpc("get_cron_secret");
+    const isAuthorized =
+      (provided && cronSecret && provided === cronSecret) ||
+      (bearer && bearer === SERVICE_KEY);
+    if (!isAuthorized) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
     const { data: logs } = await supabase
