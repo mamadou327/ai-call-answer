@@ -595,6 +595,9 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     }
   };
 
+  const leadLabel = (l: { first_name?: string | null; business_name?: string | null; phone_number?: string }) =>
+    (l.business_name || l.first_name || l.phone_number || "lead") as string;
+
   const addLead = async () => {
     if (!newLead.phone_number.trim()) return;
     const payload: any = {
@@ -605,23 +608,42 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
       email: newLead.email || null,
       campaign_id: campaign.id,
     };
-    const { error } = await supabase.from("outbound_leads").insert(payload);
-    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" }); load(); }
+    const { data: created, error } = await supabase.from("outbound_leads").insert(payload).select("id").maybeSingle();
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+    if (created?.id) {
+      logCampaignEvent({
+        campaign_id: campaign.id,
+        lead_id: created.id,
+        event_type: "lead_created",
+        message: `Lead added: ${leadLabel(payload)}`,
+        details: payload,
+      });
+    }
+    setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" }); load();
   };
   const archiveLead = async (id: string) => {
+    const lead = leads.find(l => l.id === id);
     const { data: u } = await supabase.auth.getUser();
     const { error } = await supabase.from("outbound_leads")
       .update({ archived_at: new Date().toISOString(), archived_by: u.user?.id ?? null } as any)
       .eq("id", id);
     if (error) { toast({ title: "Archive failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id, lead_id: id, event_type: "lead_archived",
+      message: `Archived lead${lead ? `: ${leadLabel(lead)}` : ""}`,
+    });
     toast({ title: "Lead archived" });
     load();
   };
   const restoreLead = async (id: string) => {
+    const lead = leads.find(l => l.id === id);
     const { error } = await supabase.from("outbound_leads")
       .update({ archived_at: null, archived_by: null } as any).eq("id", id);
     if (error) { toast({ title: "Restore failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id, lead_id: id, event_type: "lead_restored",
+      message: `Restored lead${lead ? `: ${leadLabel(lead)}` : ""}`,
+    });
     toast({ title: "Lead restored" });
     load();
   };
@@ -629,6 +651,11 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     if (!confirm(`Permanently delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
     const { error } = await supabase.from("outbound_leads").delete().eq("id", id);
     if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id, event_type: "lead_deleted",
+      message: `Deleted lead${name ? `: ${name}` : ""} forever`,
+      details: { lead_id: id, name },
+    });
     toast({ title: "Lead deleted forever" });
     load();
   };
@@ -640,6 +667,11 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
       .update({ archived_at: new Date().toISOString(), archived_by: u.user?.id ?? null } as any)
       .in("id", ids);
     if (error) { toast({ title: "Archive failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id, event_type: "lead_archived",
+      message: `${ids.length} lead${ids.length === 1 ? "" : "s"} archived in bulk`,
+      details: { lead_ids: ids },
+    });
     toast({ title: `${ids.length} lead${ids.length === 1 ? "" : "s"} archived` });
     setSelectedIds(new Set()); load();
   };
@@ -649,6 +681,11 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     const { error } = await supabase.from("outbound_leads")
       .update({ archived_at: null, archived_by: null } as any).in("id", ids);
     if (error) { toast({ title: "Restore failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id, event_type: "lead_restored",
+      message: `${ids.length} lead${ids.length === 1 ? "" : "s"} restored in bulk`,
+      details: { lead_ids: ids },
+    });
     toast({ title: `${ids.length} lead${ids.length === 1 ? "" : "s"} restored` });
     setSelectedIds(new Set()); load();
   };
@@ -658,6 +695,11 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     if (!confirm(`Permanently delete ${ids.length} lead${ids.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
     const { error } = await supabase.from("outbound_leads").delete().in("id", ids);
     if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id, event_type: "lead_deleted",
+      message: `${ids.length} lead${ids.length === 1 ? "" : "s"} deleted forever`,
+      details: { lead_ids: ids },
+    });
     toast({ title: `${ids.length} lead${ids.length === 1 ? "" : "s"} deleted forever` });
     setSelectedIds(new Set()); load();
   };
