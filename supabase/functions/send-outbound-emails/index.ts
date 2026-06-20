@@ -191,11 +191,17 @@ Deno.serve(async (req) => {
             .update({ status: "failed" })
             .eq("id", logRow.id);
           errors.push({ lead_id: lead.id, error: text });
+          await supabase.rpc("log_campaign_event", {
+            p_campaign_id: campaign_id,
+            p_event_type: "email_failed",
+            p_message: `Step ${step_number} email FAILED to ${lead.email}`,
+            p_lead_id: lead.id,
+            p_details: { subject, step_number, error: text.slice(0, 500) },
+          });
           continue;
         }
         const j = JSON.parse(text);
         const resendId = j?.id || null;
-        // Resend doesn't return Message-ID; use synthesized ID for threading
         const messageId = `<${resendId || logRow.id}@aiviaapp.co.uk>`;
 
         await supabase
@@ -217,10 +223,25 @@ Deno.serve(async (req) => {
           })
           .eq("id", lead.id);
 
+        await supabase.rpc("log_campaign_event", {
+          p_campaign_id: campaign_id,
+          p_event_type: "email_sent",
+          p_message: `Step ${step_number} email sent to ${lead.email}`,
+          p_lead_id: lead.id,
+          p_details: { subject, step_number, resend_id: resendId },
+        });
+
         sent++;
       } catch (e: any) {
         console.error("[send-outbound-emails] lead error", lead.id, e);
         errors.push({ lead_id: lead.id, error: String(e?.message || e) });
+        await supabase.rpc("log_campaign_event", {
+          p_campaign_id: campaign_id,
+          p_event_type: "email_failed",
+          p_message: `Step ${step_number} email error for ${lead.email || "(no email)"}`,
+          p_lead_id: lead.id,
+          p_details: { step_number, error: String(e?.message || e) },
+        });
       }
     }
 
