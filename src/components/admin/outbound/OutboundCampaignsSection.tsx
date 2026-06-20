@@ -729,8 +729,14 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     }).filter(r => r.phone_number);
     if (!rows.length) return;
     const { error } = await supabase.from("outbound_leads").insert(rows);
-    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { toast({ title: `Imported ${rows.length} leads` }); load(); }
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+    logCampaignEvent({
+      campaign_id: campaign.id,
+      event_type: "leads_imported",
+      message: `Imported ${rows.length} lead${rows.length === 1 ? "" : "s"} from CSV`,
+      details: { count: rows.length },
+    });
+    toast({ title: `Imported ${rows.length} leads` }); load();
   };
 
   return (
