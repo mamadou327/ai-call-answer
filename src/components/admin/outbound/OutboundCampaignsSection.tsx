@@ -213,7 +213,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
 
   // One-shot: backfill any missing call recordings from Twilio (silent, super_admin-only fn).
   useEffect(() => {
-    const KEY = "outbound_recordings_backfilled_v1";
+    const KEY = "outbound_recordings_backfilled_v2";
     if (sessionStorage.getItem(KEY)) return;
     sessionStorage.setItem(KEY, "1");
     supabase.functions.invoke("backfill-outbound-recordings", { body: {} })
