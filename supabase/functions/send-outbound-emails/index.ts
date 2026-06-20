@@ -29,10 +29,42 @@ const fill = (s: string, lead: any) =>
     .replaceAll("{{business_type}}", lead.business_type || "business")
     .replaceAll("{{business_type_plural}}", businessTypePlural[lead.business_type] || "businesses");
 
+async function authorize(req: Request, supabase: any): Promise<boolean> {
+  const authHeader = req.headers.get("Authorization") || "";
+  const headerSecret = req.headers.get("x-cron-secret") || "";
+  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  const provided = headerSecret || bearer;
+  const { data: cronSecret } = await supabase.rpc("get_cron_secret");
+  if (provided && cronSecret && provided === cronSecret) return true;
+  if (bearer && bearer === SERVICE_KEY) return true;
+  if (bearer) {
+    try {
+      const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: `Bearer ${bearer}` } },
+      });
+      const { data: u } = await userClient.auth.getUser();
+      if (u?.user?.id) {
+        const { data: isAdmin } = await supabase.rpc("has_role", {
+          _user_id: u.user.id, _role: "super_admin",
+        });
+        if (isAdmin) return true;
+      }
+    } catch (_e) { /* ignore */ }
+  }
+  return false;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+    if (!(await authorize(req, supabase))) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { campaign_id, step_number } = await req.json();
     if (!campaign_id || ![1, 2, 3].includes(step_number)) {
       return new Response(JSON.stringify({ error: "campaign_id and step_number (1-3) required" }), {
@@ -41,7 +73,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
     const { data: template, error: tErr } = await supabase
       .from("outbound_email_templates")
