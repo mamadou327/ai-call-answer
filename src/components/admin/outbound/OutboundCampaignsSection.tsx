@@ -548,6 +548,22 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   };
   useEffect(() => { load(); }, [campaign.id]);
 
+  useEffect(() => {
+    if (!selected) { setCallHistory([]); return; }
+    let cancelled = false;
+    (async () => {
+      setHistoryLoading(true);
+      const { data } = await supabase
+        .from("outbound_lead_calls" as any)
+        .select("id, called_at, recording_url, transcript, duration_seconds, outcome, retell_call_id")
+        .eq("lead_id", selected.id)
+        .order("called_at", { ascending: false });
+      if (!cancelled) setCallHistory((data as any[]) || []);
+      setHistoryLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [selected?.id]);
+
   const filtered = useMemo(() => leads.filter(l =>
     (leadsView === "active" ? !l.archived_at : !!l.archived_at) &&
     (statusFilter === "all" || l.status === statusFilter) &&
