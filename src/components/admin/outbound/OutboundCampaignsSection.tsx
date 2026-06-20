@@ -739,7 +739,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </div>
                 <div><b>SMS sent:</b> {selected.sms_sent ? "Yes" : "No"}</div>
                 <div><b>Last called:</b> {selected.last_called_at ? new Date(selected.last_called_at).toLocaleString() : "—"}</div>
-                {selected.call_recording_url && <audio controls src={selected.call_recording_url} className="w-full"/>}
+                {selected.call_recording_url && <SecureRecordingPlayer url={selected.call_recording_url} className="w-full"/>}
                 {selected.call_transcript && (
                   <div>
                     <b>Transcript</b>
