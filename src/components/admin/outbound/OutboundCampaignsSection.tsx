@@ -219,9 +219,13 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
     supabase.functions.invoke("backfill-outbound-recordings", { body: {} })
       .then(({ data, error }) => {
         if (error) { console.warn("[backfill-recordings] error", error); return; }
-        const updated = (data?.results || []).filter((r: any) => r.updated).length;
-        if (updated > 0) {
-          toast({ title: "Recordings restored", description: `Recovered ${updated} call recording${updated === 1 ? "" : "s"} from Twilio.` });
+        const updated = (data?.recordings || []).filter((r: any) => r.updated).length;
+        const events = data?.events_backfilled || 0;
+        if (updated > 0 || events > 0) {
+          const parts: string[] = [];
+          if (updated > 0) parts.push(`${updated} recording${updated === 1 ? "" : "s"}`);
+          if (events > 0) parts.push(`${events} history entr${events === 1 ? "y" : "ies"}`);
+          toast({ title: "Backfill complete", description: `Restored ${parts.join(" and ")}.` });
           load();
         }
       })
