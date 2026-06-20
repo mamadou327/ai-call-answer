@@ -14,16 +14,26 @@ Deno.serve(async (req) => {
     const TWILIO_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN")!;
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Authz: super_admin user JWT only
+    // Authz: super_admin user JWT, service_role bearer, or cron secret
     const bearer = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-    if (!bearer) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
-    const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: `Bearer ${bearer}` } },
-    });
-    const { data: u } = await userClient.auth.getUser();
-    if (!u?.user?.id) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
-    const { data: isSuper } = await supabase.rpc("has_role", { _user_id: u.user.id, _role: "super_admin" });
-    if (!isSuper) return new Response("Forbidden", { status: 403, headers: corsHeaders });
+    const cronHeader = req.headers.get("x-cron-secret") || "";
+    const { data: cronSecret } = await supabase.rpc("get_cron_secret");
+    let authorized = false;
+    if (bearer && bearer === SERVICE_KEY) authorized = true;
+    if (!authorized && (bearer === cronSecret || cronHeader === cronSecret) && cronSecret) authorized = true;
+    if (!authorized && bearer) {
+      try {
+        const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+          global: { headers: { Authorization: `Bearer ${bearer}` } },
+        });
+        const { data: u } = await userClient.auth.getUser();
+        if (u?.user?.id) {
+          const { data: isSuper } = await supabase.rpc("has_role", { _user_id: u.user.id, _role: "super_admin" });
+          if (isSuper) authorized = true;
+        }
+      } catch (_e) { /* ignore */ }
+    }
+    if (!authorized) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
 
     const { data: leads, error } = await supabase
       .from("outbound_leads")
