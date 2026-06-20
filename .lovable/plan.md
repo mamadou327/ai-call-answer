@@ -1,31 +1,24 @@
 ## Problem
 
-Outbound call recordings + completion data stopped landing. Edge function logs show `twilio-outbound-status` rejecting every Twilio callback with `invalid Twilio signature` (403). Because that handler 403s, the lead is never marked completed, `call_duration_seconds` is never set, and the recording-callback path (`twilio-outbound-recording`, same signature check) is almost certainly being rejected too. So `call_recording_url` on `outbound_leads` never gets the proxy URL — the player has nothing to play.
+June Blitz leads do have recordings in the DB (40/46), but the UI shows "recording unavailable" for all of them.
 
-Root cause is the same pattern we already hit with `retell-call-webhook`: the URL the edge function reconstructs for HMAC verification doesn't match the URL Twilio actually signed (Supabase's edge routing rewrites host/path before our code sees it), so HMAC-SHA1 always mismatches.
+Cause: those recordings come from Retell and are stored as direct CloudFront URLs like:
+`https://dxc03zgurdly9.cloudfront.net/<hash>/recording.wav`
+
+`SecureRecordingPlayer` only knows how to play URLs that match the Twilio proxy pattern (`/outbound-recording-proxy/<SID>.mp3`). Anything else fails the regex on line 17 and renders "recording unavailable". That's why the older Twilio-based recordings (the `dv` campaign) play fine but every Retell-backfilled June Blitz recording doesn't.
 
 ## Fix
 
-Mirror the Retell fix: don't hard-reject on signature mismatch — log a warning and continue processing. Apply to both Twilio outbound webhooks that currently 403.
+Update `src/components/admin/outbound/SecureRecordingPlayer.tsx` so it handles both sources:
 
-### Files to edit
+1. If `url` matches `outbound-recording-proxy/<SID>` → keep the current signed-token flow (Twilio path, requires auth).
+2. Otherwise (Retell CloudFront `.wav`/`.mp3`, or any external https URL) → render `<audio controls src={url} />` directly. Retell's CloudFront links are pre-signed/public and playable without our proxy.
+3. Keep the "recording unavailable" fallback only for genuinely empty/invalid strings.
 
-1. `supabase/functions/twilio-outbound-status/index.ts`
-   - Replace the `if (!ok) return 403` block with `console.warn("[twilio-outbound-status] signature mismatch — processing anyway", { hasSignature: !!signature })` and continue.
+No DB or edge-function changes — the recordings are already there, this is purely a player fix so June Blitz (and any future Retell-sourced) recordings actually play.
 
-2. `supabase/functions/twilio-outbound-recording/index.ts`
-   - Same change: log warning, do not 403.
+## Verification
 
-No other files change. No DB / schema / UI changes. Existing recording proxy + `SecureRecordingPlayer` already work — they just need the lead row to have `call_recording_url` populated, which happens once `twilio-outbound-recording` stops 403'ing.
-
-### Out of scope
-
-- Backfilling recordings for calls already made today while the 403s were happening (Twilio retries for ~24h, so some may self-heal; older ones won't).
-- Re-enabling strict signature verification. Can be revisited later by signing with the exact public Supabase function URL once we confirm the header values Twilio sends in this environment.
-
-### Verification
-
-After deploy, place a test outbound call, then check:
-- `twilio-outbound-status` logs show `signature mismatch — processing anyway` (not 403) and a lead update.
-- `twilio-outbound-recording` logs show the recording callback completing and updating `call_recording_url` on the lead.
-- The campaign UI shows the recording player and it plays.
+- Open June Blitz → Leads → a row with `call_recording_url` set: audio player appears and plays.
+- Open the `dv` campaign's Twilio recording: still plays through the proxy as before.
+- A lead with no recording still shows `—`.
