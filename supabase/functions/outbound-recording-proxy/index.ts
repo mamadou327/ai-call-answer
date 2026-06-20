@@ -11,7 +11,6 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    // path: /functions/v1/outbound-recording-proxy/{recordingSid}
     const parts = url.pathname.split("/").filter(Boolean);
     const last = parts[parts.length - 1] || "";
     const recordingSid = last.replace(/\.mp3$/, "");
@@ -26,7 +25,34 @@ Deno.serve(async (req) => {
     const TWILIO_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN")!;
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Verify recording belongs to an outbound lead (authorization check)
+    // Auth: require a super_admin (or sub_admin with calls/messages permission) user JWT
+    const authHeader = req.headers.get("Authorization") || "";
+    const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!bearer) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+    const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: `Bearer ${bearer}` } },
+    });
+    const { data: u } = await userClient.auth.getUser();
+    const userId = u?.user?.id;
+    if (!userId) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+    const { data: isSuper } = await supabase.rpc("has_role", { _user_id: userId, _role: "super_admin" });
+    let allowed = !!isSuper;
+    if (!allowed) {
+      const { data: isSub } = await supabase.rpc("has_role", { _user_id: userId, _role: "sub_admin" });
+      if (isSub) {
+        const { data: perms } = await supabase
+          .from("admin_permissions")
+          .select("can_view_calls_messages")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (perms?.can_view_calls_messages) allowed = true;
+      }
+    }
+    if (!allowed) return new Response("Forbidden", { status: 403, headers: corsHeaders });
+
+    // Verify recording belongs to an outbound lead
     const { data: lead } = await supabase
       .from("outbound_leads")
       .select("id")
