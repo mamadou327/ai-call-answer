@@ -76,8 +76,9 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Optional body: { campaign_id?: string, force?: boolean }
-    let body: { campaign_id?: string; force?: boolean } = {};
+    // Optional body: { campaign_id?: string, force?: boolean, activate?: boolean }
+    // activate is used by the in-app Play button: only mark active after schedule checks pass.
+    let body: { campaign_id?: string; force?: boolean; activate?: boolean } = {};
     try {
       if (req.headers.get("content-type")?.includes("application/json")) {
         body = await req.json();
@@ -87,8 +88,9 @@ Deno.serve(async (req) => {
     const { day, hour } = londonNowParts();
     const startOfDayISO = londonStartOfDayISO();
 
-    let q = supabase.from("outbound_campaigns").select("*").eq("status", "active");
-    if (body.campaign_id) q = q.eq("id", body.campaign_id);
+    let q = supabase.from("outbound_campaigns").select("*");
+    if (body.campaign_id) q = q.eq("id", body.campaign_id).neq("status", "completed");
+    else q = q.eq("status", "active");
     const { data: campaigns } = await q;
 
     const summary: Record<string, unknown>[] = [];
@@ -99,6 +101,17 @@ Deno.serve(async (req) => {
       }
       if (!body.force && (hour < c.calling_start_hour || hour >= c.calling_end_hour)) {
         summary.push({ id: c.id, skipped: "outside_hours", hour }); continue;
+      }
+
+      if (body.activate && c.status !== "active") {
+        const { error: activateError } = await supabase
+          .from("outbound_campaigns")
+          .update({ status: "active" })
+          .eq("id", c.id);
+        if (activateError) {
+          summary.push({ id: c.id, skipped: "activate_failed", error: activateError.message });
+          continue;
+        }
       }
 
       // Count calls placed today (London-day approximation)
