@@ -1,9 +1,32 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
+import { encode as encodeBase64 } from "https://deno.land/std@0.190.0/encoding/base64.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-twilio-signature",
 };
+
+async function validateTwilioSignature(
+  authToken: string,
+  url: string,
+  params: Record<string, string>,
+  signature: string | null,
+): Promise<boolean> {
+  if (!signature) return false;
+  try {
+    const sortedKeys = Object.keys(params).sort();
+    let dataString = url;
+    for (const key of sortedKeys) dataString += key + params[key];
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw", encoder.encode(authToken), { name: "HMAC", hash: "SHA-1" }, false, ["sign"],
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(dataString));
+    return encodeBase64(new Uint8Array(sig)) === signature;
+  } catch {
+    return false;
+  }
+}
 
 async function sendFollowUpSms(opts: {
   to: string;
