@@ -1831,6 +1831,54 @@ export type Database = {
         }
         Relationships: []
       }
+      outbound_campaign_events: {
+        Row: {
+          actor_user_id: string | null
+          campaign_id: string
+          created_at: string
+          details: Json
+          event_type: string
+          id: string
+          lead_id: string | null
+          message: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          campaign_id: string
+          created_at?: string
+          details?: Json
+          event_type: string
+          id?: string
+          lead_id?: string | null
+          message: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          campaign_id?: string
+          created_at?: string
+          details?: Json
+          event_type?: string
+          id?: string
+          lead_id?: string | null
+          message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbound_campaign_events_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbound_campaign_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outbound_campaigns: {
         Row: {
           archived_at: string | null
@@ -3365,6 +3413,16 @@ export type Database = {
       is_staff_member_of_business: {
         Args: { _business_id: string; _user_id: string }
         Returns: boolean
+      }
+      log_campaign_event: {
+        Args: {
+          p_campaign_id: string
+          p_details?: Json
+          p_event_type: string
+          p_lead_id?: string
+          p_message: string
+        }
+        Returns: string
       }
       refresh_staff_join_code_if_expired: {
         Args: { p_business_id: string }
