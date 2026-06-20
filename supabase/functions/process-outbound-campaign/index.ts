@@ -43,7 +43,11 @@ Deno.serve(async (req) => {
     const bearerSecret = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
     const provided = headerSecret || bearerSecret;
     const { data: cronSecret } = await supabase.rpc("get_cron_secret");
-    if (!provided || !cronSecret || provided !== cronSecret) {
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const isAuthorized =
+      (provided && cronSecret && provided === cronSecret) ||
+      (bearerSecret && bearerSecret === serviceKey);
+    if (!isAuthorized) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
