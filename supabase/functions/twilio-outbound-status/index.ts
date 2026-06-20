@@ -83,11 +83,24 @@ Deno.serve(async (req) => {
     const params: Record<string, string> = {};
     for (const [k, v] of form.entries()) params[k] = v.toString();
 
+    // Verify Twilio signature
+    const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
+    const signature = req.headers.get("x-twilio-signature");
+    const proto = req.headers.get("x-forwarded-proto") || "https";
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || new URL(req.url).host;
+    const publicUrl = `${proto}://${host}${new URL(req.url).pathname}`;
+    const ok = await validateTwilioSignature(twilioAuthToken, publicUrl, params, signature);
+    if (!ok) {
+      console.warn("[twilio-outbound-status] invalid Twilio signature");
+      return new Response("Forbidden", { status: 403, headers: corsHeaders });
+    }
+
     const callSid = params.CallSid;
     const status = params.CallStatus;
     const durationStr = params.CallDuration;
-    const answeredBy = params.AnsweredBy || ""; // machine_start, machine_end_beep, machine_end_silence, machine_end_other, fax, human, unknown
+    const answeredBy = params.AnsweredBy || "";
     if (!callSid) return new Response("ok", { headers: corsHeaders });
+
 
     const { data: lead } = await supabase
       .from("outbound_leads")
