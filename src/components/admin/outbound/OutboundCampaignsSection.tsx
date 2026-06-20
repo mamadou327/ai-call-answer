@@ -391,6 +391,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                   <TableCell>{st.demos}</TableCell>
                   <TableCell>{pct}%</TableCell>
                   <TableCell className="text-right space-x-1" onClick={e => e.stopPropagation()}>
+                    <Button size="sm" variant="outline" title="History" onClick={() => setHistoryFor(c)}><History className="w-3 h-3"/></Button>
                     {view === "active" ? (
                       <>
                         {c.status !== "active" && (
