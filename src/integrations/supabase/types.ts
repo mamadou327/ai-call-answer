@@ -2087,6 +2087,63 @@ export type Database = {
           },
         ]
       }
+      outbound_lead_calls: {
+        Row: {
+          called_at: string
+          campaign_id: string | null
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          lead_id: string
+          outcome: string | null
+          recording_url: string | null
+          retell_call_id: string | null
+          transcript: string | null
+          twilio_call_sid: string | null
+        }
+        Insert: {
+          called_at?: string
+          campaign_id?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          lead_id: string
+          outcome?: string | null
+          recording_url?: string | null
+          retell_call_id?: string | null
+          transcript?: string | null
+          twilio_call_sid?: string | null
+        }
+        Update: {
+          called_at?: string
+          campaign_id?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          lead_id?: string
+          outcome?: string | null
+          recording_url?: string | null
+          retell_call_id?: string | null
+          transcript?: string | null
+          twilio_call_sid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outbound_lead_calls_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbound_lead_calls_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "outbound_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outbound_leads: {
         Row: {
           archived_at: string | null
