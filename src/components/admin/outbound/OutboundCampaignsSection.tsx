@@ -428,6 +428,8 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const [addOpen, setAddOpen] = useState(false);
   const [newLead, setNewLead] = useState<{ first_name: string; business_name: string; phone_number: string; business_type: string; email: string }>({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" });
   const [selected, setSelected] = useState<Lead | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [retrying, setRetrying] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -443,6 +445,65 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     (smsFilter === "all" || (smsFilter === "sent" ? l.sms_sent : !l.sms_sent)) &&
     (typeFilter === "all" || (typeFilter === "none" ? !l.business_type : l.business_type === typeFilter))
   ), [leads, statusFilter, interestFilter, smsFilter, typeFilter]);
+
+  useEffect(() => { setSelectedIds(new Set()); }, [statusFilter, interestFilter, smsFilter, typeFilter]);
+
+  const filteredIds = useMemo(() => filtered.map(l => l.id), [filtered]);
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
+  const someFilteredSelected = filteredIds.some(id => selectedIds.has(id));
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  };
+  const toggleAllFiltered = (checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) filteredIds.forEach(id => next.add(id));
+      else filteredIds.forEach(id => next.delete(id));
+      return next;
+    });
+  };
+
+  const retrySelected = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    const chosen = leads.filter(l => ids.includes(l.id));
+    const excluded = chosen.filter(l => l.status === "do_not_call" || l.status === "demo_booked");
+    const eligible = chosen.filter(l => l.status !== "do_not_call" && l.status !== "demo_booked");
+    if (!eligible.length) {
+      toast({ title: "Nothing to retry", description: "Selected leads are marked do-not-call or demo booked.", variant: "destructive" });
+      return;
+    }
+    if (!confirm(`Call ${eligible.length} selected lead${eligible.length === 1 ? "" : "s"} again?${excluded.length ? `\n(${excluded.length} skipped: do-not-call / demo booked)` : ""}`)) return;
+    setRetrying(true);
+    try {
+      const { error: updErr } = await supabase
+        .from("outbound_leads")
+        .update({ status: "pending", sms_sent: false, twilio_call_sid: null, retell_call_id: null } as any)
+        .in("id", eligible.map(l => l.id));
+      if (updErr) throw updErr;
+
+      const { data, error } = await supabase.functions.invoke("process-outbound-campaign", {
+        body: { campaign_id: campaign.id, force: true },
+      });
+      if (error) throw error;
+      const result = (data?.summary || [])[0] as CampaignProcessResult | undefined;
+      if (result?.skipped === "daily_cap") {
+        toast({ title: "Daily cap reached", description: "Leads were reset to pending, but today's call limit is hit. They'll be called next run.", variant: "destructive" });
+      } else {
+        toast({ title: "Calling again", description: `${result?.placed ?? 0} call${result?.placed === 1 ? "" : "s"} started for ${eligible.length} lead${eligible.length === 1 ? "" : "s"}.` });
+      }
+      setSelectedIds(new Set());
+      load();
+    } catch (e: unknown) {
+      toast({ title: "Retry failed", description: e instanceof Error ? e.message : "Please try again.", variant: "destructive" });
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   const addLead = async () => {
     if (!newLead.phone_number.trim()) return;
