@@ -41,12 +41,10 @@ const StaffPendingApproval = () => {
       return;
     }
 
-    // Get business name
-    const { data: businessData } = await supabase
-      .from("businesses")
-      .select("business_name")
-      .eq("id", membershipData.business_id)
-      .single();
+    // Get business name via safe RPC (staff cannot read sensitive business columns)
+    const { data: businessRows } = await supabase
+      .rpc("get_business_summary_for_staff", { _business_id: membershipData.business_id });
+    const businessData = Array.isArray(businessRows) ? businessRows[0] : null;
 
     setMembership({
       status: membershipData.status,
