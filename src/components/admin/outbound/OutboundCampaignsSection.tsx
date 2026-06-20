@@ -534,6 +534,8 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const [addOpen, setAddOpen] = useState(false);
   const [newLead, setNewLead] = useState<{ first_name: string; business_name: string; phone_number: string; business_type: string; email: string }>({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" });
   const [selected, setSelected] = useState<Lead | null>(null);
+  const [callHistory, setCallHistory] = useState<Array<{ id: string; called_at: string; recording_url: string | null; transcript: string | null; duration_seconds: number | null; outcome: string | null; retell_call_id: string | null }>>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [retrying, setRetrying] = useState(false);
   const [leadsView, setLeadsView] = useState<"active" | "archived">("active");
@@ -545,6 +547,22 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     setLoading(false);
   };
   useEffect(() => { load(); }, [campaign.id]);
+
+  useEffect(() => {
+    if (!selected) { setCallHistory([]); return; }
+    let cancelled = false;
+    (async () => {
+      setHistoryLoading(true);
+      const { data } = await supabase
+        .from("outbound_lead_calls" as any)
+        .select("id, called_at, recording_url, transcript, duration_seconds, outcome, retell_call_id")
+        .eq("lead_id", selected.id)
+        .order("called_at", { ascending: false });
+      if (!cancelled) setCallHistory((data as any[]) || []);
+      setHistoryLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [selected?.id]);
 
   const filtered = useMemo(() => leads.filter(l =>
     (leadsView === "active" ? !l.archived_at : !!l.archived_at) &&
@@ -593,7 +611,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     try {
       const { error: updErr } = await supabase
         .from("outbound_leads")
-        .update({ status: "pending", sms_sent: false, twilio_call_sid: null, retell_call_id: null } as any)
+        .update({ status: "pending", sms_sent: false, twilio_call_sid: null, retell_call_id: null, call_transcript: null, call_recording_url: null, call_duration_seconds: null } as any)
         .in("id", eligible.map(l => l.id));
       if (updErr) throw updErr;
 
@@ -1099,13 +1117,41 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </div>
                 <div><b>SMS sent:</b> {selected.sms_sent ? "Yes" : "No"}</div>
                 <div><b>Last called:</b> {selected.last_called_at ? new Date(selected.last_called_at).toLocaleString() : "—"}</div>
-                {selected.call_recording_url && <SecureRecordingPlayer url={selected.call_recording_url} className="w-full"/>}
-                {selected.call_transcript && (
-                  <div>
-                    <b>Transcript</b>
-                    <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap mt-1">{selected.call_transcript}</pre>
+                <div className="space-y-3 pt-2">
+                  <div className="font-medium text-xs uppercase text-muted-foreground">
+                    Call history {callHistory.length > 0 && `(${callHistory.length})`}
                   </div>
-                )}
+                  {historyLoading ? (
+                    <div className="text-xs text-muted-foreground">Loading…</div>
+                  ) : callHistory.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">No calls recorded yet.</div>
+                  ) : (
+                    callHistory.map((c, idx) => (
+                      <div key={c.id} className="border rounded p-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-medium">
+                            Attempt {callHistory.length - idx} · {new Date(c.called_at).toLocaleString()}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {c.duration_seconds != null ? `${c.duration_seconds}s` : "—"}
+                            {c.outcome ? ` · ${c.outcome}` : ""}
+                          </span>
+                        </div>
+                        {c.recording_url ? (
+                          <SecureRecordingPlayer url={c.recording_url} className="w-full" />
+                        ) : (
+                          <div className="text-xs text-muted-foreground">No recording</div>
+                        )}
+                        {c.transcript && (
+                          <details>
+                            <summary className="text-xs cursor-pointer text-muted-foreground hover:text-foreground">Transcript</summary>
+                            <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap mt-1">{c.transcript}</pre>
+                          </details>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           )}
