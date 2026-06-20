@@ -796,7 +796,14 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                       <CheckCircle2 className="w-4 h-4 text-green-600"/>
                     </Button>
                   )}
-                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => deleteLead(l.id, l.first_name || l.business_name || l.phone_number)}><Trash2 className="w-4 h-4"/></Button>
+                  {leadsView === "active" ? (
+                    <Button size="sm" variant="ghost" title="Archive" onClick={() => archiveLead(l.id)}><Archive className="w-4 h-4"/></Button>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="ghost" title="Restore" onClick={() => restoreLead(l.id)}><ArchiveRestore className="w-4 h-4"/></Button>
+                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" title="Delete forever" onClick={() => deleteLeadForever(l.id, l.first_name || l.business_name || l.phone_number)}><Trash2 className="w-4 h-4"/></Button>
+                    </>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
