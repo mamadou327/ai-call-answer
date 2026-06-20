@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2, CheckCircle2, Pencil } from "lucide-react";
+import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2, CheckCircle2, Pencil, Archive, ArchiveRestore } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmailSequencePanel } from "./EmailSequencePanel";
 import { SecureRecordingPlayer } from "./SecureRecordingPlayer";
