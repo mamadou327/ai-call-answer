@@ -183,6 +183,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Campaign | null>(null);
+  const [view, setView] = useState<"active" | "archived">("active");
   const emptyForm = {
     name: "", calling_days: ["Monday","Tuesday","Wednesday","Thursday","Friday"],
     calling_start_hour: 9, calling_end_hour: 18,
@@ -208,11 +209,34 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
   };
   useEffect(() => { load(); }, []);
 
-  const deleteCampaign = async (id: string, name: string) => {
-    if (!confirm(`Delete campaign "${name}"? This will also delete all its leads. This cannot be undone.`)) return;
+  const activeRows = useMemo(() => rows.filter(r => !r.archived_at), [rows]);
+  const archivedRows = useMemo(() => rows.filter(r => r.archived_at), [rows]);
+  const visibleRows = view === "active" ? activeRows : archivedRows;
+
+  const archiveCampaign = async (id: string) => {
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("outbound_campaigns")
+      .update({ archived_at: new Date().toISOString(), archived_by: u.user?.id ?? null } as any)
+      .eq("id", id);
+    if (error) { toast({ title: "Archive failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Campaign archived", description: "Find it in the Archived view to restore or delete forever." });
+    load();
+  };
+  const restoreCampaign = async (id: string) => {
+    const { error } = await supabase
+      .from("outbound_campaigns")
+      .update({ archived_at: null, archived_by: null } as any)
+      .eq("id", id);
+    if (error) { toast({ title: "Restore failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Campaign restored" });
+    load();
+  };
+  const deleteForever = async (id: string, name: string) => {
+    if (!confirm(`Permanently delete campaign "${name}" and ALL its leads, calls and recordings? This cannot be undone.`)) return;
     const { error } = await supabase.from("outbound_campaigns").delete().eq("id", id);
     if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Campaign deleted" });
+    toast({ title: "Campaign deleted forever" });
     load();
   };
   const setStatus = async (id: string, status: Campaign["status"]) => {
