@@ -720,15 +720,29 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
         </div>
       </CardHeader>
       <CardContent>
+        <div className="inline-flex rounded-md border p-0.5 mb-3">
+          <Button size="sm" variant={leadsView === "active" ? "default" : "ghost"} className="h-7 px-2" onClick={() => setLeadsView("active")}>Active ({activeCount})</Button>
+          <Button size="sm" variant={leadsView === "archived" ? "default" : "ghost"} className="h-7 px-2" onClick={() => setLeadsView("archived")}>Archived ({archivedCount})</Button>
+        </div>
         {selectedIds.size > 0 && (
           <div className="flex items-center justify-between mb-3 p-2 px-3 rounded-md border bg-muted/40 sticky top-0 z-10">
             <div className="text-sm"><b>{selectedIds.size}</b> selected</div>
             <div className="flex gap-2">
               <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())} disabled={retrying}>Clear</Button>
-              <Button size="sm" onClick={retrySelected} disabled={retrying}>
-                {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin"/> : <Play className="w-3 h-3 mr-1"/>}
-                Call again
-              </Button>
+              {leadsView === "active" ? (
+                <>
+                  <Button size="sm" variant="outline" onClick={bulkArchive} disabled={retrying}><Archive className="w-3 h-3 mr-1"/>Archive</Button>
+                  <Button size="sm" onClick={retrySelected} disabled={retrying}>
+                    {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin"/> : <Play className="w-3 h-3 mr-1"/>}
+                    Call again
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button size="sm" variant="outline" onClick={bulkRestore}><ArchiveRestore className="w-3 h-3 mr-1"/>Restore</Button>
+                  <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={bulkDeleteForever}><Trash2 className="w-3 h-3 mr-1"/>Delete forever</Button>
+                </>
+              )}
             </div>
           </div>
         )}
