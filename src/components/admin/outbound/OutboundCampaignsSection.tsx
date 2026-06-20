@@ -428,6 +428,8 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const [addOpen, setAddOpen] = useState(false);
   const [newLead, setNewLead] = useState<{ first_name: string; business_name: string; phone_number: string; business_type: string; email: string }>({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" });
   const [selected, setSelected] = useState<Lead | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [retrying, setRetrying] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -443,6 +445,65 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     (smsFilter === "all" || (smsFilter === "sent" ? l.sms_sent : !l.sms_sent)) &&
     (typeFilter === "all" || (typeFilter === "none" ? !l.business_type : l.business_type === typeFilter))
   ), [leads, statusFilter, interestFilter, smsFilter, typeFilter]);
+
+  useEffect(() => { setSelectedIds(new Set()); }, [statusFilter, interestFilter, smsFilter, typeFilter]);
+
+  const filteredIds = useMemo(() => filtered.map(l => l.id), [filtered]);
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
+  
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  };
+  const toggleAllFiltered = (checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) filteredIds.forEach(id => next.add(id));
+      else filteredIds.forEach(id => next.delete(id));
+      return next;
+    });
+  };
+
+  const retrySelected = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    const chosen = leads.filter(l => ids.includes(l.id));
+    const excluded = chosen.filter(l => l.status === "do_not_call" || l.status === "demo_booked");
+    const eligible = chosen.filter(l => l.status !== "do_not_call" && l.status !== "demo_booked");
+    if (!eligible.length) {
+      toast({ title: "Nothing to retry", description: "Selected leads are marked do-not-call or demo booked.", variant: "destructive" });
+      return;
+    }
+    if (!confirm(`Call ${eligible.length} selected lead${eligible.length === 1 ? "" : "s"} again?${excluded.length ? `\n(${excluded.length} skipped: do-not-call / demo booked)` : ""}`)) return;
+    setRetrying(true);
+    try {
+      const { error: updErr } = await supabase
+        .from("outbound_leads")
+        .update({ status: "pending", sms_sent: false, twilio_call_sid: null, retell_call_id: null } as any)
+        .in("id", eligible.map(l => l.id));
+      if (updErr) throw updErr;
+
+      const { data, error } = await supabase.functions.invoke("process-outbound-campaign", {
+        body: { campaign_id: campaign.id, force: true },
+      });
+      if (error) throw error;
+      const result = (data?.summary || [])[0] as CampaignProcessResult | undefined;
+      if (result?.skipped === "daily_cap") {
+        toast({ title: "Daily cap reached", description: "Leads were reset to pending, but today's call limit is hit. They'll be called next run.", variant: "destructive" });
+      } else {
+        toast({ title: "Calling again", description: `${result?.placed ?? 0} call${result?.placed === 1 ? "" : "s"} started for ${eligible.length} lead${eligible.length === 1 ? "" : "s"}.` });
+      }
+      setSelectedIds(new Set());
+      load();
+    } catch (e: unknown) {
+      toast({ title: "Retry failed", description: e instanceof Error ? e.message : "Please try again.", variant: "destructive" });
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   const addLead = async () => {
     if (!newLead.phone_number.trim()) return;
@@ -566,10 +627,29 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
         </div>
       </CardHeader>
       <CardContent>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center justify-between mb-3 p-2 px-3 rounded-md border bg-muted/40 sticky top-0 z-10">
+            <div className="text-sm"><b>{selectedIds.size}</b> selected</div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())} disabled={retrying}>Clear</Button>
+              <Button size="sm" onClick={retrySelected} disabled={retrying}>
+                {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin"/> : <Play className="w-3 h-3 mr-1"/>}
+                Call again
+              </Button>
+            </div>
+          </div>
+        )}
         {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto"/> :
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8">
+                <Checkbox
+                  checked={allFilteredSelected}
+                  onCheckedChange={(v) => toggleAllFiltered(v === true)}
+                  aria-label="Select all filtered"
+                />
+              </TableHead>
               <TableHead>Name</TableHead><TableHead>Business</TableHead><TableHead>Type</TableHead><TableHead>Phone</TableHead>
               <TableHead>Email</TableHead><TableHead>Seq</TableHead>
               <TableHead>Status</TableHead><TableHead>Interest</TableHead><TableHead>SMS</TableHead>
@@ -579,7 +659,10 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           </TableHeader>
           <TableBody>
             {filtered.map(l => (
-              <TableRow key={l.id} className="cursor-pointer" onClick={() => setSelected({...l})}>
+              <TableRow key={l.id} className="cursor-pointer" onClick={() => setSelected({...l})} data-state={selectedIds.has(l.id) ? "selected" : undefined}>
+                <TableCell onClick={e => e.stopPropagation()}>
+                  <Checkbox checked={selectedIds.has(l.id)} onCheckedChange={(v) => toggleOne(l.id, v === true)} aria-label="Select lead"/>
+                </TableCell>
                 <TableCell>{l.first_name || "—"}</TableCell>
                 <TableCell>{l.business_name || "—"}</TableCell>
                 <TableCell>{l.business_type ? <Badge variant="outline" className="text-xs">{businessTypeLabel(l.business_type)}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
@@ -610,7 +693,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 </TableCell>
               </TableRow>
             ))}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={14} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={15} className="text-center text-muted-foreground py-8">No leads</TableCell></TableRow>}
           </TableBody>
         </Table>}
       </CardContent>
