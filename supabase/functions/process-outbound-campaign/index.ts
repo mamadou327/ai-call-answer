@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
     const { day, hour } = londonNowParts();
     const startOfDayISO = londonStartOfDayISO();
 
-    let q = supabase.from("outbound_campaigns").select("*");
+    let q = supabase.from("outbound_campaigns").select("*").is("archived_at", null);
     if (body.campaign_id) q = q.eq("id", body.campaign_id).neq("status", "completed");
     else q = q.eq("status", "active");
     const { data: campaigns } = await q;
