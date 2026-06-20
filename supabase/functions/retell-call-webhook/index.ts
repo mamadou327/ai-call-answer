@@ -112,11 +112,40 @@ async function sendEmail(to: string, subject: string, html: string) {
   }
 }
 
+async function verifyRetellSignature(rawBody: string, signature: string | null, apiKey: string): Promise<boolean> {
+  if (!signature || !apiKey) return false;
+  try {
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw", enc.encode(apiKey), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, enc.encode(rawBody));
+    const bytes = new Uint8Array(sig);
+    let hex = "";
+    for (const b of bytes) hex += b.toString(16).padStart(2, "0");
+    const expected = hex.toLowerCase();
+    const got = signature.replace(/^sha256=/i, "").toLowerCase();
+    return expected === got;
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const body = await req.json();
+    const rawBody = await req.text();
+    const RETELL_API_KEY = Deno.env.get("RETELL_API_KEY") || "";
+    const signature = req.headers.get("x-retell-signature") || req.headers.get("retell-signature");
+    const sigOk = await verifyRetellSignature(rawBody, signature, RETELL_API_KEY);
+    if (!sigOk) {
+      console.warn("[retell-webhook] invalid signature");
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const body = JSON.parse(rawBody);
     console.log("[retell-webhook] event", body?.event, "call_id", body?.call?.call_id || body?.call_id);
 
     // Only process call_analyzed events. Retell fires call_started/call_ended/call_analyzed —
