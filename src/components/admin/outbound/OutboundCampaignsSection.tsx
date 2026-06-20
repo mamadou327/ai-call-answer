@@ -486,6 +486,15 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {historyFor && (
+        <CampaignHistorySheet
+          open={!!historyFor}
+          onOpenChange={(o) => { if (!o) setHistoryFor(null); }}
+          campaignId={historyFor.id}
+          campaignName={historyFor.name}
+        />
+      )}
     </Card>
   );
 }
