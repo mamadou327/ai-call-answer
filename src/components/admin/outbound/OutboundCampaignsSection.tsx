@@ -300,7 +300,9 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                       <Button size="sm" variant="outline" onClick={async () => {
                         await setStatus(c.id, "active");
                         try {
-                          await supabase.functions.invoke("process-outbound-campaign");
+                          await supabase.functions.invoke("process-outbound-campaign", {
+                            body: { campaign_id: c.id, force: true },
+                          });
                         } catch (e) {
                           console.error("Failed to trigger campaign processing", e);
                         }

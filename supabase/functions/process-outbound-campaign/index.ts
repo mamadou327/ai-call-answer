@@ -76,21 +76,28 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+    // Optional body: { campaign_id?: string, force?: boolean }
+    let body: { campaign_id?: string; force?: boolean } = {};
+    try {
+      if (req.headers.get("content-type")?.includes("application/json")) {
+        body = await req.json();
+      }
+    } catch (_e) { /* ignore */ }
+
     const { day, hour } = londonNowParts();
     const startOfDayISO = londonStartOfDayISO();
 
-    const { data: campaigns } = await supabase
-      .from("outbound_campaigns")
-      .select("*")
-      .eq("status", "active");
+    let q = supabase.from("outbound_campaigns").select("*").eq("status", "active");
+    if (body.campaign_id) q = q.eq("id", body.campaign_id);
+    const { data: campaigns } = await q;
 
     const summary: Record<string, unknown>[] = [];
 
     for (const c of campaigns || []) {
-      if (!c.calling_days?.includes(day)) {
+      if (!body.force && !c.calling_days?.includes(day)) {
         summary.push({ id: c.id, skipped: "day_not_allowed", day }); continue;
       }
-      if (hour < c.calling_start_hour || hour >= c.calling_end_hour) {
+      if (!body.force && (hour < c.calling_start_hour || hour >= c.calling_end_hour)) {
         summary.push({ id: c.id, skipped: "outside_hours", hour }); continue;
       }
 
