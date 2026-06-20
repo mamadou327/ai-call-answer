@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2, CheckCircle2, Pencil } from "lucide-react";
+import { Loader2, Play, Pause, Square, ChevronLeft, Upload, Plus, FileText, Save, Trash2, CheckCircle2, Pencil, Archive, ArchiveRestore } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmailSequencePanel } from "./EmailSequencePanel";
 import { SecureRecordingPlayer } from "./SecureRecordingPlayer";
@@ -38,6 +38,7 @@ type Campaign = {
   calls_per_day_limit: number; delay_between_calls_seconds: number;
   voice: string;
   created_at: string;
+  archived_at: string | null;
 };
 type Lead = {
   id: string; campaign_id: string; first_name: string | null; business_name: string | null;
@@ -53,6 +54,7 @@ type Lead = {
   email2_status?: string | null; email2_sent_at?: string | null; email2_opened_at?: string | null;
   email3_status?: string | null; email3_sent_at?: string | null; email3_opened_at?: string | null;
   sequence_status?: string | null; sequence_step?: number | null;
+  archived_at?: string | null;
 };
 type Demo = {
   id: string; lead_id: string; demo_datetime: string;
@@ -181,6 +183,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Campaign | null>(null);
+  const [view, setView] = useState<"active" | "archived">("active");
   const emptyForm = {
     name: "", calling_days: ["Monday","Tuesday","Wednesday","Thursday","Friday"],
     calling_start_hour: 9, calling_end_hour: 18,
@@ -206,11 +209,34 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
   };
   useEffect(() => { load(); }, []);
 
-  const deleteCampaign = async (id: string, name: string) => {
-    if (!confirm(`Delete campaign "${name}"? This will also delete all its leads. This cannot be undone.`)) return;
+  const activeRows = useMemo(() => rows.filter(r => !r.archived_at), [rows]);
+  const archivedRows = useMemo(() => rows.filter(r => r.archived_at), [rows]);
+  const visibleRows = view === "active" ? activeRows : archivedRows;
+
+  const archiveCampaign = async (id: string) => {
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("outbound_campaigns")
+      .update({ archived_at: new Date().toISOString(), archived_by: u.user?.id ?? null } as any)
+      .eq("id", id);
+    if (error) { toast({ title: "Archive failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Campaign archived", description: "Find it in the Archived view to restore or delete forever." });
+    load();
+  };
+  const restoreCampaign = async (id: string) => {
+    const { error } = await supabase
+      .from("outbound_campaigns")
+      .update({ archived_at: null, archived_by: null } as any)
+      .eq("id", id);
+    if (error) { toast({ title: "Restore failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Campaign restored" });
+    load();
+  };
+  const deleteForever = async (id: string, name: string) => {
+    if (!confirm(`Permanently delete campaign "${name}" and ALL its leads, calls and recordings? This cannot be undone.`)) return;
     const { error } = await supabase.from("outbound_campaigns").delete().eq("id", id);
     if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Campaign deleted" });
+    toast({ title: "Campaign deleted forever" });
     load();
   };
   const setStatus = async (id: string, status: Campaign["status"]) => {
@@ -299,7 +325,13 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
           <CardTitle>Campaigns</CardTitle>
           <CardDescription>Manage outbound calling campaigns</CardDescription>
         </div>
-        <Button onClick={openCreate}><Plus className="w-4 h-4 mr-1"/>Create Campaign</Button>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-md border p-0.5">
+            <Button size="sm" variant={view === "active" ? "default" : "ghost"} className="h-7 px-2" onClick={() => setView("active")}>Active ({activeRows.length})</Button>
+            <Button size="sm" variant={view === "archived" ? "default" : "ghost"} className="h-7 px-2" onClick={() => setView("archived")}>Archived ({archivedRows.length})</Button>
+          </div>
+          {view === "active" && <Button onClick={openCreate}><Plus className="w-4 h-4 mr-1"/>Create Campaign</Button>}
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto"/> :
@@ -313,7 +345,7 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map(c => {
+            {visibleRows.map(c => {
               const st = stats[c.id] || { leads: 0, calls: 0, demos: 0 };
               const pct = st.calls ? Math.round((st.demos / st.calls) * 100) : 0;
               return (
@@ -326,25 +358,35 @@ function CampaignsTab({ onOpen }: { onOpen: (c: Campaign) => void }) {
                   <TableCell>{st.demos}</TableCell>
                   <TableCell>{pct}%</TableCell>
                   <TableCell className="text-right space-x-1" onClick={e => e.stopPropagation()}>
-                    {c.status !== "active" && c.status !== "completed" && (
-                      <Button size="sm" variant="outline" onClick={() => activateCampaign(c)}><Play className="w-3 h-3"/></Button>
+                    {view === "active" ? (
+                      <>
+                        {c.status !== "active" && c.status !== "completed" && (
+                          <Button size="sm" variant="outline" onClick={() => activateCampaign(c)}><Play className="w-3 h-3"/></Button>
+                        )}
+                        {c.status === "active" && (
+                          <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "paused")}><Pause className="w-3 h-3"/></Button>
+                        )}
+                        {c.status !== "completed" && (
+                          <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "completed")}><Square className="w-3 h-3"/></Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => openEdit(c)}><Pencil className="w-3 h-3"/></Button>
+                        <Button size="sm" variant="outline" title="Archive" onClick={() => archiveCampaign(c.id)}><Archive className="w-3 h-3"/></Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="sm" variant="outline" title="Restore" onClick={() => restoreCampaign(c.id)}><ArchiveRestore className="w-3 h-3"/></Button>
+                        <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" title="Delete forever" onClick={() => deleteForever(c.id, c.name)}><Trash2 className="w-3 h-3"/></Button>
+                      </>
                     )}
-                    {c.status === "active" && (
-                      <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "paused")}><Pause className="w-3 h-3"/></Button>
-                    )}
-                    {c.status !== "completed" && (
-                      <Button size="sm" variant="outline" onClick={() => setStatus(c.id, "completed")}><Square className="w-3 h-3"/></Button>
-                    )}
-                    <Button size="sm" variant="outline" onClick={() => openEdit(c)}><Pencil className="w-3 h-3"/></Button>
-                    <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => deleteCampaign(c.id, c.name)}><Trash2 className="w-3 h-3"/></Button>
                   </TableCell>
                 </TableRow>
               );
             })}
-            {rows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No campaigns yet</TableCell></TableRow>}
+            {visibleRows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">{view === "active" ? "No campaigns yet" : "No archived campaigns"}</TableCell></TableRow>}
           </TableBody>
         </Table>}
       </CardContent>
+
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
@@ -430,6 +472,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const [selected, setSelected] = useState<Lead | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [retrying, setRetrying] = useState(false);
+  const [leadsView, setLeadsView] = useState<"active" | "archived">("active");
 
   const load = async () => {
     setLoading(true);
@@ -440,13 +483,17 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   useEffect(() => { load(); }, [campaign.id]);
 
   const filtered = useMemo(() => leads.filter(l =>
+    (leadsView === "active" ? !l.archived_at : !!l.archived_at) &&
     (statusFilter === "all" || l.status === statusFilter) &&
     (interestFilter === "all" || l.interest_level === interestFilter) &&
     (smsFilter === "all" || (smsFilter === "sent" ? l.sms_sent : !l.sms_sent)) &&
     (typeFilter === "all" || (typeFilter === "none" ? !l.business_type : l.business_type === typeFilter))
-  ), [leads, statusFilter, interestFilter, smsFilter, typeFilter]);
+  ), [leads, leadsView, statusFilter, interestFilter, smsFilter, typeFilter]);
 
-  useEffect(() => { setSelectedIds(new Set()); }, [statusFilter, interestFilter, smsFilter, typeFilter]);
+  const activeCount = useMemo(() => leads.filter(l => !l.archived_at).length, [leads]);
+  const archivedCount = useMemo(() => leads.filter(l => !!l.archived_at).length, [leads]);
+
+  useEffect(() => { setSelectedIds(new Set()); }, [statusFilter, interestFilter, smsFilter, typeFilter, leadsView]);
 
   const filteredIds = useMemo(() => filtered.map(l => l.id), [filtered]);
   const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
@@ -519,13 +566,59 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
     else { setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" }); load(); }
   };
-  const deleteLead = async (id: string, name: string) => {
-    if (!confirm(`Delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
-    const { error } = await supabase.from("outbound_leads").delete().eq("id", id);
-    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Lead deleted" });
+  const archiveLead = async (id: string) => {
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase.from("outbound_leads")
+      .update({ archived_at: new Date().toISOString(), archived_by: u.user?.id ?? null } as any)
+      .eq("id", id);
+    if (error) { toast({ title: "Archive failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Lead archived" });
     load();
   };
+  const restoreLead = async (id: string) => {
+    const { error } = await supabase.from("outbound_leads")
+      .update({ archived_at: null, archived_by: null } as any).eq("id", id);
+    if (error) { toast({ title: "Restore failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Lead restored" });
+    load();
+  };
+  const deleteLeadForever = async (id: string, name: string) => {
+    if (!confirm(`Permanently delete lead${name ? ` "${name}"` : ""}? This cannot be undone.`)) return;
+    const { error } = await supabase.from("outbound_leads").delete().eq("id", id);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Lead deleted forever" });
+    load();
+  };
+  const bulkArchive = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase.from("outbound_leads")
+      .update({ archived_at: new Date().toISOString(), archived_by: u.user?.id ?? null } as any)
+      .in("id", ids);
+    if (error) { toast({ title: "Archive failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${ids.length} lead${ids.length === 1 ? "" : "s"} archived` });
+    setSelectedIds(new Set()); load();
+  };
+  const bulkRestore = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    const { error } = await supabase.from("outbound_leads")
+      .update({ archived_at: null, archived_by: null } as any).in("id", ids);
+    if (error) { toast({ title: "Restore failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${ids.length} lead${ids.length === 1 ? "" : "s"} restored` });
+    setSelectedIds(new Set()); load();
+  };
+  const bulkDeleteForever = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    if (!confirm(`Permanently delete ${ids.length} lead${ids.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    const { error } = await supabase.from("outbound_leads").delete().in("id", ids);
+    if (error) { toast({ title: "Delete failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${ids.length} lead${ids.length === 1 ? "" : "s"} deleted forever` });
+    setSelectedIds(new Set()); load();
+  };
+
 
   const importCSV = async (file: File) => {
     const text = await file.text();
@@ -627,15 +720,29 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
         </div>
       </CardHeader>
       <CardContent>
+        <div className="inline-flex rounded-md border p-0.5 mb-3">
+          <Button size="sm" variant={leadsView === "active" ? "default" : "ghost"} className="h-7 px-2" onClick={() => setLeadsView("active")}>Active ({activeCount})</Button>
+          <Button size="sm" variant={leadsView === "archived" ? "default" : "ghost"} className="h-7 px-2" onClick={() => setLeadsView("archived")}>Archived ({archivedCount})</Button>
+        </div>
         {selectedIds.size > 0 && (
           <div className="flex items-center justify-between mb-3 p-2 px-3 rounded-md border bg-muted/40 sticky top-0 z-10">
             <div className="text-sm"><b>{selectedIds.size}</b> selected</div>
             <div className="flex gap-2">
               <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())} disabled={retrying}>Clear</Button>
-              <Button size="sm" onClick={retrySelected} disabled={retrying}>
-                {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin"/> : <Play className="w-3 h-3 mr-1"/>}
-                Call again
-              </Button>
+              {leadsView === "active" ? (
+                <>
+                  <Button size="sm" variant="outline" onClick={bulkArchive} disabled={retrying}><Archive className="w-3 h-3 mr-1"/>Archive</Button>
+                  <Button size="sm" onClick={retrySelected} disabled={retrying}>
+                    {retrying ? <Loader2 className="w-3 h-3 mr-1 animate-spin"/> : <Play className="w-3 h-3 mr-1"/>}
+                    Call again
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button size="sm" variant="outline" onClick={bulkRestore}><ArchiveRestore className="w-3 h-3 mr-1"/>Restore</Button>
+                  <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={bulkDeleteForever}><Trash2 className="w-3 h-3 mr-1"/>Delete forever</Button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -689,7 +796,14 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                       <CheckCircle2 className="w-4 h-4 text-green-600"/>
                     </Button>
                   )}
-                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => deleteLead(l.id, l.first_name || l.business_name || l.phone_number)}><Trash2 className="w-4 h-4"/></Button>
+                  {leadsView === "active" ? (
+                    <Button size="sm" variant="ghost" title="Archive" onClick={() => archiveLead(l.id)}><Archive className="w-4 h-4"/></Button>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="ghost" title="Restore" onClick={() => restoreLead(l.id)}><ArchiveRestore className="w-4 h-4"/></Button>
+                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" title="Delete forever" onClick={() => deleteLeadForever(l.id, l.first_name || l.business_name || l.phone_number)}><Trash2 className="w-4 h-4"/></Button>
+                    </>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

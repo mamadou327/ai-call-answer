@@ -1,38 +1,45 @@
-# Bulk "Call again" for selected leads
+# Archive instead of delete for campaigns and leads
 
-Yes — a retry control is a good idea. No-answers today are stuck at `status = no_answer` and the campaign processor only picks up `status = pending`, so without this they never get tried again. You said you want a bulk action where you pick the leads, so here's the plan.
+Replace destructive delete with a two-step flow: **Archive** (soft, reversible) → **Archive view** → **Delete forever** (hard, with confirm).
 
-## What you'll see in the UI
+## DB changes
 
-In the campaign's Leads table (`OutboundCampaignsSection.tsx`, LeadsTab):
+Add to both `outbound_campaigns` and `outbound_leads`:
+- `archived_at timestamptz null`
+- `archived_by uuid null` (auth user id, for audit)
 
-1. A new checkbox column at the start of each row, plus a "select all (filtered)" checkbox in the header.
-2. When 1+ leads are selected, a sticky action bar appears above the table showing:
-   - "X selected"
-   - **Call again** button (primary)
-   - **Clear selection** button
-3. Tip: combine with the existing **Status = no answer** filter to quickly select everyone who didn't pick up, then hit Call again.
+No status enum changes — archived is orthogonal to `status`. Indexes on `archived_at` for fast filtering.
 
-## What "Call again" does
+Update the existing `process-outbound-campaign` edge function to ignore rows where `archived_at is not null` (one extra `.is("archived_at", null)` on the campaign and leads queries) so archived items never get auto-dialed.
 
-For each selected lead:
-1. Update the row: `status = 'pending'`, `sms_sent = false` (so the no-answer SMS follow-up can fire again if it no-answers again), clear `twilio_call_sid` and `retell_call_id`. Keep `retry_count`, transcript, recording, notes, interest_level untouched.
-2. After the DB update, call the existing `process-outbound-campaign` edge function with `{ campaign_id, force: true }` so it bypasses the calling-days/hours window and immediately starts dialing the now-pending leads (respecting `calls_per_day_limit` and `delay_between_calls_seconds`, which is what we want).
-3. Toast the result: "Retrying N leads — M calls started" or the appropriate skipped reason (daily cap, etc.) using the same result-handling pattern as the existing `activateCampaign`.
+## UI changes (`OutboundCampaignsSection.tsx` only)
 
-## Guardrails
+### Campaigns tab
+- Replace the red Trash button on each row with an **Archive** button (box-arrow icon).
+- Add an **"Archived"** toggle/filter at the top ("Active campaigns" | "Archived"). Default = Active.
+- In the Archived view, each row shows two buttons:
+  - **Restore** → sets `archived_at = null`
+  - **Delete forever** (red) → hard delete with `confirm("This permanently deletes the campaign and ALL its leads, calls, recordings. Cannot be undone.")`
+- Active list query: `.is("archived_at", null)`. Archived list: `.not("archived_at", "is", null)`.
 
-- Confirm dialog: "Call N selected leads again?" before firing.
-- Disable the button and show a spinner while the request is in flight.
-- If a lead's current status is `do_not_call` or `demo_booked`, exclude it from the retry with a warning toast (those shouldn't be re-dialed accidentally even if selected).
-- Selection state clears after a successful retry and after changing filters.
+### Leads tab (inside a campaign)
+- Replace the per-row trash with **Archive** (icon).
+- Add the same toggle ("Active leads" | "Archived") above the table; default Active.
+- Bulk action bar (the one we just added) gains an **Archive selected** button alongside **Call again**. In Archived view it shows **Restore selected** and **Delete forever**.
+- The bulk "Call again" excludes archived leads automatically (they're not in the Active view anyway).
+
+### Confirms & toasts
+- Archive: no confirm (it's reversible) — toast "Archived. Undo" with a 6-second Undo button that restores.
+- Delete forever: hard confirm dialog naming what will be lost.
 
 ## Files touched
 
-- `src/components/admin/outbound/OutboundCampaignsSection.tsx` — LeadsTab only: add `selectedIds` state, checkbox column, bulk action bar, `retrySelected()` handler. No changes elsewhere.
+- `src/components/admin/outbound/OutboundCampaignsSection.tsx` — campaigns list, leads table, bulk bar, archive view toggles, restore/delete-forever handlers.
+- `supabase/functions/process-outbound-campaign/index.ts` — add `archived_at is null` filters on campaign + lead queries.
+- One DB migration adding the two columns + indexes on both tables.
 
 ## Not in scope
 
-- No edge function changes (the existing `process-outbound-campaign` with `force: true` already does what we need).
-- No DB schema or migration changes.
-- No per-lead "Call again" button (you asked for bulk-with-selection only).
+- No retention policy / auto-purge of archived rows (can add later).
+- No archive view for demos (separate table, can do in a follow-up if you want).
+- No changes to RLS — archive is just a column, existing policies still apply.

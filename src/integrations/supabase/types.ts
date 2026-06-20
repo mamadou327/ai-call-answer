@@ -1833,6 +1833,8 @@ export type Database = {
       }
       outbound_campaigns: {
         Row: {
+          archived_at: string | null
+          archived_by: string | null
           calling_days: string[]
           calling_end_hour: number
           calling_start_hour: number
@@ -1846,6 +1848,8 @@ export type Database = {
           voice: string
         }
         Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
           calling_days?: string[]
           calling_end_hour?: number
           calling_start_hour?: number
@@ -1859,6 +1863,8 @@ export type Database = {
           voice?: string
         }
         Update: {
+          archived_at?: string | null
+          archived_by?: string | null
           calling_days?: string[]
           calling_end_hour?: number
           calling_start_hour?: number
@@ -2035,6 +2041,8 @@ export type Database = {
       }
       outbound_leads: {
         Row: {
+          archived_at: string | null
+          archived_by: string | null
           business_name: string | null
           business_type: string | null
           call_duration_seconds: number | null
@@ -2072,6 +2080,8 @@ export type Database = {
           twilio_call_sid: string | null
         }
         Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
           business_name?: string | null
           business_type?: string | null
           call_duration_seconds?: number | null
@@ -2109,6 +2119,8 @@ export type Database = {
           twilio_call_sid?: string | null
         }
         Update: {
+          archived_at?: string | null
+          archived_by?: string | null
           business_name?: string | null
           business_type?: string | null
           call_duration_seconds?: number | null
