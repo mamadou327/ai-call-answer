@@ -3310,6 +3310,14 @@ export type Database = {
         Args: { business_name: string }
         Returns: string
       }
+      get_business_summary_for_staff: {
+        Args: { _business_id: string }
+        Returns: {
+          business_name: string
+          business_type: string
+          id: string
+        }[]
+      }
       get_cron_secret: { Args: never; Returns: string }
       get_current_month_call_count: {
         Args: { p_business_id: string }
