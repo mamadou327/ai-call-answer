@@ -472,6 +472,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const [selected, setSelected] = useState<Lead | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [retrying, setRetrying] = useState(false);
+  const [leadsView, setLeadsView] = useState<"active" | "archived">("active");
 
   const load = async () => {
     setLoading(true);
@@ -482,13 +483,17 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   useEffect(() => { load(); }, [campaign.id]);
 
   const filtered = useMemo(() => leads.filter(l =>
+    (leadsView === "active" ? !l.archived_at : !!l.archived_at) &&
     (statusFilter === "all" || l.status === statusFilter) &&
     (interestFilter === "all" || l.interest_level === interestFilter) &&
     (smsFilter === "all" || (smsFilter === "sent" ? l.sms_sent : !l.sms_sent)) &&
     (typeFilter === "all" || (typeFilter === "none" ? !l.business_type : l.business_type === typeFilter))
-  ), [leads, statusFilter, interestFilter, smsFilter, typeFilter]);
+  ), [leads, leadsView, statusFilter, interestFilter, smsFilter, typeFilter]);
 
-  useEffect(() => { setSelectedIds(new Set()); }, [statusFilter, interestFilter, smsFilter, typeFilter]);
+  const activeCount = useMemo(() => leads.filter(l => !l.archived_at).length, [leads]);
+  const archivedCount = useMemo(() => leads.filter(l => !!l.archived_at).length, [leads]);
+
+  useEffect(() => { setSelectedIds(new Set()); }, [statusFilter, interestFilter, smsFilter, typeFilter, leadsView]);
 
   const filteredIds = useMemo(() => filtered.map(l => l.id), [filtered]);
   const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
