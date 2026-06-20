@@ -593,7 +593,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     try {
       const { error: updErr } = await supabase
         .from("outbound_leads")
-        .update({ status: "pending", sms_sent: false, twilio_call_sid: null, retell_call_id: null } as any)
+        .update({ status: "pending", sms_sent: false, twilio_call_sid: null, retell_call_id: null, call_transcript: null, call_recording_url: null, call_duration_seconds: null } as any)
         .in("id", eligible.map(l => l.id));
       if (updErr) throw updErr;
 
