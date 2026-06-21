@@ -828,7 +828,20 @@ Deno.serve(async (req) => {
           );
 
           session.systemPrompt = promptData.prompt;
-          // Starter tier: force English-only regardless of caller language.
+          // Pick up the caller's preferred language (if any) from the prompt data
+          // so the Whisper STT hint and language rule honor returning customers.
+          if (promptData.preferredLanguage) {
+            session.preferredLanguage = promptData.preferredLanguage;
+          }
+          // Universal language rule — defaults to business primary_language,
+          // overridden by returning-customer preferred_language. Prepended so it
+          // outranks every later instruction in the prompt.
+          const languageBlock = buildLanguageRuleBlock(
+            session.primaryLanguage,
+            session.preferredLanguage,
+          );
+          session.systemPrompt = languageBlock + "\n" + session.systemPrompt;
+          // Starter tier: hard-lock to English regardless of caller language.
           if (tier === "starter") {
             session.systemPrompt += `\n\nIMPORTANT LANGUAGE RULE (Starter plan): Always respond in English only, regardless of what language the caller speaks. Do not switch languages under any circumstance. If the caller speaks another language, politely continue in English.`;
           }
