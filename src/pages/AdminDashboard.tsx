@@ -125,7 +125,7 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "messages" | "demos" | "calls" | "aivia" | "outbound">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "upgrades" | "messages" | "demos" | "calls" | "aivia" | "outbound">("analytics");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
     can_manage_business_numbers: false,
