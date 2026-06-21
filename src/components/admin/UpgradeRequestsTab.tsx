@@ -218,7 +218,7 @@ export const UpgradeRequestsTab = () => {
                     )}
                   </TableCell>
                 </TableRow>
-              ))}
+              );})}
             </TableBody>
           </Table>
         )}
