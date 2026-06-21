@@ -25,6 +25,7 @@ import { ServiceRequestsTab } from "@/components/admin/ServiceRequestsTab";
 import { AdminMessagesTab } from "@/components/admin/AdminMessagesTab";
 import { AdminCallsTab } from "@/components/admin/AdminCallsTab";
 import { AdminDemoRequestsTab } from "@/components/admin/AdminDemoRequestsTab";
+import { UpgradeRequestsTab } from "@/components/admin/UpgradeRequestsTab";
 import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare, Mail, Sparkles, Headphones } from "lucide-react";
 import { AiviaSalesKitTab } from "@/components/admin/AiviaSalesKitTab";
 import { OutboundCampaignsSection } from "@/components/admin/outbound/OutboundCampaignsSection";
