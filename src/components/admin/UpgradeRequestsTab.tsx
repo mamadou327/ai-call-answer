@@ -151,6 +151,7 @@ export const UpgradeRequestsTab = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Business</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Current → Requested</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Feature</TableHead>
