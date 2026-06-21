@@ -112,7 +112,7 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error(`Resend error: ${JSON.stringify((sendResult as any).error)}`);
     }
 
-    return new Response(JSON.stringify({ ok: true, sendResult, from: resendFromEmail, to: ADMIN_EMAIL }), {
+    return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
