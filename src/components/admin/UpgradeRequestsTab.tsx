@@ -83,8 +83,10 @@ export const UpgradeRequestsTab = () => {
     try {
       const { error: settingsError } = await supabase
         .from("business_settings")
-        .update({ subscription_tier: r.requested_tier as SubscriptionTier })
-        .eq("business_id", r.business_id);
+        .upsert(
+          { business_id: r.business_id, subscription_tier: r.requested_tier as SubscriptionTier },
+          { onConflict: "business_id" },
+        );
       if (settingsError) throw settingsError;
 
       const { error: reqError } = await supabase
