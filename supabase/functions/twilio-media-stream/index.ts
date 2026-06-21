@@ -218,6 +218,11 @@ interface StreamSession {
   // Assistant identity (resolved once from settings.assistant_name)
   assistantName: string;
 
+  // Language config — used both in the system prompt and as a Whisper hint so
+  // STT doesn't free-detect into Welsh/Irish on UK numbers with accented English.
+  primaryLanguage: string;
+  preferredLanguage?: string;
+
   // One-shot per-call flags — MUST survive WebSocket reconnects. Once true,
   // never reset for the remainder of the call.
   interruptionAcknowledged: boolean;
