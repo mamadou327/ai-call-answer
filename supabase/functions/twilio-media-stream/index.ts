@@ -3163,6 +3163,13 @@ async function executeRescheduleBooking(supabase: any, session: StreamSession, p
       return { success: false, message: timeOffCheck.message };
     }
 
+    // Check staff working schedule for the new time
+    const rescheduleStaff = session.staff.find((s) => s.id === booking.staff_id);
+    const rescheduleWorkingCheck = isStaffWorkingAt(rescheduleStaff, newStartTime, newEndTime);
+    if (!rescheduleWorkingCheck.working) {
+      return { success: false, message: rescheduleWorkingCheck.message };
+    }
+
     // Check for conflicts at new time (excluding current booking)
     const { data: conflicts } = await supabase
       .from("bookings")
