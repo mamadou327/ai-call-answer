@@ -27,7 +27,7 @@ export const BillingSettings = ({ businessId, businessName }: BillingSettingsPro
   const { toast } = useToast();
   const [requesting, setRequesting] = useState<SubscriptionTier | null>(null);
 
-  const requestUpgrade = async (target: SubscriptionTier) => {
+  const requestChange = async (target: SubscriptionTier, kind: "upgrade" | "downgrade") => {
     setRequesting(target);
     try {
       const { error } = await supabase.functions.invoke("send-upgrade-request", {
@@ -35,14 +35,22 @@ export const BillingSettings = ({ businessId, businessName }: BillingSettingsPro
           businessId,
           businessName,
           requestedTier: target,
+          changeKind: kind,
         },
       });
       if (error) throw error;
       toast({
-        title: target === "enterprise" ? "Enquiry sent" : "Upgrade request sent",
+        title:
+          target === "enterprise"
+            ? "Enquiry sent"
+            : kind === "downgrade"
+            ? "Downgrade request sent"
+            : "Upgrade request sent",
         description:
           target === "enterprise"
             ? "Our team will be in touch about Enterprise."
+            : kind === "downgrade"
+            ? `We'll be in touch about moving you down to ${TIERS[target].name}.`
             : `We'll be in touch about moving you to ${TIERS[target].name}.`,
       });
     } catch (e: any) {
