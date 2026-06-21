@@ -4623,6 +4623,10 @@ interface PromptData {
   menuCategories: any[];
   menuItems: any[];
   tables: any[];
+  // Caller-derived language preference (from customers.preferred_language)
+  preferredLanguage?: string;
+  menuItemOptionGroups?: any[];
+  menuItemOptions?: any[];
 }
 
 async function buildFullSystemPrompt(
