@@ -1,45 +1,56 @@
-## Where we are today
-- `staff.working_hours` (jsonb) already exists on every staff row.
-- The AI receptionist (`twilio-media-stream`) and the public booking availability check (`public-check-availability`) already read it and filter slots to only times that staff member works.
-- `staff_time_off` is separate (one-off holidays / sick days) and already wired up.
-- What's missing is a UI to actually set those hours — right now `working_hours` is `null` for everyone, so the backend falls back to "available whenever the business is open", which is exactly the problem you're describing.
+# Fix wrong-language AI responses (Lucy's Welsh call issue)
 
-## Plan
+## What happened
+Last call to Lucy's Hair and Beauty: the AI answered and transcribed the entire call in Welsh, even though `business_settings.primary_language = "English"` and the caller was almost certainly speaking English on a UK number. Result: garbled transcript, customer experience broken.
 
-### 1. Per-staff working hours editor (owner side)
-- In `StaffManagement.tsx`, add a "Hours" button on each staff row that opens a new `StaffWorkingHoursDialog`.
-- Dialog shows 7 rows (Mon–Sun), each with: `Working` toggle + `Start` / `End` time pickers + optional `Break start` / `Break end`.
-- Defaults when first opened:
-  - If `working_hours` is null → prefill from the business `opening_hours` for each day (so owners can just tweak).
-  - If a day has multiple shifts later, we'll extend the shape; v1 is one shift + one break per day.
-- Saved JSON shape (backwards compatible with what `twilio-media-stream` and `public-check-availability` already expect):
-  ```json
-  {
-    "monday":    { "start": "09:00", "end": "17:00", "break_start": "13:00", "break_end": "13:30" },
-    "tuesday":   { "start": "09:00", "end": "17:00" },
-    "wednesday": null,
-    ...
-  }
-  ```
-  `null` / missing day = not working.
-- Validation: warn (don't block) if staff hours fall outside the business `opening_hours` for that day, so owners can still set early-prep or late-clean shifts if they want.
+## Root cause
+1. The system prompt sent to OpenAI Realtime has **no language instruction at all** (only the Starter tier gets a "English-only" line). Non-Starter tiers get nothing, so the model picks a language at random — often influenced by accent + region.
+2. The Whisper transcription config has **no `language` hint** (`transcription: { model: "whisper-1" }`), so STT also free-detects and can lock onto Welsh on a UK number.
+3. `business_settings.primary_language` is collected from the owner but never actually used.
 
-### 2. Make the availability logic use breaks
-- `public-check-availability` and `twilio-media-stream` currently honour `start`/`end`. Extend both to also subtract the `break_start`–`break_end` window when present, so the AI never books over a lunch break.
-- `BookingDialog` (manual booking from dashboard) currently doesn't filter by staff hours at all — add the same per-staff filter so owners can't accidentally double-book a staff member outside their shift (still allow override with a confirm dialog).
+## Fix
 
-### 3. Staff-side visibility
-- In `StaffDashboard`, add a small "My schedule" card showing the staff member's own weekly hours (read-only, pulled from their linked staff row).
-- Staff can request time off through the existing `staff_time_off` flow — no change there.
+### 1. `supabase/functions/twilio-media-stream/index.ts` — system prompt
+Inject a LANGUAGE RULE block for **all tiers** (replacing the Starter-only block), built from `business_settings.primary_language` (default `English`):
 
-### 4. Calendar respects hours
-- `CalendarTab` already colours by staff; add a subtle greyed-out background on staff columns/rows during their off-hours and breaks so the owner can see at a glance who's in.
+```
+## LANGUAGE — HIGHEST PRIORITY RULE:
+- ALWAYS respond in {primary_language} by default. The greeting MUST be in {primary_language}.
+- Do NOT switch to Welsh, Irish, Scots Gaelic, or any regional dialect — these are NEVER the right answer on a UK number unless the caller is unmistakably speaking that language for multiple full sentences.
+- Only switch language if the caller clearly and unambiguously speaks a different MAJOR language (e.g. Spanish, French, German, Polish, Arabic, Mandarin) for at least 2 consecutive full sentences. Accents, single words, or unclear audio do NOT count — keep speaking {primary_language}.
+- If a returning caller has preferred_language set, start in that language instead of {primary_language}.
+- If unsure what language the caller is speaking, default to {primary_language}. Never guess.
+```
 
-## Out of scope (call out if you want it later)
-- Multi-shift days (split shifts beyond one break).
-- Recurring shift rotations (e.g. week A / week B).
-- Per-date overrides beyond `staff_time_off` (e.g. "this Wednesday only, finish at 3").
-- Auto-syncing staff hours from Google Calendar.
+This replaces the existing Starter-only block at lines 780–783 with a universal block, while keeping the existing `update_customer_language` tool wiring for genuine language switches.
 
-## No DB migration required
-`staff.working_hours` already exists as `jsonb`. This is a UI + edge-function-logic change, no schema work.
+### 2. `supabase/functions/twilio-media-stream/index.ts` — Whisper STT hint
+At line 1936, pass a `language` hint to Whisper derived from `primary_language` (or caller's `preferred_language` if known):
+
+```ts
+transcription: {
+  model: "whisper-1",
+  language: mapToIso639_1(session.preferredLanguage || session.primaryLanguage || "English"),
+},
+```
+
+`mapToIso639_1` maps `English → "en"`, `Spanish → "es"`, `French → "fr"`, `German → "de"`, `Polish → "pl"`, `Italian → "it"`, `Portuguese → "pt"`, `Arabic → "ar"`, `Mandarin/Chinese → "zh"`. Anything unknown → omit the hint (let Whisper auto-detect rather than send a bad code).
+
+This prevents Whisper from mis-detecting accented English as Welsh/Irish/etc., which is what produced the garbled transcript.
+
+### 3. Plumbing
+- Add `primaryLanguage` to the `Session` interface and populate it in `buildFullSystemPrompt` from `business_settings.primary_language`.
+- Pass `primaryLanguage` into the prompt template where the new LANGUAGE block is rendered.
+- `preferredLanguage` already exists on the session — reuse it.
+
+## Out of scope
+- No DB changes (the columns we need already exist).
+- No UI changes — `primary_language` is already editable in business settings.
+- Restaurant prompt builder path: apply the same LANGUAGE block there too (one-line addition) so restaurants benefit equally.
+- No change to `update_customer_language` tool — it still saves a genuine mid-call switch to `customers.preferred_language` so next call starts correctly.
+
+## Files changed
+- `supabase/functions/twilio-media-stream/index.ts` (system prompt block + Whisper language hint + Session field + restaurant prompt block)
+
+## Verification
+After deploy, place a test call to Lucy's number and confirm: greeting is in English, transcript is coherent English (not Welsh), and the `update_customer_language` flow still fires only on a real language switch.
