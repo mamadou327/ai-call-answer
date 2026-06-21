@@ -3493,6 +3493,7 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
 
         if (targetStaffId) {
           // Check specific staff availability
+          const targetStaff = bookableStaff.find((s) => s.id === targetStaffId);
           const staffBookings = allBookings.filter((b: any) => b.staff_id === targetStaffId);
           const hasConflict = staffBookings.some((b: any) => {
             const bStart = new Date(b.start_time);
@@ -3501,7 +3502,8 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
           });
 
           const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, targetStaffId, slotStart, slotEnd);
-          slotIsAvailable = !hasConflict && !timeOffCheck.onLeave;
+          const workingCheck = isStaffWorkingAt(targetStaff, slotStart, slotEnd);
+          slotIsAvailable = !hasConflict && !timeOffCheck.onLeave && workingCheck.working;
         } else {
           // Check if ANY eligible staff is available at this slot
           for (const staff of bookableStaff) {
@@ -3513,8 +3515,9 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
             });
 
             const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, slotStart, slotEnd);
+            const workingCheck = isStaffWorkingAt(staff, slotStart, slotEnd);
 
-            if (!hasConflict && !timeOffCheck.onLeave) {
+            if (!hasConflict && !timeOffCheck.onLeave && workingCheck.working) {
               slotIsAvailable = true;
               break; // At least one eligible staff is available, slot is open
             }
