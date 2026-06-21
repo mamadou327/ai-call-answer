@@ -2175,6 +2175,7 @@ export type Database = {
           last_called_at: string | null
           notes: string | null
           phone_number: string
+          position: string | null
           reason_not_interested: string | null
           retell_call_id: string | null
           retry_count: number
@@ -2214,6 +2215,7 @@ export type Database = {
           last_called_at?: string | null
           notes?: string | null
           phone_number: string
+          position?: string | null
           reason_not_interested?: string | null
           retell_call_id?: string | null
           retry_count?: number
@@ -2253,6 +2255,7 @@ export type Database = {
           last_called_at?: string | null
           notes?: string | null
           phone_number?: string
+          position?: string | null
           reason_not_interested?: string | null
           retell_call_id?: string | null
           retry_count?: number

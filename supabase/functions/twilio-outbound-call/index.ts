@@ -113,6 +113,7 @@ Deno.serve(async (req) => {
     const businessType = (lead as any).business_type && String((lead as any).business_type).trim()
       ? String((lead as any).business_type).trim()
       : "service business";
+    const position = (lead as any).position ? String((lead as any).position).trim() : "";
     const now = new Date();
 
     const formatSpokenDate = (date: Date) =>
@@ -157,6 +158,7 @@ Deno.serve(async (req) => {
           is_mobile: is_mobile,
           open_with: open_with,
           time_of_day: timeOfDay,
+          position: position,
         },
       }),
     });
