@@ -609,6 +609,7 @@ Deno.serve(async (req) => {
     callerFirstName: null,
     systemPrompt: "", // Will be built when we get caller info
     voice: openAiVoice,
+    primaryLanguage: ((settings as any)?.primary_language as string) || "English",
     streamSid: null,
     openAiWs: null,
     twilioWs,
