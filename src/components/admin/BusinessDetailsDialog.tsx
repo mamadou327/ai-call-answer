@@ -141,6 +141,37 @@ export const BusinessDetailsDialog = ({ business, open, onOpenChange }: Business
 
           <Separator />
 
+          {/* Plan management */}
+          <div>
+            <h4 className="text-sm font-semibold mb-2 text-muted-foreground flex items-center gap-2">
+              <CreditCard className="w-4 h-4" /> Subscription plan
+            </h4>
+            <div className="flex items-center gap-2">
+              <Select
+                value={currentTier}
+                onValueChange={(v) => saveTier(v as SubscriptionTier)}
+                disabled={savingTier || loadingTier}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={loadingTier ? "Loading…" : "Select a plan"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIER_ORDER.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {TIERS[t].name}
+                      {TIERS[t].callLimit !== null ? ` — ${TIERS[t].callLimit} calls/mo` : " — Unlimited"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Changing the plan here updates the business immediately.
+            </p>
+          </div>
+
+          <Separator />
+
           {/* Owner Info */}
           <div>
             <h4 className="text-sm font-semibold mb-2 text-muted-foreground">Owner Information</h4>
