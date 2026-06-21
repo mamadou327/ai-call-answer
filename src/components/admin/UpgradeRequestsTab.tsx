@@ -128,7 +128,7 @@ export const UpgradeRequestsTab = () => {
       <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
         <CardTitle className="flex items-center gap-2">
           <Crown className="w-5 h-5 text-primary" />
-          Upgrade Requests
+          Plan Change Requests
         </CardTitle>
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
           <TabsList>
