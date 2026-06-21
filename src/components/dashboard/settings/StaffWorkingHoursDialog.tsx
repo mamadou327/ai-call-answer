@@ -55,7 +55,7 @@ export const StaffWorkingHoursDialog = ({ open, onOpenChange, staffId, staffName
         supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
       ]);
 
-      const wh = (staffRow?.working_hours as WorkingHours | null) || null;
+      const wh = (staffRow?.working_hours as unknown as WorkingHours | null) || null;
       const openingByDay: Record<number, { open: string; close: string; closed: boolean }> = {};
       (openingRows || []).forEach((r: any) => {
         openingByDay[r.day_of_week] = {
