@@ -209,6 +209,17 @@ serve(async (req) => {
               staffEnd.setHours(staffCloseHour, staffCloseMin, 0, 0);
               
               if (slotStart < staffStart || slotEnd > staffEnd) continue;
+
+              // Break window — block any slot that overlaps the break
+              if (staffDayHours.break_start && staffDayHours.break_end) {
+                const [bsH, bsM] = String(staffDayHours.break_start).split(":").map(Number);
+                const [beH, beM] = String(staffDayHours.break_end).split(":").map(Number);
+                const breakStart = new Date(requestedDate);
+                breakStart.setHours(bsH, bsM, 0, 0);
+                const breakEnd = new Date(requestedDate);
+                breakEnd.setHours(beH, beM, 0, 0);
+                if (slotStart < breakEnd && slotEnd > breakStart) continue;
+              }
             } else if (staffDayHours?.isOff) {
               continue;
             }
