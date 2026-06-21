@@ -4801,15 +4801,23 @@ async function buildFullSystemPrompt(
         // Format working hours if available
         let workingHoursNote = "";
         if (s.working_hours && Object.keys(s.working_hours).length > 0) {
+          const dayNameMap: Record<string, string> = {
+            sunday: "Sun", monday: "Mon", tuesday: "Tue", wednesday: "Wed",
+            thursday: "Thu", friday: "Fri", saturday: "Sat",
+          };
           const workDays = Object.entries(s.working_hours)
-            .filter(([_, v]: [string, any]) => v && v.start && v.end)
+            .filter(([_, v]: [string, any]) => v && !v.isOff && v.start && v.end)
             .map(([day, hours]: [string, any]) => {
-              const dayNum = parseInt(day);
-              const dayName = dayAbbreviations[dayNum] || day;
-              return `${dayName}:${hours.start?.slice(0,5)}-${hours.end?.slice(0,5)}`;
+              const dayName = /^\d+$/.test(day)
+                ? (dayAbbreviations[parseInt(day)] || day)
+                : (dayNameMap[day.toLowerCase()] || day);
+              const breakPart = hours.break_start && hours.break_end
+                ? ` (break ${String(hours.break_start).slice(0,5)}-${String(hours.break_end).slice(0,5)})`
+                : "";
+              return `${dayName}:${String(hours.start).slice(0,5)}-${String(hours.end).slice(0,5)}${breakPart}`;
             });
           if (workDays.length > 0) {
-            workingHoursNote = ` [WORKS: ${workDays.join(", ")}]`;
+            workingHoursNote = ` [WORKS: ${workDays.join(", ")} — NEVER book outside these hours or during breaks]`;
           }
         }
         
