@@ -111,8 +111,17 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const isEnterprise = body.requestedTier === "enterprise";
+    const computedKind: "upgrade" | "downgrade" =
+      body.changeKind ||
+      (currentTierKey && TIER_RANK[body.requestedTier] < TIER_RANK[currentTierKey]
+        ? "downgrade"
+        : "upgrade");
+    const isDowngrade = computedKind === "downgrade";
+
     const subject = isEnterprise
       ? `💼 Enterprise enquiry: ${businessName}`
+      : isDowngrade
+      ? `⬇️ Downgrade request: ${businessName} → ${tierName}`
       : `🚀 Upgrade request: ${businessName} → ${tierName}`;
 
     const html = `
@@ -121,14 +130,16 @@ const handler = async (req: Request): Promise<Response> => {
         <li><strong>Business:</strong> ${businessName}</li>
         <li><strong>Current tier:</strong> ${currentTier}</li>
         <li><strong>Requested tier:</strong> ${tierName}</li>
+        <li><strong>Change type:</strong> ${isDowngrade ? "Downgrade" : "Upgrade"}</li>
         <li><strong>Contact email:</strong> ${ownerEmail}</li>
         ${body.contactName ? `<li><strong>Contact name:</strong> ${body.contactName}</li>` : ""}
         ${body.contactPhone ? `<li><strong>Contact phone:</strong> ${body.contactPhone}</li>` : ""}
         ${body.featureName ? `<li><strong>Triggered by feature:</strong> ${body.featureName}</li>` : ""}
       </ul>
       ${body.notes ? `<p><strong>Notes:</strong><br/>${body.notes.replace(/\n/g, "<br/>")}</p>` : ""}
-      <p>Reach out to close the upgrade.</p>
+      <p>Review and ${isDowngrade ? "approve or decline the downgrade" : "close the upgrade"} in the admin dashboard.</p>
     `;
+
 
     const resend = new Resend(resendApiKey);
     const sendResult = await resend.emails.send({
