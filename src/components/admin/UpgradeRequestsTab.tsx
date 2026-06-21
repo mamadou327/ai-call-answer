@@ -83,7 +83,7 @@ export const UpgradeRequestsTab = () => {
     try {
       const { error: settingsError } = await supabase
         .from("business_settings")
-        .update({ subscription_tier: r.requested_tier })
+        .update({ subscription_tier: r.requested_tier as SubscriptionTier })
         .eq("business_id", r.business_id);
       if (settingsError) throw settingsError;
 
