@@ -1154,6 +1154,10 @@ const AdminDashboard = () => {
           <AdminDemoRequestsTab />
         )}
 
+        {activeTab === "upgrades" && (
+          <UpgradeRequestsTab />
+        )}
+
         {activeTab === "calls" && (isSuperAdmin || userPermissions.can_view_calls_messages) && (
           <AdminCallsTab />
         )}
