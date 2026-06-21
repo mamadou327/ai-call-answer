@@ -154,11 +154,11 @@ export const BusinessDetailsDialog = ({ business, open, onOpenChange }: Business
             </h4>
             <div className="flex items-center gap-2">
               <Select
-                value={currentTier}
-                onValueChange={(v) => saveTier(v as SubscriptionTier)}
+                value={pendingTier}
+                onValueChange={(v) => setPendingTier(v as SubscriptionTier)}
                 disabled={savingTier || loadingTier}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="flex-1">
                   <SelectValue placeholder={loadingTier ? "Loading…" : "Select a plan"} />
                 </SelectTrigger>
                 <SelectContent>
@@ -170,9 +170,18 @@ export const BusinessDetailsDialog = ({ business, open, onOpenChange }: Business
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                onClick={saveTier}
+                disabled={savingTier || loadingTier || pendingTier === currentTier}
+              >
+                {savingTier ? "Saving…" : "Save"}
+              </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Changing the plan here updates the business immediately.
+              Current plan: <span className="font-medium">{TIERS[currentTier].name}</span>
+              {pendingTier !== currentTier && (
+                <span className="text-amber-600"> · unsaved change</span>
+              )}
             </p>
           </div>
 
