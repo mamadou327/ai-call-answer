@@ -161,9 +161,26 @@ export const UpgradeRequestsTab = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => (
+              {rows.map((r) => {
+                const isDowngrade =
+                  r.current_tier &&
+                  TIER_ORDER.includes(r.current_tier as SubscriptionTier) &&
+                  TIER_ORDER.includes(r.requested_tier as SubscriptionTier) &&
+                  tierRank(r.requested_tier as SubscriptionTier) < tierRank(r.current_tier as SubscriptionTier);
+                return (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.business_name || "—"}</TableCell>
+                  <TableCell>
+                    {isDowngrade ? (
+                      <Badge className="bg-orange-500/10 text-orange-600 gap-1">
+                        <ArrowDown className="w-3 h-3" /> Downgrade
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-blue-500/10 text-blue-600 gap-1">
+                        <Crown className="w-3 h-3" /> Upgrade
+                      </Badge>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <span className="text-muted-foreground">{tierLabel(r.current_tier)}</span>
                     <span className="mx-2">→</span>
