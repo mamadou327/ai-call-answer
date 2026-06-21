@@ -3,8 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Check, Crown, Lock, Mail } from "lucide-react";
-import { TIERS, TIER_ORDER, SubscriptionTier } from "@/lib/tiers";
+import { Check, Crown, Lock, Mail, ArrowDown } from "lucide-react";
+import { TIERS, TIER_ORDER, SubscriptionTier, tierRank } from "@/lib/tiers";
 import { useTier } from "@/hooks/use-tier";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -27,7 +27,7 @@ export const BillingSettings = ({ businessId, businessName }: BillingSettingsPro
   const { toast } = useToast();
   const [requesting, setRequesting] = useState<SubscriptionTier | null>(null);
 
-  const requestUpgrade = async (target: SubscriptionTier) => {
+  const requestChange = async (target: SubscriptionTier, kind: "upgrade" | "downgrade") => {
     setRequesting(target);
     try {
       const { error } = await supabase.functions.invoke("send-upgrade-request", {
@@ -35,14 +35,22 @@ export const BillingSettings = ({ businessId, businessName }: BillingSettingsPro
           businessId,
           businessName,
           requestedTier: target,
+          changeKind: kind,
         },
       });
       if (error) throw error;
       toast({
-        title: target === "enterprise" ? "Enquiry sent" : "Upgrade request sent",
+        title:
+          target === "enterprise"
+            ? "Enquiry sent"
+            : kind === "downgrade"
+            ? "Downgrade request sent"
+            : "Upgrade request sent",
         description:
           target === "enterprise"
             ? "Our team will be in touch about Enterprise."
+            : kind === "downgrade"
+            ? `We'll be in touch about moving you down to ${TIERS[target].name}.`
             : `We'll be in touch about moving you to ${TIERS[target].name}.`,
       });
     } catch (e: any) {
@@ -134,18 +142,23 @@ export const BillingSettings = ({ businessId, businessName }: BillingSettingsPro
         </CardContent>
       </Card>
 
-      {/* Upgrade options */}
+      {/* Plan change options */}
       <div className="grid gap-4 md:grid-cols-2">
-        {TIER_ORDER.filter((t) => t !== tier && TIERS[t].id !== "starter" || (TIERS[t].id === "starter" && tier !== "starter")).filter(t => t !== tier).map((upgradeTier) => {
-          const t = TIERS[upgradeTier];
-          const isEnterprise = upgradeTier === "enterprise";
-          const isDowngrade = TIER_ORDER.indexOf(upgradeTier) < TIER_ORDER.indexOf(tier);
-          if (isDowngrade) return null;
+        {TIER_ORDER.filter((t) => t !== tier).map((targetTier) => {
+          const t = TIERS[targetTier];
+          const isEnterprise = targetTier === "enterprise";
+          const isDowngrade = tierRank(targetTier) < tierRank(tier);
+          const kind: "upgrade" | "downgrade" = isDowngrade ? "downgrade" : "upgrade";
           return (
-            <Card key={upgradeTier} className="border-2">
+            <Card key={targetTier} className={`border-2 ${isDowngrade ? "border-muted" : ""}`}>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{t.name}</CardTitle>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    {t.name}
+                    {isDowngrade && (
+                      <Badge variant="outline" className="text-xs">Downgrade</Badge>
+                    )}
+                  </CardTitle>
                   <span className="font-semibold">
                     {t.priceLabel}
                     {t.priceSuffix && <span className="text-sm text-muted-foreground">{t.priceSuffix}</span>}
@@ -167,16 +180,24 @@ export const BillingSettings = ({ businessId, businessName }: BillingSettingsPro
                   ))}
                 </ul>
                 <Button
-                  onClick={() => requestUpgrade(upgradeTier)}
-                  disabled={requesting === upgradeTier}
+                  onClick={() => requestChange(targetTier, kind)}
+                  disabled={requesting === targetTier}
                   className="w-full"
-                  variant={isEnterprise ? "outline" : "default"}
+                  variant={isEnterprise ? "outline" : isDowngrade ? "secondary" : "default"}
                 >
-                  {isEnterprise ? <Mail className="w-4 h-4 mr-2" /> : <Crown className="w-4 h-4 mr-2" />}
-                  {requesting === upgradeTier
+                  {isEnterprise ? (
+                    <Mail className="w-4 h-4 mr-2" />
+                  ) : isDowngrade ? (
+                    <ArrowDown className="w-4 h-4 mr-2" />
+                  ) : (
+                    <Crown className="w-4 h-4 mr-2" />
+                  )}
+                  {requesting === targetTier
                     ? "Sending…"
                     : isEnterprise
                     ? "Contact us"
+                    : isDowngrade
+                    ? `Request downgrade to ${t.name}`
                     : `Upgrade to ${t.name}`}
                 </Button>
               </CardContent>
@@ -184,6 +205,7 @@ export const BillingSettings = ({ businessId, businessName }: BillingSettingsPro
           );
         })}
       </div>
+
 
       <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
         <Lock className="w-3 h-3" />

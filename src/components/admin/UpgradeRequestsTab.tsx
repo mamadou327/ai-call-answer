@@ -6,8 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { TIERS, SubscriptionTier } from "@/lib/tiers";
-import { Check, X, Crown, Loader2 } from "lucide-react";
+import { TIERS, TIER_ORDER, SubscriptionTier, tierRank } from "@/lib/tiers";
+import { Check, X, Crown, ArrowDown, Loader2 } from "lucide-react";
 
 interface UpgradeRequest {
   id: string;
@@ -128,7 +128,7 @@ export const UpgradeRequestsTab = () => {
       <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
         <CardTitle className="flex items-center gap-2">
           <Crown className="w-5 h-5 text-primary" />
-          Upgrade Requests
+          Plan Change Requests
         </CardTitle>
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
           <TabsList>
@@ -151,6 +151,7 @@ export const UpgradeRequestsTab = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Business</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Current → Requested</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Feature</TableHead>
@@ -160,9 +161,26 @@ export const UpgradeRequestsTab = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => (
+              {rows.map((r) => {
+                const isDowngrade =
+                  r.current_tier &&
+                  TIER_ORDER.includes(r.current_tier as SubscriptionTier) &&
+                  TIER_ORDER.includes(r.requested_tier as SubscriptionTier) &&
+                  tierRank(r.requested_tier as SubscriptionTier) < tierRank(r.current_tier as SubscriptionTier);
+                return (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.business_name || "—"}</TableCell>
+                  <TableCell>
+                    {isDowngrade ? (
+                      <Badge className="bg-orange-500/10 text-orange-600 gap-1">
+                        <ArrowDown className="w-3 h-3" /> Downgrade
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-blue-500/10 text-blue-600 gap-1">
+                        <Crown className="w-3 h-3" /> Upgrade
+                      </Badge>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <span className="text-muted-foreground">{tierLabel(r.current_tier)}</span>
                     <span className="mx-2">→</span>
@@ -200,7 +218,7 @@ export const UpgradeRequestsTab = () => {
                     )}
                   </TableCell>
                 </TableRow>
-              ))}
+              );})}
             </TableBody>
           </Table>
         )}
