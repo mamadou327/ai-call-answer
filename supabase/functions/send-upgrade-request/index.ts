@@ -101,12 +101,16 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const resend = new Resend(resendApiKey);
-    await resend.emails.send({
+    const sendResult = await resend.emails.send({
       from: resendFromEmail,
       to: ADMIN_EMAIL,
       subject,
       html,
     });
+    console.log("[send-upgrade-request] resend result:", JSON.stringify(sendResult));
+    if ((sendResult as any)?.error) {
+      throw new Error(`Resend error: ${JSON.stringify((sendResult as any).error)}`);
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
