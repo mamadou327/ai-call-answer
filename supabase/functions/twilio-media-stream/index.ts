@@ -2509,6 +2509,61 @@ function isStaffAssignedToService(staffServices: StaffService[], staffId: string
   return staffServices.some(ss => ss.staff_id === staffId && ss.service_id === serviceId);
 }
 
+// Check whether a staff member is scheduled to work during the requested window.
+// Returns working=true when the staff has no working_hours defined (falls back to business hours).
+function isStaffWorkingAt(
+  staff: StaffMember | undefined,
+  startTime: Date,
+  endTime: Date
+): { working: boolean; message?: string } {
+  if (!staff) return { working: true };
+  const wh = staff.working_hours as Record<string, any> | null;
+  if (!wh || Object.keys(wh).length === 0) return { working: true };
+
+  const dayName = startTime.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+  const dayHours = wh[dayName];
+
+  if (!dayHours || dayHours.isOff === true || dayHours.is_off === true) {
+    return {
+      working: false,
+      message: `Sorry, ${staff.name} isn't working on ${startTime.toLocaleDateString("en-GB", { weekday: "long" })}. Would you like a different day or staff member?`,
+    };
+  }
+
+  const startStr = String(dayHours.start || "00:00");
+  const endStr = String(dayHours.end || "23:59");
+  const [sh, sm] = startStr.split(":").map(Number);
+  const [eh, em] = endStr.split(":").map(Number);
+  const dayStart = new Date(startTime);
+  dayStart.setHours(sh, sm, 0, 0);
+  const dayEnd = new Date(startTime);
+  dayEnd.setHours(eh, em, 0, 0);
+
+  if (startTime < dayStart || endTime > dayEnd) {
+    return {
+      working: false,
+      message: `Sorry, ${staff.name} only works from ${startStr} to ${endStr} on ${startTime.toLocaleDateString("en-GB", { weekday: "long" })}. Please choose a time within those hours.`,
+    };
+  }
+
+  if (dayHours.break_start && dayHours.break_end) {
+    const [bsH, bsM] = String(dayHours.break_start).split(":").map(Number);
+    const [beH, beM] = String(dayHours.break_end).split(":").map(Number);
+    const breakStart = new Date(startTime);
+    breakStart.setHours(bsH, bsM, 0, 0);
+    const breakEnd = new Date(startTime);
+    breakEnd.setHours(beH, beM, 0, 0);
+    if (startTime < breakEnd && endTime > breakStart) {
+      return {
+        working: false,
+        message: `Sorry, ${staff.name} is on break from ${dayHours.break_start} to ${dayHours.break_end}. Please choose a different time.`,
+      };
+    }
+  }
+
+  return { working: true };
+}
+
 // ============================================================================
 // TOOL IMPLEMENTATIONS
 // ============================================================================
@@ -2712,6 +2767,12 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
     const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, startTime, endTime);
     if (timeOffCheck.onLeave) {
       return { success: false, message: timeOffCheck.message };
+    }
+
+    // Check staff working schedule (per-staff working hours)
+    const workingCheck = isStaffWorkingAt(staff, startTime, endTime);
+    if (!workingCheck.working) {
+      return { success: false, message: workingCheck.message };
     }
 
     // Check for conflicts (double booking)
@@ -3102,6 +3163,13 @@ async function executeRescheduleBooking(supabase: any, session: StreamSession, p
       return { success: false, message: timeOffCheck.message };
     }
 
+    // Check staff working schedule for the new time
+    const rescheduleStaff = session.staff.find((s) => s.id === booking.staff_id);
+    const rescheduleWorkingCheck = isStaffWorkingAt(rescheduleStaff, newStartTime, newEndTime);
+    if (!rescheduleWorkingCheck.working) {
+      return { success: false, message: rescheduleWorkingCheck.message };
+    }
+
     // Check for conflicts at new time (excluding current booking)
     const { data: conflicts } = await supabase
       .from("bookings")
@@ -3331,13 +3399,14 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
         });
 
         const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, requestedStart, requestedEnd);
+        const workingCheck = isStaffWorkingAt(staff, requestedStart, requestedEnd);
 
-        if (!hasConflict && !timeOffCheck.onLeave) {
+        if (!hasConflict && !timeOffCheck.onLeave && workingCheck.working) {
           availableStaff.push(staff.name);
         } else {
           unavailableStaff.push({
             name: staff.name,
-            reason: timeOffCheck.onLeave ? "time_off" : "booked",
+            reason: timeOffCheck.onLeave ? "time_off" : !workingCheck.working ? "time_off" : "booked",
           });
         }
       }
@@ -3424,6 +3493,7 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
 
         if (targetStaffId) {
           // Check specific staff availability
+          const targetStaff = bookableStaff.find((s) => s.id === targetStaffId);
           const staffBookings = allBookings.filter((b: any) => b.staff_id === targetStaffId);
           const hasConflict = staffBookings.some((b: any) => {
             const bStart = new Date(b.start_time);
@@ -3432,7 +3502,8 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
           });
 
           const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, targetStaffId, slotStart, slotEnd);
-          slotIsAvailable = !hasConflict && !timeOffCheck.onLeave;
+          const workingCheck = isStaffWorkingAt(targetStaff, slotStart, slotEnd);
+          slotIsAvailable = !hasConflict && !timeOffCheck.onLeave && workingCheck.working;
         } else {
           // Check if ANY eligible staff is available at this slot
           for (const staff of bookableStaff) {
@@ -3444,8 +3515,9 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
             });
 
             const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, slotStart, slotEnd);
+            const workingCheck = isStaffWorkingAt(staff, slotStart, slotEnd);
 
-            if (!hasConflict && !timeOffCheck.onLeave) {
+            if (!hasConflict && !timeOffCheck.onLeave && workingCheck.working) {
               slotIsAvailable = true;
               break; // At least one eligible staff is available, slot is open
             }

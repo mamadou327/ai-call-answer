@@ -193,35 +193,35 @@ serve(async (req) => {
           if (hasConflict) continue;
 
           // Check staff working hours if defined
-          if (staffMember.working_hours) {
+          if (staffMember.working_hours && Object.keys(staffMember.working_hours).length > 0) {
             const workingHours = staffMember.working_hours as Record<string, any>;
             const dayName = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][dayOfWeek];
             const staffDayHours = workingHours[dayName];
-            
-            if (staffDayHours && !staffDayHours.isOff) {
-              const [staffOpenHour, staffOpenMin] = (staffDayHours.start || "09:00").split(":").map(Number);
-              const [staffCloseHour, staffCloseMin] = (staffDayHours.end || "17:00").split(":").map(Number);
-              
-              const staffStart = new Date(requestedDate);
-              staffStart.setHours(staffOpenHour, staffOpenMin, 0, 0);
-              
-              const staffEnd = new Date(requestedDate);
-              staffEnd.setHours(staffCloseHour, staffCloseMin, 0, 0);
-              
-              if (slotStart < staffStart || slotEnd > staffEnd) continue;
 
-              // Break window — block any slot that overlaps the break
-              if (staffDayHours.break_start && staffDayHours.break_end) {
-                const [bsH, bsM] = String(staffDayHours.break_start).split(":").map(Number);
-                const [beH, beM] = String(staffDayHours.break_end).split(":").map(Number);
-                const breakStart = new Date(requestedDate);
-                breakStart.setHours(bsH, bsM, 0, 0);
-                const breakEnd = new Date(requestedDate);
-                breakEnd.setHours(beH, beM, 0, 0);
-                if (slotStart < breakEnd && slotEnd > breakStart) continue;
-              }
-            } else if (staffDayHours?.isOff) {
+            // If schedule is defined but this day has no entry OR is marked off → staff isn't working
+            if (!staffDayHours || staffDayHours.isOff === true || staffDayHours.is_off === true) {
               continue;
+            }
+
+            const [staffOpenHour, staffOpenMin] = (staffDayHours.start || "09:00").split(":").map(Number);
+            const [staffCloseHour, staffCloseMin] = (staffDayHours.end || "17:00").split(":").map(Number);
+
+            const staffStart = new Date(requestedDate);
+            staffStart.setHours(staffOpenHour, staffOpenMin, 0, 0);
+            const staffEnd = new Date(requestedDate);
+            staffEnd.setHours(staffCloseHour, staffCloseMin, 0, 0);
+
+            if (slotStart < staffStart || slotEnd > staffEnd) continue;
+
+            // Break window — block any slot that overlaps the break
+            if (staffDayHours.break_start && staffDayHours.break_end) {
+              const [bsH, bsM] = String(staffDayHours.break_start).split(":").map(Number);
+              const [beH, beM] = String(staffDayHours.break_end).split(":").map(Number);
+              const breakStart = new Date(requestedDate);
+              breakStart.setHours(bsH, bsM, 0, 0);
+              const breakEnd = new Date(requestedDate);
+              breakEnd.setHours(beH, beM, 0, 0);
+              if (slotStart < breakEnd && slotEnd > breakStart) continue;
             }
           }
 
