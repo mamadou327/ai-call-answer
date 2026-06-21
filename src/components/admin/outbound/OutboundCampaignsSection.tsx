@@ -50,6 +50,7 @@ type Lead = {
   call_transcript: string | null; last_called_at: string | null; created_at: string;
   sms_sent: boolean;
   business_type: string | null;
+  position: string | null;
   notes: string | null;
   email1_status?: string | null; email1_sent_at?: string | null; email1_opened_at?: string | null;
   email2_status?: string | null; email2_sent_at?: string | null; email2_opened_at?: string | null;
@@ -750,7 +751,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
     if (lines.length < 2) return;
     const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
     const idx = (k: string) => headers.indexOf(k);
-    const phoneI = idx("phone"); const firstI = idx("first_name"); const bizI = idx("business_name"); const typeI = idx("business_type"); const emailI = idx("email");
+    const phoneI = idx("phone"); const firstI = idx("first_name"); const bizI = idx("business_name"); const typeI = idx("business_type"); const emailI = idx("email"); const posI = idx("position");
     if (phoneI < 0) { toast({ title: "CSV missing 'phone' column", variant: "destructive" }); return; }
     const allowed = new Set<string>(BUSINESS_TYPES as readonly string[]);
     const rows = lines.slice(1).map(l => {
@@ -764,6 +765,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
         business_name: bizI >= 0 ? cols[bizI] : null,
         business_type: allowed.has(rawType) ? rawType : null,
         email: emailVal || null,
+        position: posI >= 0 ? (cols[posI] || null) : null,
       };
     }).filter(r => r.phone_number);
     if (!rows.length) return;
@@ -808,7 +810,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           />
         </div>
         <p className="text-xs text-muted-foreground mt-2">
-          CSV columns: <code>phone</code> (required), <code>first_name</code>, <code>business_name</code>, <code>business_type</code>, <code>email</code> (all optional).
+          CSV columns: <code>phone</code> (required), <code>first_name</code>, <code>business_name</code>, <code>business_type</code>, <code>email</code>, <code>position</code> (all optional).
         </p>
         <p className="text-xs text-muted-foreground mt-1">
           Leads with email addresses will receive the email sequence. Leads without will be called only.
@@ -900,7 +902,12 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 <TableCell onClick={e => e.stopPropagation()}>
                   <Checkbox checked={selectedIds.has(l.id)} onCheckedChange={(v) => toggleOne(l.id, v === true)} aria-label="Select lead"/>
                 </TableCell>
-                <TableCell>{l.first_name || "—"}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <span>{l.first_name || "—"}</span>
+                    {l.position && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{l.position}</span>}
+                  </div>
+                </TableCell>
                 <TableCell>{l.business_name || "—"}</TableCell>
                 <TableCell>{l.business_type ? <Badge variant="outline" className="text-xs">{businessTypeLabel(l.business_type)}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
                 <TableCell>{l.phone_number}</TableCell>
@@ -1025,6 +1032,10 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                   </Select>
                 </div>
                 <div>
+                  <Label>Position / Title</Label>
+                  <Input value={selected.position || ""} onChange={e => setSelected({ ...selected, position: e.target.value || null })} />
+                </div>
+                <div>
                   <Label>Existing solution</Label>
                   <Input value={selected.existing_solution || ""} onChange={e => setSelected({ ...selected, existing_solution: e.target.value || null })} />
                 </div>
@@ -1052,6 +1063,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                     status: selected.status as any,
                     interest_level: selected.interest_level as any,
                     business_type: selected.business_type,
+                    position: selected.position,
                     existing_solution: selected.existing_solution,
                     reason_not_interested: selected.reason_not_interested,
                     notes: selected.notes,
