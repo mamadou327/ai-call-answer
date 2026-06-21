@@ -1,13 +1,19 @@
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Building2, 
-  Phone, 
-  Mail, 
-  MapPin, 
-  Globe, 
-  Calendar, 
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { TIERS, TIER_ORDER, SubscriptionTier } from "@/lib/tiers";
+import {
+  Building2,
+  Phone,
+  Mail,
+  MapPin,
+  Globe,
+  Calendar,
   Users,
   Clock,
   CreditCard,
@@ -43,6 +49,43 @@ interface BusinessDetailsDialogProps {
 }
 
 export const BusinessDetailsDialog = ({ business, open, onOpenChange }: BusinessDetailsDialogProps) => {
+  const { toast } = useToast();
+  const [currentTier, setCurrentTier] = useState<SubscriptionTier>("starter");
+  const [savingTier, setSavingTier] = useState(false);
+  const [loadingTier, setLoadingTier] = useState(false);
+
+  useEffect(() => {
+    if (!business?.id || !open) return;
+    setLoadingTier(true);
+    supabase
+      .from("business_settings")
+      .select("subscription_tier")
+      .eq("business_id", business.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setCurrentTier(((data as any)?.subscription_tier as SubscriptionTier) || "starter");
+        setLoadingTier(false);
+      });
+  }, [business?.id, open]);
+
+  const saveTier = async (newTier: SubscriptionTier) => {
+    if (!business) return;
+    setSavingTier(true);
+    try {
+      const { error } = await supabase
+        .from("business_settings")
+        .update({ subscription_tier: newTier })
+        .eq("business_id", business.id);
+      if (error) throw error;
+      setCurrentTier(newTier);
+      toast({ title: "Plan updated", description: `${business.business_name} is now on ${TIERS[newTier].name}.` });
+    } catch (e: any) {
+      toast({ title: "Could not update plan", description: e?.message, variant: "destructive" });
+    } finally {
+      setSavingTier(false);
+    }
+  };
+
   if (!business) return null;
 
   const getStatusBadge = (status: string) => {
@@ -94,6 +137,37 @@ export const BusinessDetailsDialog = ({ business, open, onOpenChange }: Business
             ) : (
               <Badge variant="secondary">Aivia Inactive</Badge>
             )}
+          </div>
+
+          <Separator />
+
+          {/* Plan management */}
+          <div>
+            <h4 className="text-sm font-semibold mb-2 text-muted-foreground flex items-center gap-2">
+              <CreditCard className="w-4 h-4" /> Subscription plan
+            </h4>
+            <div className="flex items-center gap-2">
+              <Select
+                value={currentTier}
+                onValueChange={(v) => saveTier(v as SubscriptionTier)}
+                disabled={savingTier || loadingTier}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={loadingTier ? "Loading…" : "Select a plan"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIER_ORDER.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {TIERS[t].name}
+                      {TIERS[t].callLimit !== null ? ` — ${TIERS[t].callLimit} calls/mo` : " — Unlimited"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Changing the plan here updates the business immediately.
+            </p>
           </div>
 
           <Separator />
