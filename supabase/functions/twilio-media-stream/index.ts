@@ -2509,6 +2509,61 @@ function isStaffAssignedToService(staffServices: StaffService[], staffId: string
   return staffServices.some(ss => ss.staff_id === staffId && ss.service_id === serviceId);
 }
 
+// Check whether a staff member is scheduled to work during the requested window.
+// Returns working=true when the staff has no working_hours defined (falls back to business hours).
+function isStaffWorkingAt(
+  staff: StaffMember | undefined,
+  startTime: Date,
+  endTime: Date
+): { working: boolean; message?: string } {
+  if (!staff) return { working: true };
+  const wh = staff.working_hours as Record<string, any> | null;
+  if (!wh || Object.keys(wh).length === 0) return { working: true };
+
+  const dayName = startTime.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+  const dayHours = wh[dayName];
+
+  if (!dayHours || dayHours.isOff === true || dayHours.is_off === true) {
+    return {
+      working: false,
+      message: `Sorry, ${staff.name} isn't working on ${startTime.toLocaleDateString("en-GB", { weekday: "long" })}. Would you like a different day or staff member?`,
+    };
+  }
+
+  const startStr = String(dayHours.start || "00:00");
+  const endStr = String(dayHours.end || "23:59");
+  const [sh, sm] = startStr.split(":").map(Number);
+  const [eh, em] = endStr.split(":").map(Number);
+  const dayStart = new Date(startTime);
+  dayStart.setHours(sh, sm, 0, 0);
+  const dayEnd = new Date(startTime);
+  dayEnd.setHours(eh, em, 0, 0);
+
+  if (startTime < dayStart || endTime > dayEnd) {
+    return {
+      working: false,
+      message: `Sorry, ${staff.name} only works from ${startStr} to ${endStr} on ${startTime.toLocaleDateString("en-GB", { weekday: "long" })}. Please choose a time within those hours.`,
+    };
+  }
+
+  if (dayHours.break_start && dayHours.break_end) {
+    const [bsH, bsM] = String(dayHours.break_start).split(":").map(Number);
+    const [beH, beM] = String(dayHours.break_end).split(":").map(Number);
+    const breakStart = new Date(startTime);
+    breakStart.setHours(bsH, bsM, 0, 0);
+    const breakEnd = new Date(startTime);
+    breakEnd.setHours(beH, beM, 0, 0);
+    if (startTime < breakEnd && endTime > breakStart) {
+      return {
+        working: false,
+        message: `Sorry, ${staff.name} is on break from ${dayHours.break_start} to ${dayHours.break_end}. Please choose a different time.`,
+      };
+    }
+  }
+
+  return { working: true };
+}
+
 // ============================================================================
 // TOOL IMPLEMENTATIONS
 // ============================================================================
