@@ -2769,6 +2769,12 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
       return { success: false, message: timeOffCheck.message };
     }
 
+    // Check staff working schedule (per-staff working hours)
+    const workingCheck = isStaffWorkingAt(staff, startTime, endTime);
+    if (!workingCheck.working) {
+      return { success: false, message: workingCheck.message };
+    }
+
     // Check for conflicts (double booking)
     const { data: conflicts } = await supabase
       .from("bookings")
