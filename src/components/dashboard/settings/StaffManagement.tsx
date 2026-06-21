@@ -636,6 +636,14 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                   <Button
                     variant="ghost"
                     size="icon"
+                    onClick={() => setHoursDialogStaff(member)}
+                    title="Working hours"
+                  >
+                    <Clock className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => handleEdit(member)}
                   >
                     <Edit className="w-4 h-4" />
@@ -653,6 +661,15 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
           </div>
         )}
       </CardContent>
+      {hoursDialogStaff && (
+        <StaffWorkingHoursDialog
+          open={!!hoursDialogStaff}
+          onOpenChange={(o) => !o && setHoursDialogStaff(null)}
+          staffId={hoursDialogStaff.id}
+          staffName={hoursDialogStaff.name}
+          businessId={businessId}
+        />
+      )}
     </Card>
   );
 };
