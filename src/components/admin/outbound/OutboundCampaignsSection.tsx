@@ -533,7 +533,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
   const [smsFilter, setSmsFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
-  const [newLead, setNewLead] = useState<{ first_name: string; business_name: string; phone_number: string; business_type: string; email: string }>({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" });
+  const [newLead, setNewLead] = useState<{ first_name: string; business_name: string; phone_number: string; business_type: string; email: string; position: string }>({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "", position: "" });
   const [selected, setSelected] = useState<Lead | null>(null);
   const [callHistory, setCallHistory] = useState<Array<{ id: string; called_at: string; recording_url: string | null; transcript: string | null; duration_seconds: number | null; outcome: string | null; retell_call_id: string | null }>>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -646,6 +646,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
       phone_number: newLead.phone_number,
       business_type: newLead.business_type || null,
       email: newLead.email || null,
+      position: newLead.position || null,
       campaign_id: campaign.id,
     };
     const { data: created, error } = await supabase.from("outbound_leads").insert(payload).select("id").maybeSingle();
@@ -659,7 +660,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
         details: payload,
       });
     }
-    setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "" }); load();
+    setAddOpen(false); setNewLead({ first_name: "", business_name: "", phone_number: "", business_type: "", email: "", position: "" }); load();
   };
   const archiveLead = async (id: string) => {
     const lead = leads.find(l => l.id === id);
@@ -905,10 +906,15 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <span>{l.first_name || "—"}</span>
-                    {l.position && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{l.position}</span>}
+                    {l.position && l.first_name && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{l.position}</span>}
                   </div>
                 </TableCell>
-                <TableCell>{l.business_name || "—"}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <span>{l.business_name || "—"}</span>
+                    {l.position && !l.first_name && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{l.position}</span>}
+                  </div>
+                </TableCell>
                 <TableCell>{l.business_type ? <Badge variant="outline" className="text-xs">{businessTypeLabel(l.business_type)}</Badge> : <span className="text-muted-foreground">—</span>}</TableCell>
                 <TableCell>{l.phone_number}</TableCell>
                 <TableCell className="max-w-[160px] truncate" title={l.email || ""}>{l.email || <span className="text-muted-foreground">—</span>}</TableCell>
@@ -955,6 +961,7 @@ function LeadsTab({ campaign, onBack }: { campaign: Campaign; onBack: () => void
           <div className="space-y-3">
             <div><Label>First name</Label><Input value={newLead.first_name} onChange={e => setNewLead({...newLead, first_name: e.target.value})}/></div>
             <div><Label>Business name</Label><Input value={newLead.business_name} onChange={e => setNewLead({...newLead, business_name: e.target.value})}/></div>
+            <div><Label>Position / Title (optional)</Label><Input value={newLead.position} onChange={e => setNewLead({...newLead, position: e.target.value})} placeholder="Owner, Manager…"/></div>
             <div><Label>Phone (E.164)</Label><Input value={newLead.phone_number} onChange={e => setNewLead({...newLead, phone_number: e.target.value})} placeholder="+447..."/></div>
             <div><Label>Email (optional)</Label><Input type="email" value={newLead.email} onChange={e => setNewLead({...newLead, email: e.target.value})} placeholder="owner@business.com"/></div>
             <div>
