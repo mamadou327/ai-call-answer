@@ -48,20 +48,24 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Try to enrich with current tier + owner info if we have a businessId
     let currentTier = "(unknown)";
+    let currentTierKey: string | null = null;
     let ownerEmail = body.contactEmail || "(unknown)";
     let businessName = body.businessName || "(unknown)";
+    let ownerId: string | null = null;
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
 
     if (body.businessId) {
-      const supabase = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      );
       const { data: settings } = await supabase
         .from("business_settings")
         .select("subscription_tier")
         .eq("business_id", body.businessId)
         .maybeSingle();
-      currentTier = TIER_NAMES[(settings as any)?.subscription_tier || "starter"];
+      currentTierKey = (settings as any)?.subscription_tier || "starter";
+      currentTier = TIER_NAMES[currentTierKey || "starter"];
 
       const { data: business } = await supabase
         .from("businesses")
@@ -71,6 +75,7 @@ const handler = async (req: Request): Promise<Response> => {
 
       if (business) {
         businessName = (business as any).business_name || businessName;
+        ownerId = (business as any).owner_id || null;
         const { data: profile } = await supabase
           .from("profiles")
           .select("email")
@@ -78,6 +83,23 @@ const handler = async (req: Request): Promise<Response> => {
           .maybeSingle();
         if (!body.contactEmail) ownerEmail = (profile as any)?.email || ownerEmail;
       }
+    }
+
+    // Log the request so admins can see/action it in-app
+    try {
+      await supabase.from("upgrade_requests").insert({
+        business_id: body.businessId || null,
+        business_name: businessName,
+        requested_by: ownerId,
+        current_tier: currentTierKey,
+        requested_tier: body.requestedTier,
+        contact_email: ownerEmail !== "(unknown)" ? ownerEmail : null,
+        feature_name: body.featureName || null,
+        notes: body.notes || null,
+        status: "pending",
+      });
+    } catch (logErr) {
+      console.error("[send-upgrade-request] failed to log row:", logErr);
     }
 
     const isEnterprise = body.requestedTier === "enterprise";

@@ -3085,6 +3085,75 @@ export type Database = {
           },
         ]
       }
+      upgrade_requests: {
+        Row: {
+          admin_note: string | null
+          business_id: string | null
+          business_name: string | null
+          contact_email: string | null
+          created_at: string
+          current_tier: string | null
+          feature_name: string | null
+          id: string
+          notes: string | null
+          requested_by: string | null
+          requested_tier: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          admin_note?: string | null
+          business_id?: string | null
+          business_name?: string | null
+          contact_email?: string | null
+          created_at?: string
+          current_tier?: string | null
+          feature_name?: string | null
+          id?: string
+          notes?: string | null
+          requested_by?: string | null
+          requested_tier: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_note?: string | null
+          business_id?: string | null
+          business_name?: string | null
+          contact_email?: string | null
+          created_at?: string
+          current_tier?: string | null
+          feature_name?: string | null
+          id?: string
+          notes?: string | null
+          requested_by?: string | null
+          requested_tier?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "upgrade_requests_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "upgrade_requests_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null

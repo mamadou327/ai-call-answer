@@ -25,6 +25,7 @@ import { ServiceRequestsTab } from "@/components/admin/ServiceRequestsTab";
 import { AdminMessagesTab } from "@/components/admin/AdminMessagesTab";
 import { AdminCallsTab } from "@/components/admin/AdminCallsTab";
 import { AdminDemoRequestsTab } from "@/components/admin/AdminDemoRequestsTab";
+import { UpgradeRequestsTab } from "@/components/admin/UpgradeRequestsTab";
 import { LayoutDashboard, Settings2, Bell, Inbox, MessageSquare, Mail, Sparkles, Headphones } from "lucide-react";
 import { AiviaSalesKitTab } from "@/components/admin/AiviaSalesKitTab";
 import { OutboundCampaignsSection } from "@/components/admin/outbound/OutboundCampaignsSection";
@@ -124,7 +125,7 @@ const AdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "messages" | "demos" | "calls" | "aivia" | "outbound">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "businesses" | "approved" | "users" | "requests" | "upgrades" | "messages" | "demos" | "calls" | "aivia" | "outbound">("analytics");
   const [userPermissions, setUserPermissions] = useState<AdminPermissions>({
     can_approve_businesses: false,
     can_manage_business_numbers: false,
@@ -889,6 +890,13 @@ const AdminDashboard = () => {
             Requests
           </Button>
           <Button
+            variant={activeTab === "upgrades" ? "default" : "outline"}
+            onClick={() => setActiveTab("upgrades")}
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            Upgrades
+          </Button>
+          <Button
             variant={activeTab === "messages" ? "default" : "outline"}
             onClick={() => setActiveTab("messages")}
           >
@@ -1144,6 +1152,10 @@ const AdminDashboard = () => {
 
         {activeTab === "demos" && (
           <AdminDemoRequestsTab />
+        )}
+
+        {activeTab === "upgrades" && (
+          <UpgradeRequestsTab />
         )}
 
         {activeTab === "calls" && (isSuperAdmin || userPermissions.can_view_calls_messages) && (
