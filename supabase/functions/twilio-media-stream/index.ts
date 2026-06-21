@@ -136,6 +136,51 @@ function getTimezoneForCountry(country: string | null | undefined): string {
   return COUNTRY_TO_TIMEZONE[country] || "Europe/London";
 }
 
+// Map a human-readable language name (as stored in business_settings.primary_language
+// and customers.preferred_language) to an ISO-639-1 code Whisper accepts.
+// Returns undefined for unknown values so Whisper falls back to auto-detect
+// rather than receiving a bad code.
+function languageNameToIso639_1(name: string | null | undefined): string | undefined {
+  if (!name) return undefined;
+  const n = name.trim().toLowerCase();
+  const map: Record<string, string> = {
+    "english": "en", "en": "en", "en-gb": "en", "en-us": "en",
+    "spanish": "es", "español": "es", "es": "es",
+    "french": "fr", "français": "fr", "fr": "fr",
+    "german": "de", "deutsch": "de", "de": "de",
+    "italian": "it", "italiano": "it", "it": "it",
+    "portuguese": "pt", "português": "pt", "pt": "pt",
+    "polish": "pl", "polski": "pl", "pl": "pl",
+    "dutch": "nl", "nederlands": "nl", "nl": "nl",
+    "arabic": "ar", "ar": "ar",
+    "mandarin": "zh", "chinese": "zh", "zh": "zh",
+    "japanese": "ja", "ja": "ja",
+    "korean": "ko", "ko": "ko",
+    "russian": "ru", "ru": "ru",
+    "turkish": "tr", "tr": "tr",
+    "hindi": "hi", "hi": "hi",
+    "urdu": "ur", "ur": "ur",
+  };
+  return map[n];
+}
+
+// Build the LANGUAGE rule block injected into every system prompt so the AI
+// doesn't free-pick a language. Defaults to the business's primary_language
+// and honors a returning caller's preferred_language when present.
+function buildLanguageRuleBlock(primaryLanguage: string, preferredLanguage?: string): string {
+  const target = (preferredLanguage && preferredLanguage.trim()) || primaryLanguage || "English";
+  return `
+## LANGUAGE — HIGHEST PRIORITY RULE (overrides every other instruction below):
+- ALWAYS respond in ${target}. The opening greeting MUST be in ${target}.
+- NEVER switch to Welsh, Irish, Scottish Gaelic, or any regional dialect — these are NEVER correct unless the caller is unmistakably speaking that exact language for multiple full sentences.
+- Only switch language if the caller clearly and unambiguously speaks a different MAJOR language (e.g. Spanish, French, German, Polish, Arabic, Mandarin) for AT LEAST 2 consecutive full sentences. Accents, single words, garbled audio, or background noise do NOT count — keep speaking ${target}.
+- If you are ever unsure what language the caller is speaking, default to ${target}. Never guess.
+- When a genuine language switch happens, call update_customer_language so the next call starts in the right language.
+`;
+}
+
+
+
 interface StreamSession {
   businessId: string;
   businessName: string;
