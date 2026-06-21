@@ -1,13 +1,19 @@
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Building2, 
-  Phone, 
-  Mail, 
-  MapPin, 
-  Globe, 
-  Calendar, 
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { TIERS, TIER_ORDER, SubscriptionTier } from "@/lib/tiers";
+import {
+  Building2,
+  Phone,
+  Mail,
+  MapPin,
+  Globe,
+  Calendar,
   Users,
   Clock,
   CreditCard,
