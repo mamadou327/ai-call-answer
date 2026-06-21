@@ -6,8 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { TIERS, SubscriptionTier } from "@/lib/tiers";
-import { Check, X, Crown, Loader2 } from "lucide-react";
+import { TIERS, TIER_ORDER, SubscriptionTier, tierRank } from "@/lib/tiers";
+import { Check, X, Crown, ArrowDown, Loader2 } from "lucide-react";
 
 interface UpgradeRequest {
   id: string;
