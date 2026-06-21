@@ -56,6 +56,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [sendingWelcome, setSendingWelcome] = useState<string | null>(null);
+  const [hoursDialogStaff, setHoursDialogStaff] = useState<Staff | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     name: "",
