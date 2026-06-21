@@ -1997,7 +1997,15 @@ async function sendSessionConfig(
       silence_duration_ms: 1000,
       create_response: true,
     },
-    transcription: { model: "whisper-1" },
+    transcription: (() => {
+      // Hint Whisper with the expected language so it doesn't free-detect
+      // accented English on a UK number as Welsh/Irish (the original bug).
+      // Unknown values fall through to plain auto-detect.
+      const iso = languageNameToIso639_1(session.preferredLanguage || session.primaryLanguage);
+      return iso
+        ? { model: "whisper-1", language: iso }
+        : { model: "whisper-1" };
+    })(),
   };
 
   const sessionConfig: Record<string, unknown> = {
