@@ -890,6 +890,13 @@ const AdminDashboard = () => {
             Requests
           </Button>
           <Button
+            variant={activeTab === "upgrades" ? "default" : "outline"}
+            onClick={() => setActiveTab("upgrades")}
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            Upgrades
+          </Button>
+          <Button
             variant={activeTab === "messages" ? "default" : "outline"}
             onClick={() => setActiveTab("messages")}
           >
