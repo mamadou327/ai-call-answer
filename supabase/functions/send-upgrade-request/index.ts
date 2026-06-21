@@ -29,7 +29,15 @@ interface UpgradeBody {
   contactName?: string;
   contactPhone?: string;
   notes?: string;
+  changeKind?: "upgrade" | "downgrade";
 }
+
+const TIER_RANK: Record<string, number> = {
+  starter: 0,
+  growth: 1,
+  scale: 2,
+  enterprise: 3,
+};
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
