@@ -5584,6 +5584,7 @@ ${dataCollectionRules}${faqContext}`;
       menuItemOptionGroups,
       menuItemOptions,
       tables,
+      preferredLanguage: callerInfo?.preferredLanguage,
     };
   }
 
