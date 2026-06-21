@@ -5614,6 +5614,7 @@ ${dataCollectionRules}${faqContext}`;
     menuCategories: [],
     menuItems: [],
     tables: [],
+    preferredLanguage: callerInfo?.preferredLanguage,
   };
 }
 
