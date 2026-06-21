@@ -51,6 +51,7 @@ interface BusinessDetailsDialogProps {
 export const BusinessDetailsDialog = ({ business, open, onOpenChange }: BusinessDetailsDialogProps) => {
   const { toast } = useToast();
   const [currentTier, setCurrentTier] = useState<SubscriptionTier>("starter");
+  const [pendingTier, setPendingTier] = useState<SubscriptionTier>("starter");
   const [savingTier, setSavingTier] = useState(false);
   const [loadingTier, setLoadingTier] = useState(false);
 
@@ -63,22 +64,27 @@ export const BusinessDetailsDialog = ({ business, open, onOpenChange }: Business
       .eq("business_id", business.id)
       .maybeSingle()
       .then(({ data }) => {
-        setCurrentTier(((data as any)?.subscription_tier as SubscriptionTier) || "starter");
+        const t = ((data as any)?.subscription_tier as SubscriptionTier) || "starter";
+        setCurrentTier(t);
+        setPendingTier(t);
         setLoadingTier(false);
       });
   }, [business?.id, open]);
 
-  const saveTier = async (newTier: SubscriptionTier) => {
+  const saveTier = async () => {
     if (!business) return;
     setSavingTier(true);
     try {
+      // upsert so this works even if business_settings row doesn't exist yet
       const { error } = await supabase
         .from("business_settings")
-        .update({ subscription_tier: newTier })
-        .eq("business_id", business.id);
+        .upsert(
+          { business_id: business.id, subscription_tier: pendingTier },
+          { onConflict: "business_id" },
+        );
       if (error) throw error;
-      setCurrentTier(newTier);
-      toast({ title: "Plan updated", description: `${business.business_name} is now on ${TIERS[newTier].name}.` });
+      setCurrentTier(pendingTier);
+      toast({ title: "Plan updated", description: `${business.business_name} is now on ${TIERS[pendingTier].name}.` });
     } catch (e: any) {
       toast({ title: "Could not update plan", description: e?.message, variant: "destructive" });
     } finally {
