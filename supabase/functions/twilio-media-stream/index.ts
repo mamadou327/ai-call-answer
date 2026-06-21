@@ -3399,13 +3399,14 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
         });
 
         const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, requestedStart, requestedEnd);
+        const workingCheck = isStaffWorkingAt(staff, requestedStart, requestedEnd);
 
-        if (!hasConflict && !timeOffCheck.onLeave) {
+        if (!hasConflict && !timeOffCheck.onLeave && workingCheck.working) {
           availableStaff.push(staff.name);
         } else {
           unavailableStaff.push({
             name: staff.name,
-            reason: timeOffCheck.onLeave ? "time_off" : "booked",
+            reason: timeOffCheck.onLeave ? "time_off" : !workingCheck.working ? "time_off" : "booked",
           });
         }
       }
