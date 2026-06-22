@@ -573,6 +573,30 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                 </label>
               </div>
 
+              <div className="flex items-center justify-between py-2">
+                <div className="space-y-1">
+                  <Label htmlFor="transferable_to_calls" className="text-sm font-medium">Transferable calls</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {formData.is_business_owner
+                      ? "Owner is always transferable"
+                      : "Allow the AI to transfer callers to this staff (requires a phone number)"}
+                  </p>
+                </div>
+                <label className={`relative inline-flex items-center ${formData.is_business_owner ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
+                  <input
+                    type="checkbox"
+                    id="transferable_to_calls"
+                    checked={formData.transferable_to_calls || formData.is_business_owner}
+                    disabled={formData.is_business_owner}
+                    onChange={(e) => setFormData({ ...formData, transferable_to_calls: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-ring transition-colors">
+                    <div className={`absolute top-0.5 left-0.5 bg-background border border-border rounded-full h-4 w-4 transition-transform ${(formData.transferable_to_calls || formData.is_business_owner) ? 'translate-x-4' : ''}`}></div>
+                  </div>
+                </label>
+              </div>
+
               <div className="flex justify-end pt-2">
                 <Button type="submit" disabled={loading}>
                   {loading ? "Saving..." : selectedStaff ? "Update Staff" : "Add Staff"}
