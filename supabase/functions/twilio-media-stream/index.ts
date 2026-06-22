@@ -2494,22 +2494,70 @@ function checkMinRescheduleNotice(settings: BusinessSettings | null, bookingStar
   return { valid: true };
 }
 
-function isStaffOnTimeOff(staffTimeOff: StaffTimeOff[], staffId: string, startTime: Date, endTime: Date): { onLeave: boolean; message?: string } {
+// Find the next date (within 14 days) on which the given staff member is scheduled
+// to work and is not on time off. Returns a friendly string like "Tuesday, 24 June"
+// or null if none could be found.
+function findNextStaffWorkingDay(
+  staff: StaffMember | undefined,
+  fromDate: Date,
+  staffTimeOff: StaffTimeOff[],
+): string | null {
+  if (!staff) return null;
+  const wh = staff.working_hours as Record<string, any> | null;
+  if (!wh || Object.keys(wh).length === 0) return null;
+
+  for (let i = 1; i <= 14; i++) {
+    const candidate = new Date(fromDate);
+    candidate.setDate(candidate.getDate() + i);
+    candidate.setHours(12, 0, 0, 0); // midday probe
+
+    const dayName = candidate.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+    const dayHours = wh[dayName];
+    if (!dayHours || dayHours.isOff === true || dayHours.is_off === true) continue;
+    if (!dayHours.start || !dayHours.end) continue;
+
+    // Skip if staff is on time off that whole day
+    const dayStart = new Date(candidate); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(candidate); dayEnd.setHours(23, 59, 59, 999);
+    const onLeave = staffTimeOff.some(t => {
+      if (t.staff_id !== staff.id) return false;
+      const offStart = new Date(t.start_time);
+      const offEnd = new Date(t.end_time);
+      return dayStart < offEnd && dayEnd > offStart;
+    });
+    if (onLeave) continue;
+
+    const label = candidate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+    return `${label} from ${dayHours.start} to ${dayHours.end}`;
+  }
+  return null;
+}
+
+function isStaffOnTimeOff(
+  staffTimeOff: StaffTimeOff[],
+  staffId: string,
+  startTime: Date,
+  endTime: Date,
+  staff?: StaffMember,
+): { onLeave: boolean; message?: string } {
   const timeOff = staffTimeOff.find(t => {
     if (t.staff_id !== staffId) return false;
     const offStart = new Date(t.start_time);
     const offEnd = new Date(t.end_time);
-    // Check if booking overlaps with time off
     return startTime < offEnd && endTime > offStart;
   });
-  
+
   if (timeOff) {
-    return { 
-      onLeave: true, 
-      message: `Sorry, that staff member is on leave at that time. Please choose a different time or staff member.`
+    const nextDay = findNextStaffWorkingDay(staff, startTime, staffTimeOff);
+    const suffix = nextDay
+      ? ` Their next available day in is ${nextDay}. Would you like to book then, or pick a different staff member?`
+      : ` Please choose a different time or staff member.`;
+    return {
+      onLeave: true,
+      message: `Sorry, ${staff?.name || "that staff member"} is on leave at that time.${suffix}`,
     };
   }
-  
+
   return { onLeave: false };
 }
 
@@ -2522,7 +2570,8 @@ function isStaffAssignedToService(staffServices: StaffService[], staffId: string
 function isStaffWorkingAt(
   staff: StaffMember | undefined,
   startTime: Date,
-  endTime: Date
+  endTime: Date,
+  staffTimeOff: StaffTimeOff[] = [],
 ): { working: boolean; message?: string } {
   if (!staff) return { working: true };
   const wh = staff.working_hours as Record<string, any> | null;
@@ -2532,9 +2581,13 @@ function isStaffWorkingAt(
   const dayHours = wh[dayName];
 
   if (!dayHours || dayHours.isOff === true || dayHours.is_off === true) {
+    const nextDay = findNextStaffWorkingDay(staff, startTime, staffTimeOff);
+    const suffix = nextDay
+      ? ` Their next day in is ${nextDay}. Would you like to book then, or choose a different staff member?`
+      : ` Would you like a different day or staff member?`;
     return {
       working: false,
-      message: `Sorry, ${staff.name} isn't working on ${startTime.toLocaleDateString("en-GB", { weekday: "long" })}. Would you like a different day or staff member?`,
+      message: `Sorry, ${staff.name} isn't working on ${startTime.toLocaleDateString("en-GB", { weekday: "long" })}.${suffix}`,
     };
   }
 
@@ -2571,6 +2624,7 @@ function isStaffWorkingAt(
 
   return { working: true };
 }
+
 
 // ============================================================================
 // TOOL IMPLEMENTATIONS
@@ -2772,13 +2826,13 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
     }
 
     // Check staff time off
-    const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, startTime, endTime);
+    const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, startTime, endTime, staff);
     if (timeOffCheck.onLeave) {
       return { success: false, message: timeOffCheck.message };
     }
 
     // Check staff working schedule (per-staff working hours)
-    const workingCheck = isStaffWorkingAt(staff, startTime, endTime);
+    const workingCheck = isStaffWorkingAt(staff, startTime, endTime, session.staffTimeOff);
     if (!workingCheck.working) {
       return { success: false, message: workingCheck.message };
     }
@@ -3174,14 +3228,14 @@ async function executeRescheduleBooking(supabase: any, session: StreamSession, p
     }
 
     // Check staff time off
-    const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, booking.staff_id, newStartTime, newEndTime);
+    const rescheduleStaff = session.staff.find((s) => s.id === booking.staff_id);
+    const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, booking.staff_id, newStartTime, newEndTime, rescheduleStaff);
     if (timeOffCheck.onLeave) {
       return { success: false, message: timeOffCheck.message };
     }
 
     // Check staff working schedule for the new time
-    const rescheduleStaff = session.staff.find((s) => s.id === booking.staff_id);
-    const rescheduleWorkingCheck = isStaffWorkingAt(rescheduleStaff, newStartTime, newEndTime);
+    const rescheduleWorkingCheck = isStaffWorkingAt(rescheduleStaff, newStartTime, newEndTime, session.staffTimeOff);
     if (!rescheduleWorkingCheck.working) {
       return { success: false, message: rescheduleWorkingCheck.message };
     }
@@ -3414,8 +3468,8 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
           return requestedStart < bEnd && requestedEnd > bStart;
         });
 
-        const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, requestedStart, requestedEnd);
-        const workingCheck = isStaffWorkingAt(staff, requestedStart, requestedEnd);
+        const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, requestedStart, requestedEnd, staff);
+        const workingCheck = isStaffWorkingAt(staff, requestedStart, requestedEnd, session.staffTimeOff);
 
         if (!hasConflict && !timeOffCheck.onLeave && workingCheck.working) {
           availableStaff.push(staff.name);
@@ -5484,6 +5538,7 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
 - If customer uses vague terms like "the same one", "my usual", "him/her", "that guy" → ASK: "Just to confirm, which barber are you thinking of?"
 - ⚠️ ALWAYS tell the customer WHO they'll be seeing before confirming the booking - never leave this ambiguous
 - 🔒 **NEVER SILENTLY SWAP STAFF**: Once the customer has chosen a specific staff member AND you have confirmed it back to them, that staff member is LOCKED IN. Do NOT switch them to a different staff member for any reason. If a tool result later returns a different available staff (e.g. create_booking suggests someone else, or check_availability shows the chosen person isn't free), you MUST: (1) tell the customer the chosen staff is not actually available at that time, (2) ask if they want a different TIME with the same staff, or a different STAFF at the same time — let the CUSTOMER decide. Never just announce "actually it'll be X instead" after promising Y.
+- 📅 **STAFF NOT WORKING THAT DAY**: If a tool result says the chosen staff member isn't working on the requested day OR is on leave, RELAY the message naturally: tell the customer that staff isn't in that day, AND tell them the next day that staff IS in (the tool result includes this in the message — read it out). Then ask if they'd like to book that next day instead, or pick a different staff member for the originally requested day. Never silently pick someone else.
 
 ## GROUP BOOKING WORKFLOW (Multiple People):
 When a customer wants to book for multiple people (e.g., "me and my son", "both of us", "two haircuts"):
