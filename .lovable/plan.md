@@ -1,36 +1,26 @@
-# Make voice ↔ language honest in the voice picker
+## Goal
+Make the service disambiguation rule fully generic so it applies to ANY ambiguous service request, not just "cut and blow dry". The cut/blow dry case is just one example — the same logic must cover colour vs highlights vs balayage, manicure vs gel manicure, massage types, facial tiers, beard trim vs beard sculpt, etc.
 
-## The problem
-- All 26 voices in `voice_library` are English (British/American). The TTS model (`eleven_flash_v2_5`) is multilingual, so they *play* in any language — but they sound English-accented and mispronounce non-English words (Welsh "Mehefin" → "Mawrth", "Lorena" → "Larina").
-- The picker shows no language info, so a Welsh / Spanish / Polish business has no way to know.
+## Changes
 
-## What to change
+### 1. `supabase/functions/twilio-media-stream/prompts/salon-prompt.ts`
+Rewrite the "SERVICE DISAMBIGUATION" block I added last turn so it:
 
-### 1. Add language metadata to `voice_library`
-Migration adds two columns:
-- `verified_languages text[]` — list of ISO codes the voice is verified for by ElevenLabs (e.g. `{en,es,fr}`)
-- `is_multilingual boolean` — true if the voice is verified in more than just English
+- States the rule as universal: "Whenever the caller's words could match more than ONE row in get_services, you MUST ask a clarifying question before booking. This applies to EVERY service category, not just haircuts."
+- Lists multiple example families (haircuts, colour, nails, massage, facials, beard work, waxing) so the AI doesn't pattern-match only on "cut and dry".
+- Keeps the two-step funnel:
+  1. Narrow to the right service family (e.g. "cut and dry" → blow dry vs hand dry; "colour" → full colour vs roots vs highlights vs balayage; "massage" → Swedish vs deep tissue vs hot stone).
+  2. Narrow to the right variant within that family (short/medium/long hair, 30/60/90 min, with/without add-on).
+- Forbids defaulting to cheapest, first-listed, or most popular.
+- Requires reading back the exact matched service name + duration + price before `check_availability` / `create_booking`.
+- One clarifying question at a time, short and natural.
 
-Backfill plan: a one-off edge function `sync-voice-library-languages` calls `GET https://api.elevenlabs.io/v1/voices/{voice_id}` for every row, reads `verified_languages` and `high_quality_base_model_ids`, and writes both columns. Run once after deploy; safe to re-run.
+### 2. Restaurant prompts (`restaurant-dine-in-prompt.ts`, `restaurant-pickup-prompt.ts`, `restaurant-hybrid-prompt.ts`)
+Add the equivalent rule for menu items, since the same problem applies there (e.g. "I'll have the burger" when there are 4 burgers; "a coke" when there's regular/diet/zero; pizza sizes; pasta options). Same structure: if the caller's words match more than one menu_item / option / size, ask a short clarifying question before adding to the order. Never assume.
 
-### 2. Show language support in the picker
-`src/components/dashboard/settings/VoiceSelector.tsx`:
-- Add a "Languages" chip on each voice card showing the verified language codes (or "English only").
-- Add a filter at the top: "Show voices that support: [business's primary language]" — default on when `business_settings.primary_language` is not `en`.
-- If the business's primary language is not in the selected voice's `verified_languages`, show a soft warning under the voice: *"Will speak [Welsh] in an English accent — pronunciation may be off."*
-
-### 3. Curate at least one strong non-English voice option
-If the ElevenLabs sync reveals none of the current 26 voices are verified for the business's language (likely for Welsh, possibly for others), add a follow-up note in the picker linking to ElevenLabs Voice Library so the user can paste a custom voice ID. The `elevenlabs_voice_id` column already supports arbitrary IDs.
+### 3. Deploy
+Redeploy `twilio-media-stream` so the updated prompts take effect on the next call.
 
 ## Out of scope
-- Re-training/cloning a Welsh-specific voice
-- Swapping the TTS model — Flash v2.5 stays (latency requirement)
-- Per-language voice routing (one call switching voices mid-conversation when caller switches language) — possible follow-up if you want it
-
-## Files
-- `supabase/migrations/<new>.sql` — add columns to `voice_library`
-- `supabase/functions/sync-voice-library-languages/index.ts` — new one-off backfill function
-- `src/components/dashboard/settings/VoiceSelector.tsx` — language chips, filter, warning
-
-## Answer to your direct question
-**No — none of the 26 voices in your library are multilingual voices.** They're all English (British or American). The *model* underneath is multilingual, so non-English calls work, but the voice itself will always sound English. This plan makes that visible in the UI and lets you add a proper multilingual voice if you want one.
+- No DB or frontend changes.
+- No changes to the language-lock or availability rules from previous turns.
