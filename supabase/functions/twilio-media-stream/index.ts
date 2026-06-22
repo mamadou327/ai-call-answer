@@ -2832,7 +2832,7 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
     }
 
     // Check staff working schedule (per-staff working hours)
-    const workingCheck = isStaffWorkingAt(staff, startTime, endTime);
+    const workingCheck = isStaffWorkingAt(staff, startTime, endTime, session.staffTimeOff);
     if (!workingCheck.working) {
       return { success: false, message: workingCheck.message };
     }
