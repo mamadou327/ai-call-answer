@@ -358,6 +358,12 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
     );
   };
 
+  const toggleAllServices = () => {
+    setSelectedServices(prev =>
+      prev.length === services.length ? [] : services.map(s => s.id)
+    );
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
