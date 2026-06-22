@@ -69,6 +69,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
     ai_enabled: true,
     is_business_owner: false,
     transferable_to_calls: false,
+    name_phonetic: "",
     chair: "",
   });
   const [customRole, setCustomRole] = useState("");
