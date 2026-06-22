@@ -465,6 +465,19 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
         </Dialog>
       </CardHeader>
       <CardContent>
+        {staffCount > 0 && unstaffedIds.size > 0 && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>
+              {unstaffedIds.size} {unstaffedIds.size === 1 ? "service has" : "services have"} no staff assigned
+            </AlertTitle>
+            <AlertDescription>
+              These services can't be booked — the AI receptionist and online booking page only offer
+              services that at least one staff member can perform. Open <strong>Settings → Staff</strong>,
+              edit each staff member, and tick the services they can do.
+            </AlertDescription>
+          </Alert>
+        )}
         {services.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>No services configured yet</p>
@@ -475,7 +488,15 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
             {services.map((service) => (
               <div key={service.id} className="flex items-start justify-between p-4 border rounded-lg">
                 <div>
-                  <h4 className="font-semibold">{service.name}</h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-semibold">{service.name}</h4>
+                    {staffCount > 0 && unstaffedIds.has(service.id) && (
+                      <Badge variant="destructive" className="gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        No staff assigned
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground">{service.category}</p>
                   {service.description && (
                     <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
