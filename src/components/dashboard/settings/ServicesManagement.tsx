@@ -56,6 +56,20 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
     deposit_required: false,
     deposit_amount: 0,
   });
+  const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
+  const [categoryInput, setCategoryInput] = useState("");
+
+  const categoryOptions = useMemo(() => {
+    const set = new Map<string, string>();
+    DEFAULT_CATEGORIES.forEach((c) => set.set(c.toLowerCase(), c));
+    services.forEach((s) => {
+      if (s.category && s.category.trim()) {
+        const key = s.category.trim().toLowerCase();
+        if (!set.has(key)) set.set(key, s.category.trim());
+      }
+    });
+    return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+  }, [services]);
 
   const getCurrencySymbol = (curr: string) => {
     const symbols: Record<string, string> = {
