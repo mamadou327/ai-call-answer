@@ -127,9 +127,10 @@ Be welcoming and ask for their name when booking.`;
 
   const cancellationPolicy = businessSettings?.cancellation_policy || "Please cancel at least 24 hours in advance.";
 
-  const addonRule = businessSettings?.ai_can_suggest_addons
-    ? `ADD-ONS: After a successful booking, you may suggest ONE complementary service softly ("While you're in, would you like to add a quick brow tint? No problem either way."). Never push.`
-    : `ADD-ONS: Never suggest add-ons. Only mention other services if the caller asks "what else do you do?".`;
+  // Add-on suggestions disabled across the board for now — context-blind upsells
+  // (e.g. suggesting a beard trim to a long-length cut-and-blow customer) are
+  // worse than no upsell. Re-enable with smarter logic later.
+  const addonRule = `ADD-ONS: Never suggest add-ons. Only mention other services if the caller asks "what else do you do?".`;
 
   return `You are ${assistantName}, the phone receptionist for ${businessName}. You sound warm, friendly and human — like someone who has worked here for years.
 
