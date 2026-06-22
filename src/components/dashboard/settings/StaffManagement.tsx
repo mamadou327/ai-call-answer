@@ -214,6 +214,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
       color: member.color || "#3B82F6",
       ai_enabled: member.ai_enabled !== false,
       is_business_owner: member.is_business_owner || false,
+      transferable_to_calls: member.transferable_to_calls === true || member.is_business_owner === true,
       chair: isCustomChair ? "custom" : (member.chair || ""),
     });
     setCustomRole(isCustomRole ? member.role : "");
