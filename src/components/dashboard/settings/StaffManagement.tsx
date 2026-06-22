@@ -358,6 +358,12 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
     );
   };
 
+  const toggleAllServices = () => {
+    setSelectedServices(prev =>
+      prev.length === services.length ? [] : services.map(s => s.id)
+    );
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -522,6 +528,19 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                 <div className="space-y-2">
                   <Label>Services</Label>
                   <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-3">
+                    <div className="flex items-center space-x-2 pb-2 border-b">
+                      <Checkbox
+                        id="select-all-services"
+                        checked={selectedServices.length === services.length && services.length > 0}
+                        onCheckedChange={toggleAllServices}
+                      />
+                      <label
+                        htmlFor="select-all-services"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        Select All
+                      </label>
+                    </div>
                     {services.map((service) => (
                       <div key={service.id} className="flex items-center space-x-2">
                         <Checkbox
