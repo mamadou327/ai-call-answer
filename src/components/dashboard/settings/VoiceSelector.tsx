@@ -41,8 +41,6 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
   const [voices, setVoices] = useState<Voice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(true);
   const [search, setSearch] = useState("");
-  const primaryLangCode = (primaryLanguage || "en").toLowerCase();
-  const [onlyMatchingLanguage, setOnlyMatchingLanguage] = useState(primaryLangCode !== "en");
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
