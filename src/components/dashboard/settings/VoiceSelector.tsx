@@ -151,8 +151,6 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
     const isPlaying = playingVoiceId === voice.voice_id;
     const isLoading = loadingVoiceId === voice.voice_id;
     const langs = voice.verified_languages ?? ["en"];
-    const supportsPrimary = voiceSupportsPrimary(voice);
-    const showAccentWarning = primaryLangCode !== "en" && !supportsPrimary;
 
     return (
       <div
