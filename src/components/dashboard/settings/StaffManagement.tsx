@@ -564,7 +564,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                     type="checkbox"
                     id="is_business_owner"
                     checked={formData.is_business_owner}
-                    onChange={(e) => setFormData({ ...formData, is_business_owner: e.target.checked })}
+                    onChange={(e) => setFormData({ ...formData, is_business_owner: e.target.checked, transferable_to_calls: e.target.checked ? true : formData.transferable_to_calls })}
                     className="sr-only peer"
                   />
                   <div className="w-9 h-5 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-ring transition-colors">
