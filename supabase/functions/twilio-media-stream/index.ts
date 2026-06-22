@@ -3884,6 +3884,15 @@ async function executeTransferCall(supabase: any, session: StreamSession, params
       };
     }
 
+    // Transferable gate: owner is always transferable; everyone else must be explicitly opted in
+    const isTransferable = staffMember.is_business_owner || staffMember.transferable_to_calls === true;
+    if (!isTransferable) {
+      return {
+        success: false,
+        message: `I can't put you through to ${staffMember.title ? staffMember.title + " " : ""}${staffMember.name} directly, but I can take a message for them — would that be okay?`,
+      };
+    }
+
     const staffDisplayName = `${staffMember.title ? staffMember.title + " " : ""}${staffMember.name}`;
     console.log("[MediaStream] Transfer requested to:", staffMember.phone);
 
