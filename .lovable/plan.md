@@ -1,26 +1,58 @@
-## Goal
-Make the service disambiguation rule fully generic so it applies to ANY ambiguous service request, not just "cut and blow dry". The cut/blow dry case is just one example — the same logic must cover colour vs highlights vs balayage, manicure vs gel manicure, massage types, facial tiers, beard trim vs beard sculpt, etc.
+# Stop the AI from cutting off on background noise
 
-## Changes
+## Problem
 
-### 1. `supabase/functions/twilio-media-stream/prompts/salon-prompt.ts`
-Rewrite the "SERVICE DISAMBIGUATION" block I added last turn so it:
+When the caller is on a noisy line (café, car, TV in the background, kids, traffic), the AI keeps stopping mid-sentence. Right now any sound above the speech threshold is treated as the caller starting to talk, which triggers a "barge-in" and cancels the AI's current response.
 
-- States the rule as universal: "Whenever the caller's words could match more than ONE row in get_services, you MUST ask a clarifying question before booking. This applies to EVERY service category, not just haircuts."
-- Lists multiple example families (haircuts, colour, nails, massage, facials, beard work, waxing) so the AI doesn't pattern-match only on "cut and dry".
-- Keeps the two-step funnel:
-  1. Narrow to the right service family (e.g. "cut and dry" → blow dry vs hand dry; "colour" → full colour vs roots vs highlights vs balayage; "massage" → Swedish vs deep tissue vs hot stone).
-  2. Narrow to the right variant within that family (short/medium/long hair, 30/60/90 min, with/without add-on).
-- Forbids defaulting to cheapest, first-listed, or most popular.
-- Requires reading back the exact matched service name + duration + price before `check_availability` / `create_booking`.
-- One clarifying question at a time, short and natural.
+The cause is in the OpenAI Realtime voice-activity-detection (VAD) config in `supabase/functions/twilio-media-stream/index.ts` (~line 2003):
 
-### 2. Restaurant prompts (`restaurant-dine-in-prompt.ts`, `restaurant-pickup-prompt.ts`, `restaurant-hybrid-prompt.ts`)
-Add the equivalent rule for menu items, since the same problem applies there (e.g. "I'll have the burger" when there are 4 burgers; "a coke" when there's regular/diet/zero; pizza sizes; pasta options). Same structure: if the caller's words match more than one menu_item / option / size, ask a short clarifying question before adding to the order. Never assume.
+```
+type: "server_vad",
+threshold: 0.75,
+prefix_padding_ms: 300,
+silence_duration_ms: 1000,
+```
 
-### 3. Deploy
-Redeploy `twilio-media-stream` so the updated prompts take effect on the next call.
+`server_vad` with `threshold: 0.75` is energy-based — it can't tell speech from clattering plates, a TV, or road noise, so it fires on noise and interrupts the AI.
+
+## Fix
+
+**1. Switch to semantic VAD (primary fix).**
+Change the turn-detection block to OpenAI's `semantic_vad`, which uses a model to decide whether the caller is *actually* speaking to the AI (vs. background noise / side-talk). Use `eagerness: "low"` so it waits for a clear end-of-turn before responding and is much less twitchy on noise.
+
+```
+turn_detection: {
+  type: "semantic_vad",
+  eagerness: "low",
+  create_response: true,
+  interrupt_response: true,
+}
+```
+
+**2. Add a minimum-speech-duration guard before allowing interruption.**
+Even with semantic VAD, we'll add a small guard in the existing `input_audio_buffer.speech_started` handler so that a barge-in only cancels the AI's current response if the detected speech segment lasts more than ~300ms. A single bang/cough/door-slam won't reach that, so the AI keeps talking. Real speech easily exceeds it.
+
+**3. Keep everything else unchanged.**
+- No prompt changes.
+- No changes to language-lock, disambiguation, reconnect, ElevenLabs TTS, or any other behaviour from prior turns.
+- Whisper transcription config stays the same.
+
+## Files to edit
+
+- `supabase/functions/twilio-media-stream/index.ts`
+  - Replace the `turn_detection` block (~line 2003) with the `semantic_vad` config above.
+  - In the existing `speech_started` / `speech_stopped` / `response.cancel` path, add the short minimum-duration guard before cancelling the AI's current response.
+
+## Deploy
+
+- Redeploy the `twilio-media-stream` edge function.
 
 ## Out of scope
-- No DB or frontend changes.
-- No changes to the language-lock or availability rules from previous turns.
+
+- No DB schema changes.
+- No frontend / dashboard changes.
+- No new per-business setting for now — we can add a "noisy environment" toggle later if you want it configurable per business.
+
+## How to verify
+
+Call the AI from a noisy environment (play music/TV in the background, or call from outside). The AI should keep speaking through background noise and only stop when you actually talk to it.
