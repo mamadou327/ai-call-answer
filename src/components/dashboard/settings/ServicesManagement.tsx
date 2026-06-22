@@ -151,6 +151,24 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
       .eq("business_id", businessId);
     
     if (data) setServices(data);
+    await loadStaffCoverage(data || []);
+  };
+
+  const loadStaffCoverage = async (currentServices: Service[]) => {
+    const [{ data: links }, { count }] = await Promise.all([
+      supabase
+        .from("staff_services")
+        .select("service_id, staff!inner(business_id)")
+        .eq("staff.business_id", businessId),
+      supabase
+        .from("staff")
+        .select("id", { count: "exact", head: true })
+        .eq("business_id", businessId),
+    ]);
+
+    const linked = new Set<string>((links || []).map((l: any) => l.service_id));
+    setStaffCount(count || 0);
+    setUnstaffedIds(new Set(currentServices.filter((s) => !linked.has(s.id)).map((s) => s.id)));
   };
 
   const openEditDialog = (service: Service) => {
