@@ -326,6 +326,7 @@ interface StaffMember {
   phone: string | null;
   ai_enabled: boolean;
   is_business_owner: boolean;
+  transferable_to_calls: boolean;
   working_hours: Record<string, { start: string; end: string }> | null;
 }
 
