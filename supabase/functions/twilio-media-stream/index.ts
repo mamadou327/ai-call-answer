@@ -284,6 +284,8 @@ interface StreamSession {
     type: "create_booking" | "create_reservation" | "create_pickup_order";
     key: string; // canonical dedupe key
     summary: string; // human-readable summary for the model
+    requested_time?: string;
+    canonical_time?: string;
     booking_code?: string;
     booking_id?: string;
     at: string; // ISO timestamp
@@ -2275,7 +2277,11 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
         session.successfulBookings.push({
           type: name,
           key,
-          summary: summaryParts.join(" "),
+          summary: result?.canonical_date_en && result?.canonical_time_en
+            ? `${summaryParts.join(" ")} — CONFIRMED EXACTLY ${result.canonical_date_en} at ${result.canonical_time_en}`
+            : summaryParts.join(" "),
+          requested_time: args?.time || args?.pickup_time,
+          canonical_time: result?.canonical_time_en,
           booking_code: result?.booking_code,
           booking_id: result?.booking_id,
           at: new Date().toISOString(),
