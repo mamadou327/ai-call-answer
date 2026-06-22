@@ -4632,6 +4632,32 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
+// Treat "YYYY-MM-DD" + "HH:mm" as wall-clock time in the business's timezone and return the corresponding UTC Date.
+// Without this, `new Date("2026-06-22T12:00:00")` on a UTC server is parsed as 12:00 UTC, which displays as 13:00
+// in UK summer time (BST = UTC+1), causing bookings to land an hour off.
+function parseLocalDateTimeInTimezone(dateStr: string, timeStr: string, timezone: string = "Europe/London"): Date {
+  const [y, mo, d] = dateStr.split("-").map(Number);
+  const [hh, mi] = timeStr.split(":").map(Number);
+  if (!y || !mo || !d || isNaN(hh) || isNaN(mi)) {
+    return new Date(`${dateStr}T${timeStr}:00`);
+  }
+  // Initial guess: treat the wall-clock as UTC.
+  const utcGuess = Date.UTC(y, mo - 1, d, hh, mi, 0);
+  // Ask what that instant looks like in the target timezone.
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(new Date(utcGuess));
+  const get = (t: string) => Number(parts.find(p => p.type === t)?.value);
+  const tzAsUTC = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") === 24 ? 0 : get("hour"), get("minute"), get("second"));
+  const offset = tzAsUTC - utcGuess; // how far ahead the tz is vs UTC at that moment
+  return new Date(utcGuess - offset);
+}
+
+
+
 function formatTime(date: Date, timezone: string = "Europe/London"): string {
   // Use business timezone for customer-facing times
   return date
