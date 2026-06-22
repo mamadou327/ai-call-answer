@@ -495,21 +495,20 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="color">Calendar Color</Label>
-                <div className="flex gap-2 items-center">
-                  <Input
-                    id="color"
-                    type="color"
-                    value={formData.color}
-                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                    className="w-20 h-10"
-                  />
-                  <span className="text-sm text-muted-foreground">
-                    Color for this staff member in calendar views
-                  </span>
+              {selectedStaff && (
+                <div className="space-y-2">
+                  <Label>Calendar Color</Label>
+                  <div className="flex gap-2 items-center">
+                    <div
+                      className="w-10 h-10 rounded-md border shadow-sm"
+                      style={{ backgroundColor: formData.color }}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      Auto-assigned color identifying this staff member in calendar views
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {services.length > 0 && (
                 <div className="space-y-2">
