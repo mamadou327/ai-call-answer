@@ -3539,6 +3539,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_business_publicly_bookable: {
+        Args: { _business_id: string }
+        Returns: boolean
+      }
       is_staff_member_of_business: {
         Args: { _business_id: string; _user_id: string }
         Returns: boolean
