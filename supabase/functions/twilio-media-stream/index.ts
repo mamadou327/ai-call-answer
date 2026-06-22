@@ -3539,39 +3539,48 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
       };
     }
 
-    // Sort slots to prioritize those adjacent to existing bookings (minimize gaps)
-    const sortedSlots = [...availableSlots].sort((a, b) => {
-      const aTime = new Date(`${params.date}T${a}:00`).getTime();
-      const bTime = new Date(`${params.date}T${b}:00`).getTime();
+    // Decide ordering. Per product rule: only pack against existing bookings
+    // (minimise gaps) when the caller is flexible. If they named a specific
+    // time, honour their order — show the requested time first, then chronological.
+    const flexible = params.flexible === true;
+    const requestedTime: string | null = typeof params.time === "string" && /^\d{1,2}:\d{2}$/.test(params.time)
+      ? params.time.padStart(5, "0")
+      : null;
 
-      // Calculate minimum distance to any existing booking for each slot
-      let aMinDistance = Infinity;
-      let bMinDistance = Infinity;
-
-      for (const booking of allBookings) {
-        const bookingStart = new Date(booking.start_time).getTime();
-        const bookingEnd = new Date(booking.end_time).getTime();
-
-        // Distance to start or end of booking
-        const aDistToStart = Math.abs(aTime - bookingStart);
-        const aDistToEnd = Math.abs(aTime + duration * 60000 - bookingEnd);
-        const bDistToStart = Math.abs(bTime - bookingStart);
-        const bDistToEnd = Math.abs(bTime + duration * 60000 - bookingEnd);
-
-        aMinDistance = Math.min(aMinDistance, aDistToStart, aDistToEnd);
-        bMinDistance = Math.min(bMinDistance, bDistToStart, bDistToEnd);
-      }
-
-      // If both have equal proximity to bookings, sort by time
-      if (aMinDistance === bMinDistance) {
-        return aTime - bTime;
-      }
-
-      // Prefer slots closer to existing bookings
-      return aMinDistance - bMinDistance;
+    const chronological = [...availableSlots].sort((a, b) => {
+      return new Date(`${params.date}T${a}:00`).getTime() - new Date(`${params.date}T${b}:00`).getTime();
     });
 
-    // Format nicely - show up to 8 slots, prioritizing gap-filling slots
+    let sortedSlots: string[];
+    if (flexible) {
+      // Gap-fill mode: prioritise slots adjacent to existing bookings
+      sortedSlots = [...availableSlots].sort((a, b) => {
+        const aTime = new Date(`${params.date}T${a}:00`).getTime();
+        const bTime = new Date(`${params.date}T${b}:00`).getTime();
+        let aMinDistance = Infinity;
+        let bMinDistance = Infinity;
+        for (const booking of allBookings) {
+          const bookingStart = new Date(booking.start_time).getTime();
+          const bookingEnd = new Date(booking.end_time).getTime();
+          const aDistToStart = Math.abs(aTime - bookingStart);
+          const aDistToEnd = Math.abs(aTime + duration * 60000 - bookingEnd);
+          const bDistToStart = Math.abs(bTime - bookingStart);
+          const bDistToEnd = Math.abs(bTime + duration * 60000 - bookingEnd);
+          aMinDistance = Math.min(aMinDistance, aDistToStart, aDistToEnd);
+          bMinDistance = Math.min(bMinDistance, bDistToStart, bDistToEnd);
+        }
+        if (aMinDistance === bMinDistance) return aTime - bTime;
+        return aMinDistance - bMinDistance;
+      });
+    } else if (requestedTime && chronological.includes(requestedTime)) {
+      // Exact time the caller asked for IS free — surface it first, then chronological
+      sortedSlots = [requestedTime, ...chronological.filter((t) => t !== requestedTime)];
+    } else {
+      // Plain chronological — caller named a time but it isn't free; offer nearest options in order
+      sortedSlots = chronological;
+    }
+
+    // Format nicely - show up to 8 slots
     const displaySlots = sortedSlots.slice(0, 8).map((t) => {
       const [h, m] = t.split(":").map(Number);
       const period = h >= 12 ? "PM" : "AM";
@@ -3582,7 +3591,8 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
     const staffNote = targetStaffName ? ` with ${targetStaffName}` : "";
     const dateStr = requestedDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 
-    console.log("[MediaStream] Found", sortedSlots.length, "available slots for", params.date, "(sorted to minimize gaps)");
+    console.log("[MediaStream] Found", sortedSlots.length, "available slots for", params.date, `(flexible=${flexible}, requestedTime=${requestedTime || "none"})`);
+
 
     return {
       success: true,
