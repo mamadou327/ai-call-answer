@@ -292,21 +292,87 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
-                <Select
-                  value={formData.category || "other"}
-                  onValueChange={(value) => setFormData({ ...formData, category: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SERVICE_CATEGORIES.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={categoryPopoverOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      {formData.category || "Select or type a category"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput
+                        placeholder="Search or add new..."
+                        value={categoryInput}
+                        onValueChange={setCategoryInput}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          {categoryInput.trim() ? (
+                            <button
+                              type="button"
+                              className="w-full px-2 py-1.5 text-left text-sm hover:bg-accent rounded-sm"
+                              onClick={() => {
+                                setFormData({ ...formData, category: categoryInput.trim() });
+                                setCategoryInput("");
+                                setCategoryPopoverOpen(false);
+                              }}
+                            >
+                              Add "{categoryInput.trim()}"
+                            </button>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">No categories</span>
+                          )}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {categoryOptions.map((cat) => (
+                            <CommandItem
+                              key={cat}
+                              value={cat}
+                              onSelect={() => {
+                                setFormData({ ...formData, category: cat });
+                                setCategoryInput("");
+                                setCategoryPopoverOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  formData.category?.toLowerCase() === cat.toLowerCase()
+                                    ? "opacity-100"
+                                    : "opacity-0",
+                                )}
+                              />
+                              {cat}
+                            </CommandItem>
+                          ))}
+                          {categoryInput.trim() &&
+                            !categoryOptions.some(
+                              (c) => c.toLowerCase() === categoryInput.trim().toLowerCase(),
+                            ) && (
+                              <CommandItem
+                                value={`__add_${categoryInput}`}
+                                onSelect={() => {
+                                  setFormData({ ...formData, category: categoryInput.trim() });
+                                  setCategoryInput("");
+                                  setCategoryPopoverOpen(false);
+                                }}
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add "{categoryInput.trim()}"
+                              </CommandItem>
+                            )}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
