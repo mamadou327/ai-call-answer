@@ -2972,11 +2972,19 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
       console.warn("[MediaStream] SMS confirmation failed:", smsError);
     }
 
+    // Canonical English date string the AI MUST use when reading the booking back —
+    // prevents translation errors (e.g. "Mawrth" vs "Mehefin") in non-English calls.
+    const canonicalDate = startTime.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const canonicalTime = formatTime(startTime);
+
     return {
       success: true,
       message: `Done! You're booked with ${staff.name} on ${dateStr} at ${timeStr}. Your reference code is ${codeData}. You should receive your booking details by SMS shortly.`,
       booking_code: codeData,
       booking_id: booking.id,
+      canonical_date_en: canonicalDate,
+      canonical_time_en: canonicalTime,
+      ai_instruction: `When you read this booking back to the caller, you MUST use this exact date and time: "${canonicalDate} at ${canonicalTime}". If you are speaking another language, translate the day-of-week and month accurately from this English source — do NOT invent month names.`,
     };
   } catch (error) {
     console.error("[MediaStream] Create booking error:", error);
