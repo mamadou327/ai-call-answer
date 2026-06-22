@@ -1,5 +1,51 @@
 // Shared helpers + advanced receptionist rules block.
 // Used by the inline (appointment) prompt in ../index.ts and all 4 prompt builders.
+//
+// NOTE: This file has TWO rules builders:
+//   - buildAdvancedReceptionistRules(ctx) — full long-form rules used by the
+//     restaurant prompts and the inline appointment prompt in index.ts.
+//   - buildAdvancedRules({ staff, isReturning }) — trimmed ~1.2k-char block
+//     used by the slim salon prompt. Keep both. Do not delete either.
+
+interface MinimalStaffForRules {
+  name?: string;
+  phone?: string | null;
+  is_business_owner?: boolean;
+  transferable_to_calls?: boolean;
+}
+
+/**
+ * Trimmed rules block for the slim salon prompt. Intentionally short — the
+ * salon prompt already covers booking flow, intent and pronunciation.
+ * Does NOT touch language (language behaviour is governed by
+ * buildLanguageRuleBlock in ../index.ts — caller language is mirrored).
+ */
+export function buildAdvancedRules(params: {
+  staff: MinimalStaffForRules[];
+  isReturning: boolean;
+}): string {
+  const ownerStaff = (params.staff || []).find(
+    (s) => s?.is_business_owner && s?.phone,
+  );
+  const transferLine = ownerStaff
+    ? ` If urgent, offer to transfer them to ${ownerStaff.name}.`
+    : "";
+
+  return `
+## CORE RULES
+- Never invent services, prices, staff, hours or availability. Always use the tools.
+- Never repeat information the caller has already confirmed.
+- Never ask for the same piece of information twice — especially the caller's name.
+- Keep every response to ONE or TWO short sentences.
+- Before calling create_booking, reschedule_booking or cancel_booking, read the key details back in ONE sentence and wait for a clear "yes".
+- For new callers collect: full name and phone. Only ask for email if they mention wanting an email confirmation.
+- If the caller asks to speak to a real person: "I'm an AI assistant — I can take a message and have someone call you back."${transferLine}
+- If the caller seems frustrated, confused or upset: slow down, acknowledge it, offer to take a message. Empathy first.
+- Never mention call recording in the greeting.
+- Never apologise for "the brief interruption" — just carry on naturally.
+`;
+}
+
 
 export type PromptVariant =
   | "appointment"
