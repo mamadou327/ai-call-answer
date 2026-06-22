@@ -138,16 +138,34 @@ Deno.serve(async (req) => {
 
       let placed = 0;
       for (const l of leads || []) {
+        // Atomically claim the lead so concurrent invocations (cron + manual Play, overlapping ticks)
+        // cannot dial the same lead twice. Only one updater will get a row back.
+        const { data: claimed, error: claimErr } = await supabase
+          .from("outbound_leads")
+          .update({ status: "calling", last_called_at: new Date().toISOString() })
+          .eq("id", l.id)
+          .eq("status", "pending")
+          .select("id")
+          .maybeSingle();
+        if (claimErr || !claimed) {
+          console.info(`[process-outbound-campaign] skip lead ${l.id} — already claimed by another run`);
+          continue;
+        }
         try {
           const r = await fetch(`${SUPABASE_URL}/functions/v1/twilio-outbound-call`, {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
             body: JSON.stringify({ lead_id: l.id }),
           });
-          if (!r.ok) console.error("[process-outbound-campaign] call failed", await r.text());
+          if (!r.ok) {
+            console.error("[process-outbound-campaign] call failed", await r.text());
+            // Release the claim so it can be retried on the next tick
+            await supabase.from("outbound_leads").update({ status: "pending" }).eq("id", l.id).eq("status", "calling");
+          }
           placed++;
         } catch (e) {
           console.error("[process-outbound-campaign] call error", e);
+          await supabase.from("outbound_leads").update({ status: "pending" }).eq("id", l.id).eq("status", "calling");
         }
         if (placed < (leads?.length || 0)) await sleep((c.delay_between_calls_seconds || 30) * 1000);
       }
