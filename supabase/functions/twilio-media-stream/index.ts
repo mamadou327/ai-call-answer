@@ -1431,7 +1431,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           // a brief noise (door slam, cough, clatter) and we ignore it. If
           // speech is still going after the window, treat it as a real
           // barge-in and cancel the AI's current response.
-          const MIN_INTERRUPT_MS = 300;
+          const MIN_INTERRUPT_MS = 150;
 
           if (session.pendingInterruptionTimer) {
             clearTimeout(session.pendingInterruptionTimer);
