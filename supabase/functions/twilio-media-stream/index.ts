@@ -3228,14 +3228,14 @@ async function executeRescheduleBooking(supabase: any, session: StreamSession, p
     }
 
     // Check staff time off
-    const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, booking.staff_id, newStartTime, newEndTime);
+    const rescheduleStaff = session.staff.find((s) => s.id === booking.staff_id);
+    const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, booking.staff_id, newStartTime, newEndTime, rescheduleStaff);
     if (timeOffCheck.onLeave) {
       return { success: false, message: timeOffCheck.message };
     }
 
     // Check staff working schedule for the new time
-    const rescheduleStaff = session.staff.find((s) => s.id === booking.staff_id);
-    const rescheduleWorkingCheck = isStaffWorkingAt(rescheduleStaff, newStartTime, newEndTime);
+    const rescheduleWorkingCheck = isStaffWorkingAt(rescheduleStaff, newStartTime, newEndTime, session.staffTimeOff);
     if (!rescheduleWorkingCheck.working) {
       return { success: false, message: rescheduleWorkingCheck.message };
     }
