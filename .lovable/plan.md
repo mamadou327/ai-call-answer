@@ -1,58 +1,26 @@
-# Stop the AI from cutting off on background noise
-
 ## Problem
 
-When the caller is on a noisy line (café, car, TV in the background, kids, traffic), the AI keeps stopping mid-sentence. Right now any sound above the speech threshold is treated as the caller starting to talk, which triggers a "barge-in" and cancels the AI's current response.
+After switching to `semantic_vad` with `eagerness: "low"`, the AI now waits noticeably longer before replying after the caller finishes speaking. That's expected behavior — `low` eagerness tells the model to be very patient about deciding the caller is done, which adds hundreds of ms (sometimes >1s) of dead air on every turn.
 
-The cause is in the OpenAI Realtime voice-activity-detection (VAD) config in `supabase/functions/twilio-media-stream/index.ts` (~line 2003):
-
-```
-type: "server_vad",
-threshold: 0.75,
-prefix_padding_ms: 300,
-silence_duration_ms: 1000,
-```
-
-`server_vad` with `threshold: 0.75` is energy-based — it can't tell speech from clattering plates, a TV, or road noise, so it fires on noise and interrupts the AI.
+The 300ms barge-in guard we added on top also delays interruption handling slightly, but the dominant cause is the VAD eagerness setting.
 
 ## Fix
 
-**1. Switch to semantic VAD (primary fix).**
-Change the turn-detection block to OpenAI's `semantic_vad`, which uses a model to decide whether the caller is *actually* speaking to the AI (vs. background noise / side-talk). Use `eagerness: "low"` so it waits for a clear end-of-turn before responding and is much less twitchy on noise.
+Tune the VAD for a balance between "doesn't trip on background noise" and "responds fast":
 
-```
-turn_detection: {
-  type: "semantic_vad",
-  eagerness: "low",
-  create_response: true,
-  interrupt_response: true,
-}
-```
+1. **`supabase/functions/twilio-media-stream/index.ts` (turn_detection block, ~line 2003)**
+   - Keep `type: "semantic_vad"` (still better than energy-based for noise rejection).
+   - Change `eagerness: "low"` → `eagerness: "medium"`. Medium is the OpenAI default and is the right tradeoff — still semantic (ignores most background noise) but turn-end detection is ~roughly as fast as the old server_vad path.
 
-**2. Add a minimum-speech-duration guard before allowing interruption.**
-Even with semantic VAD, we'll add a small guard in the existing `input_audio_buffer.speech_started` handler so that a barge-in only cancels the AI's current response if the detected speech segment lasts more than ~300ms. A single bang/cough/door-slam won't reach that, so the AI keeps talking. Real speech easily exceeds it.
+2. **Barge-in guard (~lines 1410-1460)**
+   - Lower `MIN_INTERRUPT_MS` from `300` → `150`. Still filters single coughs/clatters, but doesn't add perceptible lag when the caller actually interrupts.
 
-**3. Keep everything else unchanged.**
-- No prompt changes.
-- No changes to language-lock, disambiguation, reconnect, ElevenLabs TTS, or any other behaviour from prior turns.
-- Whisper transcription config stays the same.
+3. No other changes — prompts, ElevenLabs, reconnect, language-lock all untouched.
 
-## Files to edit
+## Deployment
 
-- `supabase/functions/twilio-media-stream/index.ts`
-  - Replace the `turn_detection` block (~line 2003) with the `semantic_vad` config above.
-  - In the existing `speech_started` / `speech_stopped` / `response.cancel` path, add the short minimum-duration guard before cancelling the AI's current response.
+Redeploy `twilio-media-stream`.
 
-## Deploy
+## If medium still feels too slow
 
-- Redeploy the `twilio-media-stream` edge function.
-
-## Out of scope
-
-- No DB schema changes.
-- No frontend / dashboard changes.
-- No new per-business setting for now — we can add a "noisy environment" toggle later if you want it configurable per business.
-
-## How to verify
-
-Call the AI from a noisy environment (play music/TV in the background, or call from outside). The AI should keep speaking through background noise and only stop when you actually talk to it.
+Fallback option (only if user reports it after testing): switch back to `server_vad` but with `threshold: 0.5`, `prefix_padding_ms: 300`, `silence_duration_ms: 500`. That's the fastest config but more prone to noise barge-ins.
