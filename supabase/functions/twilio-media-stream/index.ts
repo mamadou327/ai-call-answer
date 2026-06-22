@@ -2751,7 +2751,7 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
     }
 
     // Parse date and time
-    const startTime = new Date(`${params.date}T${params.time}:00`);
+    const startTime = parseLocalDateTimeInTimezone(params.date, params.time, session.businessTimezone);
     const endTime = new Date(startTime.getTime() + (service.duration_minutes || 30) * 60000);
 
     // Validate opening hours
@@ -3153,7 +3153,7 @@ async function executeRescheduleBooking(supabase: any, session: StreamSession, p
     }
 
     // Parse new date and time
-    const newStartTime = new Date(`${params.new_date}T${params.new_time}:00`);
+    const newStartTime = parseLocalDateTimeInTimezone(params.new_date, params.new_time, session.businessTimezone);
     const newEndTime = new Date(newStartTime.getTime() + duration * 60000);
 
     // Validate opening hours
@@ -3378,7 +3378,7 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
         return { success: false, message: hoursCheck.message };
       }
 
-      const requestedStart = new Date(`${params.date}T${time}:00`);
+      const requestedStart = parseLocalDateTimeInTimezone(params.date, time, session.businessTimezone);
       const requestedEnd = new Date(requestedStart.getTime() + duration * 60000);
 
       // Validate min notice
@@ -3500,7 +3500,7 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
         if (h * 60 + m + duration > closeHour * 60 + closeMin) continue; // Slot would end after close
 
         const slotTime = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-        const slotStart = new Date(`${params.date}T${slotTime}:00`);
+        const slotStart = parseLocalDateTimeInTimezone(params.date, slotTime, session.businessTimezone);
         const slotEnd = new Date(slotStart.getTime() + duration * 60000);
 
         // Skip if slot is in the past or within min notice period
@@ -4405,7 +4405,7 @@ async function executeCheckTableAvailability(supabase: any, session: StreamSessi
   const { date, time, party_size, seating_preference } = params;
   
   // Parse date and time
-  const reservationDateTime = new Date(`${date}T${time}:00`);
+  const reservationDateTime = parseLocalDateTimeInTimezone(date, time, session.businessTimezone);
   const dayOfWeek = reservationDateTime.getDay();
   
   // Check if business is open
@@ -4482,7 +4482,7 @@ async function executeCreateReservation(supabase: any, session: StreamSession, p
   }
   
   // Parse date and time
-  const reservationDateTime = new Date(`${date}T${time}:00`);
+  const reservationDateTime = parseLocalDateTimeInTimezone(date, time, session.businessTimezone);
   
   // Find a suitable table
   let availableTables = session.tables.filter((t: any) => t.capacity >= party_size);
@@ -4631,6 +4631,32 @@ function escapeXml(text: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 }
+
+// Treat "YYYY-MM-DD" + "HH:mm" as wall-clock time in the business's timezone and return the corresponding UTC Date.
+// Without this, `new Date("2026-06-22T12:00:00")` on a UTC server is parsed as 12:00 UTC, which displays as 13:00
+// in UK summer time (BST = UTC+1), causing bookings to land an hour off.
+function parseLocalDateTimeInTimezone(dateStr: string, timeStr: string, timezone: string = "Europe/London"): Date {
+  const [y, mo, d] = dateStr.split("-").map(Number);
+  const [hh, mi] = timeStr.split(":").map(Number);
+  if (!y || !mo || !d || isNaN(hh) || isNaN(mi)) {
+    return new Date(`${dateStr}T${timeStr}:00`);
+  }
+  // Initial guess: treat the wall-clock as UTC.
+  const utcGuess = Date.UTC(y, mo - 1, d, hh, mi, 0);
+  // Ask what that instant looks like in the target timezone.
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(new Date(utcGuess));
+  const get = (t: string) => Number(parts.find(p => p.type === t)?.value);
+  const tzAsUTC = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") === 24 ? 0 : get("hour"), get("minute"), get("second"));
+  const offset = tzAsUTC - utcGuess; // how far ahead the tz is vs UTC at that moment
+  return new Date(utcGuess - offset);
+}
+
+
 
 function formatTime(date: Date, timezone: string = "Europe/London"): string {
   // Use business timezone for customer-facing times
@@ -5460,6 +5486,7 @@ Look at the staff member's [CAN ONLY BOOK FOR: ...] list in the STAFF section be
 - If customer mentions a specific name → use that staff member
 - If customer uses vague terms like "the same one", "my usual", "him/her", "that guy" → ASK: "Just to confirm, which barber are you thinking of?"
 - ⚠️ ALWAYS tell the customer WHO they'll be seeing before confirming the booking - never leave this ambiguous
+- 🔒 **NEVER SILENTLY SWAP STAFF**: Once the customer has chosen a specific staff member AND you have confirmed it back to them, that staff member is LOCKED IN. Do NOT switch them to a different staff member for any reason. If a tool result later returns a different available staff (e.g. create_booking suggests someone else, or check_availability shows the chosen person isn't free), you MUST: (1) tell the customer the chosen staff is not actually available at that time, (2) ask if they want a different TIME with the same staff, or a different STAFF at the same time — let the CUSTOMER decide. Never just announce "actually it'll be X instead" after promising Y.
 
 ## GROUP BOOKING WORKFLOW (Multiple People):
 When a customer wants to book for multiple people (e.g., "me and my son", "both of us", "two haircuts"):
