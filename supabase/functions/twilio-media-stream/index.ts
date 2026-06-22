@@ -4995,7 +4995,8 @@ async function buildFullSystemPrompt(
           }
         }
         
-        return `- ${s.title ? s.title + " " : ""}${s.name}${ownerStatus}${aiStatus}${transferStatus}${servicesNote}${workingHoursNote}`;
+        const phoneticNote = s.name_phonetic ? ` [SAY: ${s.name_phonetic}]` : "";
+        return `- ${s.title ? s.title + " " : ""}${s.name}${phoneticNote}${ownerStatus}${aiStatus}${transferStatus}${servicesNote}${workingHoursNote}`;
       }).join("\n")
     : "No staff configured";
 
