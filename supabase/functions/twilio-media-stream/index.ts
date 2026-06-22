@@ -1431,7 +1431,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
           // a brief noise (door slam, cough, clatter) and we ignore it. If
           // speech is still going after the window, treat it as a real
           // barge-in and cancel the AI's current response.
-          const MIN_INTERRUPT_MS = 300;
+          const MIN_INTERRUPT_MS = 150;
 
           if (session.pendingInterruptionTimer) {
             clearTimeout(session.pendingInterruptionTimer);
@@ -2029,10 +2029,11 @@ async function sendSessionConfig(
     turn_detection: {
       // Semantic VAD uses a model to decide whether the caller is actually
       // speaking to the AI (vs. background noise / TV / side-talk), so it
-      // doesn't trigger barge-in on noisy lines. `eagerness: "low"` waits
-      // for a clearer end-of-turn before responding.
+      // doesn't trigger barge-in on noisy lines. `eagerness: "medium"` is the
+      // balanced default — turn-end detection is fast (no dead air after the
+      // caller stops) while still rejecting most background noise.
       type: "semantic_vad",
-      eagerness: "low",
+      eagerness: "medium",
       create_response: true,
       interrupt_response: true,
     },
