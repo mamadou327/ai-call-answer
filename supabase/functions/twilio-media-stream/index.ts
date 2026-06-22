@@ -5784,11 +5784,12 @@ function executeGetStaff(session: StreamSession): any {
       title: s.title || s.role || null,
       is_business_owner: !!s.is_business_owner,
       bookable_by_ai: !!s.ai_enabled,
+      transferable_to_calls: !!(s as any).transferable_to_calls || !!s.is_business_owner,
       can_book_for_services: svcNames,
       working_hours: s.working_hours || null,
     };
   });
-  return { success: true, staff: items, instruction: "If bookable_by_ai is false, transfer instead of booking. Only book a service that is in can_book_for_services." };
+  return { success: true, staff: items, instruction: "If bookable_by_ai is false, transfer instead of booking. Only book a service that is in can_book_for_services. Only call transfer_call for staff where transferable_to_calls is true — for others, offer to take a message." };
 }
 
 function executeGetOpeningHours(session: StreamSession): any {
