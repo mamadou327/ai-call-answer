@@ -3044,7 +3044,7 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
       booking_id: booking.id,
       canonical_date_en: canonicalDate,
       canonical_time_en: canonicalTime,
-      ai_instruction: `When you read this booking back to the caller, you MUST use this exact date and time: "${canonicalDate} at ${canonicalTime}". If you are speaking another language, translate the day-of-week and month accurately from this English source — do NOT invent month names.`,
+      ai_instruction: `When you read this booking back to the caller, you MUST use this EXACT date and time: "${canonicalDate} at ${canonicalTime}". CRITICAL TIME RULE: speak the time exactly as "${canonicalTime}" — do NOT change the hour, do NOT add or subtract from it, do NOT use the end time, do NOT use the service duration. If the caller asked for ${canonicalTime}, you confirm ${canonicalTime} — never a different hour. If you are speaking another language, translate ONLY the day-of-week and month from this English source (do NOT invent month names); the numeric hour and minutes stay identical.`,
     };
   } catch (error) {
     console.error("[MediaStream] Create booking error:", error);
@@ -3297,7 +3297,8 @@ async function executeRescheduleBooking(supabase: any, session: StreamSession, p
 
     return { 
       success: true, 
-      message: `Done! Booking ${booking.booking_code} with ${staffName} has been moved to ${dateStr} at ${timeStr}. You should receive a confirmation SMS shortly.`
+      message: `Done! Booking ${booking.booking_code} with ${staffName} has been moved to ${dateStr} at ${timeStr}. You should receive a confirmation SMS shortly.`,
+      ai_instruction: `When you read this reschedule back to the caller, speak the time EXACTLY as "${timeStr}" — do NOT change the hour, do NOT use the end time or service duration. If speaking another language, translate only day-of-week and month; the numeric hour stays identical.`,
     };
   } catch (error) {
     console.error("[MediaStream] Reschedule booking error:", error);
