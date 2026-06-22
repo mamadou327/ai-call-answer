@@ -254,17 +254,6 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
                 className="pl-9"
               />
             </div>
-            {primaryLangCode !== "en" && (
-              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={onlyMatchingLanguage}
-                  onChange={(e) => setOnlyMatchingLanguage(e.target.checked)}
-                  className="h-3.5 w-3.5"
-                />
-                Only show voices that support {langLabel(primaryLangCode)}
-              </label>
-            )}
           </div>
 
           {loadingVoices ? (
@@ -272,24 +261,7 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : groups.length === 0 ? (
-            <div className="text-sm text-muted-foreground text-center py-6 space-y-2">
-              <p>No voices match your filters.</p>
-              {onlyMatchingLanguage && (
-                <p className="text-xs">
-                  None of the curated voices are verified for {langLabel(primaryLangCode)}.
-                  Uncheck the filter to use an English voice (it will sound English-accented), or
-                  paste a custom voice ID from the{" "}
-                  <a
-                    href="https://elevenlabs.io/voice-library"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline"
-                  >
-                    ElevenLabs Voice Library
-                  </a>.
-                </p>
-              )}
-            </div>
+            <p className="text-sm text-muted-foreground text-center py-6">No voices match your filters.</p>
           ) : (
             groups.map((group) => (
               <div key={group.key} className="space-y-2">
