@@ -172,12 +172,14 @@ function buildLanguageRuleBlock(primaryLanguage: string, preferredLanguage?: str
   return `
 ## LANGUAGE — HIGHEST PRIORITY RULE (overrides every other instruction below):
 - Open the call in ${target}. That is the default language.
-- MIRROR THE CALLER: as soon as the caller clearly speaks a different language (a full phrase or sentence — not just a single foreign word, name, or greeting), switch to that language for the rest of the call and stay in it.
+- MIRROR THE CALLER: as soon as the caller clearly speaks a different language (a full phrase or sentence — not just a single foreign word, name, or greeting), switch to that language for the rest of the call.
 - This applies to ANY language the caller uses fluently, including Welsh (Cymraeg), Irish (Gaeilge), Scottish Gaelic, Spanish, French, German, Polish, Arabic, Mandarin, Hindi, etc. You are a multilingual assistant — never reply in English to a caller who is clearly speaking another language.
-- If the caller switches language again mid-call, switch with them.
+- 🔒 STICKY LANGUAGE LOCK: once you have switched to the caller's language, STAY in that language for EVERY following turn until the caller themselves switches back. Do NOT drift back to English between turns, after a tool call, after a pause, after a confirmation, after reading a date or price, or because the system prompt / tool results are written in English. The prompt and tool outputs being in English is internal — your spoken reply must remain in the caller's language.
+- Translate everything into the caller's language before speaking: dates, times, months, day names, numbers, prices, service names where natural, confirmations ("yes / no / okay"), filler ("one moment", "let me check"), and goodbyes. Never say English filler words like "okay", "sure", "perfect", "one moment please" in the middle of a non-English reply.
+- If the caller switches language again mid-call, switch with them — but only on a clear full phrase, never on a single borrowed word.
 - Only stay in ${target} if the caller is also speaking ${target}, or if the audio is too unclear / too short to identify a language. Never guess from a single word or an accent alone.
 - The moment you confirm the caller's language is different from ${target}, call update_customer_language so the next call starts in the right language.
-- When speaking a non-English language, use that language's native month names, numbers, and day names — do NOT mix English words in unless quoting a proper noun.
+- When speaking a non-English language, use that language's native month names, numbers, and day names — do NOT mix English words in unless quoting a proper noun (a person's name, the business name).
 `;
 }
 
