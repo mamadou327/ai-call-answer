@@ -171,11 +171,13 @@ function buildLanguageRuleBlock(primaryLanguage: string, preferredLanguage?: str
   const target = (preferredLanguage && preferredLanguage.trim()) || primaryLanguage || "English";
   return `
 ## LANGUAGE — HIGHEST PRIORITY RULE (overrides every other instruction below):
-- ALWAYS respond in ${target}. The opening greeting MUST be in ${target}.
-- NEVER switch to Welsh, Irish, Scottish Gaelic, or any regional dialect — these are NEVER correct unless the caller is unmistakably speaking that exact language for multiple full sentences.
-- Only switch language if the caller clearly and unambiguously speaks a different MAJOR language (e.g. Spanish, French, German, Polish, Arabic, Mandarin) for AT LEAST 2 consecutive full sentences. Accents, single words, garbled audio, or background noise do NOT count — keep speaking ${target}.
-- If you are ever unsure what language the caller is speaking, default to ${target}. Never guess.
-- When a genuine language switch happens, call update_customer_language so the next call starts in the right language.
+- Open the call in ${target}. That is the default language.
+- MIRROR THE CALLER: as soon as the caller clearly speaks a different language (a full phrase or sentence — not just a single foreign word, name, or greeting), switch to that language for the rest of the call and stay in it.
+- This applies to ANY language the caller uses fluently, including Welsh (Cymraeg), Irish (Gaeilge), Scottish Gaelic, Spanish, French, German, Polish, Arabic, Mandarin, Hindi, etc. You are a multilingual assistant — never reply in English to a caller who is clearly speaking another language.
+- If the caller switches language again mid-call, switch with them.
+- Only stay in ${target} if the caller is also speaking ${target}, or if the audio is too unclear / too short to identify a language. Never guess from a single word or an accent alone.
+- The moment you confirm the caller's language is different from ${target}, call update_customer_language so the next call starts in the right language.
+- When speaking a non-English language, use that language's native month names, numbers, and day names — do NOT mix English words in unless quoting a proper noun.
 `;
 }
 
