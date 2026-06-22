@@ -2122,7 +2122,7 @@ async function sendSessionConfig(
           "You are reconnecting mid-call. The conversation history above shows everything that was already discussed. " +
           "Continue naturally from exactly where you left off. " +
           "Do NOT re-introduce yourself. " +
-          "Do NOT re-deliver the recording disclosure. " +
+          
           "Do NOT re-greet the caller with 'welcome back' or any returning-caller greeting — that has already been done. " +
           apologyClause + " " +
           "Do NOT re-check availability or re-discuss anything already confirmed. " +
@@ -5367,7 +5367,7 @@ SOUND HUMAN - THIS IS CRITICAL:
   // appended at the very end of the prompt. This short line just nudges the
   // model to follow that block at call start.
   const greetingInstruction = `## GREETING:
-Follow the OPENING GREETING rules in the section below. Use the time-of-day greeting (Good morning / Good afternoon / Good evening) based on CURRENT CONTEXT. Do NOT mention call recording in the greeting — the RECORDING DISCLOSURE rule handles that after the caller explains why they called.`;
+Follow the OPENING GREETING rules in the section below. Use the time-of-day greeting (Good morning / Good afternoon / Good evening) based on CURRENT CONTEXT. Do NOT mention call recording at any point in the call.`;
 
   // Opening context from business owner - should be woven naturally into greeting
   const openingContext = businessSettings?.opening_context?.trim() || "";
