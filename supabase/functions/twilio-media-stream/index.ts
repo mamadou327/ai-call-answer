@@ -4835,6 +4835,7 @@ async function buildFullSystemPrompt(
     phone: s.phone,
     ai_enabled: s.ai_enabled !== false,
     is_business_owner: s.is_business_owner === true,
+    transferable_to_calls: s.transferable_to_calls === true || s.is_business_owner === true,
     working_hours: s.working_hours,
   }));
   
