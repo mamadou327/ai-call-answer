@@ -3193,7 +3193,9 @@ export type Database = {
           gender: string
           id: string
           is_active: boolean
+          is_multilingual: boolean
           name: string
+          verified_languages: string[]
           voice_id: string
         }
         Insert: {
@@ -3204,7 +3206,9 @@ export type Database = {
           gender: string
           id?: string
           is_active?: boolean
+          is_multilingual?: boolean
           name: string
+          verified_languages?: string[]
           voice_id: string
         }
         Update: {
@@ -3215,7 +3219,9 @@ export type Database = {
           gender?: string
           id?: string
           is_active?: boolean
+          is_multilingual?: boolean
           name?: string
+          verified_languages?: string[]
           voice_id?: string
         }
         Relationships: []
