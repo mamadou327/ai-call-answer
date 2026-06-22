@@ -172,14 +172,16 @@ function buildLanguageRuleBlock(primaryLanguage: string, preferredLanguage?: str
   return `
 ## LANGUAGE — HIGHEST PRIORITY RULE (overrides every other instruction below):
 - Open the call in ${target}. That is the default language.
-- MIRROR THE CALLER ONLY ON CLEAR EVIDENCE: switch to a new language ONLY when the caller has spoken at least one CLEAR, FULL sentence in that language (not just a single word, greeting, name, or borrowed word). One ambiguous phrase is NOT enough — wait for a second clear sentence in the same language before switching.
+- 🔒 CALL LANGUAGE LOCK: after the caller's first clear substantive sentence, choose ONE call language and keep using it for the entire call. Do NOT switch languages mid-call just because one later sentence, one word, an accent, background speech, a transcription mistake, or tool data appears in another language.
+- If the caller later appears to use a different language, treat it as unclear audio/background unless they explicitly ask to change language. Stay in the locked language and ask a short clarification in that locked language if needed.
 - 🛑 NEGATIVE ENGLISH ABILITY IS NOT A LANGUAGE CHOICE: if the caller says anything like "I don't speak English", "I no speak English", "no English", "I can't speak English", or you cannot identify their language with confidence, DO NOT guess a language and DO NOT switch to any other language. Your ONLY immediate response must be a short clarification in simple English: "What language would you like me to speak?" Then wait for their answer. Never list example languages unless they ask for examples, because examples can sound like you chose one.
 - NEVER treat "I don't speak English" / "no English" as Spanish, French, Arabic, Polish, or any other language. It only means the caller has rejected English; their actual language is still unknown until they name it or speak two clear full sentences in it.
 - This applies to ANY language the caller uses fluently, including Welsh (Cymraeg), Irish (Gaeilge), Scottish Gaelic, Spanish, French, German, Polish, Arabic, Mandarin, Hindi, etc. You are a multilingual assistant — but accuracy beats eagerness. Better to ask once than to guess wrong twice.
-- 🔒 STICKY LANGUAGE LOCK: once you have switched to the caller's language (either by clear detection or by them telling you), STAY in that language for EVERY following turn until the caller themselves clearly switches back with a full sentence. Do NOT drift back to ${target} between turns, after a tool call, after a pause, after a confirmation, after reading a date or price, or because the system prompt / tool results are written in English. Do NOT bounce between languages — pick one and stay.
+- The ONLY exception: switch language only if the caller explicitly asks you to change language, for example "speak English", "can you speak Welsh", "please speak Spanish", or they directly name the language they want. Then lock to that newly requested language and do not switch again.
+- 🔒 STICKY LANGUAGE LOCK: once a language is locked, STAY in that language for EVERY following turn. Do NOT drift between turns, after a tool call, after a pause, after a confirmation, after reading a date or price, or because the system prompt / tool results are written in English. Do NOT bounce between languages — pick one and stay.
 - Translate everything into the caller's language before speaking: dates, times, months, day names, numbers, prices, service names where natural, confirmations ("yes / no / okay"), filler ("one moment", "let me check"), and goodbyes. Never say English filler words like "okay", "sure", "perfect", "one moment please" in the middle of a non-English reply.
 - Only stay in ${target} if the caller is also speaking ${target}, or if the audio is too unclear / too short to identify a language. NEVER guess from a single word, an accent, or background noise alone.
-- The moment the caller's language is CONFIRMED to be different from ${target} (either by clear repeated speech or because they told you), call update_customer_language ONCE so the next call starts in the right language. Do not call it again during the call. NEVER call update_customer_language for "unknown", "not English", or based only on "I don't speak English".
+- Only call update_customer_language when the caller explicitly names the language they want you to use. Do NOT call it based only on automatic detection, accents, short phrases, "not English", or "I don't speak English".
 - When speaking a non-English language, use that language's native month names, numbers, and day names — do NOT mix English words in unless quoting a proper noun (a person's name, the business name).
 `;
 }
@@ -3658,14 +3660,13 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
       sortedSlots = chronological;
     }
 
-    // Format nicely - show up to 8 slots
-    const displaySlots = sortedSlots.slice(0, 8).map((t) => {
+    // Format nicely - speak only a few options so the caller is not overloaded.
+    const displaySlots = sortedSlots.slice(0, 3).map((t) => {
       const [h, m] = t.split(":").map(Number);
       const period = h >= 12 ? "PM" : "AM";
       const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
       return `${hour12}:${m.toString().padStart(2, "0")} ${period}`;
     });
-    const moreSlots = sortedSlots.length > 8 ? ` (plus ${sortedSlots.length - 8} more)` : "";
     const staffNote = targetStaffName ? ` with ${targetStaffName}` : "";
     const dateStr = requestedDate.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 
@@ -3674,10 +3675,12 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
 
     return {
       success: true,
-      message: `On ${dateStr}${staffNote}, I have: ${displaySlots.join(", ")}${moreSlots}. Which time works for you?`,
+      message: `On ${dateStr}${staffNote}, I have ${displaySlots.join(", ")}. Do any of those work, or is there a rough time that suits you best?`,
       available_slots: sortedSlots,
       date: params.date,
       staff: targetStaffName || null,
+      speak_only_first_slots: displaySlots,
+      ai_instruction: "Do not read every available slot. Offer only the listed few options, then ask what rough time works best for the caller.",
     };
   } catch (error) {
     console.error("[MediaStream] Check availability error:", error);
