@@ -128,13 +128,17 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
     setPlayingVoiceId(null);
   };
 
+  const voiceSupportsPrimary = (v: Voice) =>
+    (v.verified_languages ?? []).map((l) => l.toLowerCase()).includes(primaryLangCode);
+
   const filteredVoices = useMemo(() => {
     const q = search.trim().toLowerCase();
     return voices.filter(v => {
-      if (!q) return true;
-      return v.name.toLowerCase().includes(q) || v.description.toLowerCase().includes(q);
+      if (q && !(v.name.toLowerCase().includes(q) || v.description.toLowerCase().includes(q))) return false;
+      if (onlyMatchingLanguage && primaryLangCode !== "en" && !voiceSupportsPrimary(v)) return false;
+      return true;
     });
-  }, [voices, search]);
+  }, [voices, search, onlyMatchingLanguage, primaryLangCode]);
 
   const groups = useMemo(() => {
     const order: Array<{ key: string; label: string; gender: "female" | "male" }> = [
@@ -150,42 +154,67 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
     const isSelected = selectedVoiceId === voice.voice_id;
     const isPlaying = playingVoiceId === voice.voice_id;
     const isLoading = loadingVoiceId === voice.voice_id;
+    const langs = voice.verified_languages ?? ["en"];
+    const supportsPrimary = voiceSupportsPrimary(voice);
+    const showAccentWarning = primaryLangCode !== "en" && !supportsPrimary;
 
     return (
       <div
         key={voice.id}
         className={cn(
-          "relative flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all",
+          "relative flex flex-col gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all",
           isSelected
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/50 hover:bg-muted/50"
         )}
         onClick={() => onVoiceSelect(voice.voice_id)}
       >
-        <div className="h-10 w-10 shrink-0 rounded-full bg-muted flex items-center justify-center">
-          <Volume2 className="h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 shrink-0 rounded-full bg-muted flex items-center justify-center">
+            <Volume2 className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-sm">{voice.name}</p>
+            <p className="text-xs text-muted-foreground truncate">{voice.description}</p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={(e) => isPlaying ? stopPreview(e) : playVoicePreview(voice, e)}
+            disabled={isLoading}
+            title={isPlaying ? "Stop preview" : "Play preview"}
+          >
+            {isLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : isPlaying ? (
+              <Square className="h-3.5 w-3.5 fill-current" />
+            ) : (
+              <Play className="h-3.5 w-3.5" />
+            )}
+          </Button>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm">{voice.name}</p>
-          <p className="text-xs text-muted-foreground truncate">{voice.description}</p>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          onClick={(e) => isPlaying ? stopPreview(e) : playVoicePreview(voice, e)}
-          disabled={isLoading}
-          title={isPlaying ? "Stop preview" : "Play preview"}
-        >
-          {isLoading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : isPlaying ? (
-            <Square className="h-3.5 w-3.5 fill-current" />
+        <div className="flex flex-wrap items-center gap-1">
+          {voice.is_multilingual ? (
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">Multilingual</Badge>
           ) : (
-            <Play className="h-3.5 w-3.5" />
+            <Badge variant="outline" className="text-[10px] h-5 px-1.5">English only</Badge>
           )}
-        </Button>
+          {langs.slice(0, 4).map((l) => (
+            <Badge key={l} variant="outline" className="text-[10px] h-5 px-1.5">
+              {langLabel(l)}
+            </Badge>
+          ))}
+          {langs.length > 4 && (
+            <span className="text-[10px] text-muted-foreground">+{langs.length - 4} more</span>
+          )}
+        </div>
+        {showAccentWarning && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-500">
+            Will speak {langLabel(primaryLangCode)} with an English accent — pronunciation may be off.
+          </p>
+        )}
         {isSelected && (
           <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
             <Check className="w-2.5 h-2.5 text-primary-foreground" />
