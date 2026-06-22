@@ -2826,7 +2826,7 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
     }
 
     // Check staff time off
-    const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, startTime, endTime);
+    const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, startTime, endTime, staff);
     if (timeOffCheck.onLeave) {
       return { success: false, message: timeOffCheck.message };
     }
