@@ -67,6 +67,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
     color: "#3B82F6",
     ai_enabled: true,
     is_business_owner: false,
+    transferable_to_calls: false,
     chair: "",
   });
   const [customRole, setCustomRole] = useState("");
