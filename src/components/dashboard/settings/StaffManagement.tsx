@@ -217,6 +217,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
       ai_enabled: member.ai_enabled !== false,
       is_business_owner: member.is_business_owner || false,
       transferable_to_calls: member.transferable_to_calls === true || member.is_business_owner === true,
+      name_phonetic: member.name_phonetic || "",
       chair: isCustomChair ? "custom" : (member.chair || ""),
     });
     setCustomRole(isCustomRole ? member.role : "");
