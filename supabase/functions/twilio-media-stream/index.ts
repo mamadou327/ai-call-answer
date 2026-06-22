@@ -321,6 +321,7 @@ interface StaffService {
 interface StaffMember {
   id: string;
   name: string;
+  name_phonetic: string | null;
   role: string;
   title: string | null;
   phone: string | null;
@@ -2971,11 +2972,19 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
       console.warn("[MediaStream] SMS confirmation failed:", smsError);
     }
 
+    // Canonical English date string the AI MUST use when reading the booking back —
+    // prevents translation errors (e.g. "Mawrth" vs "Mehefin") in non-English calls.
+    const canonicalDate = startTime.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const canonicalTime = formatTime(startTime);
+
     return {
       success: true,
       message: `Done! You're booked with ${staff.name} on ${dateStr} at ${timeStr}. Your reference code is ${codeData}. You should receive your booking details by SMS shortly.`,
       booking_code: codeData,
       booking_id: booking.id,
+      canonical_date_en: canonicalDate,
+      canonical_time_en: canonicalTime,
+      ai_instruction: `When you read this booking back to the caller, you MUST use this exact date and time: "${canonicalDate} at ${canonicalTime}". If you are speaking another language, translate the day-of-week and month accurately from this English source — do NOT invent month names.`,
     };
   } catch (error) {
     console.error("[MediaStream] Create booking error:", error);
@@ -4749,10 +4758,10 @@ async function buildFullSystemPrompt(
   
   // Fetch all business data in parallel - include restaurant data if applicable
   const baseQueries = [
-    supabase.from("staff").select("id, name, role, title, phone, ai_enabled, is_business_owner, transferable_to_calls, working_hours").eq("business_id", businessId),
+    supabase.from("staff").select("id, name, name_phonetic, role, title, phone, ai_enabled, is_business_owner, transferable_to_calls, working_hours").eq("business_id", businessId),
     supabase.from("services").select("id, name, duration_minutes, price, category, description, deposit_required, deposit_amount").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
-    supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours, min_reschedule_notice_hours, opening_context, business_name_phonetic").eq("business_id", businessId).maybeSingle(),
+    supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours, min_reschedule_notice_hours, opening_context, business_name_phonetic, ai_can_suggest_addons").eq("business_id", businessId).maybeSingle(),
     supabase.from("staff_time_off")
       .select("staff_id, start_time, end_time, reason, staff:staff_id(name)")
       .eq("business_id", businessId)
@@ -4839,6 +4848,7 @@ async function buildFullSystemPrompt(
   const staff: StaffMember[] = (staffResult.data || []).map((s: any) => ({
     id: s.id,
     name: s.name,
+    name_phonetic: s.name_phonetic || null,
     role: s.role,
     title: s.title,
     phone: s.phone,
@@ -4993,7 +5003,8 @@ async function buildFullSystemPrompt(
           }
         }
         
-        return `- ${s.title ? s.title + " " : ""}${s.name}${ownerStatus}${aiStatus}${transferStatus}${servicesNote}${workingHoursNote}`;
+        const phoneticNote = s.name_phonetic ? ` [SAY: ${s.name_phonetic}]` : "";
+        return `- ${s.title ? s.title + " " : ""}${s.name}${phoneticNote}${ownerStatus}${aiStatus}${transferStatus}${servicesNote}${workingHoursNote}`;
       }).join("\n")
     : "No staff configured";
 

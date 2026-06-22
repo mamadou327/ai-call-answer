@@ -36,6 +36,7 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
     elevenlabs_voice_id: null as string | null,
     opening_context: "" as string,
     business_name_phonetic: "" as string,
+    ai_can_suggest_addons: false,
   });
 
   useEffect(() => {
@@ -59,6 +60,7 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
         elevenlabs_voice_id: (data as any).elevenlabs_voice_id || null,
         opening_context: (data as any).opening_context || "",
         business_name_phonetic: (data as any).business_name_phonetic || "",
+        ai_can_suggest_addons: (data as any).ai_can_suggest_addons === true,
       });
     }
   };
@@ -248,6 +250,27 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
               The AI might say: "Hey there, thanks for calling! Just a heads up - we've got 20% off everything this week, 
               and if you're driving, there's free parking round the back. How can I help you today?"
             </p>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-1 pr-4">
+              <Label htmlFor="ai_can_suggest_addons" className="text-sm font-medium">Let the AI suggest add-on services</Label>
+              <p className="text-xs text-muted-foreground">
+                When on, the AI may offer ONE related service (e.g. "would you like a brow tint while you're in?") AFTER the booking is confirmed. Never during booking, never pushy.
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                id="ai_can_suggest_addons"
+                checked={settingsData.ai_can_suggest_addons}
+                onChange={(e) => setSettingsData({ ...settingsData, ai_can_suggest_addons: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-ring transition-colors">
+                <div className={`absolute top-0.5 left-0.5 bg-background border border-border rounded-full h-5 w-5 transition-transform ${settingsData.ai_can_suggest_addons ? 'translate-x-5' : ''}`}></div>
+              </div>
+            </label>
           </div>
 
           <Button 

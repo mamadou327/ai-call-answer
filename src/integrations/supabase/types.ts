@@ -345,6 +345,7 @@ export type Database = {
       }
       business_settings: {
         Row: {
+          ai_can_suggest_addons: boolean
           app_language: string | null
           assistant_name: string | null
           auto_cancel_hours: number | null
@@ -375,6 +376,7 @@ export type Database = {
           voice_speed: Database["public"]["Enums"]["voice_speed"] | null
         }
         Insert: {
+          ai_can_suggest_addons?: boolean
           app_language?: string | null
           assistant_name?: string | null
           auto_cancel_hours?: number | null
@@ -405,6 +407,7 @@ export type Database = {
           voice_speed?: Database["public"]["Enums"]["voice_speed"] | null
         }
         Update: {
+          ai_can_suggest_addons?: boolean
           app_language?: string | null
           assistant_name?: string | null
           auto_cancel_hours?: number | null
@@ -2618,6 +2621,7 @@ export type Database = {
           id: string
           is_business_owner: boolean
           name: string
+          name_phonetic: string | null
           phone: string | null
           role: string
           title: string | null
@@ -2635,6 +2639,7 @@ export type Database = {
           id?: string
           is_business_owner?: boolean
           name: string
+          name_phonetic?: string | null
           phone?: string | null
           role: string
           title?: string | null
@@ -2652,6 +2657,7 @@ export type Database = {
           id?: string
           is_business_owner?: boolean
           name?: string
+          name_phonetic?: string | null
           phone?: string | null
           role?: string
           title?: string | null

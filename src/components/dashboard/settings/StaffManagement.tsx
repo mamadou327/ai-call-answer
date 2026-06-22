@@ -27,6 +27,7 @@ interface Staff {
   ai_enabled?: boolean;
   is_business_owner?: boolean;
   transferable_to_calls?: boolean;
+  name_phonetic?: string;
   chair?: string;
 }
 
@@ -68,6 +69,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
     ai_enabled: true,
     is_business_owner: false,
     transferable_to_calls: false,
+    name_phonetic: "",
     chair: "",
   });
   const [customRole, setCustomRole] = useState("");
@@ -215,6 +217,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
       ai_enabled: member.ai_enabled !== false,
       is_business_owner: member.is_business_owner || false,
       transferable_to_calls: member.transferable_to_calls === true || member.is_business_owner === true,
+      name_phonetic: member.name_phonetic || "",
       chair: isCustomChair ? "custom" : (member.chair || ""),
     });
     setCustomRole(isCustomRole ? member.role : "");
@@ -308,7 +311,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
 
       setDialogOpen(false);
       setSelectedStaff(null);
-      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false, transferable_to_calls: false, chair: "" });
+      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false, transferable_to_calls: false, name_phonetic: "", chair: "" });
       setCustomRole("");
       setCustomChair("");
       setSelectedServices([]);
@@ -366,7 +369,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
           setDialogOpen(open);
           if (!open) {
             setSelectedStaff(null);
-            setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false, transferable_to_calls: false, chair: "" });
+            setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false, transferable_to_calls: false, name_phonetic: "", chair: "" });
             setCustomRole("");
             setCustomChair("");
             setSelectedServices([]);
@@ -413,6 +416,16 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                     required
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="name_phonetic">Pronunciation <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Input
+                  id="name_phonetic"
+                  value={formData.name_phonetic}
+                  onChange={(e) => setFormData({ ...formData, name_phonetic: e.target.value })}
+                  placeholder="e.g. Lor-ay-nuh"
+                />
+                <p className="text-xs text-muted-foreground">Type how to pronounce the name. The AI will use this when speaking to callers.</p>
               </div>
               <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">
