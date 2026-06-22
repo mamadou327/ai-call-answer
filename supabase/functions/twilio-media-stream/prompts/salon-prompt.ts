@@ -142,22 +142,8 @@ Work this information smoothly into your greeting without making it sound like a
   // Cancellation policy
   const cancellationPolicy = businessSettings?.cancellation_policy || "Please cancel at least 24 hours in advance.";
 
-  const multilingualBlock = `
-═══════════════════════════════════════
-🌍 LANGUAGE RULES (HIGHEST PRIORITY — STRICT!)
-═══════════════════════════════════════
-Pick ONE language for the call and STAY in it. Do NOT drift or switch languages.
-- Detect the caller's language from their FIRST full sentence and LOCK to it for the entire call.
-- Once locked, respond ONLY in that language. Do NOT mix languages, do NOT throw in foreign words/phrases, do NOT translate things "to be helpful".
-- The ONLY time you may change language is if the caller EXPLICITLY asks you to (e.g. "can you speak English?" / "¿puedes hablar español?"). A single foreign word from the caller is NOT a switch request — ignore it and stay in the locked language.
-- NEVER ask "what language do you speak?" — just detect and match.
-- Default language (only if caller hasn't spoken yet): ${businessSettings?.primary_language || "English"}.
-${callerInfo?.preferredLanguage ? `- ⚠️ This caller previously preferred: ${callerInfo.preferredLanguage} — START in ${callerInfo.preferredLanguage} and stay there unless they explicitly ask otherwise.` : ""}
-- After locking a non-default language, call update_customer_language ONCE to save it. Do not call it again during the call.
-`;
-
   return `You are ${assistantName}, the AI phone assistant for ${businessName}.
-${multilingualBlock}
+
 BUSINESS TYPE: Salon/Barbershop/Spa (Appointment-based services)
 
 TONE & STYLE:

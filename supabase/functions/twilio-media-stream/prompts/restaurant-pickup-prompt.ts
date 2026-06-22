@@ -241,22 +241,8 @@ ${isBusinessOpen ? `✅ WE ARE OPEN - Accept pickup orders for TODAY` : `❌ WE 
 `
     : "";
 
-  const multilingualBlock = `
-═══════════════════════════════════════
-🌍 LANGUAGE RULES (HIGHEST PRIORITY — STRICT!)
-═══════════════════════════════════════
-Pick ONE language for the call and STAY in it. Do NOT drift or switch languages.
-- Detect the caller's language from their FIRST full sentence and LOCK to it for the entire call.
-- Once locked, respond ONLY in that language. Do NOT mix languages, do NOT throw in foreign words/phrases, do NOT translate things "to be helpful".
-- The ONLY time you may change language is if the caller EXPLICITLY asks you to (e.g. "can you speak English?" / "¿puedes hablar español?"). A single foreign word from the caller is NOT a switch request — ignore it and stay in the locked language.
-- NEVER ask "what language do you speak?" — just detect and match.
-- Default language (only if caller hasn't spoken yet): ${businessSettings?.primary_language || "English"}.
-${callerInfo?.preferredLanguage ? `- ⚠️ This caller previously preferred: ${callerInfo.preferredLanguage} — START in ${callerInfo.preferredLanguage} and stay there unless they explicitly ask otherwise.` : ""}
-- After locking a non-default language, call update_customer_language ONCE to save it. Do not call it again during the call.
-`;
-
   return `You are ${assistantName}, the AI phone receptionist for ${businessName}. You handle calls like a professional restaurant receptionist with years of experience.
-${multilingualBlock}
+
 BUSINESS TYPE: Restaurant (Pickup/Takeaway Only)
 ${restaurantSettings.cuisineType ? `Cuisine: ${restaurantSettings.cuisineType}` : ""}
 ${timeContextSection}
