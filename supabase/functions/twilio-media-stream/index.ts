@@ -2751,7 +2751,7 @@ async function executeCreateBooking(supabase: any, session: StreamSession, param
     }
 
     // Parse date and time
-    const startTime = new Date(`${params.date}T${params.time}:00`);
+    const startTime = parseLocalDateTimeInTimezone(params.date, params.time, session.businessTimezone);
     const endTime = new Date(startTime.getTime() + (service.duration_minutes || 30) * 60000);
 
     // Validate opening hours
