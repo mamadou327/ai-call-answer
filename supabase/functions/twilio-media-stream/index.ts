@@ -2001,11 +2001,14 @@ async function sendSessionConfig(
   const audioInput: Record<string, unknown> = {
     format: { type: "audio/pcmu" },
     turn_detection: {
-      type: "server_vad",
-      threshold: 0.75,
-      prefix_padding_ms: 300,
-      silence_duration_ms: 1000,
+      // Semantic VAD uses a model to decide whether the caller is actually
+      // speaking to the AI (vs. background noise / TV / side-talk), so it
+      // doesn't trigger barge-in on noisy lines. `eagerness: "low"` waits
+      // for a clearer end-of-turn before responding.
+      type: "semantic_vad",
+      eagerness: "low",
       create_response: true,
+      interrupt_response: true,
     },
     transcription: (() => {
       // Only hint Whisper when we have a CONFIRMED preferred language for a
