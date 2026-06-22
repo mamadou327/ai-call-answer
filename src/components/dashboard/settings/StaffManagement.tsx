@@ -417,6 +417,16 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="name_phonetic">Pronunciation <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Input
+                  id="name_phonetic"
+                  value={formData.name_phonetic}
+                  onChange={(e) => setFormData({ ...formData, name_phonetic: e.target.value })}
+                  placeholder="e.g. Lor-ay-nuh"
+                />
+                <p className="text-xs text-muted-foreground">Type how to pronounce the name. The AI will use this when speaking to callers.</p>
+              </div>
               <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="role">Role *</Label>
