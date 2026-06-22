@@ -4840,6 +4840,7 @@ async function buildFullSystemPrompt(
   const staff: StaffMember[] = (staffResult.data || []).map((s: any) => ({
     id: s.id,
     name: s.name,
+    name_phonetic: s.name_phonetic || null,
     role: s.role,
     title: s.title,
     phone: s.phone,
