@@ -44,6 +44,22 @@ const ROLE_OPTIONS = [
 
 const CHAIR_OPTIONS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 
+// Distinct, high-contrast palette for auto-assigning staff calendar colors
+const STAFF_COLOR_PALETTE = [
+  "#3B82F6", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6",
+  "#EC4899", "#14B8A6", "#F97316", "#6366F1", "#84CC16",
+  "#06B6D4", "#D946EF", "#EAB308", "#22C55E", "#0EA5E9",
+  "#F43F5E", "#A855F7", "#64748B", "#DC2626", "#2563EB",
+];
+
+const pickUniqueColor = (usedColors: string[]): string => {
+  const used = new Set(usedColors.map((c) => c?.toLowerCase()));
+  const free = STAFF_COLOR_PALETTE.find((c) => !used.has(c.toLowerCase()));
+  if (free) return free;
+  // Fallback: generate a random hex if palette is exhausted
+  return "#" + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0");
+};
+
 interface Service {
   id: string;
   name: string;
