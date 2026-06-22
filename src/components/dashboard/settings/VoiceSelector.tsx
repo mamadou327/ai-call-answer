@@ -210,11 +210,6 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
             <span className="text-[10px] text-muted-foreground">+{langs.length - 4} more</span>
           )}
         </div>
-        {showAccentWarning && (
-          <p className="text-[11px] text-amber-600 dark:text-amber-500">
-            Will speak {langLabel(primaryLangCode)} with an English accent — pronunciation may be off.
-          </p>
-        )}
         {isSelected && (
           <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
             <Check className="w-2.5 h-2.5 text-primary-foreground" />
