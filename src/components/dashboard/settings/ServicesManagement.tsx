@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, ChevronsUpDown, AlertTriangle } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_CATEGORIES = [
@@ -44,6 +46,8 @@ interface Service {
 export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: ServicesManagementProps) => {
   const { toast } = useToast();
   const [services, setServices] = useState<Service[]>([]);
+  const [unstaffedIds, setUnstaffedIds] = useState<Set<string>>(new Set());
+  const [staffCount, setStaffCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
@@ -147,6 +151,24 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
       .eq("business_id", businessId);
     
     if (data) setServices(data);
+    await loadStaffCoverage(data || []);
+  };
+
+  const loadStaffCoverage = async (currentServices: Service[]) => {
+    const [{ data: links }, { count }] = await Promise.all([
+      supabase
+        .from("staff_services")
+        .select("service_id, staff!inner(business_id)")
+        .eq("staff.business_id", businessId),
+      supabase
+        .from("staff")
+        .select("id", { count: "exact", head: true })
+        .eq("business_id", businessId),
+    ]);
+
+    const linked = new Set<string>((links || []).map((l: any) => l.service_id));
+    setStaffCount(count || 0);
+    setUnstaffedIds(new Set(currentServices.filter((s) => !linked.has(s.id)).map((s) => s.id)));
   };
 
   const openEditDialog = (service: Service) => {
@@ -443,6 +465,19 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
         </Dialog>
       </CardHeader>
       <CardContent>
+        {staffCount > 0 && unstaffedIds.size > 0 && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>
+              {unstaffedIds.size} {unstaffedIds.size === 1 ? "service has" : "services have"} no staff assigned
+            </AlertTitle>
+            <AlertDescription>
+              These services can't be booked — the AI receptionist and online booking page only offer
+              services that at least one staff member can perform. Open <strong>Settings → Staff</strong>,
+              edit each staff member, and tick the services they can do.
+            </AlertDescription>
+          </Alert>
+        )}
         {services.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <p>No services configured yet</p>
@@ -453,7 +488,15 @@ export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: S
             {services.map((service) => (
               <div key={service.id} className="flex items-start justify-between p-4 border rounded-lg">
                 <div>
-                  <h4 className="font-semibold">{service.name}</h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-semibold">{service.name}</h4>
+                    {staffCount > 0 && unstaffedIds.has(service.id) && (
+                      <Badge variant="destructive" className="gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        No staff assigned
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground">{service.category}</p>
                   {service.description && (
                     <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
