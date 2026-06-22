@@ -4482,7 +4482,7 @@ async function executeCreateReservation(supabase: any, session: StreamSession, p
   }
   
   // Parse date and time
-  const reservationDateTime = new Date(`${date}T${time}:00`);
+  const reservationDateTime = parseLocalDateTimeInTimezone(date, time, session.businessTimezone);
   
   // Find a suitable table
   let availableTables = session.tables.filter((t: any) => t.capacity >= party_size);
