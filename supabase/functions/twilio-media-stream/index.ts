@@ -3500,7 +3500,7 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
         if (h * 60 + m + duration > closeHour * 60 + closeMin) continue; // Slot would end after close
 
         const slotTime = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-        const slotStart = new Date(`${params.date}T${slotTime}:00`);
+        const slotStart = parseLocalDateTimeInTimezone(params.date, slotTime, session.businessTimezone);
         const slotEnd = new Date(slotStart.getTime() + duration * 60000);
 
         // Skip if slot is in the past or within min notice period
