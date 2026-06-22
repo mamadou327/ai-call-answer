@@ -284,10 +284,11 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
           description: "Staff member updated successfully.",
         });
       } else {
-        // Create new staff
+        // Create new staff — auto-assign a unique color from the palette
+        const assignedColor = pickUniqueColor(staff.map((s) => s.color || ""));
         const { data: newStaff, error: staffError } = await supabase
           .from("staff")
-          .insert([{ ...dataToSave, business_id: businessId }])
+          .insert([{ ...dataToSave, color: assignedColor, business_id: businessId }])
           .select()
           .single();
 
