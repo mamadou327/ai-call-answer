@@ -27,6 +27,7 @@ interface Staff {
   ai_enabled?: boolean;
   is_business_owner?: boolean;
   transferable_to_calls?: boolean;
+  name_phonetic?: string;
   chair?: string;
 }
 
