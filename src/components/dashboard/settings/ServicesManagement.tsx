@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Plus, Pencil, Trash2, Check, ChevronsUpDown } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -9,17 +9,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
-const SERVICE_CATEGORIES = [
-  { value: "kids", label: "Kids" },
-  { value: "women", label: "Women" },
-  { value: "men", label: "Men/Adults" },
-  { value: "unisex", label: "Unisex" },
-  { value: "hairstyle", label: "Hairstyle" },
-  { value: "color", label: "Color" },
-  { value: "treatment", label: "Treatment" },
-  { value: "other", label: "Other" },
+const DEFAULT_CATEGORIES = [
+  "Kids",
+  "Women",
+  "Men/Adults",
+  "Unisex",
+  "Hairstyle",
+  "Color",
+  "Treatment",
+  "Other",
 ];
 
 interface ServicesManagementProps {
