@@ -2621,6 +2621,7 @@ export type Database = {
           phone: string | null
           role: string
           title: string | null
+          transferable_to_calls: boolean
           updated_at: string | null
           working_hours: Json | null
         }
@@ -2637,6 +2638,7 @@ export type Database = {
           phone?: string | null
           role: string
           title?: string | null
+          transferable_to_calls?: boolean
           updated_at?: string | null
           working_hours?: Json | null
         }
@@ -2653,6 +2655,7 @@ export type Database = {
           phone?: string | null
           role?: string
           title?: string | null
+          transferable_to_calls?: boolean
           updated_at?: string | null
           working_hours?: Json | null
         }
