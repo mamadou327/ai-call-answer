@@ -4951,6 +4951,9 @@ async function buildFullSystemPrompt(
     ? staff.map(s => {
         const aiStatus = !s.ai_enabled ? " [TRANSFER ONLY - NO AI BOOKING]" : "";
         const ownerStatus = s.is_business_owner ? " [BUSINESS OWNER]" : "";
+        const transferStatus = s.transferable_to_calls && s.phone
+          ? " [TRANSFERABLE — callers can be transferred here]"
+          : " [NOT TRANSFERABLE — offer to take a message instead]";
         const staffServiceIds = staffServiceMap[s.id] || [];
         const canDoServices = staffServiceIds.map(sid => serviceNameMap[sid]).filter(Boolean);
         // Make it VERY explicit what services this staff can be booked for
