@@ -15,6 +15,8 @@ interface Voice {
   description: string;
   gender: "female" | "male";
   accent: "British" | "American";
+  verified_languages: string[];
+  is_multilingual: boolean;
 }
 
 interface VoiceSelectorProps {
@@ -24,11 +26,23 @@ interface VoiceSelectorProps {
   businessName?: string;
 }
 
-export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: VoiceSelectorProps) => {
+const LANG_LABELS: Record<string, string> = {
+  en: "English", es: "Spanish", fr: "French", de: "German", it: "Italian",
+  pt: "Portuguese", nl: "Dutch", pl: "Polish", ru: "Russian", tr: "Turkish",
+  ar: "Arabic", hi: "Hindi", ja: "Japanese", ko: "Korean", zh: "Chinese",
+  cy: "Welsh", ga: "Irish", sv: "Swedish", da: "Danish", no: "Norwegian",
+  fi: "Finnish", cs: "Czech", el: "Greek", he: "Hebrew", id: "Indonesian",
+  ms: "Malay", ro: "Romanian", uk: "Ukrainian", vi: "Vietnamese",
+};
+const langLabel = (code: string) => LANG_LABELS[code.toLowerCase()] ?? code.toUpperCase();
+
+export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage, businessName }: VoiceSelectorProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(true);
   const [search, setSearch] = useState("");
+  const primaryLangCode = (primaryLanguage || "en").toLowerCase();
+  const [onlyMatchingLanguage, setOnlyMatchingLanguage] = useState(primaryLangCode !== "en");
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -37,7 +51,7 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, businessName }: 
     const load = async () => {
       const { data, error } = await supabase
         .from("voice_library")
-        .select("id, voice_id, name, description, gender, accent")
+        .select("id, voice_id, name, description, gender, accent, verified_languages, is_multilingual")
         .eq("is_active", true)
         .order("display_order", { ascending: true });
 
