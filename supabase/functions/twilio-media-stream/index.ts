@@ -321,6 +321,7 @@ interface StaffService {
 interface StaffMember {
   id: string;
   name: string;
+  name_phonetic: string | null;
   role: string;
   title: string | null;
   phone: string | null;
