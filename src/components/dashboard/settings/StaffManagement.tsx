@@ -26,6 +26,7 @@ interface Staff {
   title?: string;
   ai_enabled?: boolean;
   is_business_owner?: boolean;
+  transferable_to_calls?: boolean;
   chair?: string;
 }
 
@@ -66,6 +67,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
     color: "#3B82F6",
     ai_enabled: true,
     is_business_owner: false,
+    transferable_to_calls: false,
     chair: "",
   });
   const [customRole, setCustomRole] = useState("");
@@ -212,6 +214,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
       color: member.color || "#3B82F6",
       ai_enabled: member.ai_enabled !== false,
       is_business_owner: member.is_business_owner || false,
+      transferable_to_calls: member.transferable_to_calls === true || member.is_business_owner === true,
       chair: isCustomChair ? "custom" : (member.chair || ""),
     });
     setCustomRole(isCustomRole ? member.role : "");
@@ -305,7 +308,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
 
       setDialogOpen(false);
       setSelectedStaff(null);
-      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false, chair: "" });
+      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false, transferable_to_calls: false, chair: "" });
       setCustomRole("");
       setCustomChair("");
       setSelectedServices([]);
@@ -363,7 +366,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
           setDialogOpen(open);
           if (!open) {
             setSelectedStaff(null);
-            setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false, chair: "" });
+            setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false, transferable_to_calls: false, chair: "" });
             setCustomRole("");
             setCustomChair("");
             setSelectedServices([]);
@@ -561,11 +564,35 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
                     type="checkbox"
                     id="is_business_owner"
                     checked={formData.is_business_owner}
-                    onChange={(e) => setFormData({ ...formData, is_business_owner: e.target.checked })}
+                    onChange={(e) => setFormData({ ...formData, is_business_owner: e.target.checked, transferable_to_calls: e.target.checked ? true : formData.transferable_to_calls })}
                     className="sr-only peer"
                   />
                   <div className="w-9 h-5 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-ring transition-colors">
                     <div className={`absolute top-0.5 left-0.5 bg-background border border-border rounded-full h-4 w-4 transition-transform ${formData.is_business_owner ? 'translate-x-4' : ''}`}></div>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between py-2">
+                <div className="space-y-1">
+                  <Label htmlFor="transferable_to_calls" className="text-sm font-medium">Transferable calls</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {formData.is_business_owner
+                      ? "Owner is always transferable"
+                      : "Allow the AI to transfer callers to this staff (requires a phone number)"}
+                  </p>
+                </div>
+                <label className={`relative inline-flex items-center ${formData.is_business_owner ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
+                  <input
+                    type="checkbox"
+                    id="transferable_to_calls"
+                    checked={formData.transferable_to_calls || formData.is_business_owner}
+                    disabled={formData.is_business_owner}
+                    onChange={(e) => setFormData({ ...formData, transferable_to_calls: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-ring transition-colors">
+                    <div className={`absolute top-0.5 left-0.5 bg-background border border-border rounded-full h-4 w-4 transition-transform ${(formData.transferable_to_calls || formData.is_business_owner) ? 'translate-x-4' : ''}`}></div>
                   </div>
                 </label>
               </div>

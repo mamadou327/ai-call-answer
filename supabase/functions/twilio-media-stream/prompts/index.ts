@@ -333,7 +333,7 @@ export function getToolsForBusinessType(businessType: BusinessType): any[] {
         {
           type: "function",
           name: "check_availability",
-          description: "Check staff availability for appointments.",
+          description: "Check staff availability for appointments. Set flexible=true ONLY when the caller has not named a specific time (e.g. 'any time Thursday', 'whenever', 'first appointment'). Set flexible=false when the caller asked for a specific time (e.g. '2pm Thursday') — in that case honour their time, do not nudge them toward gap-fillers.",
           parameters: {
             type: "object",
             properties: {
@@ -341,6 +341,7 @@ export function getToolsForBusinessType(businessType: BusinessType): any[] {
               time: { type: "string" },
               service_name: { type: "string" },
               staff_name: { type: "string" },
+              flexible: { type: "boolean", description: "True if the caller is flexible on time; false if they named a specific time." },
             },
             required: ["date"],
           },
