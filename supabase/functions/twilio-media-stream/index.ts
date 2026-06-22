@@ -2029,10 +2029,11 @@ async function sendSessionConfig(
     turn_detection: {
       // Semantic VAD uses a model to decide whether the caller is actually
       // speaking to the AI (vs. background noise / TV / side-talk), so it
-      // doesn't trigger barge-in on noisy lines. `eagerness: "low"` waits
-      // for a clearer end-of-turn before responding.
+      // doesn't trigger barge-in on noisy lines. `eagerness: "medium"` is the
+      // balanced default — turn-end detection is fast (no dead air after the
+      // caller stops) while still rejecting most background noise.
       type: "semantic_vad",
-      eagerness: "low",
+      eagerness: "medium",
       create_response: true,
       interrupt_response: true,
     },
