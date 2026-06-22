@@ -1426,37 +1426,63 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
             break;
           }
 
-          console.log("[MediaStream] User started speaking - interrupting AI");
-          session.isAISpeaking = false;
-          session.lastAudioSentAt = null;
+          // Background-noise guard: don't cancel the AI immediately. Wait a
+          // short window — if speech_stopped fires within that window, it was
+          // a brief noise (door slam, cough, clatter) and we ignore it. If
+          // speech is still going after the window, treat it as a real
+          // barge-in and cancel the AI's current response.
+          const MIN_INTERRUPT_MS = 300;
 
-          // Clear any pending AI audio (barge-in)
-          if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
-            session.twilioWs.send(
-              JSON.stringify({
-                event: "clear",
-                streamSid: session.streamSid,
-              })
-            );
+          if (session.pendingInterruptionTimer) {
+            clearTimeout(session.pendingInterruptionTimer);
           }
 
-          // ElevenLabs path: also kill the in-flight TTS stream so its
-          // queued audio doesn't keep arriving after the clear.
-          if (session.useElevenLabs) {
-            session.elevenLabs?.interrupt();
-          }
+          session.pendingInterruptionTimer = setTimeout(() => {
+            session.pendingInterruptionTimer = null;
+            // Re-check at fire time — state may have changed
+            if (!session.isAISpeaking && !session.hasActiveResponse) return;
 
-          // Cancel any in-progress response (only if one is active)
-          if (session.hasActiveResponse && session.openAiWs?.readyState === WebSocket.OPEN) {
-            session.openAiWs.send(JSON.stringify({ type: "response.cancel" }));
-          }
+            console.log("[MediaStream] User started speaking - interrupting AI");
+            session.isAISpeaking = false;
+            session.lastAudioSentAt = null;
 
-          session.hasActiveResponse = false;
+            // Clear any pending AI audio (barge-in)
+            if (session.twilioWs?.readyState === WebSocket.OPEN && session.streamSid) {
+              session.twilioWs.send(
+                JSON.stringify({
+                  event: "clear",
+                  streamSid: session.streamSid,
+                })
+              );
+            }
+
+            // ElevenLabs path: also kill the in-flight TTS stream so its
+            // queued audio doesn't keep arriving after the clear.
+            if (session.useElevenLabs) {
+              session.elevenLabs?.interrupt();
+            }
+
+            // Cancel any in-progress response (only if one is active)
+            if (session.hasActiveResponse && session.openAiWs?.readyState === WebSocket.OPEN) {
+              session.openAiWs.send(JSON.stringify({ type: "response.cancel" }));
+            }
+
+            session.hasActiveResponse = false;
+          }, MIN_INTERRUPT_MS);
           break;
         }
 
         case "input_audio_buffer.speech_stopped":
-          console.log("[MediaStream] User stopped speaking");
+          // If a pending interruption hadn't fired yet, the "speech" was
+          // shorter than MIN_INTERRUPT_MS — treat as background noise and
+          // leave the AI's current response running.
+          if (session.pendingInterruptionTimer) {
+            clearTimeout(session.pendingInterruptionTimer);
+            session.pendingInterruptionTimer = null;
+            console.log("[MediaStream] Brief noise ignored - AI continues speaking");
+          } else {
+            console.log("[MediaStream] User stopped speaking");
+          }
           break;
 
         case "conversation.item.input_audio_transcription.failed": {
