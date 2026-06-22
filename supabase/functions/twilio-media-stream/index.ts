@@ -5643,7 +5643,7 @@ When a customer wants to book for multiple people (e.g., "me and my son", "both 
 2. If the customer mentions a specific time, include time in HH:MM (24-hour), e.g. 5pm -> 17:00.
 3. If the customer mentions a service (e.g. haircut), include service_name (EXACT service name) so availability is filtered to staff who actually do that service.
 4. If the tool returns available_staff, tell them who is available at that exact time.
-5. If the tool returns available_slots, suggest a few options and ask which time works.
+5. If the tool returns available_slots, do NOT read the full list. Suggest only 2–3 options, ask what rough time works best, and keep the rest as backup if they reject those options.
 6. Only confirm availability that appears in the tool result.
 
 ## ⚠️ BOOKING WORKFLOW - NEVER SKIP create_booking ⚠️
