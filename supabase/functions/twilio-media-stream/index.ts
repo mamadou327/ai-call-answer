@@ -3378,7 +3378,7 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
         return { success: false, message: hoursCheck.message };
       }
 
-      const requestedStart = new Date(`${params.date}T${time}:00`);
+      const requestedStart = parseLocalDateTimeInTimezone(params.date, time, session.businessTimezone);
       const requestedEnd = new Date(requestedStart.getTime() + duration * 60000);
 
       // Validate min notice
