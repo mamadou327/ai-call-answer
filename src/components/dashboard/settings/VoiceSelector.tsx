@@ -128,17 +128,13 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
     setPlayingVoiceId(null);
   };
 
-  const voiceSupportsPrimary = (v: Voice) =>
-    (v.verified_languages ?? []).map((l) => l.toLowerCase()).includes(primaryLangCode);
-
   const filteredVoices = useMemo(() => {
     const q = search.trim().toLowerCase();
     return voices.filter(v => {
-      if (q && !(v.name.toLowerCase().includes(q) || v.description.toLowerCase().includes(q))) return false;
-      if (onlyMatchingLanguage && primaryLangCode !== "en" && !voiceSupportsPrimary(v)) return false;
-      return true;
+      if (!q) return true;
+      return v.name.toLowerCase().includes(q) || v.description.toLowerCase().includes(q);
     });
-  }, [voices, search, onlyMatchingLanguage, primaryLangCode]);
+  }, [voices, search]);
 
   const groups = useMemo(() => {
     const order: Array<{ key: string; label: string; gender: "female" | "male" }> = [
