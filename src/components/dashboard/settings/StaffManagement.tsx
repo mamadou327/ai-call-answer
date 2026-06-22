@@ -311,7 +311,7 @@ export const StaffManagement = ({ businessId, businessName, onUpdate }: StaffMan
 
       setDialogOpen(false);
       setSelectedStaff(null);
-      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false, transferable_to_calls: false, chair: "" });
+      setFormData({ title: "", name: "", role: "", email: "", phone: "", color: "#3B82F6", ai_enabled: true, is_business_owner: false, transferable_to_calls: false, name_phonetic: "", chair: "" });
       setCustomRole("");
       setCustomChair("");
       setSelectedServices([]);
