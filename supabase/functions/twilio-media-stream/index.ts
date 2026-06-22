@@ -325,7 +325,6 @@ interface StaffService {
 interface StaffMember {
   id: string;
   name: string;
-  name_phonetic: string | null;
   role: string;
   title: string | null;
   phone: string | null;
@@ -4791,7 +4790,7 @@ async function buildFullSystemPrompt(
   
   // Fetch all business data in parallel - include restaurant data if applicable
   const baseQueries = [
-    supabase.from("staff").select("id, name, name_phonetic, role, title, phone, ai_enabled, is_business_owner, transferable_to_calls, working_hours").eq("business_id", businessId),
+    supabase.from("staff").select("id, name, role, title, phone, ai_enabled, is_business_owner, transferable_to_calls, working_hours").eq("business_id", businessId),
     supabase.from("services").select("id, name, duration_minutes, price, category, description, deposit_required, deposit_amount").eq("business_id", businessId),
     supabase.from("opening_hours").select("day_of_week, open_time, close_time, is_closed").eq("business_id", businessId),
     supabase.from("business_settings").select("min_booking_notice_hours, max_days_advance, cancellation_policy, currency, min_cancellation_notice_hours, min_reschedule_notice_hours, opening_context, business_name_phonetic, ai_can_suggest_addons").eq("business_id", businessId).maybeSingle(),
@@ -4881,7 +4880,6 @@ async function buildFullSystemPrompt(
   const staff: StaffMember[] = (staffResult.data || []).map((s: any) => ({
     id: s.id,
     name: s.name,
-    name_phonetic: s.name_phonetic || null,
     role: s.role,
     title: s.title,
     phone: s.phone,
@@ -5036,8 +5034,7 @@ async function buildFullSystemPrompt(
           }
         }
         
-        const phoneticNote = s.name_phonetic ? ` [SAY: ${s.name_phonetic}]` : "";
-        return `- ${s.title ? s.title + " " : ""}${s.name}${phoneticNote}${ownerStatus}${aiStatus}${transferStatus}${servicesNote}${workingHoursNote}`;
+        return `- ${s.title ? s.title + " " : ""}${s.name}${ownerStatus}${aiStatus}${transferStatus}${servicesNote}${workingHoursNote}`;
       }).join("\n")
     : "No staff configured";
 
