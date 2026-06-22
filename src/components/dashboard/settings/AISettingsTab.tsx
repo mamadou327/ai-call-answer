@@ -60,6 +60,7 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
         elevenlabs_voice_id: (data as any).elevenlabs_voice_id || null,
         opening_context: (data as any).opening_context || "",
         business_name_phonetic: (data as any).business_name_phonetic || "",
+        ai_can_suggest_addons: (data as any).ai_can_suggest_addons === true,
       });
     }
   };
