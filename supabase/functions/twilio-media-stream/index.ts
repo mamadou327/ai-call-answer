@@ -4405,7 +4405,7 @@ async function executeCheckTableAvailability(supabase: any, session: StreamSessi
   const { date, time, party_size, seating_preference } = params;
   
   // Parse date and time
-  const reservationDateTime = new Date(`${date}T${time}:00`);
+  const reservationDateTime = parseLocalDateTimeInTimezone(date, time, session.businessTimezone);
   const dayOfWeek = reservationDateTime.getDay();
   
   // Check if business is open
