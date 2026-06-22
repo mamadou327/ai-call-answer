@@ -3468,8 +3468,8 @@ async function executeCheckAvailability(supabase: any, session: StreamSession, p
           return requestedStart < bEnd && requestedEnd > bStart;
         });
 
-        const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, requestedStart, requestedEnd);
-        const workingCheck = isStaffWorkingAt(staff, requestedStart, requestedEnd);
+        const timeOffCheck = isStaffOnTimeOff(session.staffTimeOff, staff.id, requestedStart, requestedEnd, staff);
+        const workingCheck = isStaffWorkingAt(staff, requestedStart, requestedEnd, session.staffTimeOff);
 
         if (!hasConflict && !timeOffCheck.onLeave && workingCheck.working) {
           availableStaff.push(staff.name);
