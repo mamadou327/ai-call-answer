@@ -2027,13 +2027,14 @@ async function sendSessionConfig(
   const audioInput: Record<string, unknown> = {
     format: { type: "audio/pcmu" },
     turn_detection: {
-      // Semantic VAD uses a model to decide whether the caller is actually
-      // speaking to the AI (vs. background noise / TV / side-talk), so it
-      // doesn't trigger barge-in on noisy lines. `eagerness: "medium"` is the
-      // balanced default — turn-end detection is fast (no dead air after the
-      // caller stops) while still rejecting most background noise.
-      type: "semantic_vad",
-      eagerness: "medium",
+      // Keep latency low: semantic_vad was too conservative and created a
+      // noticeable gap before responses. Use server VAD with a higher noise
+      // threshold plus the local 150ms barge-in guard above to ignore brief
+      // background noise without delaying every turn.
+      type: "server_vad",
+      threshold: 0.68,
+      prefix_padding_ms: 200,
+      silence_duration_ms: 350,
       create_response: true,
       interrupt_response: true,
     },
