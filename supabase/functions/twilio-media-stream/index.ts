@@ -3153,7 +3153,7 @@ async function executeRescheduleBooking(supabase: any, session: StreamSession, p
     }
 
     // Parse new date and time
-    const newStartTime = new Date(`${params.new_date}T${params.new_time}:00`);
+    const newStartTime = parseLocalDateTimeInTimezone(params.new_date, params.new_time, session.businessTimezone);
     const newEndTime = new Date(newStartTime.getTime() + duration * 60000);
 
     // Validate opening hours
