@@ -1,79 +1,39 @@
 ## Goal
 
-Slim the salon prompt, simplify the inner `buildAdvancedRules` block, and nudge VAD slightly more responsive — without breaking restaurants, exported helpers, the multilingual lock, or the existing call sites.
+Ensure the AI handles every language (Spanish, Welsh, French, German, etc.) with the **same rigor as English** — no date/day mismatches, no looping questions, no category re-asks, no invented translations of dates or service names.
 
-## Files to change (exactly 3)
+The bugs we saw on the Spanish call (jueves → "viernes 26", looping "damas/caballeros/niños?", "Mehefin" guesses) must not happen in any language.
 
-### 1. `supabase/functions/twilio-media-stream/prompts/salon-prompt.ts`
+## File to change (1)
 
-- **Keep** existing export name and signature: `export function buildSalonSystemPrompt(data: SalonPromptData): string` and the `SalonPromptData` interface unchanged (so `prompts/index.ts` keeps compiling at both call sites).
-- **Keep** the `import { formatPriceForSpeech } from "./advanced-rules.ts"` and continue formatting services with it (the AI relies on `£` → "pounds" speech conversion).
-- **Replace the prompt body** with a trimmed ~3.5k-char version that:
-  - Drops the "call may be recorded" disclosure line.
-  - Drops the "Sorry about that brief interruption" / apology scaffolding.
-  - Drops the long intent table and the giant "SERVICE DISAMBIGUATION" block (collapses to a single short rule: "If the request matches more than one service, ask one short clarifying question before booking").
-  - Removes the "offer 10/10:30/11am first" pattern — replaces with explicit rule: *"If the caller named a time and `check_availability` returns it available, confirm that exact time. Do NOT offer alternative times when the requested time is free. Do NOT list morning slots when they asked for afternoon."*
-  - Keeps: tone/speed, business info, returning-caller block, upcoming-booking block, opening-context, booking rules (min notice / max advance / cancellation), staff [TRANSFER ONLY] handling, time-off block, add-on suggestion toggle, "read date/time back before create_booking" guardrail, "use canonical_date_en/canonical_time_en after success" guardrail.
-  - Does **not** add "Always respond in English" — language behaviour stays governed by `buildLanguageRuleBlock` in `index.ts`.
-- Appends `buildAdvancedRules(...)` at the end as it does today (call signature unchanged).
+### `supabase/functions/twilio-media-stream/prompts/salon-prompt.ts`
 
-### 2. `supabase/functions/twilio-media-stream/prompts/advanced-rules.ts`
+Add a single **LANGUAGE PARITY** block near the top of the prompt body (right after `## VOICE & STYLE`, before `## BUSINESS`) that applies to every language the caller might use. Keep it short — phone prompt, not an essay.
 
-- **Keep all existing exports intact**: `formatPriceForSpeech`, `getGreetingPeriod`, `getOpenStatus`, `buildAdvancedReceptionistRules`, and `buildAdvancedRules`. Do not touch the first four — `index.ts` and the restaurant prompts import them.
-- **Only swap the body of `buildAdvancedRules**` to a ~1.2k-char version covering:
-  - "Use tools, never invent services/prices/staff/availability."
-  - "Don't ask for the same info twice."
-  - "Keep responses to 1–2 sentences."
-  - "Read service + date + time + staff back before `create_booking`; wait for clear yes."
-  - "Collect name + phone for new callers; only ask for email if they mention email confirmation."
-  - Human-handoff line, with optional owner transfer line when `ownerStaff` exists.
-  - **Omit** any "respond in English" instruction (multilingual lock preserved).
-- Signature stays whatever it is today — do not change callers.
+Content of the new block:
 
-### 3. `supabase/functions/twilio-media-stream/index.ts` (turn_detection, ~line 2029)
-
-Current:
-
-```ts
-type: "server_vad",
-threshold: 0.68,
-prefix_padding_ms: 200,
-silence_duration_ms: 350,
-```
-
-Change to:
-
-```ts
-type: "server_vad",
-threshold: 0.70,
-prefix_padding_ms: 200,
-silence_duration_ms: 600,
-```
-
-Note: `silence_duration_ms` goes **up** from 350 → 600 per your instruction (compromise to avoid cutting people off). This is slightly *less* responsive than today on turn-end, not faster — confirming you want that tradeoff. Threshold tightens 0.68 → 0.70.
-
-Update the comment above the block to reflect the new values.
+- Whatever language the caller is speaking, hold the conversation with the **same accuracy and discipline as English**. No language gets a "looser" version of the rules.
+- All existing rules — CONTEXT LOCK, DAY-OF-WEEK ↔ DATE CONSISTENCY, SERVICE CATEGORY LOCK, NARRATING AVAILABILITY, the read-back-before-create_booking guardrail — apply **identically in every language**.
+- **Day names map 1:1 across languages and must never be swapped.** Examples (non-exhaustive):
+  - EN Thursday = ES jueves = CY dydd Iau = FR jeudi = DE Donnerstag
+  - EN Friday = ES viernes = CY dydd Gwener = FR vendredi = DE Freitag
+  - EN Saturday = ES sábado = CY dydd Sadwrn = FR samedi = DE Samstag
+  If the caller says "jueves", the date you speak MUST be the Thursday — never Friday/Saturday. Same logic for every other day and language.
+- **Months map 1:1 too — never guess a translation.** Use the `canonical_date_en` returned by tools as the source of truth and translate it precisely into the caller's language (e.g. June = junio = Mehefin = juin = Juni). If you are not 100% sure of the month name in the caller's language, say the date as digits ("el 25 del 6") rather than invent a word.
+- **Service and category names** stored in the database are the source of truth. Do not translate them when calling tools. When speaking, you may translate the *type* of service naturally (e.g. "corte y secado" for "Cut & Blow dry"), but the category lock and disambiguation rules behave exactly the same as in English: once the caller gives a category signal in any language ("mujer / dame / Frau / merch" → ladies' category, etc.), LOCK it and never re-ask.
+- **Never ask the same clarifying question twice in any language.** A loop in Spanish is just as bad as a loop in English.
+- Read back service + day-name + date + time + staff in the caller's language before `create_booking`, using the LOCKED values. Wait for an explicit yes in that language ("sí", "ie", "oui", "ja", "yes").
 
 ## Explicitly NOT changing
 
-- `restaurant-pickup-prompt.ts`, `restaurant-hybrid-prompt.ts`, any other prompt file.
-- `prompts/index.ts` (call sites untouched).
-- `formatPriceForSpeech`, `getGreetingPeriod`, `getOpenStatus`, `buildAdvancedReceptionistRules`.
-- Language lock (`buildLanguageRuleBlock`), reconnect logic, ElevenLabs, barge-in guard, recording pipeline.
-- All memory rules: multilingual, address exactness, customer-name-mandatory, multi-tenant isolation, order-confirmation guardrail.
+- `index.ts` language-lock logic (`buildLanguageRuleBlock`) — language selection stays as is.
+- `advanced-rules.ts`, restaurant prompts, VAD settings, recording pipeline.
+- The existing English-tuned rules (CONTEXT LOCK, CATEGORY LOCK, DAY ↔ DATE, NARRATING AVAILABILITY) — they stay. The new block just declares they apply equally in every language and adds the day/month mapping anchors.
 
 ## Deployment
 
-Redeploy `twilio-media-stream` after the edits, then make one English test call to confirm: (a) no recording disclosure, (b) requested time is confirmed directly when available, (c) AI speaks in short turns, (d) no compile errors in logs.
+Redeploy `twilio-media-stream`. Test with one Spanish call and one English call to confirm: (a) same booking flow quality in both, (b) "jueves" stays Thursday end-to-end, (c) no category re-ask after "mujer", (d) month names not invented.
 
 ## Risk
 
-The silence-duration increase (350 → 600 ms) will make turn-end detection ~250 ms slower than today. If callers report dead air after they finish speaking, the fallback is to drop it back toward 400–450 ms. - 
-
-This looks good. Go ahead with everything EXCEPT the silence_duration change.
-
-Keep `silence_duration_ms` at 350. Do not increase it. The current 350ms is already responsive. Going to 600 would add 250ms of dead air after every sentence which is the opposite of what we want.
-
-Only change in turn_detection: `threshold` from 0.68 to 0.70. Leave everything else as is.
-
-Everything else in the plan is correct. Proceed.
+Low — prompt-only change, no code paths altered. If the prompt grows too long and starts diluting other rules, we can move the day/month anchor table into a small helper appended only when the detected call language ≠ English.
