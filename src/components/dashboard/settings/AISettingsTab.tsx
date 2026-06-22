@@ -36,6 +36,7 @@ export const AISettingsTab = ({ businessId, business, onUpdate }: AISettingsTabP
     elevenlabs_voice_id: null as string | null,
     opening_context: "" as string,
     business_name_phonetic: "" as string,
+    ai_can_suggest_addons: false,
   });
 
   useEffect(() => {
