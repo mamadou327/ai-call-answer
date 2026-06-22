@@ -2032,7 +2032,7 @@ async function sendSessionConfig(
       // threshold plus the local 150ms barge-in guard above to ignore brief
       // background noise without delaying every turn.
       type: "server_vad",
-      threshold: 0.68,
+      threshold: 0.70,
       prefix_padding_ms: 200,
       silence_duration_ms: 350,
       create_response: true,
