@@ -46,6 +46,8 @@ interface Service {
 export const ServicesManagement = ({ businessId, onUpdate, currency = "GBP" }: ServicesManagementProps) => {
   const { toast } = useToast();
   const [services, setServices] = useState<Service[]>([]);
+  const [unstaffedIds, setUnstaffedIds] = useState<Set<string>>(new Set());
+  const [staffCount, setStaffCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
