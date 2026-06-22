@@ -4984,7 +4984,7 @@ async function buildFullSystemPrompt(
           }
         }
         
-        return `- ${s.title ? s.title + " " : ""}${s.name}${ownerStatus}${aiStatus}${servicesNote}${workingHoursNote}`;
+        return `- ${s.title ? s.title + " " : ""}${s.name}${ownerStatus}${aiStatus}${transferStatus}${servicesNote}${workingHoursNote}`;
       }).join("\n")
     : "No staff configured";
 
