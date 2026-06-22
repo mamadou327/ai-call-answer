@@ -41,8 +41,6 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
   const [voices, setVoices] = useState<Voice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(true);
   const [search, setSearch] = useState("");
-  const primaryLangCode = (primaryLanguage || "en").toLowerCase();
-  const [onlyMatchingLanguage, setOnlyMatchingLanguage] = useState(primaryLangCode !== "en");
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -128,17 +126,13 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
     setPlayingVoiceId(null);
   };
 
-  const voiceSupportsPrimary = (v: Voice) =>
-    (v.verified_languages ?? []).map((l) => l.toLowerCase()).includes(primaryLangCode);
-
   const filteredVoices = useMemo(() => {
     const q = search.trim().toLowerCase();
     return voices.filter(v => {
-      if (q && !(v.name.toLowerCase().includes(q) || v.description.toLowerCase().includes(q))) return false;
-      if (onlyMatchingLanguage && primaryLangCode !== "en" && !voiceSupportsPrimary(v)) return false;
-      return true;
+      if (!q) return true;
+      return v.name.toLowerCase().includes(q) || v.description.toLowerCase().includes(q);
     });
-  }, [voices, search, onlyMatchingLanguage, primaryLangCode]);
+  }, [voices, search]);
 
   const groups = useMemo(() => {
     const order: Array<{ key: string; label: string; gender: "female" | "male" }> = [
@@ -155,8 +149,6 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
     const isPlaying = playingVoiceId === voice.voice_id;
     const isLoading = loadingVoiceId === voice.voice_id;
     const langs = voice.verified_languages ?? ["en"];
-    const supportsPrimary = voiceSupportsPrimary(voice);
-    const showAccentWarning = primaryLangCode !== "en" && !supportsPrimary;
 
     return (
       <div
@@ -210,11 +202,6 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
             <span className="text-[10px] text-muted-foreground">+{langs.length - 4} more</span>
           )}
         </div>
-        {showAccentWarning && (
-          <p className="text-[11px] text-amber-600 dark:text-amber-500">
-            Will speak {langLabel(primaryLangCode)} with an English accent — pronunciation may be off.
-          </p>
-        )}
         {isSelected && (
           <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
             <Check className="w-2.5 h-2.5 text-primary-foreground" />
@@ -259,17 +246,6 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
                 className="pl-9"
               />
             </div>
-            {primaryLangCode !== "en" && (
-              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={onlyMatchingLanguage}
-                  onChange={(e) => setOnlyMatchingLanguage(e.target.checked)}
-                  className="h-3.5 w-3.5"
-                />
-                Only show voices that support {langLabel(primaryLangCode)}
-              </label>
-            )}
           </div>
 
           {loadingVoices ? (
@@ -277,24 +253,7 @@ export const VoiceSelector = ({ selectedVoiceId, onVoiceSelect, primaryLanguage,
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : groups.length === 0 ? (
-            <div className="text-sm text-muted-foreground text-center py-6 space-y-2">
-              <p>No voices match your filters.</p>
-              {onlyMatchingLanguage && (
-                <p className="text-xs">
-                  None of the curated voices are verified for {langLabel(primaryLangCode)}.
-                  Uncheck the filter to use an English voice (it will sound English-accented), or
-                  paste a custom voice ID from the{" "}
-                  <a
-                    href="https://elevenlabs.io/voice-library"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline"
-                  >
-                    ElevenLabs Voice Library
-                  </a>.
-                </p>
-              )}
-            </div>
+            <p className="text-sm text-muted-foreground text-center py-6">No voices match your filters.</p>
           ) : (
             groups.map((group) => (
               <div key={group.key} className="space-y-2">
