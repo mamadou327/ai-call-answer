@@ -2002,10 +2002,13 @@ async function sendSessionConfig(
       create_response: true,
     },
     transcription: (() => {
-      // Hint Whisper with the expected language so it doesn't free-detect
-      // accented English on a UK number as Welsh/Irish (the original bug).
-      // Unknown values fall through to plain auto-detect.
-      const iso = languageNameToIso639_1(session.preferredLanguage || session.primaryLanguage);
+      // Only hint Whisper when we have a CONFIRMED preferred language for a
+      // returning caller. For new callers, let Whisper auto-detect so the AI
+      // can mirror whatever language the caller actually uses (Welsh, Spanish,
+      // Polish, Arabic, etc.) instead of being forced into the business default.
+      const iso = session.preferredLanguage
+        ? languageNameToIso639_1(session.preferredLanguage)
+        : undefined;
       return iso
         ? { model: "whisper-1", language: iso }
         : { model: "whisper-1" };
