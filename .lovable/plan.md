@@ -1,39 +1,49 @@
-## Goal
+## Why the call history is empty
 
-Ensure the AI handles every language (Spanish, Welsh, French, German, etc.) with the **same rigor as English** — no date/day mismatches, no looping questions, no category re-asks, no invented translations of dates or service names.
+Two separate problems were found:
 
-The bugs we saw on the Spanish call (jueves → "viernes 26", looping "damas/caballeros/niños?", "Mehefin" guesses) must not happen in any language.
+1. **The admin UI can't read the history table.** `public.outbound_lead_calls` has RLS scoped to super_admin, but it has **zero Data‑API GRANTs** — no role (anon, authenticated, service_role) can `SELECT` it through the client. So when the "Call history" panel queries it, PostgREST returns an empty list for every lead, even though the table actually contains 48 rows.
 
-## File to change (1)
+2. **History rows are missing for older calls.** 83 leads have been dialled (`twilio_call_sid IS NOT NULL`) but only 48 have a row in `outbound_lead_calls`. The earlier campaign calls happened before the webhook started writing history rows, so 35 dialled leads have transcript/recording on the lead row itself but no entry in the history table.
 
-### `supabase/functions/twilio-media-stream/prompts/salon-prompt.ts`
+## Fix
 
-Add a single **LANGUAGE PARITY** block near the top of the prompt body (right after `## VOICE & STYLE`, before `## BUSINESS`) that applies to every language the caller might use. Keep it short — phone prompt, not an essay.
+### 1. Grant Data‑API access to `outbound_lead_calls` (migration)
 
-Content of the new block:
+RLS already locks the table to `super_admin` via `has_role(...)`. Add the missing grants so the policy is actually reachable:
 
-- Whatever language the caller is speaking, hold the conversation with the **same accuracy and discipline as English**. No language gets a "looser" version of the rules.
-- All existing rules — CONTEXT LOCK, DAY-OF-WEEK ↔ DATE CONSISTENCY, SERVICE CATEGORY LOCK, NARRATING AVAILABILITY, the read-back-before-create_booking guardrail — apply **identically in every language**.
-- **Day names map 1:1 across languages and must never be swapped.** Examples (non-exhaustive):
-  - EN Thursday = ES jueves = CY dydd Iau = FR jeudi = DE Donnerstag
-  - EN Friday = ES viernes = CY dydd Gwener = FR vendredi = DE Freitag
-  - EN Saturday = ES sábado = CY dydd Sadwrn = FR samedi = DE Samstag
-  If the caller says "jueves", the date you speak MUST be the Thursday — never Friday/Saturday. Same logic for every other day and language.
-- **Months map 1:1 too — never guess a translation.** Use the `canonical_date_en` returned by tools as the source of truth and translate it precisely into the caller's language (e.g. June = junio = Mehefin = juin = Juni). If you are not 100% sure of the month name in the caller's language, say the date as digits ("el 25 del 6") rather than invent a word.
-- **Service and category names** stored in the database are the source of truth. Do not translate them when calling tools. When speaking, you may translate the *type* of service naturally (e.g. "corte y secado" for "Cut & Blow dry"), but the category lock and disambiguation rules behave exactly the same as in English: once the caller gives a category signal in any language ("mujer / dame / Frau / merch" → ladies' category, etc.), LOCK it and never re-ask.
-- **Never ask the same clarifying question twice in any language.** A loop in Spanish is just as bad as a loop in English.
-- Read back service + day-name + date + time + staff in the caller's language before `create_booking`, using the LOCKED values. Wait for an explicit yes in that language ("sí", "ie", "oui", "ja", "yes").
+```sql
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.outbound_lead_calls TO authenticated;
+GRANT ALL ON public.outbound_lead_calls TO service_role;
+```
 
-## Explicitly NOT changing
+### 2. Backfill missing history rows from the leads table (one-off insert)
 
-- `index.ts` language-lock logic (`buildLanguageRuleBlock`) — language selection stays as is.
-- `advanced-rules.ts`, restaurant prompts, VAD settings, recording pipeline.
-- The existing English-tuned rules (CONTEXT LOCK, CATEGORY LOCK, DAY ↔ DATE, NARRATING AVAILABILITY) — they stay. The new block just declares they apply equally in every language and adds the day/month mapping anchors.
+For every lead with a `twilio_call_sid` or `retell_call_id` that does **not** already have a row in `outbound_lead_calls`, insert one row using the data already stored on the lead:
 
-## Deployment
+```sql
+INSERT INTO public.outbound_lead_calls
+  (lead_id, campaign_id, retell_call_id, twilio_call_sid,
+   recording_url, transcript, duration_seconds, outcome, called_at)
+SELECT
+  l.id, l.campaign_id, l.retell_call_id, l.twilio_call_sid,
+  l.call_recording_url, l.call_transcript, l.call_duration_seconds,
+  l.status, COALESCE(l.last_called_at, l.updated_at, now())
+FROM public.outbound_leads l
+WHERE (l.twilio_call_sid IS NOT NULL OR l.retell_call_id IS NOT NULL)
+  AND NOT EXISTS (
+    SELECT 1 FROM public.outbound_lead_calls c WHERE c.lead_id = l.id
+  );
+```
 
-Redeploy `twilio-media-stream`. Test with one Spanish call and one English call to confirm: (a) same booking flow quality in both, (b) "jueves" stays Thursday end-to-end, (c) no category re-ask after "mujer", (d) month names not invented.
+This recovers history for the ~35 leads currently missing one and preserves what's on the lead row (recording, transcript, duration, outcome, time).
 
-## Risk
+### 3. No code changes needed
 
-Low — prompt-only change, no code paths altered. If the prompt grows too long and starts diluting other rules, we can move the day/month anchor table into a small helper appended only when the detected call language ≠ English.
+`retell-call-webhook` already upserts into `outbound_lead_calls` on every `call_analyzed` event (keyed on `retell_call_id`), so once grants exist and the backfill runs, the admin UI's existing query in `OutboundCampaignsSection.tsx` will start returning history immediately and will keep growing on each new call attempt (multiple attempts per lead are preserved because each gets a unique `retell_call_id`).
+
+## Verification
+
+- After the migration: re-query `information_schema.role_table_grants` to confirm `authenticated` has SELECT and `service_role` has ALL on `outbound_lead_calls`.
+- After backfill: `SELECT count(*) FROM outbound_lead_calls` should jump from 48 to ~83, and every lead with `twilio_call_sid` should have at least one history row.
+- In the admin app, open any previously-dialled lead → "Call history" should now show the attempt with recording + transcript.
