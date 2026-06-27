@@ -214,6 +214,38 @@ Deno.serve(async (req) => {
       last_called_at: new Date().toISOString(),
     }).eq("id", lead_id);
 
+    try {
+      const calledAt = new Date().toISOString();
+      const { data: existingHistory } = await supabase
+        .from("outbound_lead_calls")
+        .select("id")
+        .eq("retell_call_id", retellCallId)
+        .maybeSingle();
+
+      if ((existingHistory as any)?.id) {
+        await supabase
+          .from("outbound_lead_calls")
+          .update({
+            campaign_id: lead.campaign_id || null,
+            twilio_call_sid: data.sid,
+            outcome: "calling",
+            called_at: calledAt,
+          } as any)
+          .eq("id", (existingHistory as any).id);
+      } else {
+        await supabase.from("outbound_lead_calls").insert({
+          lead_id,
+          campaign_id: lead.campaign_id || null,
+          retell_call_id: retellCallId,
+          twilio_call_sid: data.sid,
+          outcome: "calling",
+          called_at: calledAt,
+        } as any);
+      }
+    } catch (historyErr) {
+      console.error("[twilio-outbound-call] failed to create lead call history", historyErr);
+    }
+
     console.info(`[twilio-outbound-call] call placed lead=${lead_id} sid=${data.sid} campaign_id=${lead.campaign_id || "(none)"}`);
     if (lead.campaign_id) {
       const label = lead.business_name || lead.first_name || lead.phone_number || "lead";

@@ -131,6 +131,44 @@ async function verifyRetellSignature(rawBody: string, signature: string | null, 
   }
 }
 
+async function saveOutboundLeadCallHistory(supabase: any, payload: Record<string, unknown>) {
+  const retellCallId = payload.retell_call_id as string | null | undefined;
+  const twilioCallSid = payload.twilio_call_sid as string | null | undefined;
+
+  let existing: any = null;
+  if (retellCallId) {
+    const { data, error } = await supabase
+      .from("outbound_lead_calls")
+      .select("id")
+      .eq("retell_call_id", retellCallId)
+      .maybeSingle();
+    if (error) throw error;
+    existing = data;
+  }
+
+  if (!existing && twilioCallSid) {
+    const { data, error } = await supabase
+      .from("outbound_lead_calls")
+      .select("id")
+      .eq("twilio_call_sid", twilioCallSid)
+      .maybeSingle();
+    if (error) throw error;
+    existing = data;
+  }
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from("outbound_lead_calls")
+      .update(payload)
+      .eq("id", existing.id);
+    if (error) throw error;
+    return;
+  }
+
+  const { error } = await supabase.from("outbound_lead_calls").insert(payload);
+  if (error) throw error;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -187,7 +225,7 @@ Deno.serve(async (req) => {
       const endMsHist = Number(call.end_timestamp || 0);
       const durHist = startMsHist && endMsHist ? Math.max(0, Math.round((endMsHist - startMsHist) / 1000)) : null;
       const calledAt = startMsHist ? new Date(startMsHist).toISOString() : new Date().toISOString();
-      await supabase.from("outbound_lead_calls").upsert({
+      await saveOutboundLeadCallHistory(supabase, {
         lead_id: lead.id,
         campaign_id: lead.campaign_id,
         retell_call_id: callId,
@@ -197,7 +235,7 @@ Deno.serve(async (req) => {
         duration_seconds: durHist,
         outcome: lead.status || null,
         called_at: calledAt,
-      } as any, { onConflict: "retell_call_id" });
+      });
     } catch (e) {
       console.error("[retell-webhook] failed to write call history", e);
     }
