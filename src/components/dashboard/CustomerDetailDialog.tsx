@@ -42,6 +42,8 @@ export const CustomerDetailDialog = ({ customer, businessId, open, onOpenChange 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [preferredStaffName, setPreferredStaffName] = useState<string | null>(null);
+  const [currentLanguage, setCurrentLanguage] = useState<string | null>(null);
+  const [resettingLanguage, setResettingLanguage] = useState(false);
 
   useEffect(() => {
     if (customer && open) {
