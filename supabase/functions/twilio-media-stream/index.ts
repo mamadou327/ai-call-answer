@@ -5859,9 +5859,15 @@ ${dataCollectionRules}${faqContext}`;
 }
 
 async function executeUpdateCustomerLanguage(supabase: any, session: StreamSession, args: any): Promise<any> {
-  const { detected_language } = args;
+  const { detected_language, explicit_request } = args;
   if (!detected_language) {
     return { success: false, message: "No language provided" };
+  }
+  // Hard gate: only persist when the caller EXPLICITLY asked for this language.
+  // Prevents auto-detection from permanently switching a customer's language.
+  if (explicit_request !== true) {
+    console.log("[MediaStream] update_customer_language ignored — not an explicit request:", detected_language);
+    return { success: false, message: "Language preference only saved on explicit caller request." };
   }
 
   const normalizedPhone = session.callerPhone.replace(/\D/g, "").slice(-10);

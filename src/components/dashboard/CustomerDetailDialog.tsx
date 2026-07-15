@@ -1,10 +1,12 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { User, Phone, Mail, Calendar, Clock, Heart, MessageSquare, Scissors } from "lucide-react";
+import { User, Phone, Mail, Calendar, Clock, Heart, MessageSquare, Scissors, Languages, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 interface Customer {
   id: string;
@@ -17,6 +19,7 @@ interface Customer {
   marketing_consent: boolean | null;
   notes_preferences: string | null;
   preferred_staff_id: string | null;
+  preferred_language?: string | null;
 }
 
 interface Booking {
@@ -39,15 +42,34 @@ export const CustomerDetailDialog = ({ customer, businessId, open, onOpenChange 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [preferredStaffName, setPreferredStaffName] = useState<string | null>(null);
+  const [currentLanguage, setCurrentLanguage] = useState<string | null>(null);
+  const [resettingLanguage, setResettingLanguage] = useState(false);
 
   useEffect(() => {
     if (customer && open) {
       loadCustomerBookings();
+      setCurrentLanguage(customer.preferred_language ?? null);
       if (customer.preferred_staff_id) {
         loadPreferredStaff();
       }
     }
   }, [customer, open]);
+
+  const resetLanguagePreference = async () => {
+    if (!customer) return;
+    setResettingLanguage(true);
+    const { error } = await supabase
+      .from("customers")
+      .update({ preferred_language: null })
+      .eq("id", customer.id);
+    setResettingLanguage(false);
+    if (error) {
+      toast({ title: "Could not reset language", description: error.message, variant: "destructive" });
+      return;
+    }
+    setCurrentLanguage(null);
+    toast({ title: "Language preference reset", description: "This caller will start in the business default language on the next call." });
+  };
 
   const loadCustomerBookings = async () => {
     if (!customer) return;
@@ -168,6 +190,30 @@ export const CustomerDetailDialog = ({ customer, businessId, open, onOpenChange 
                 <p className="text-sm text-muted-foreground">{customer.notes_preferences}</p>
               </div>
             )}
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="flex items-center gap-2">
+                <Languages className="w-4 h-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Preferred call language</p>
+                  <p className="text-xs text-muted-foreground">
+                    {currentLanguage
+                      ? `Saved: ${currentLanguage}. The AI will greet this caller in ${currentLanguage}.`
+                      : "None saved. The AI will use the business default language."}
+                  </p>
+                </div>
+              </div>
+              {currentLanguage && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={resetLanguagePreference}
+                  disabled={resettingLanguage}
+                >
+                  <RotateCcw className="w-3 h-3 mr-1" />
+                  {resettingLanguage ? "Resetting…" : "Reset"}
+                </Button>
+              )}
+            </div>
           </div>
 
           <Separator />
