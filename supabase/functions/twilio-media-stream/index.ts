@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { buildSystemPromptForBusinessType, getToolsForBusinessType, type BusinessType } from "./prompts/index.ts";
 import { buildAdvancedReceptionistRules, getGreetingPeriod, getOpenStatus, formatPriceForSpeech } from "./prompts/advanced-rules.ts";
+import { buildSalonSystemPrompt } from "./prompts/salon-prompt.ts";
 import { ElevenLabsTTS } from "./elevenlabs-tts.ts";
 
 // Escape SQL LIKE wildcards (%, _, \) in user-supplied input to prevent pattern injection
@@ -5824,6 +5825,51 @@ ${dataCollectionRules}${faqContext}`;
       menuItemOptionGroups,
       menuItemOptions,
       tables,
+      preferredLanguage: callerInfo?.preferredLanguage,
+    };
+  }
+
+  // For salons (non-restaurant business types), use the trimmed salon prompt
+  // from ./prompts/salon-prompt.ts and bypass the inline prompt +
+  // buildAdvancedReceptionistRules path below.
+  {
+    const salonPrompt = buildSalonSystemPrompt({
+      businessName,
+      businessNamePhonetic: businessSettings?.business_name_phonetic,
+      businessAddress,
+      assistantName,
+      tone,
+      voiceSpeed,
+      callerPhone,
+      twilioPhoneNumber,
+      websiteKnowledge,
+      openingHours: hours,
+      staff,
+      services,
+      staffServices,
+      staffTimeOff,
+      businessSettings,
+      callerInfo,
+      customerSettings,
+      openingContext: businessSettings?.opening_context || undefined,
+      recentCallContext: callerInfo.recentCallContext,
+    });
+
+    console.log(`[MediaStream] Built trimmed salon prompt for ${businessType}`);
+
+    return {
+      prompt: salonPrompt,
+      businessSettings,
+      openingHours: hours,
+      staffTimeOff,
+      staffServices,
+      staff,
+      services,
+      menuCategories: [],
+      menuItems: [],
+      menuItemOptionGroups: [],
+      menuItemOptions: [],
+      tables: [],
       preferredLanguage: callerInfo?.preferredLanguage,
     };
   }
