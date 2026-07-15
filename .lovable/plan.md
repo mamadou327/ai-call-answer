@@ -1,64 +1,33 @@
-## Goal
-Route salon calls through the trimmed `buildSalonSystemPrompt` in `supabase/functions/twilio-media-stream/prompts/salon-prompt.ts` instead of the inline prompt + `buildAdvancedReceptionistRules` combo in `index.ts`. Restaurants and any other business types keep the existing inline path unchanged.
+# Plan: Pre-call recording disclosure
 
-## Changes — `supabase/functions/twilio-media-stream/index.ts`
+Add an automated recording-disclosure message that plays before the AI assistant picks up, handled purely at the TwiML level.
 
-1. **Add import** at the top (alongside existing prompt imports):
-   ```ts
-   import { buildSalonSystemPrompt } from "./prompts/salon-prompt.ts";
-   ```
+## Change
 
-2. **Early-return salon branch** in `buildFullSystemPrompt`. Insert immediately after the restaurant `if (isRestaurant) { ... }` block (after line 5829), before the inline `const prompt = ...` construction that begins at line 5468 — actually the inline prompt is built *before* the restaurant branch, so we instead add the salon short-circuit **right before** the `advancedRules` IIFE at line 5831 (so all upstream data — `hours`, `staff`, `services`, `staffServices`, `staffTimeOff`, `businessSettings`, `callerInfo`, `customerSettings` — is already computed and in scope):
+**File:** `supabase/functions/twilio-voice-webhook-realtime/index.ts`
 
-   ```ts
-   // For salons (non-restaurant business types), use the trimmed salon prompt.
-   // Bypass the inline prompt + buildAdvancedReceptionistRules path entirely.
-   const salonPrompt = buildSalonSystemPrompt({
-     businessName,
-     businessNamePhonetic: businessSettings?.business_name_phonetic,
-     businessAddress,
-     assistantName,
-     tone,
-     voiceSpeed,
-     callerPhone,
-     twilioPhoneNumber,
-     websiteKnowledge,
-     openingHours: hours,
-     staff,
-     services,
-     staffServices,
-     staffTimeOff,
-     businessSettings,
-     callerInfo,
-     customerSettings,
-     openingContext: businessSettings?.opening_context || undefined,
-     recentCallContext: callerInfo.recentCallContext,
-   });
+In the final TwiML response (the `<Response>` block that starts the media stream), insert a `<Say>` element before `<Connect>`:
 
-   return {
-     prompt: salonPrompt,
-     businessSettings,
-     openingHours: hours,
-     staffTimeOff,
-     staffServices,
-     staff,
-     services,
-     menuCategories: [],
-     menuItems: [],
-     menuItemOptionGroups: [],
-     menuItemOptions: [],
-     tables: [],
-     preferredLanguage: callerInfo?.preferredLanguage,
-   };
-   ```
+```xml
+<Response>
+  <Say voice="Polly.Amy-Neural" language="en-GB">This call may be recorded for quality and training purposes.</Say>
+  <Connect action="...">
+    <Stream url="...">
+      ...existing parameters...
+    </Stream>
+  </Connect>
+</Response>
+```
 
-   The existing inline `prompt` string and the `advancedRules` IIFE + final `return { prompt: prompt + advancedRules, ... }` remain in place as dead-code fallback (kept intentionally per instructions — "Do NOT delete the inline prompt").
+Twilio plays `<Say>` synchronously, then proceeds to `<Connect><Stream>`, so the AI won't start speaking until the disclosure finishes.
 
-3. **Do not touch**: restaurant branch, `buildAdvancedReceptionistRules`, `buildAdvancedRules`, turn-detection settings, or any other file.
+## Notes / non-goals
 
-## Deploy
-Deploy `twilio-media-stream` edge function so the routing change takes effect on the next call.
+- No AI prompt changes. The recording-disclosure text stays out of the salon/restaurant system prompts (already removed).
+- Voice matches the existing `twimlError` voice (`Polly.Amy-Neural`, `en-GB`) for consistency.
+- No changes to `twilio-inbound-sales` (sales callback flow) unless you want the disclosure there too — confirm if needed.
+- No DB, no settings toggle — it plays on every inbound AI call. If you later want a per-business toggle, that's a follow-up.
 
 ## Verification
-- Confirm TypeScript build passes (all fields on `SalonPromptData` are populated with in-scope variables).
-- Trigger a salon test call and confirm via logs that the trimmed salon prompt is used (no "SMART UPSELL" / recording disclosure text, service list not embedded).
+
+Deploy `twilio-voice-webhook-realtime` and place a test call: caller should hear the disclosure line, then the AI greeting.

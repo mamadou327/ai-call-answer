@@ -297,6 +297,7 @@ Deno.serve(async (req) => {
     // Pass recordingCallbackUrl so twilio-media-stream can start recording when call is in-progress
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  <Say voice="Polly.Amy-Neural" language="en-GB">This call may be recorded for quality and training purposes.</Say>
   <Connect action="${escapeXml(streamActionUrl)}">
     <Stream url="${escapeXml(mediaStreamUrl)}">
       <Parameter name="callerPhone" value="${escapeXml(fromNumber)}"/>
