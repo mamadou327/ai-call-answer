@@ -1414,7 +1414,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
             ? Date.now() - session.lastAudioSentAt
             : 1000;
 
-          if (session.isAISpeaking && timeSinceAudioStarted < 600) {
+          if (session.isAISpeaking && timeSinceAudioStarted < 250) {
             console.log(
               "[MediaStream] Ignoring interruption - AI just started speaking (" +
                 timeSinceAudioStarted +
