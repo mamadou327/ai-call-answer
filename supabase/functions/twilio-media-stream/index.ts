@@ -170,19 +170,16 @@ function languageNameToIso639_1(name: string | null | undefined): string | undef
 function buildLanguageRuleBlock(primaryLanguage: string, preferredLanguage?: string): string {
   const target = (preferredLanguage && preferredLanguage.trim()) || primaryLanguage || "English";
   return `
-## LANGUAGE — HIGHEST PRIORITY RULE (overrides every other instruction below):
-- Open the call in ${target}. That is the default language.
-- 🔒 CALL LANGUAGE LOCK: after the caller's first clear substantive sentence, choose ONE call language and keep using it for the entire call. Do NOT switch languages mid-call just because one later sentence, one word, an accent, background speech, a transcription mistake, or tool data appears in another language.
-- If the caller later appears to use a different language, treat it as unclear audio/background unless they explicitly ask to change language. Stay in the locked language and ask a short clarification in that locked language if needed.
-- 🛑 NEGATIVE ENGLISH ABILITY IS NOT A LANGUAGE CHOICE: if the caller says anything like "I don't speak English", "I no speak English", "no English", "I can't speak English", or you cannot identify their language with confidence, DO NOT guess a language and DO NOT switch to any other language. Your ONLY immediate response must be a short clarification in simple English: "What language would you like me to speak?" Then wait for their answer. Never list example languages unless they ask for examples, because examples can sound like you chose one.
-- NEVER treat "I don't speak English" / "no English" as Spanish, French, Arabic, Polish, or any other language. It only means the caller has rejected English; their actual language is still unknown until they name it or speak two clear full sentences in it.
-- This applies to ANY language the caller uses fluently, including Welsh (Cymraeg), Irish (Gaeilge), Scottish Gaelic, Spanish, French, German, Polish, Arabic, Mandarin, Hindi, etc. You are a multilingual assistant — but accuracy beats eagerness. Better to ask once than to guess wrong twice.
-- The ONLY exception: switch language only if the caller explicitly asks you to change language, for example "speak English", "can you speak Welsh", "please speak Spanish", or they directly name the language they want. Then lock to that newly requested language and do not switch again.
-- 🔒 STICKY LANGUAGE LOCK: once a language is locked, STAY in that language for EVERY following turn. Do NOT drift between turns, after a tool call, after a pause, after a confirmation, after reading a date or price, or because the system prompt / tool results are written in English. Do NOT bounce between languages — pick one and stay.
-- Translate everything into the caller's language before speaking: dates, times, months, day names, numbers, prices, service names where natural, confirmations ("yes / no / okay"), filler ("one moment", "let me check"), and goodbyes. Never say English filler words like "okay", "sure", "perfect", "one moment please" in the middle of a non-English reply.
-- Only stay in ${target} if the caller is also speaking ${target}, or if the audio is too unclear / too short to identify a language. NEVER guess from a single word, an accent, or background noise alone.
-- Only call update_customer_language when the caller explicitly names the language they want you to use. Do NOT call it based only on automatic detection, accents, short phrases, "not English", or "I don't speak English".
-- When speaking a non-English language, use that language's native month names, numbers, and day names — do NOT mix English words in unless quoting a proper noun (a person's name, the business name).
+## LANGUAGE RULE
+- Start the call in ${target}. This is the default language.
+- Stay in ${target} unless the caller clearly speaks a different language for multiple full sentences.
+- Accents, single words, unclear audio and background noise do NOT count as a language change. Stay in ${target}.
+- NEVER ask "what language would you like me to speak?" Just listen and adapt naturally.
+- If the caller is clearly struggling with ${target} — stumbling, restarting, mixing languages — gently say: "I can also help in [detected language] if that is easier for you?" Only switch if they say yes.
+- If you genuinely cannot tell what language they are speaking, continue in ${target} and speak slowly and clearly.
+- Once you pick a language for the call, stay in that language for the entire call. Do not switch back and forth.
+- When speaking a non-English language, use that language's native words for dates, times, months, numbers and greetings. Do not mix in English words.
+- Call update_customer_language only when the caller explicitly confirms they want a specific language.
 `;
 }
 
@@ -1417,7 +1414,7 @@ async function connectToOpenAI(session: StreamSession, supabase: any) {
             ? Date.now() - session.lastAudioSentAt
             : 1000;
 
-          if (session.isAISpeaking && timeSinceAudioStarted < 600) {
+          if (session.isAISpeaking && timeSinceAudioStarted < 250) {
             console.log(
               "[MediaStream] Ignoring interruption - AI just started speaking (" +
                 timeSinceAudioStarted +
