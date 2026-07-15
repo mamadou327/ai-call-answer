@@ -190,6 +190,30 @@ export const CustomerDetailDialog = ({ customer, businessId, open, onOpenChange 
                 <p className="text-sm text-muted-foreground">{customer.notes_preferences}</p>
               </div>
             )}
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div className="flex items-center gap-2">
+                <Languages className="w-4 h-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Preferred call language</p>
+                  <p className="text-xs text-muted-foreground">
+                    {currentLanguage
+                      ? `Saved: ${currentLanguage}. The AI will greet this caller in ${currentLanguage}.`
+                      : "None saved. The AI will use the business default language."}
+                  </p>
+                </div>
+              </div>
+              {currentLanguage && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={resetLanguagePreference}
+                  disabled={resettingLanguage}
+                >
+                  <RotateCcw className="w-3 h-3 mr-1" />
+                  {resettingLanguage ? "Resetting…" : "Reset"}
+                </Button>
+              )}
+            </div>
           </div>
 
           <Separator />
