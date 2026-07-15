@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { buildSystemPromptForBusinessType, getToolsForBusinessType, type BusinessType } from "./prompts/index.ts";
 import { buildAdvancedReceptionistRules, getGreetingPeriod, getOpenStatus, formatPriceForSpeech } from "./prompts/advanced-rules.ts";
+import { buildSalonSystemPrompt } from "./prompts/salon-prompt.ts";
 import { ElevenLabsTTS } from "./elevenlabs-tts.ts";
 
 // Escape SQL LIKE wildcards (%, _, \) in user-supplied input to prevent pattern injection
