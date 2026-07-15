@@ -1,10 +1,12 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { User, Phone, Mail, Calendar, Clock, Heart, MessageSquare, Scissors } from "lucide-react";
+import { User, Phone, Mail, Calendar, Clock, Heart, MessageSquare, Scissors, Languages, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 interface Customer {
   id: string;
