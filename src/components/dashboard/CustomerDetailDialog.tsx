@@ -19,6 +19,7 @@ interface Customer {
   marketing_consent: boolean | null;
   notes_preferences: string | null;
   preferred_staff_id: string | null;
+  preferred_language?: string | null;
 }
 
 interface Booking {
