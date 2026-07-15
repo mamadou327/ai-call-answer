@@ -58,24 +58,7 @@ export function buildSalonSystemPrompt(data: SalonPromptData): string {
     })
     .join("\n");
 
-  // Format services with categories — kept because the AI relies on spoken
-  // price formatting (£ → "pounds") for natural speech.
-  const servicesByCategory = services.reduce((acc: Record<string, any[]>, service: any) => {
-    const cat = service.category || "Other";
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(service);
-    return acc;
-  }, {});
-
-  const salonCurrency = businessSettings?.currency || "GBP";
-  let formattedServices = "";
-  for (const [category, categoryServices] of Object.entries(servicesByCategory)) {
-    formattedServices += `\n${category}:\n`;
-    for (const service of categoryServices as any[]) {
-      const deposit = service.deposit_required ? ` (Deposit: ${formatPriceForSpeech(service.deposit_amount, salonCurrency)})` : "";
-      formattedServices += `  - ${service.name}: ${service.duration_minutes} minutes, ${formatPriceForSpeech(service.price, salonCurrency)}${deposit}\n`;
-    }
-  }
+  // Services are fetched via the get_services tool at runtime to keep the prompt small.
 
   // Staff list with service eligibility
   const formattedStaff = staff.map((s: any) => {
