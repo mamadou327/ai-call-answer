@@ -271,13 +271,14 @@ export function getToolsForBusinessType(businessType: BusinessType): any[] {
     {
       type: "function",
       name: "update_customer_language",
-      description: "Log the detected language of the caller for future calls. Call this once after detecting the caller's language.",
+      description: "Save the caller's preferred language for future calls. ONLY call this when the caller EXPLICITLY asks to be served in a specific language (e.g. 'can you speak Spanish?', 'please speak Welsh', 'parlez-vous français?'). NEVER call this based on automatic language detection, accent, a few foreign words, or because you guessed the caller's language. If in doubt, do NOT call this tool.",
       parameters: {
         type: "object",
         properties: {
-          detected_language: { type: "string", description: "The language the caller is speaking (e.g., English, Spanish, French, Arabic, etc.)" },
+          detected_language: { type: "string", description: "The language the caller explicitly requested (e.g., English, Spanish, French, Welsh, etc.)" },
+          explicit_request: { type: "boolean", description: "Must be true. Set to true ONLY if the caller explicitly asked to be served in this language. If false, the tool will refuse to save." },
         },
-        required: ["detected_language"],
+        required: ["detected_language", "explicit_request"],
       },
     },
     {
