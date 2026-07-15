@@ -2,7 +2,7 @@
 // Trimmed version: short, conversational, tool-driven. No recording disclosure,
 // no apology-for-interruption scaffolding, no morning-slots-first default.
 // Language behaviour is governed by buildLanguageRuleBlock in index.ts.
-import { formatPriceForSpeech, buildAdvancedRules } from "./advanced-rules.ts";
+import { buildAdvancedRules } from "./advanced-rules.ts";
 
 interface SalonPromptData {
   businessName: string;
