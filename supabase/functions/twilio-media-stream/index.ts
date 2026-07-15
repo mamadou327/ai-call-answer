@@ -5829,6 +5829,51 @@ ${dataCollectionRules}${faqContext}`;
     };
   }
 
+  // For salons (non-restaurant business types), use the trimmed salon prompt
+  // from ./prompts/salon-prompt.ts and bypass the inline prompt +
+  // buildAdvancedReceptionistRules path below.
+  {
+    const salonPrompt = buildSalonSystemPrompt({
+      businessName,
+      businessNamePhonetic: businessSettings?.business_name_phonetic,
+      businessAddress,
+      assistantName,
+      tone,
+      voiceSpeed,
+      callerPhone,
+      twilioPhoneNumber,
+      websiteKnowledge,
+      openingHours: hours,
+      staff,
+      services,
+      staffServices,
+      staffTimeOff,
+      businessSettings,
+      callerInfo,
+      customerSettings,
+      openingContext: businessSettings?.opening_context || undefined,
+      recentCallContext: callerInfo.recentCallContext,
+    });
+
+    console.log(`[MediaStream] Built trimmed salon prompt for ${businessType}`);
+
+    return {
+      prompt: salonPrompt,
+      businessSettings,
+      openingHours: hours,
+      staffTimeOff,
+      staffServices,
+      staff,
+      services,
+      menuCategories: [],
+      menuItems: [],
+      menuItemOptionGroups: [],
+      menuItemOptions: [],
+      tables: [],
+      preferredLanguage: callerInfo?.preferredLanguage,
+    };
+  }
+
   const advancedRules = (() => {
     const status = getOpenStatus(hours, businessTimezone);
     return buildAdvancedReceptionistRules({
