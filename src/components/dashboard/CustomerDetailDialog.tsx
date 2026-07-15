@@ -48,11 +48,28 @@ export const CustomerDetailDialog = ({ customer, businessId, open, onOpenChange 
   useEffect(() => {
     if (customer && open) {
       loadCustomerBookings();
+      setCurrentLanguage(customer.preferred_language ?? null);
       if (customer.preferred_staff_id) {
         loadPreferredStaff();
       }
     }
   }, [customer, open]);
+
+  const resetLanguagePreference = async () => {
+    if (!customer) return;
+    setResettingLanguage(true);
+    const { error } = await supabase
+      .from("customers")
+      .update({ preferred_language: null })
+      .eq("id", customer.id);
+    setResettingLanguage(false);
+    if (error) {
+      toast({ title: "Could not reset language", description: error.message, variant: "destructive" });
+      return;
+    }
+    setCurrentLanguage(null);
+    toast({ title: "Language preference reset", description: "This caller will start in the business default language on the next call." });
+  };
 
   const loadCustomerBookings = async () => {
     if (!customer) return;
