@@ -31,6 +31,7 @@ const EmbedBookingPage = lazy(() => import("./pages/EmbedBookingPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 
 const logQueryError = (error: unknown) => {
   if (import.meta.env.DEV) {
@@ -84,6 +85,7 @@ const App = () => (
             <Route path="/embed/:slug" element={<EmbedBookingPage />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
