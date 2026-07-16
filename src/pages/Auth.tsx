@@ -38,16 +38,25 @@ const Auth = () => {
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const [forgotPasswordSent, setForgotPasswordSent] = useState(false);
 
+  // If we were sent here to complete an OAuth consent, honor ?next= after sign-in.
+  const nextParam = searchParams.get("next");
+  const safeNext =
+    nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : null;
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
+        if (safeNext) {
+          window.location.href = safeNext;
+          return;
+        }
         // Check if user has completed onboarding
         checkOnboardingStatus(session.user.id);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, safeNext]);
 
   const checkOnboardingStatus = async (userId: string) => {
     // Check user role first
