@@ -15,8 +15,17 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("CRON_SECRET");
 
-async function sendBusinessPush(businessId: string, title: string, body: string, url = "/dashboard") {
-  if (!CRON_SECRET) return;
+async function sendBusinessPush(
+  businessId: string,
+  title: string,
+  body: string,
+  url = "/dashboard",
+  staffId: string | null = null,
+) {
+  if (!CRON_SECRET) {
+    console.warn("[push] CRON_SECRET missing — skipping push");
+    return;
+  }
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
       method: "POST",
@@ -24,10 +33,13 @@ async function sendBusinessPush(businessId: string, title: string, body: string,
         "Content-Type": "application/json",
         "x-internal-secret": CRON_SECRET,
       },
-      body: JSON.stringify({ business_id: businessId, title, body, url }),
+      body: JSON.stringify({ business_id: businessId, staff_id: staffId, title, body, url }),
     });
+    const text = await res.text();
     if (!res.ok) {
-      console.warn("[push] send-push-notification returned", res.status, await res.text());
+      console.warn("[push] send-push-notification returned", res.status, text);
+    } else {
+      console.log("[push] send-push-notification ok", text);
     }
   } catch (err) {
     console.warn("[push] send-push-notification fetch failed:", err);
