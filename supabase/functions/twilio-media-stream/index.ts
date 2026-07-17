@@ -2392,7 +2392,14 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
         url = "/dashboard?tab=messages";
       }
       if (title && body) {
-        sendBusinessPush(session.businessId, title, body, url).catch((e) =>
+        // Scope booking pushes to the assigned staff (owner always receives).
+        // Messages remain owner-only (staff_id=null and no broadcast).
+        const isBookingEvent =
+          name === "create_booking" || name === "cancel_booking" || name === "reschedule_booking";
+        const targetStaffId = isBookingEvent
+          ? (result?.staff_id as string | null | undefined) ?? null
+          : null;
+        sendBusinessPush(session.businessId, title, body, url, targetStaffId).catch((e) =>
           console.warn("[MediaStream] push notify failed:", e),
         );
       }
