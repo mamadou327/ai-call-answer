@@ -351,7 +351,7 @@ const Dashboard = () => {
             <PushEnableCard businessId={business.id} />
           </>
         )}
-        {business?.status === "approved" && business && <></>}
+        
         {business?.status === "approved" && business && <>
             {!isStaffView && !isSetupComplete && !checklistDismissed && <div className="mb-6">
                 <SetupChecklist items={checklistItems} onItemClick={handleChecklistItemClick} onSkip={handleChecklistSkip} onDismiss={handleDismissChecklist} />
