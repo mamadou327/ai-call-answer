@@ -345,6 +345,13 @@ const Dashboard = () => {
       </header>
 
       <main className="px-3 sm:px-4 md:container py-4 sm:py-8">
+        {business?.status === "approved" && business && !isStaffView && (
+          <>
+            <PwaInstallBanner />
+            <PushEnableCard businessId={business.id} />
+          </>
+        )}
+        {business?.status === "approved" && business && <></>}
         {business?.status === "approved" && business && <>
             {!isStaffView && !isSetupComplete && !checklistDismissed && <div className="mb-6">
                 <SetupChecklist items={checklistItems} onItemClick={handleChecklistItemClick} onSkip={handleChecklistSkip} onDismiss={handleDismissChecklist} />
