@@ -47,6 +47,25 @@ Deno.serve(async (req) => {
 
     if (insertError) throw insertError;
 
+    // Fire push notification (best-effort)
+    try {
+      const cronSecret = Deno.env.get("CRON_SECRET");
+      if (cronSecret) {
+        await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-internal-secret": cronSecret },
+          body: JSON.stringify({
+            business_id,
+            title: "Missed call",
+            body: `Missed call from ${caller_name || caller_phone} — no booking made`,
+            url: "/dashboard?tab=missed",
+          }),
+        });
+      }
+    } catch (e) {
+      console.warn("[notify-missed-call] push failed:", e);
+    }
+
     // Get business details
     const { data: business } = await supabase
       .from("businesses")
