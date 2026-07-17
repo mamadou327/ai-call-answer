@@ -13,6 +13,26 @@ function escapeLike(input: string): string {
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const CRON_SECRET = Deno.env.get("CRON_SECRET");
+
+async function sendBusinessPush(businessId: string, title: string, body: string, url = "/dashboard") {
+  if (!CRON_SECRET) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": CRON_SECRET,
+      },
+      body: JSON.stringify({ business_id: businessId, title, body, url }),
+    });
+    if (!res.ok) {
+      console.warn("[push] send-push-notification returned", res.status, await res.text());
+    }
+  } catch (err) {
+    console.warn("[push] send-push-notification fetch failed:", err);
+  }
+}
 
 // ElevenLabs Flash v2.5 — used only when business has use_elevenlabs_voice=true.
 // We read it once at module load alongside other API keys.
@@ -2329,6 +2349,46 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
   } catch (err) {
     console.warn("[MediaStream] Failed to update booking ledger:", err);
   }
+
+  // Fire push notifications for booking/message events (best-effort, non-blocking)
+  try {
+    if (result?.success === true) {
+      const args = JSON.parse(argumentsJson);
+      const customer = args?.customer_name || session.callerName || "A customer";
+      let title: string | null = null;
+      let body: string | null = null;
+      let url = "/dashboard";
+      if (name === "create_booking") {
+        title = "New booking";
+        const svc = args?.service_name ? ` ${args.service_name}` : "";
+        const staff = args?.staff_name ? ` with ${args.staff_name}` : "";
+        const when = [args?.date, args?.time].filter(Boolean).join(" at ");
+        body = `${customer} booked${svc}${staff}${when ? ` for ${when}` : ""}`;
+        url = "/dashboard?tab=bookings";
+      } else if (name === "cancel_booking") {
+        title = "Booking cancelled";
+        body = `${customer} cancelled their booking${args?.date ? ` on ${args.date}` : ""}`;
+        url = "/dashboard?tab=bookings";
+      } else if (name === "reschedule_booking") {
+        title = "Booking moved";
+        const when = [args?.new_date || args?.date, args?.new_time || args?.time].filter(Boolean).join(" at ");
+        body = `${customer} rescheduled${when ? ` to ${when}` : ""}`;
+        url = "/dashboard?tab=bookings";
+      } else if (name === "leave_message") {
+        title = `New message from ${customer}`;
+        body = "Tap to view";
+        url = "/dashboard?tab=messages";
+      }
+      if (title && body) {
+        sendBusinessPush(session.businessId, title, body, url).catch((e) =>
+          console.warn("[MediaStream] push notify failed:", e),
+        );
+      }
+    }
+  } catch (err) {
+    console.warn("[MediaStream] push notify block error:", err);
+  }
+
 
   // Update the call tag in Calls tab based on what actually happened.
   // (We only set tags for booking actions; other intents remain 'other' unless handled elsewhere.)

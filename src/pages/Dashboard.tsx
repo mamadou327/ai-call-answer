@@ -24,6 +24,8 @@ import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
 import { Badge } from "@/components/ui/badge";
 import { isDemoAccount, DEMO_BUSINESS, DEMO_SETTINGS } from "@/lib/demoData";
 import { WebsiteImportDialog } from "@/components/dashboard/WebsiteImportDialog";
+import { PwaInstallBanner } from "@/components/dashboard/PwaInstallBanner";
+import { PushEnableCard } from "@/components/dashboard/PushEnableCard";
 interface Business {
   id: string;
   business_name: string;
@@ -343,6 +345,13 @@ const Dashboard = () => {
       </header>
 
       <main className="px-3 sm:px-4 md:container py-4 sm:py-8">
+        {business?.status === "approved" && business && !isStaffView && (
+          <>
+            <PwaInstallBanner />
+            <PushEnableCard businessId={business.id} />
+          </>
+        )}
+        
         {business?.status === "approved" && business && <>
             {!isStaffView && !isSetupComplete && !checklistDismissed && <div className="mb-6">
                 <SetupChecklist items={checklistItems} onItemClick={handleChecklistItemClick} onSkip={handleChecklistSkip} onDismiss={handleDismissChecklist} />
