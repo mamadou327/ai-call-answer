@@ -2330,6 +2330,46 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
     console.warn("[MediaStream] Failed to update booking ledger:", err);
   }
 
+  // Fire push notifications for booking/message events (best-effort, non-blocking)
+  try {
+    if (result?.success === true) {
+      const args = JSON.parse(argumentsJson);
+      const customer = args?.customer_name || session.callerName || "A customer";
+      let title: string | null = null;
+      let body: string | null = null;
+      let url = "/dashboard";
+      if (name === "create_booking") {
+        title = "New booking";
+        const svc = args?.service_name ? ` ${args.service_name}` : "";
+        const staff = args?.staff_name ? ` with ${args.staff_name}` : "";
+        const when = [args?.date, args?.time].filter(Boolean).join(" at ");
+        body = `${customer} booked${svc}${staff}${when ? ` for ${when}` : ""}`;
+        url = "/dashboard?tab=bookings";
+      } else if (name === "cancel_booking") {
+        title = "Booking cancelled";
+        body = `${customer} cancelled their booking${args?.date ? ` on ${args.date}` : ""}`;
+        url = "/dashboard?tab=bookings";
+      } else if (name === "reschedule_booking") {
+        title = "Booking moved";
+        const when = [args?.new_date || args?.date, args?.new_time || args?.time].filter(Boolean).join(" at ");
+        body = `${customer} rescheduled${when ? ` to ${when}` : ""}`;
+        url = "/dashboard?tab=bookings";
+      } else if (name === "leave_message") {
+        title = `New message from ${customer}`;
+        body = "Tap to view";
+        url = "/dashboard?tab=messages";
+      }
+      if (title && body) {
+        sendBusinessPush(session.businessId, title, body, url).catch((e) =>
+          console.warn("[MediaStream] push notify failed:", e),
+        );
+      }
+    }
+  } catch (err) {
+    console.warn("[MediaStream] push notify block error:", err);
+  }
+
+
   // Update the call tag in Calls tab based on what actually happened.
   // (We only set tags for booking actions; other intents remain 'other' unless handled elsewhere.)
   try {
