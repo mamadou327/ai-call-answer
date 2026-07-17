@@ -30,8 +30,7 @@ export const PushEnableCard = ({ businessId }: { businessId: string }) => {
   }, []);
 
   if (!supported) return null;
-  // Hide the "enable" prompt if user dismissed and isn't subscribed. Always show if subscribed (for test button).
-  if (!subscribed && dismissed) return null;
+  if (dismissed) return null;
   if (!subscribed && permission === "denied") return null;
 
   const dismiss = () => {
@@ -88,9 +87,18 @@ export const PushEnableCard = ({ businessId }: { businessId: string }) => {
         </p>
       </div>
       {subscribed ? (
-        <Button size="sm" variant="outline" onClick={sendTest} disabled={testing}>
-          {testing ? "Sending…" : "Send test"}
-        </Button>
+        <>
+          <Button size="sm" variant="outline" onClick={sendTest} disabled={testing}>
+            {testing ? "Sending…" : "Send test"}
+          </Button>
+          <button
+            onClick={dismiss}
+            aria-label="Dismiss"
+            className="p-1 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </>
       ) : (
         <>
           <Button size="sm" onClick={enable} disabled={busy}>
