@@ -13,6 +13,26 @@ function escapeLike(input: string): string {
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const CRON_SECRET = Deno.env.get("CRON_SECRET");
+
+async function sendBusinessPush(businessId: string, title: string, body: string, url = "/dashboard") {
+  if (!CRON_SECRET) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-push-notification`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": CRON_SECRET,
+      },
+      body: JSON.stringify({ business_id: businessId, title, body, url }),
+    });
+    if (!res.ok) {
+      console.warn("[push] send-push-notification returned", res.status, await res.text());
+    }
+  } catch (err) {
+    console.warn("[push] send-push-notification fetch failed:", err);
+  }
+}
 
 // ElevenLabs Flash v2.5 — used only when business has use_elevenlabs_voice=true.
 // We read it once at module load alongside other API keys.
