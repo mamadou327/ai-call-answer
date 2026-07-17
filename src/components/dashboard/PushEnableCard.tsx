@@ -30,8 +30,7 @@ export const PushEnableCard = ({ businessId }: { businessId: string }) => {
   }, []);
 
   if (!supported) return null;
-  // Hide the "enable" prompt if user dismissed and isn't subscribed. Always show if subscribed (for test button).
-  if (!subscribed && dismissed) return null;
+  if (dismissed) return null;
   if (!subscribed && permission === "denied") return null;
 
   const dismiss = () => {
