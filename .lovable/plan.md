@@ -1,38 +1,43 @@
-# Admin PWA push notifications
+# Add 3 more admin push notification triggers
 
-Currently admins only get email alerts. Add PWA push for three admin events, on top of the existing emails.
+Extend the existing admin push fan-out so admins get alerted for three more "someone is waiting on you" events, on top of the current business signup / service request / demo request.
 
-## Events to push
-1. **New business signup** — awaiting approval
-2. **New service request** — e.g. SMS enablement request
-3. **New demo request** — landing page submissions
+## New triggers
 
-## Approach
+1. **Upgrade request** — a business submits a tier upgrade request.
+   - Title: "New upgrade request"
+   - Body: `<business> requested <tier>`
+   - URL: `/admin`, tag: `admin-upgrade-request`
 
-Reuse the existing `send-push-notification` edge function, which already supports targeting by `user_id`. No schema changes needed.
+2. **New staff signup** — a staff member signs up (already emailed, no push today).
+   - Title: "New staff signup"
+   - Body: `<staff name or email> joined <business>`
+   - URL: `/admin`, tag: `admin-staff-signup`
 
-1. **Resolve admin recipients**
-   - Query `user_roles` for users with role `super_admin` (and `sub_admin` if present in the enum).
-   - Send push to each of those `user_id`s.
+3. **New support message from a business** — a business owner sends a message via the support/contact-admin flow (`admin_conversations` / new row in `messages` addressed to admin).
+   - Title: "New support message"
+   - Body: `<business>: <first ~80 chars of message>`
+   - URL: `/admin`, tag: `admin-support-message`
 
-2. **Wire push into existing admin flows**
-   Alongside the current `send-admin-notification` email call, invoke `send-push-notification` once per admin user with:
-   - Business signup → title "New business signup", body `<business name> is awaiting approval`, url `/admin`, tag `admin-signup`.
-   - Service request → title "New service request", body `<business> requested <type>`, url `/admin`, tag `admin-service-request`.
-   - Demo request → title "New demo request", body `<name> requested a demo`, url `/admin`, tag `admin-demo`.
+## Implementation
 
-   Call sites to update:
-   - Business signup path (wherever `send-admin-notification` is invoked with `signupType: "business"` — typically `Signup.tsx` / signup edge function).
-   - Service request path (`signupType: "sms_request"` caller).
-   - Demo request path (demo request submission handler).
+Reuse the existing `pushToAdmins(...)` helper in `supabase/functions/send-admin-notification/index.ts` — it already queries `user_roles` for `super_admin`/`sub_admin` and fans out via `send-push-notification`. No schema changes, no new function.
 
-3. **Admin push subscription**
-   Admins subscribe to push the same way owners do — via the existing `PushEnableCard` when they're signed in. The card is currently rendered on the business dashboard. Add it to `AdminDashboard.tsx` (without the `businessId` requirement — pass `null`/omit, since admin subscriptions are user-scoped) so admins can enable push on their device.
-   - Minor tweak to `PushEnableCard` and `subscribeToPush` to allow a missing `businessId` (admins have no business).
+1. **`send-admin-notification`**
+   - Extend `signupType` to also accept `"upgrade_request"` and `"support_message"`.
+   - Extend the request body with optional fields: `tierRequested`, `messagePreview`.
+   - In the staff branch (existing `signupType: "staff"`) add a `pushToAdmins(...)` call — currently it only emails.
+   - Add push (and matching email) branches for `upgrade_request` and `support_message`.
 
-4. **No changes** to owner/staff push behavior. Emails to `mlaye915@gmail.com` continue as-is.
+2. **Call sites**
+   - **Upgrade requests:** wherever a row is inserted into `upgrade_requests` (settings/billing flow) — invoke `send-admin-notification` with `signupType: "upgrade_request"`. If not already emailing admins there, this also gives them the email.
+   - **Support messages:** in the client handler that creates the admin conversation / message from `ContactAdminForm` (or the corresponding edge function), invoke `send-admin-notification` with `signupType: "support_message"`.
+   - **Staff signup:** no new call site — the existing staff-signup call already fires `send-admin-notification`; only the function body needs the added `pushToAdmins` call.
+
+3. **No changes** to owner/staff push behavior, existing 3 admin triggers, or the `push_subscriptions` schema.
 
 ## Technical notes
-- `send-push-notification` already accepts `{ user_id, title, body, url, tag }` — no function changes required beyond calling it in a loop over admin user IDs.
-- Auth header: internal `x-internal-secret: CRON_SECRET` (already used by other callers).
-- `push_subscriptions` table already stores per-user endpoints, so admin devices work with the existing schema.
+
+- `send-push-notification` already targets by `user_id` and dedupes per subscription, so looping over admin `user_id`s is safe.
+- All new triggers are fire-and-forget (wrapped in try/catch) so a push failure never blocks the underlying action or the admin email.
+- Tags are distinct per trigger so a device shows separate notifications rather than collapsing them.

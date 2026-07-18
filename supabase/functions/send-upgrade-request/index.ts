@@ -153,6 +153,41 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error(`Resend error: ${JSON.stringify((sendResult as any).error)}`);
     }
 
+    // Fire-and-forget admin PWA push
+    try {
+      const cronSecret = Deno.env.get("CRON_SECRET");
+      const supabaseUrl2 = Deno.env.get("SUPABASE_URL");
+      if (cronSecret && supabaseUrl2) {
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .in("role", ["super_admin", "sub_admin"]);
+        const userIds = Array.from(new Set((roles ?? []).map((r: any) => r.user_id).filter(Boolean)));
+        const pushTitle = isEnterprise
+          ? "New enterprise enquiry"
+          : isDowngrade
+          ? "New downgrade request"
+          : "New upgrade request";
+        await Promise.all(
+          userIds.map((uid) =>
+            fetch(`${supabaseUrl2}/functions/v1/send-push-notification`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-internal-secret": cronSecret },
+              body: JSON.stringify({
+                user_id: uid,
+                title: pushTitle,
+                body: `${businessName} → ${tierName}`,
+                url: "/admin",
+                tag: "admin-upgrade-request",
+              }),
+            }).catch((e) => console.warn("[upgrade-push] failed", e)),
+          ),
+        );
+      }
+    } catch (e) {
+      console.warn("[upgrade-push] error", e);
+    }
+
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

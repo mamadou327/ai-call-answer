@@ -172,6 +172,16 @@ const handler = async (req: Request): Promise<Response> => {
         url: "/admin",
         tag: "admin-service-request",
       });
+    } else if (signupType === "staff") {
+      const b: any = body;
+      const who = b.staffName || b.staffEmail || "A staff member";
+      const where = b.staffBusinessName ? ` joined ${b.staffBusinessName}` : " signed up";
+      await pushToAdmins({
+        title: "New staff signup",
+        body: `${who}${where}`,
+        url: "/admin",
+        tag: "admin-staff-signup",
+      });
     }
 
     return new Response(JSON.stringify({ success: true, emailResponse }), {
