@@ -109,6 +109,13 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Demo request notification sent successfully:", emailResponse);
 
+    await pushToAdmins({
+      title: "New demo request",
+      body: `${name}${businessName ? ` (${businessName})` : ""} requested a demo`,
+      url: "/admin",
+      tag: "admin-demo",
+    });
+
     return new Response(JSON.stringify({ success: true, emailResponse }), {
       status: 200,
       headers: {
