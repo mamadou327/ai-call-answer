@@ -18,11 +18,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { z } from "zod";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ContactDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const contactSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
+  email: z.string().trim().email("Please enter a valid email").max(255, "Email must be less than 255 characters"),
+  phone: z.string().trim().max(30, "Phone must be less than 30 characters").optional(),
+  inquiryType: z.string().min(1, "Please choose an inquiry type"),
+  message: z.string().trim().min(10, "Message must be at least 10 characters").max(1000, "Message must be less than 1000 characters"),
+});
 
 const ContactDialog = ({ open, onOpenChange }: ContactDialogProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,20 +41,45 @@ const ContactDialog = ({ open, onOpenChange }: ContactDialogProps) => {
     email: "",
     phone: "",
     inquiryType: "",
-    message: ""
+    message: "",
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+
+    const result = contactSchema.safeParse(formData);
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0]) fieldErrors[err.path[0] as string] = err.message;
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
     setIsSubmitting(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-contact-inquiry", {
+        body: {
+          name: result.data.name,
+          email: result.data.email,
+          phone: result.data.phone || undefined,
+          inquiryType: result.data.inquiryType,
+          message: result.data.message,
+        },
+      });
+      if (error) throw error;
 
-    // Simulate submission
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    toast.success("Message sent! We'll get back to you within 24 hours.");
-    setFormData({ name: "", email: "", phone: "", inquiryType: "", message: "" });
-    setIsSubmitting(false);
-    onOpenChange(false);
+      toast.success("Message sent! We'll get back to you within 24 hours.");
+      setFormData({ name: "", email: "", phone: "", inquiryType: "", message: "" });
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to send message. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -64,8 +99,9 @@ const ContactDialog = ({ open, onOpenChange }: ContactDialogProps) => {
               id="name"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
+              disabled={isSubmitting}
             />
+            {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
           </div>
 
           <div className="space-y-2">
@@ -75,8 +111,9 @@ const ContactDialog = ({ open, onOpenChange }: ContactDialogProps) => {
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
+              disabled={isSubmitting}
             />
+            {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
           </div>
 
           <div className="space-y-2">
@@ -86,7 +123,9 @@ const ContactDialog = ({ open, onOpenChange }: ContactDialogProps) => {
               type="tel"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              disabled={isSubmitting}
             />
+            {errors.phone && <p className="text-sm text-destructive">{errors.phone}</p>}
           </div>
 
           <div className="space-y-2">
@@ -94,7 +133,7 @@ const ContactDialog = ({ open, onOpenChange }: ContactDialogProps) => {
             <Select
               value={formData.inquiryType}
               onValueChange={(value) => setFormData({ ...formData, inquiryType: value })}
-              required
+              disabled={isSubmitting}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select an option" />
@@ -107,6 +146,7 @@ const ContactDialog = ({ open, onOpenChange }: ContactDialogProps) => {
                 <SelectItem value="partnership">Partnership</SelectItem>
               </SelectContent>
             </Select>
+            {errors.inquiryType && <p className="text-sm text-destructive">{errors.inquiryType}</p>}
           </div>
 
           <div className="space-y-2">
@@ -116,8 +156,9 @@ const ContactDialog = ({ open, onOpenChange }: ContactDialogProps) => {
               rows={4}
               value={formData.message}
               onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-              required
+              disabled={isSubmitting}
             />
+            {errors.message && <p className="text-sm text-destructive">{errors.message}</p>}
           </div>
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
