@@ -2,7 +2,7 @@
   "name": "Aivia",
   "short_name": "Aivia",
   "description": "AI receptionist for service businesses",
-  "start_url": "/dashboard",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
