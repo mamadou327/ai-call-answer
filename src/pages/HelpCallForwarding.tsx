@@ -22,12 +22,12 @@ const HelpCallForwarding = () => {
         navigate("/auth");
         return;
       }
-      const { data: biz } = await supabase
+      const { data: biz } = await (supabase as any)
         .from("businesses")
         .select("twilio_phone_number")
         .eq("user_id", user.id)
         .maybeSingle();
-      setAiviaNumber(biz?.twilio_phone_number || null);
+      setAiviaNumber((biz as any)?.twilio_phone_number || null);
       setLoading(false);
     };
     load();
