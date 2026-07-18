@@ -2105,4 +2105,30 @@ const AdminDashboard = () => {
   );
 };
 
-export default AdminDashboard;
+const AdminDashboardWithBoundary = () => {
+  const navigate = useNavigate();
+  return (
+    <ErrorBoundary
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+          <Card className="max-w-md w-full">
+            <CardHeader className="text-center">
+              <CardTitle>Session expired</CardTitle>
+              <CardDescription>Please log in again to continue.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" onClick={() => navigate("/admin/login")}>
+                Go to login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <AdminDashboard />
+    </ErrorBoundary>
+  );
+};
+
+export default AdminDashboardWithBoundary;
+
