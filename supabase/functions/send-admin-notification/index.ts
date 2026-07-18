@@ -155,6 +155,25 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Admin notification sent successfully:", emailResponse);
 
+    // Fan out PWA push to all admins (only for events the user asked for).
+    if (signupType === "business") {
+      const b: any = body;
+      await pushToAdmins({
+        title: "New business signup",
+        body: `${b.businessName || "A business"} is awaiting approval`,
+        url: "/admin",
+        tag: "admin-signup",
+      });
+    } else if (signupType === "sms_request") {
+      const b: any = body;
+      await pushToAdmins({
+        title: "New service request",
+        body: `${b.businessName || "A business"} requested ${b.requestType || "a service"}`,
+        url: "/admin",
+        tag: "admin-service-request",
+      });
+    }
+
     return new Response(JSON.stringify({ success: true, emailResponse }), {
       status: 200,
       headers: {
