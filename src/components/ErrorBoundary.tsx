@@ -36,7 +36,14 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.hasError) return this.props.children;
 
+    if (this.props.fallback !== undefined) {
+      return typeof this.props.fallback === "function"
+        ? this.props.fallback(this.state.error)
+        : this.props.fallback;
+    }
+
     return (
+
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
