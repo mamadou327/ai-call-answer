@@ -34,6 +34,8 @@ import { formatDistanceToNow } from "date-fns";
 import { TIERS, type SubscriptionTier } from "@/lib/tiers";
 import { PushEnableCard } from "@/components/dashboard/PushEnableCard";
 import { PwaInstallBanner } from "@/components/dashboard/PwaInstallBanner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+
 
 // Super admin emails that cannot be deactivated
 const PROTECTED_ADMIN_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
