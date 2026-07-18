@@ -23,7 +23,7 @@ import { CustomerDataRequestSection } from "./settings/CustomerDataRequestSectio
 import { LockedFeatureCard } from "./LockedFeatureCard";
 import { useTier } from "@/hooks/use-tier";
 import { tierMeets } from "@/lib/tiers";
-import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe, CreditCard, UtensilsCrossed, Armchair, Crown } from "lucide-react";
+import { Building2, Bot, FileText, Scissors, Users, Clock, CalendarOff, UserCircle, Bell, Globe, CreditCard, UtensilsCrossed, Armchair, Crown, PhoneForwarded } from "lucide-react";
 
 interface SettingsTabProps {
   businessId: string;
