@@ -34,6 +34,8 @@ import { formatDistanceToNow } from "date-fns";
 import { TIERS, type SubscriptionTier } from "@/lib/tiers";
 import { PushEnableCard } from "@/components/dashboard/PushEnableCard";
 import { PwaInstallBanner } from "@/components/dashboard/PwaInstallBanner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+
 
 // Super admin emails that cannot be deactivated
 const PROTECTED_ADMIN_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
@@ -197,10 +199,15 @@ const AdminDashboard = () => {
   }, []);
 
   const checkAdminAccess = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    let { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      navigate("/admin/login");
-      return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        user = session.user;
+      } else {
+        navigate("/admin/login");
+        return;
+      }
     }
 
     const { data: roles } = await supabase
@@ -218,6 +225,7 @@ const AdminDashboard = () => {
       navigate("/admin/login");
       return;
     }
+
 
     // Load user's permissions
     if (subAdmin) {
@@ -2099,4 +2107,30 @@ const AdminDashboard = () => {
   );
 };
 
-export default AdminDashboard;
+const AdminDashboardWithBoundary = () => {
+  const navigate = useNavigate();
+  return (
+    <ErrorBoundary
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+          <Card className="max-w-md w-full">
+            <CardHeader className="text-center">
+              <CardTitle>Session expired</CardTitle>
+              <CardDescription>Please log in again to continue.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" onClick={() => navigate("/admin/login")}>
+                Go to login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <AdminDashboard />
+    </ErrorBoundary>
+  );
+};
+
+export default AdminDashboardWithBoundary;
+

@@ -30,12 +30,25 @@ const Index = () => {
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
+      if (!session) return;
+
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", session.user.id);
+
+      const roleSet = new Set((roles || []).map((r: any) => r.role));
+      if (roleSet.has("super_admin") || roleSet.has("sub_admin")) {
+        navigate("/admin");
+      } else if (roleSet.has("staff")) {
+        navigate("/staff/dashboard");
+      } else {
         navigate("/dashboard");
       }
     };
     checkAuth();
   }, [navigate]);
+
 
   // Scroll to section when it becomes active
   useEffect(() => {
