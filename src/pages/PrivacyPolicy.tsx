@@ -4,6 +4,13 @@ import aiviaLogo from "@/assets/aivia-logo-new.png";
 import LegalFooter from "@/components/LegalFooter";
 import { Button } from "@/components/ui/button";
 
+const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <section className="mb-8">
+    <h2 className="text-xl font-semibold mb-3 text-foreground">{title}</h2>
+    <div className="text-foreground/80 leading-relaxed space-y-2">{children}</div>
+  </section>
+);
+
 const PrivacyPolicy = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -22,169 +29,168 @@ const PrivacyPolicy = () => {
         </div>
       </header>
 
-
       <main className="container mx-auto px-4 py-12 max-w-3xl flex-1">
-        <h1 className="text-3xl font-bold mb-2">Privacy Policy</h1>
-        <p className="text-muted-foreground mb-8">
-          Last updated: 29 May 2025<br />
-          Applies to: aiviaapp.co.uk and all Aivia platform services
-        </p>
+        <h1 className="text-4xl font-bold mb-2">Aivia Privacy Policy</h1>
+        <p className="text-muted-foreground mb-10">Last updated: July 2026</p>
 
-        <div className="prose prose-sm max-w-none space-y-6 text-foreground">
-          <section>
-            <h2 className="text-xl font-semibold mt-8 mb-3">1. Who We Are</h2>
-            <p className="text-muted-foreground">
-              Aivia is an AI-powered business management platform with a built-in AI receptionist, built for service sector businesses including restaurants, salons, barbershops, beauty clinics, healthcare providers, tradespeople and any other business that takes bookings, reservations or customer enquiries by phone or online.
-            </p>
-            <p className="text-muted-foreground mt-2">
-              Aivia is developed and operated by Mo Laye trading as Aivia.
-            </p>
-            <p className="text-muted-foreground mt-2">
-              Contact: <strong>mo@aiviaapp.co.uk</strong><br />
-              Privacy contact: <strong>privacy@aiviaapp.co.uk</strong><br />
-              Website: <a href="https://aiviaapp.co.uk" className="text-primary hover:underline">https://aiviaapp.co.uk</a>
-            </p>
-          </section>
+        <Section title="1. Who we are">
+          <p>
+            Aivia ("we", "us", "our") is operated by Aivia Ltd. We provide an AI-powered phone
+            receptionist and booking management platform for service businesses in the United
+            Kingdom. Our website is{" "}
+            <a href="https://aiviaapp.co.uk" className="text-primary hover:underline">
+              aiviaapp.co.uk
+            </a>
+            . For any data protection queries contact us at{" "}
+            <a href="mailto:privacy@aiviaapp.co.uk" className="text-primary hover:underline">
+              privacy@aiviaapp.co.uk
+            </a>
+            .
+          </p>
+        </Section>
 
-          <section>
-            <h2 className="text-xl font-semibold mt-8 mb-3">2. Data We Collect</h2>
+        <Section title="2. What data we collect">
+          <p>We collect and process the following personal data:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>
+              <strong>Business owner data:</strong> name, email address, phone number, business
+              address, payment information
+            </li>
+            <li>
+              <strong>Caller data:</strong> phone number, name (when provided), call recordings,
+              call transcripts, booking details, SMS messages sent
+            </li>
+            <li>
+              <strong>Website visitor data:</strong> IP address, browser type, pages visited via
+              standard analytics
+            </li>
+          </ul>
+        </Section>
 
-            <h3 className="text-lg font-medium mt-4 mb-2">2.1 Business Owners and Staff (our direct customers)</h3>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-1">
-              <li>Name, email address and password when creating an Aivia account</li>
-              <li>Business name, address, services, pricing and branding information</li>
-              <li>Staff names, roles, email addresses and phone numbers</li>
-              <li>Subscription and payment information processed via Stripe</li>
-              <li>Usage data including bookings created, calls handled and dashboard activity</li>
-            </ul>
+        <Section title="3. How we use your data">
+          <p>We use personal data to:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Provide our AI receptionist and booking management service</li>
+            <li>Answer inbound calls and make bookings on behalf of our client businesses</li>
+            <li>Send SMS booking confirmations, reminders, and cancellation notices</li>
+            <li>Send push notifications about new bookings and messages</li>
+            <li>Improve our AI service quality through call recording analysis</li>
+            <li>Process payments and manage subscriptions</li>
+            <li>Communicate service updates and support</li>
+          </ul>
+        </Section>
 
-            <h3 className="text-lg font-medium mt-4 mb-2">2.2 End Clients (customers of businesses using Aivia)</h3>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-1">
-              <li>Name and phone number when booking via phone through the Aivia AI receptionist</li>
-              <li>Name, email address and phone number when booking online via the Aivia booking widget</li>
-              <li>Appointment, reservation or order history and preferences</li>
-              <li>Voice call recordings and transcripts where the business has enabled call recording</li>
-            </ul>
+        <Section title="4. Call recording">
+          <p>
+            All calls handled by our AI receptionist are recorded for quality assurance and service
+            improvement. Callers are informed at the start of each call that the call may be
+            recorded. Call recordings are stored securely and retained for 90 days unless the
+            business owner requests earlier deletion.
+          </p>
+        </Section>
 
-            <h3 className="text-lg font-medium mt-4 mb-2">2.3 Website Visitors</h3>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-1">
-              <li>No personal data is collected from visitors to aiviaapp.co.uk beyond standard server logs</li>
-              <li>We do not use Google Analytics, tracking pixels or any third party analytics tools</li>
-              <li>Fonts are self-hosted and no visitor data is sent to Google or any third party</li>
-            </ul>
-          </section>
+        <Section title="5. AI disclosure">
+          <p>
+            Our service uses artificial intelligence to handle phone calls. The AI system answers
+            calls, responds to questions, and makes bookings. Call recordings and transcripts may
+            be analysed to improve AI performance.
+          </p>
+        </Section>
 
-          <section>
-            <h2 className="text-xl font-semibold mt-8 mb-3">3. How We Use Your Data</h2>
+        <Section title="6. Lawful basis">
+          <p>We process personal data under the following lawful bases under UK GDPR:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>
+              <strong>Legitimate interest:</strong> to provide and improve our services
+            </li>
+            <li>
+              <strong>Contract performance:</strong> to fulfil our service agreement with business
+              owners
+            </li>
+            <li>
+              <strong>Consent:</strong> where explicitly obtained, such as for marketing
+              communications
+            </li>
+          </ul>
+        </Section>
 
-            <h3 className="text-lg font-medium mt-4 mb-2">3.1 To provide the Aivia service</h3>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-1">
-              <li>Creating and managing business accounts, booking calendars and client records</li>
-              <li>Enabling the AI receptionist to answer calls, take bookings and handle customer enquiries</li>
-              <li>Processing online bookings and reservations through the Aivia booking widget</li>
-              <li>Sending booking confirmations and reminders via SMS and email</li>
-              <li>Processing subscription payments through Stripe</li>
-              <li>Enabling businesses to import their existing information and client data into Aivia</li>
-            </ul>
+        <Section title="7. Data sharing">
+          <p>
+            We do not sell personal data. We share data with the following categories of service
+            providers who process data on our behalf:
+          </p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Twilio (telephony and SMS)</li>
+            <li>OpenAI (AI language processing)</li>
+            <li>ElevenLabs (voice synthesis)</li>
+            <li>Supabase (database hosting)</li>
+            <li>Stripe (payment processing)</li>
+          </ul>
+          <p>
+            All processors are bound by data processing agreements and process data in accordance
+            with UK GDPR.
+          </p>
+        </Section>
 
-            <h3 className="text-lg font-medium mt-4 mb-2">3.2 Legal basis for processing (UK GDPR)</h3>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-1">
-              <li><strong>Contract:</strong> processing necessary to deliver the Aivia service to our business customers</li>
-              <li><strong>Legitimate interests:</strong> improving platform security, preventing fraud and abuse</li>
-              <li><strong>Legal obligation:</strong> complying with applicable UK law including tax and financial regulations</li>
-            </ul>
-          </section>
+        <Section title="8. Data retention">
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Call recordings: 90 days</li>
+            <li>Call transcripts: retained for the duration of the business subscription</li>
+            <li>Booking data: retained for the duration of the business subscription</li>
+            <li>Account data: retained until account deletion</li>
+          </ul>
+        </Section>
 
-          <section>
-            <h2 className="text-xl font-semibold mt-8 mb-3">4. Third Party Services</h2>
-            <p className="text-muted-foreground">
-              Aivia uses the following third party services which may process personal data on our behalf. All are bound by appropriate data processing agreements.
-            </p>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-2 mt-3">
-              <li><strong>Twilio (United States)</strong> — handles all inbound and outbound phone calls, SMS messages, call recordings and caller phone numbers. Twilio is certified under the EU-US Data Privacy Framework.</li>
-              <li><strong>OpenAI (United States)</strong> — powers the Aivia AI voice receptionist and processes call transcripts and conversation data in real time. OpenAI is certified under the EU-US Data Privacy Framework.</li>
-              <li><strong>ElevenLabs (United States)</strong> — generates the AI voice used by the Aivia receptionist.</li>
-              <li><strong>Stripe (United States and United Kingdom)</strong> — processes all payment card data, subscription billing and deposit or booking payments. Stripe is PCI DSS Level 1 certified.</li>
-              <li><strong>Resend (United States)</strong> — delivers transactional email notifications to business staff including booking confirmations, account alerts and staff invitations.</li>
-              <li><strong>Firecrawl</strong> — used to scrape publicly available information from a business website when a business owner chooses to import their information into Aivia.</li>
-              <li><strong>Supabase (European Union, Ireland)</strong> — hosts the Aivia database, file storage and authentication system. All data is stored on EU West servers in Ireland (eu-west-1).</li>
-            </ul>
-          </section>
+        <Section title="9. Your rights">
+          <p>Under UK GDPR you have the right to:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Access your personal data</li>
+            <li>Rectify inaccurate data</li>
+            <li>Request deletion of your data</li>
+            <li>Restrict processing</li>
+            <li>Data portability</li>
+            <li>Object to processing</li>
+          </ul>
+          <p>
+            To exercise any of these rights contact{" "}
+            <a href="mailto:privacy@aiviaapp.co.uk" className="text-primary hover:underline">
+              privacy@aiviaapp.co.uk
+            </a>
+            .
+          </p>
+        </Section>
 
-          <section>
-            <h2 className="text-xl font-semibold mt-8 mb-3">5. Data Storage and Retention</h2>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-1">
-              <li>All Aivia data is stored on EU-based servers in Ireland (Supabase EU West, eu-west-1)</li>
-              <li>Business account data is retained for the duration of the subscription plus 90 days after cancellation to allow for data export</li>
-              <li>End client booking, reservation and order data is retained for 24 months from the date of the last interaction</li>
-              <li>Call recordings are retained for 90 days unless the business requests earlier deletion</li>
-              <li>After retention periods expire all data is permanently and securely deleted</li>
-            </ul>
-          </section>
+        <Section title="10. Data security">
+          <p>
+            We implement appropriate technical and organisational measures to protect personal data
+            including encryption in transit and at rest, access controls, and regular security
+            reviews.
+          </p>
+        </Section>
 
-          <section>
-            <h2 className="text-xl font-semibold mt-8 mb-3">6. Your Rights Under UK GDPR</h2>
-            <p className="text-muted-foreground">You have the following rights regarding your personal data held by Aivia:</p>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-1">
-              <li><strong>Right to access:</strong> request a copy of all personal data we hold about you</li>
-              <li><strong>Right to erasure:</strong> request permanent deletion of your personal data</li>
-              <li><strong>Right to rectification:</strong> request correction of any inaccurate data</li>
-              <li><strong>Right to portability:</strong> request your data in a machine-readable format</li>
-              <li><strong>Right to object:</strong> object to processing based on legitimate interests</li>
-              <li><strong>Right to restrict processing:</strong> request that we limit how we use your data</li>
-            </ul>
-            <p className="text-muted-foreground mt-2">
-              Business owners can exercise the right to erasure and data export directly from their Aivia dashboard under Settings at any time. All other requests should be sent to <strong>privacy@aiviaapp.co.uk</strong>. We will respond within 30 days.
-            </p>
-          </section>
+        <Section title="11. Cookies">
+          <p>
+            We use essential cookies to maintain user sessions. We do not use advertising or
+            tracking cookies.
+          </p>
+        </Section>
 
-          <section>
-            <h2 className="text-xl font-semibold mt-8 mb-3">7. Security</h2>
-            <ul className="list-disc pl-6 text-muted-foreground space-y-1">
-              <li>All data is encrypted in transit using HTTPS across aiviaapp.co.uk and all Aivia services</li>
-              <li>Row Level Security is enforced on all database tables ensuring each business can only access its own data and never another business's data</li>
-              <li>Authentication is required to access any business dashboard or client data</li>
-              <li>Leaked password protection is enabled using the Have I Been Pwned database</li>
-              <li>Regular security reviews are conducted and any vulnerabilities are remediated promptly</li>
-            </ul>
-          </section>
+        <Section title="12. Changes to this policy">
+          <p>
+            We may update this policy from time to time. Significant changes will be communicated
+            via email to registered users.
+          </p>
+        </Section>
 
-          <section>
-            <h2 className="text-xl font-semibold mt-8 mb-3">8. Cookies</h2>
-            <p className="text-muted-foreground">
-              Aivia does not use tracking or advertising cookies. We use only essential session cookies required for login and authentication. No cookie consent banner is required as no non-essential cookies are used on aiviaapp.co.uk.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold mt-8 mb-3">9. Children's Data</h2>
-            <p className="text-muted-foreground">
-              Aivia is not directed at children under the age of 16. We do not knowingly collect personal data from children. If you believe a child has provided personal data through Aivia please contact <strong>privacy@aiviaapp.co.uk</strong> and we will delete it promptly.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold mt-8 mb-3">10. Changes to This Policy</h2>
-            <p className="text-muted-foreground">
-              We may update this privacy policy from time to time. When we make material changes we will notify business owners by email and update the Last Updated date at the top of this document. Continued use of Aivia after changes are notified constitutes acceptance of the updated policy.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold mt-8 mb-3">11. Contact and Complaints</h2>
-            <p className="text-muted-foreground">
-              For any privacy related queries or to exercise your rights please contact:
-            </p>
-            <p className="text-muted-foreground mt-2">
-              Email: <strong>privacy@aiviaapp.co.uk</strong><br />
-              General: <strong>mo@aiviaapp.co.uk</strong><br />
-              Website: <a href="https://aiviaapp.co.uk" className="text-primary hover:underline">https://aiviaapp.co.uk</a>
-            </p>
-            <p className="text-muted-foreground mt-2">
-              If you are not satisfied with our response you have the right to lodge a complaint with the Information Commissioner's Office (ICO) at <a href="https://ico.org.uk" className="text-primary hover:underline">ico.org.uk</a> or by calling 0303 123 1113.
-            </p>
-          </section>
-        </div>
+        <Section title="13. Contact">
+          <p>
+            For any privacy-related questions contact{" "}
+            <a href="mailto:privacy@aiviaapp.co.uk" className="text-primary hover:underline">
+              privacy@aiviaapp.co.uk
+            </a>
+            .
+          </p>
+        </Section>
       </main>
 
       <LegalFooter />
