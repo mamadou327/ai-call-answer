@@ -143,7 +143,24 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="business">
+      <TabsContent value="business" className="space-y-6">
+        <a
+          href="/help/call-forwarding"
+          className="block rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors p-4"
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                <PhoneForwarded className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Setup Guide: Forward your calls to Aivia</p>
+                <p className="text-xs text-muted-foreground">Get started in about 2 minutes — step-by-step instructions.</p>
+              </div>
+            </div>
+            <span className="text-sm text-primary font-medium shrink-0">Open →</span>
+          </div>
+        </a>
         <BusinessInfoForm businessId={businessId} business={business} onUpdate={onUpdate} />
       </TabsContent>
 
