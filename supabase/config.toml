@@ -210,3 +210,6 @@ verify_jwt = false
 
 [functions.send-push-test]
 verify_jwt = false
+
+[functions.send-contact-inquiry]
+verify_jwt = false
