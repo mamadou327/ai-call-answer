@@ -5,7 +5,9 @@ import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 
 interface Props {
   children: ReactNode;
+  fallback?: ReactNode | ((error: Error | null) => ReactNode);
 }
+
 
 interface State {
   hasError: boolean;
