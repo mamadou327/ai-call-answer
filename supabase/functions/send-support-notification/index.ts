@@ -162,6 +162,31 @@ serve(async (req: Request): Promise<Response> => {
       const successful = results.filter(r => r.status === "fulfilled").length;
       console.log(`Sent ${successful}/${emailPromises.length} admin notification emails`);
 
+      // Fire-and-forget PWA push to all admins
+      try {
+        const cronSecret = Deno.env.get("CRON_SECRET");
+        if (cronSecret) {
+          const preview = message.length > 80 ? `${message.slice(0, 80)}…` : message;
+          await Promise.all(
+            adminUserIds.map((uid) =>
+              fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-internal-secret": cronSecret },
+                body: JSON.stringify({
+                  user_id: uid,
+                  title: "New support message",
+                  body: `${businessName}: ${preview}`,
+                  url: "/admin",
+                  tag: "admin-support-message",
+                }),
+              }).catch((e) => console.warn("[support-push] failed", e)),
+            ),
+          );
+        }
+      } catch (e) {
+        console.warn("[support-push] error", e);
+      }
+
       return new Response(
         JSON.stringify({ success: true, sent: successful }),
         { headers: { "Content-Type": "application/json", ...corsHeaders } }
