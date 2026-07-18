@@ -1,6 +1,6 @@
 /* Aivia service worker — app shell caching + web push */
-const CACHE = "aivia-shell-v2";
-const SHELL = ["/", "/index.html", "/favicon.png", "/manifest.json", "/icons/icon-192.png", "/icons/icon-512.png"];
+const CACHE = "aivia-shell-v3";
+const SHELL = ["/favicon.png", "/manifest.json", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -31,13 +31,10 @@ self.addEventListener("fetch", (event) => {
   // Navigations: network-first, fall back to cached index for offline
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-          return res;
-        })
-        .catch(() => caches.match(req).then((r) => r || caches.match("/index.html"))),
+      fetch(req).catch(() => new Response(
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Aivia</title><style>body{font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a0a0a;color:#fff;text-align:center}h1{font-size:1.5rem;margin-bottom:1rem}p{color:#888}</style></head><body><div><h1>You are offline</h1><p>Please check your internet connection and try again.</p></div></body></html>',
+        { headers: { "Content-Type": "text/html" } }
+      ))
     );
     return;
   }
