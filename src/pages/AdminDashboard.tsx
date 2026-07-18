@@ -197,10 +197,15 @@ const AdminDashboard = () => {
   }, []);
 
   const checkAdminAccess = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    let { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      navigate("/admin/login");
-      return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        user = session.user;
+      } else {
+        navigate("/admin/login");
+        return;
+      }
     }
 
     const { data: roles } = await supabase
@@ -218,6 +223,7 @@ const AdminDashboard = () => {
       navigate("/admin/login");
       return;
     }
+
 
     // Load user's permissions
     if (subAdmin) {
