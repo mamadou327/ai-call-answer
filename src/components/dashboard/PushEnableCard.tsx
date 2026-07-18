@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const DISMISS_KEY = "aivia_push_prompt_dismissed";
 
-export const PushEnableCard = ({ businessId }: { businessId: string }) => {
+export const PushEnableCard = ({ businessId }: { businessId: string | null }) => {
   const { toast } = useToast();
   const [supported, setSupported] = useState(false);
   const [subscribed, setSubscribed] = useState(false);

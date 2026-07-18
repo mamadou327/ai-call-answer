@@ -32,6 +32,8 @@ import { OutboundCampaignsSection } from "@/components/admin/outbound/OutboundCa
 import { PhoneOutgoing } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { TIERS, type SubscriptionTier } from "@/lib/tiers";
+import { PushEnableCard } from "@/components/dashboard/PushEnableCard";
+import { PwaInstallBanner } from "@/components/dashboard/PwaInstallBanner";
 
 // Super admin emails that cannot be deactivated
 const PROTECTED_ADMIN_EMAILS = ["mlaye915@gmail.com", "mo@aiviaapp.co.uk"];
@@ -830,6 +832,8 @@ const AdminDashboard = () => {
       </header>
 
       <div className="container mx-auto px-4 py-8">
+        <PwaInstallBanner />
+        <PushEnableCard businessId={null} />
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
           <p className="text-muted-foreground">

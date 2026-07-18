@@ -1,5 +1,32 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+
+async function pushToAdmins(payload: { title: string; body: string; url?: string; tag?: string }) {
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const cronSecret = Deno.env.get("CRON_SECRET");
+    if (!supabaseUrl || !serviceKey || !cronSecret) return;
+    const admin = createClient(supabaseUrl, serviceKey);
+    const { data: roles } = await admin
+      .from("user_roles")
+      .select("user_id")
+      .in("role", ["super_admin", "sub_admin"]);
+    const userIds = Array.from(new Set((roles ?? []).map((r: any) => r.user_id).filter(Boolean)));
+    await Promise.all(
+      userIds.map((uid) =>
+        fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-internal-secret": cronSecret },
+          body: JSON.stringify({ user_id: uid, ...payload }),
+        }).catch((e) => console.warn("[admin-push] failed", e)),
+      ),
+    );
+  } catch (e) {
+    console.warn("[admin-push] error", e);
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -127,6 +154,25 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     console.log("Admin notification sent successfully:", emailResponse);
+
+    // Fan out PWA push to all admins (only for events the user asked for).
+    if (signupType === "business") {
+      const b: any = body;
+      await pushToAdmins({
+        title: "New business signup",
+        body: `${b.businessName || "A business"} is awaiting approval`,
+        url: "/admin",
+        tag: "admin-signup",
+      });
+    } else if (signupType === "sms_request") {
+      const b: any = body;
+      await pushToAdmins({
+        title: "New service request",
+        body: `${b.businessName || "A business"} requested ${b.requestType || "a service"}`,
+        url: "/admin",
+        tag: "admin-service-request",
+      });
+    }
 
     return new Response(JSON.stringify({ success: true, emailResponse }), {
       status: 200,

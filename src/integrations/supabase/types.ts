@@ -2358,7 +2358,7 @@ export type Database = {
       }
       push_subscriptions: {
         Row: {
-          business_id: string
+          business_id: string | null
           created_at: string
           endpoint: string
           id: string
@@ -2368,7 +2368,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          business_id: string
+          business_id?: string | null
           created_at?: string
           endpoint: string
           id?: string
@@ -2378,7 +2378,7 @@ export type Database = {
           user_id: string
         }
         Update: {
-          business_id?: string
+          business_id?: string | null
           created_at?: string
           endpoint?: string
           id?: string

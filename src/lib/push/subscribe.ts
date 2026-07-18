@@ -33,7 +33,7 @@ export async function getPushState(): Promise<PushState> {
   return { supported: true, permission: Notification.permission, subscribed };
 }
 
-export async function subscribeToPush(businessId: string): Promise<{ ok: boolean; error?: string }> {
+export async function subscribeToPush(businessId: string | null): Promise<{ ok: boolean; error?: string }> {
   if (!VAPID_PUBLIC_KEY) return { ok: false, error: "VAPID public key is not configured" };
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
     return { ok: false, error: "Push not supported on this browser" };
