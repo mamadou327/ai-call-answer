@@ -32,6 +32,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
+const HelpCallForwarding = lazy(() => import("./pages/HelpCallForwarding"));
 
 const logQueryError = (error: unknown) => {
   if (import.meta.env.DEV) {
