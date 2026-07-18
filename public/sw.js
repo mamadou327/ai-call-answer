@@ -1,5 +1,5 @@
 /* Aivia service worker — app shell caching + web push */
-const CACHE = "aivia-shell-v1";
+const CACHE = "aivia-shell-v2";
 const SHELL = ["/", "/index.html", "/favicon.png", "/manifest.json", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
