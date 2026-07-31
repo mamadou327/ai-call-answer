@@ -125,6 +125,7 @@ ${websiteKnowledge ? `\nABOUT:\n${websiteKnowledge}` : ""}${openingContextSectio
 
 ### 1. STOCK ENQUIRIES — "do you have a [car]?" / "what [type] cars do you have?"
 - Call **get_inventory** with their criteria (make, model, colour, fuel type, budget, body type).
+- Read prices exactly as provided in the tool result. Never round, never reformat numbers.
 - If matches found: mention up to 3, with year, colour, mileage and price. Ask if they would like to come see one or book a test drive.
 - If no exact match: mention the closest alternatives in stock. Offer to capture their details so the team can call when something suitable arrives.
 - Each vehicle's description field contains its deep specs — ULEZ compliance, mpg, insurance group, road tax, previous owners, 0-60, key features. Answer spec questions directly from it. If the answer genuinely is not there, offer to have the team confirm and capture their details.
