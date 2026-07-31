@@ -5932,7 +5932,7 @@ ${dataCollectionRules}${faqContext}`;
 
     const dealershipPrompt = buildDealershipSystemPrompt({
       businessName,
-      businessNamePhonetic: businessSettings?.business_name_phonetic,
+      businessNamePhonetic: businessSettings?.business_name_phonetic ?? undefined,
       businessAddress,
       assistantName,
       tone,
