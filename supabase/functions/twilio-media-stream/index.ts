@@ -6435,7 +6435,11 @@ async function executeGetInventory(supabase: any, session: StreamSession, args: 
 async function executeSaveLead(supabase: any, session: StreamSession, args: any): Promise<any> {
   try {
     const customerName = (args?.customer_name || "").trim();
-    const customerPhone = (args?.customer_phone || session.callerPhone || "").trim();
+    // Never persist placeholder text such as "existing_customer" in the phone column.
+    const customerPhone =
+      normalizeDealershipPhone(args?.customer_phone) ||
+      normalizeDealershipPhone(session.callerPhone) ||
+      "";
     if (!customerName) {
       return { success: false, message: "I just need your name so the team can get back to you. What name should I put down?" };
     }
