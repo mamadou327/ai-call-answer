@@ -12,7 +12,7 @@ import {
 } from "./advanced-rules.ts";
 
 
-export type BusinessType = "salon" | "restaurant_pickup" | "restaurant_dine_in" | "restaurant_hybrid";
+export type BusinessType = "salon" | "restaurant_pickup" | "restaurant_dine_in" | "restaurant_hybrid" | "dealership";
 
 interface PromptBuilderParams {
   businessType: BusinessType;
@@ -620,6 +620,130 @@ export function getToolsForBusinessType(businessType: BusinessType): any[] {
               reservation_code: { type: "string" },
               customer_name: { type: "string" },
             },
+          },
+        },
+      ];
+
+    case "dealership":
+      // Dealership tools: no salon service/staff tools, no menu tool.
+      return [
+        ...onDemandDataTools.filter((t: any) => t.name === "get_opening_hours"),
+        ...commonTools.filter((t: any) =>
+          ["update_customer_language", "leave_message", "end_call"].includes(t.name)
+        ),
+        {
+          type: "function",
+          name: "get_inventory",
+          description: "Search the dealership's live vehicle stock. CALL THIS before answering ANY question about cars available, stock, prices or specifications. Never answer from memory.",
+          parameters: {
+            type: "object",
+            properties: {
+              make: { type: "string", description: "Vehicle manufacturer, e.g. Ford" },
+              model: { type: "string", description: "Vehicle model, e.g. Focus" },
+              colour: { type: "string" },
+              fuel_type: { type: "string", description: "e.g. petrol, diesel, hybrid, electric" },
+              body_type: { type: "string", description: "e.g. hatchback, saloon, SUV, estate" },
+              max_price: { type: "number", description: "Maximum budget in pounds" },
+              min_year: { type: "number", description: "Earliest acceptable registration year" },
+            },
+          },
+        },
+        {
+          type: "function",
+          name: "save_lead",
+          description: "Capture a sales, service, parts, finance or trade-in lead so the team can follow up. Use whenever the caller shows buying interest or you cannot answer a price/finance question.",
+          parameters: {
+            type: "object",
+            properties: {
+              customer_name: { type: "string" },
+              customer_phone: { type: "string" },
+              customer_email: { type: "string" },
+              lead_type: { type: "string", enum: ["sales", "service", "parts", "finance", "trade_in"] },
+              interested_in: { type: "string", description: "What car, part or service they are interested in" },
+              budget: { type: "string" },
+              has_trade_in: { type: "boolean" },
+              trade_in_details: { type: "string" },
+              timeframe: { type: "string", description: "e.g. this week, this month, just browsing" },
+              lead_score: { type: "string", enum: ["hot", "warm", "cold"] },
+              notes: { type: "string" },
+            },
+            required: ["customer_name", "customer_phone", "lead_type", "interested_in", "lead_score"],
+          },
+        },
+        {
+          type: "function",
+          name: "check_availability",
+          description: "Check appointment availability for a test drive or service booking.",
+          parameters: {
+            type: "object",
+            properties: {
+              date: { type: "string", description: "Date in YYYY-MM-DD format" },
+              time: { type: "string", description: "Requested start time in 24-hour HH:MM format when the caller named one." },
+              service_name: { type: "string" },
+              staff_name: { type: "string" },
+              flexible: { type: "boolean" },
+            },
+            required: ["date"],
+          },
+        },
+        {
+          type: "function",
+          name: "create_booking",
+          description: "Create a test drive or service appointment. Confirm all details with the caller first.",
+          parameters: {
+            type: "object",
+            properties: {
+              customer_name: { type: "string" },
+              customer_phone: { type: "string" },
+              customer_email: { type: "string" },
+              service_name: { type: "string", description: "What the appointment is for, e.g. Test drive, MOT, Full service" },
+              staff_name: { type: "string" },
+              appointment_type: { type: "string", enum: ["test_drive", "service", "sales_appointment", "valuation"] },
+              vehicle_details: { type: "string", description: "The vehicle involved, e.g. '2021 Ford Focus ST-Line, blue, reg AB21 CDE'" },
+              date: { type: "string", description: "Date in YYYY-MM-DD format" },
+              time: { type: "string", description: "Start time in 24-hour HH:MM format" },
+            },
+            required: ["customer_name", "customer_phone", "appointment_type", "date", "time"],
+          },
+        },
+        {
+          type: "function",
+          name: "cancel_booking",
+          description: "Cancel an existing appointment.",
+          parameters: {
+            type: "object",
+            properties: {
+              booking_code: { type: "string" },
+              customer_name: { type: "string" },
+            },
+          },
+        },
+        {
+          type: "function",
+          name: "reschedule_booking",
+          description: "Reschedule an existing appointment.",
+          parameters: {
+            type: "object",
+            properties: {
+              booking_code: { type: "string" },
+              customer_name: { type: "string" },
+              new_date: { type: "string" },
+              new_time: { type: "string", description: "New start time in 24-hour HH:MM format" },
+            },
+            required: ["new_date", "new_time"],
+          },
+        },
+        {
+          type: "function",
+          name: "transfer_call",
+          description: "Transfer the call to a department or staff member that has a phone number configured.",
+          parameters: {
+            type: "object",
+            properties: {
+              staff_name: { type: "string", description: "Department or staff member name" },
+              reason: { type: "string" },
+            },
+            required: ["staff_name"],
           },
         },
       ];
