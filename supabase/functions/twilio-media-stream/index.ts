@@ -298,6 +298,17 @@ interface StreamSession {
   elevenLabsVoiceId: string | null;
   elevenLabs: ElevenLabsTTS | null;
 
+  // Call finalisation tracking (written to calls_log on stream stop)
+  bookingCreated?: boolean;
+  bookingCancelled?: boolean;
+  bookingRescheduled?: boolean;
+  leadSaved?: boolean;
+  messageLeft?: boolean;
+  orderCreated?: boolean;
+  reservationCreated?: boolean;
+  finalizationDone?: boolean;
+  lastOutcomeDetail?: string | null;
+
   // Assistant identity (resolved once from settings.assistant_name)
   assistantName: string;
 
