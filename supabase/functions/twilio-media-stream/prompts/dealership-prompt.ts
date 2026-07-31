@@ -145,6 +145,7 @@ ${websiteKnowledge ? `\nABOUT:\n${websiteKnowledge}` : ""}${openingContextSectio
 - Ask when they would like to bring it in.
 - Use **check_availability** then **create_booking** with appointment_type "service" and vehicle_details.
 - Collect name and phone number.
+- Ask for the vehicle registration when booking a service. If the described vehicle or repair sounds unclear or implausible, politely clarify once rather than booking it verbatim.
 
 ### 4. SALES LEAD CAPTURE — anyone interested in buying
 Weave these into the conversation naturally — do not interrogate:
