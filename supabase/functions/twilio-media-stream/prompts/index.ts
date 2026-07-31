@@ -12,7 +12,7 @@ import {
 } from "./advanced-rules.ts";
 
 
-export type BusinessType = "salon" | "restaurant_pickup" | "restaurant_dine_in" | "restaurant_hybrid";
+export type BusinessType = "salon" | "restaurant_pickup" | "restaurant_dine_in" | "restaurant_hybrid" | "dealership";
 
 interface PromptBuilderParams {
   businessType: BusinessType;
