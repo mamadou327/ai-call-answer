@@ -6324,7 +6324,38 @@ async function logConversation(supabase: any, callSid: string, role: string, con
 // DEALERSHIP TOOLS
 // ============================================================================
 
-function formatVehicleLine(v: any): string {
+// Accepts anything the model might pass as a phone number and returns a clean
+// E.164 string, or null when the value is placeholder text such as
+// "existing_customer" / "[caller number]" / "unknown".
+function normalizeDealershipPhone(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  if (
+    trimmed.includes("[") ||
+    trimmed.includes("]") ||
+    trimmed.includes("_") ||
+    lower.includes("existing") ||
+    lower.includes("caller") ||
+    lower.includes("customer") ||
+    lower.includes("phone number") ||
+    lower === "unknown" ||
+    lower === "n/a" ||
+    lower === "na" ||
+    lower === "none"
+  ) {
+    return null;
+  }
+  let cleaned = trimmed.replace(/[^\d+]/g, "");
+  if (cleaned.startsWith("00")) cleaned = `+${cleaned.slice(2)}`;
+  if (/^0\d{9,10}$/.test(cleaned)) cleaned = `+44${cleaned.slice(1)}`;
+  if (!cleaned.startsWith("+") && /^\d{10,15}$/.test(cleaned)) cleaned = `+${cleaned}`;
+  if (/^\+\d{7,15}$/.test(cleaned)) return cleaned;
+  return null;
+}
+
+function formatVehicleLine(v: any, currency: string = "GBP"): string {
   const bits = [
     v.year ? String(v.year) : null,
     v.make,
@@ -6336,7 +6367,7 @@ function formatVehicleLine(v: any): string {
     typeof v.mileage === "number" ? `${v.mileage.toLocaleString("en-GB")} miles` : null,
     v.fuel_type,
     v.transmission,
-    v.price != null ? `£${Number(v.price).toLocaleString("en-GB")}` : null,
+    v.price != null ? formatPriceForSpeech(Number(v.price), currency) : null,
   ].filter(Boolean).join(", ");
   return `${bits}${extras ? ` — ${extras}` : ""}`;
 }
