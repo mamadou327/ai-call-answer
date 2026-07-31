@@ -6623,6 +6623,42 @@ async function executeCreateDealershipBooking(supabase: any, session: StreamSess
     });
     const timeStr = formatTime(startTime, session.businessTimezone);
 
+    const appointmentLabel = appointmentType === "test_drive"
+      ? "a test drive"
+      : appointmentType === "service"
+      ? "a service appointment"
+      : appointmentType === "valuation"
+      ? "a valuation"
+      : "a sales appointment";
+
+    // Fire-and-forget SMS confirmation
+    (async () => {
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/send-booking-sms`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+          body: JSON.stringify({
+            businessId: session.businessId,
+            bookingId: booking.id,
+            type: "confirmation",
+          }),
+        });
+        console.log("[MediaStream] dealership SMS confirmation triggered");
+      } catch (smsError) {
+        console.warn("[MediaStream] dealership SMS confirmation failed:", smsError);
+      }
+    })();
+
+    sendBusinessPush(
+      session.businessId,
+      "New booking",
+      `${customerName} booked ${appointmentLabel} for ${dateStr} at ${timeStr}`,
+      "/dashboard",
+    ).catch((e) => console.warn("[MediaStream] dealership booking push failed:", e));
+
     const licenceLine = appointmentType === "test_drive"
       ? " Remind them to bring their driving licence."
       : "";
