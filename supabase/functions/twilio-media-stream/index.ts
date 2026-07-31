@@ -6324,7 +6324,38 @@ async function logConversation(supabase: any, callSid: string, role: string, con
 // DEALERSHIP TOOLS
 // ============================================================================
 
-function formatVehicleLine(v: any): string {
+// Accepts anything the model might pass as a phone number and returns a clean
+// E.164 string, or null when the value is placeholder text such as
+// "existing_customer" / "[caller number]" / "unknown".
+function normalizeDealershipPhone(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  if (
+    trimmed.includes("[") ||
+    trimmed.includes("]") ||
+    trimmed.includes("_") ||
+    lower.includes("existing") ||
+    lower.includes("caller") ||
+    lower.includes("customer") ||
+    lower.includes("phone number") ||
+    lower === "unknown" ||
+    lower === "n/a" ||
+    lower === "na" ||
+    lower === "none"
+  ) {
+    return null;
+  }
+  let cleaned = trimmed.replace(/[^\d+]/g, "");
+  if (cleaned.startsWith("00")) cleaned = `+${cleaned.slice(2)}`;
+  if (/^0\d{9,10}$/.test(cleaned)) cleaned = `+44${cleaned.slice(1)}`;
+  if (!cleaned.startsWith("+") && /^\d{10,15}$/.test(cleaned)) cleaned = `+${cleaned}`;
+  if (/^\+\d{7,15}$/.test(cleaned)) return cleaned;
+  return null;
+}
+
+function formatVehicleLine(v: any, currency: string = "GBP"): string {
   const bits = [
     v.year ? String(v.year) : null,
     v.make,
@@ -6336,7 +6367,7 @@ function formatVehicleLine(v: any): string {
     typeof v.mileage === "number" ? `${v.mileage.toLocaleString("en-GB")} miles` : null,
     v.fuel_type,
     v.transmission,
-    v.price != null ? `£${Number(v.price).toLocaleString("en-GB")}` : null,
+    v.price != null ? formatPriceForSpeech(Number(v.price), currency) : null,
   ].filter(Boolean).join(", ");
   return `${bits}${extras ? ` — ${extras}` : ""}`;
 }
@@ -6357,6 +6388,14 @@ async function executeGetInventory(supabase: any, session: StreamSession, args: 
     if (args?.max_price) query = query.lte("price", Number(args.max_price));
     if (args?.min_year) query = query.gte("year", Number(args.min_year));
 
+    const currency = session.currency || "GBP";
+    const decorate = (v: any) => ({
+      ...v,
+      // Spoken form is authoritative — the numeral is easy to misread aloud.
+      price_spoken: v.price != null ? formatPriceForSpeech(Number(v.price), currency) : null,
+      summary: formatVehicleLine(v, currency),
+    });
+
     const { data, error } = await query.order("price", { ascending: true }).limit(10);
     if (error) {
       console.error("[MediaStream] get_inventory error:", error);
@@ -6367,8 +6406,8 @@ async function executeGetInventory(supabase: any, session: StreamSession, args: 
       return {
         success: true,
         count: data.length,
-        vehicles: data.map((v: any) => ({ ...v, summary: formatVehicleLine(v) })),
-        instruction: "Mention at most 3 of these, with year, colour, mileage and price. Then ask if they'd like to come see one or book a test drive. Never quote a price not listed here.",
+        vehicles: data.map(decorate),
+        instruction: "Mention at most 3 of these, with year, colour, mileage and price. Speak each price EXACTLY as given in price_spoken — never round it, never reformat it, never say the raw numeral. Then ask if they'd like to come see one or book a test drive. Never quote a price not listed here.",
       };
     }
 
@@ -6384,8 +6423,8 @@ async function executeGetInventory(supabase: any, session: StreamSession, args: 
       success: true,
       count: 0,
       vehicles: [],
-      alternatives: (alternatives || []).map((v: any) => ({ ...v, summary: formatVehicleLine(v) })),
-      instruction: "No exact match. Say we don't have that exact car right now, mention at most 2 of the alternatives, and offer to take their details so the team can call when something suitable arrives (use save_lead).",
+      alternatives: (alternatives || []).map(decorate),
+      instruction: "No exact match. Say we don't have that exact car right now, mention at most 2 of the alternatives (speaking each price exactly as given in price_spoken), and offer to take their details so the team can call when something suitable arrives (use save_lead).",
     };
   } catch (err) {
     console.error("[MediaStream] get_inventory exception:", err);
@@ -6396,7 +6435,11 @@ async function executeGetInventory(supabase: any, session: StreamSession, args: 
 async function executeSaveLead(supabase: any, session: StreamSession, args: any): Promise<any> {
   try {
     const customerName = (args?.customer_name || "").trim();
-    const customerPhone = (args?.customer_phone || session.callerPhone || "").trim();
+    // Never persist placeholder text such as "existing_customer" in the phone column.
+    const customerPhone =
+      normalizeDealershipPhone(args?.customer_phone) ||
+      normalizeDealershipPhone(session.callerPhone) ||
+      "";
     if (!customerName) {
       return { success: false, message: "I just need your name so the team can get back to you. What name should I put down?" };
     }
@@ -6519,18 +6562,25 @@ async function executeCheckDealershipAvailability(supabase: any, session: Stream
       };
     }
 
-    // Count bookings already in that hour to avoid obvious double-stacking
+    // Count bookings already in that hour to avoid obvious double-stacking.
+    // Only the SAME appointment type conflicts — a test drive and a workshop
+    // service at 3pm are handled by different teams and can safely overlap.
+    const requestedType = ["test_drive", "service", "sales_appointment", "valuation"].includes(args?.appointment_type)
+      ? args.appointment_type
+      : null;
     let conflicts = 0;
     if (requested) {
       const start = parseLocalDateTimeInTimezone(dateStr, requested, session.businessTimezone);
       const end = new Date(start.getTime() + 60 * 60 * 1000);
-      const { count } = await supabase
+      let conflictQuery = supabase
         .from("bookings")
         .select("id", { count: "exact", head: true })
         .eq("business_id", session.businessId)
         .neq("status", "cancelled")
         .gte("start_time", start.toISOString())
         .lt("start_time", end.toISOString());
+      if (requestedType) conflictQuery = conflictQuery.eq("appointment_type", requestedType);
+      const { count } = await conflictQuery;
       conflicts = count || 0;
     }
 
@@ -6538,9 +6588,10 @@ async function executeCheckDealershipAvailability(supabase: any, session: Stream
       success: true,
       available: true,
       opening_hours: `${openTime}-${closeTime}`,
+      appointment_type_checked: requestedType,
       existing_appointments_that_hour: conflicts,
       message: requested
-        ? `We can do ${requested} on that date. Confirm it back to the caller before booking.`
+        ? `We can do ${requested} on that date${conflicts > 0 ? ` (note: ${conflicts} other ${requestedType || "appointment"} booking(s) already in that hour — offer a nearby slot if they'd prefer)` : ""}. Confirm it back to the caller before booking.`
         : `We're open ${openTime} to ${closeTime} that day. Ask what time suits them.`,
     };
   } catch (err) {
@@ -6556,7 +6607,10 @@ async function executeCreateDealershipBooking(supabase: any, session: StreamSess
     if (!customerName || invalidNames.includes(customerName.toLowerCase())) {
       return { success: false, message: "I just need your name for the appointment. What name should I put it under?" };
     }
-    const customerPhone = (params?.customer_phone || session.callerPhone || "").trim();
+    // Reject placeholder text like "existing_customer" — it breaks the SMS send.
+    const customerPhone =
+      normalizeDealershipPhone(params?.customer_phone) ||
+      normalizeDealershipPhone(session.callerPhone);
     if (!customerPhone) {
       return { success: false, message: "What's the best phone number for you?" };
     }
