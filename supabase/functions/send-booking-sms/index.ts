@@ -280,9 +280,8 @@ A payment link will be sent to you shortly.`;
 Hi ${customerName},
 
 📅 ${formattedDate}
-💇 ${serviceName}
-👤 ${staffName}
-🔖 Reference: ${bookingCode}
+${serviceEmoji} ${serviceName}
+${staffLine}🔖 Reference: ${bookingCode}
 ${depositSection}
 📍 ${business.address}
 
@@ -298,7 +297,7 @@ Reply POLICIES for booking terms.`;
 Hi ${customerName},
 
 📅 ${formattedDate}
-💇 ${serviceName}
+${serviceEmoji} ${serviceName}
 🔖 Reference: ${bookingCode}
 
 Your appointment has been cancelled.
@@ -328,9 +327,8 @@ A payment link will be sent to you shortly.`;
 Hi ${customerName},
 
 📅 ${formattedDate}
-💇 ${serviceName}
-👤 ${staffName}
-🔖 Reference: ${bookingCode}
+${serviceEmoji} ${serviceName}
+${staffLine}🔖 Reference: ${bookingCode}
 ${reminderDepositSection}
 📍 ${business.address}
 
@@ -344,9 +342,8 @@ ${business.business_name}`;
 Hi ${customerName},
 
 📅 ${formattedDate}
-💇 ${serviceName}
-👤 ${staffName}
-🔖 Reference: ${bookingCode}
+${serviceEmoji} ${serviceName}
+${staffLine}🔖 Reference: ${bookingCode}
 ${depositSection}
 📍 ${business.address}
 
