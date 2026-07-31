@@ -5921,6 +5921,52 @@ ${dataCollectionRules}${faqContext}`;
     };
   }
 
+  // Dealership businesses use their own prompt (stock, test drives, leads).
+  if (businessType === "dealership") {
+    const { data: departments } = await supabase
+      .from("dealership_departments")
+      .select("name, phone_number, description, is_active, handles_bookings")
+      .eq("business_id", businessId)
+      .eq("is_active", true)
+      .order("name");
+
+    const dealershipPrompt = buildDealershipSystemPrompt({
+      businessName,
+      businessNamePhonetic: businessSettings?.business_name_phonetic,
+      businessAddress,
+      assistantName,
+      tone,
+      voiceSpeed,
+      callerPhone,
+      twilioPhoneNumber,
+      websiteKnowledge,
+      openingHours: hours,
+      departments: departments || [],
+      businessSettings,
+      callerInfo,
+      openingContext: businessSettings?.opening_context || undefined,
+      recentCallContext: callerInfo.recentCallContext,
+    });
+
+    console.log(`[MediaStream] Built dealership prompt with ${(departments || []).length} departments`);
+
+    return {
+      prompt: dealershipPrompt,
+      businessSettings,
+      openingHours: hours,
+      staffTimeOff,
+      staffServices,
+      staff,
+      services,
+      menuCategories: [],
+      menuItems: [],
+      menuItemOptionGroups: [],
+      menuItemOptions: [],
+      tables: [],
+      preferredLanguage: callerInfo?.preferredLanguage,
+    };
+  }
+
   // For salons (non-restaurant business types), use the trimmed salon prompt
   // from ./prompts/salon-prompt.ts and bypass the inline prompt +
   // buildAdvancedReceptionistRules path below.
