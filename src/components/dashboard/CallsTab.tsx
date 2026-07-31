@@ -403,8 +403,17 @@ export const CallsTab = ({ businessId, isDemoMode = false, businessType }: Calls
                           <Calendar className="w-3 h-3" />
                           {format(new Date(call.created_at), "MMM d, h:mm a")}
                         </span>
+                        {call.call_outcome && (
+                          <span className="hidden sm:inline">
+                            {callOutcomeLabels[call.call_outcome] || call.call_outcome}
+                          </span>
+                        )}
                       </div>
+                      {call.summary && (
+                        <p className="text-sm text-muted-foreground truncate mt-1">{call.summary}</p>
+                      )}
                     </div>
+
 
                     <div className="flex items-center gap-2 shrink-0">
                       <Badge variant={callTypeBadgeVariants[call.call_type] || "outline"} className="hidden sm:flex">
