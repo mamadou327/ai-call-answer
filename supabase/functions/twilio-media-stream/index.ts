@@ -6607,7 +6607,10 @@ async function executeCreateDealershipBooking(supabase: any, session: StreamSess
     if (!customerName || invalidNames.includes(customerName.toLowerCase())) {
       return { success: false, message: "I just need your name for the appointment. What name should I put it under?" };
     }
-    const customerPhone = (params?.customer_phone || session.callerPhone || "").trim();
+    // Reject placeholder text like "existing_customer" — it breaks the SMS send.
+    const customerPhone =
+      normalizeDealershipPhone(params?.customer_phone) ||
+      normalizeDealershipPhone(session.callerPhone);
     if (!customerPhone) {
       return { success: false, message: "What's the best phone number for you?" };
     }
