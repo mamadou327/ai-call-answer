@@ -2033,6 +2033,141 @@ async function finalizeElevenLabsForSession(session: StreamSession, supabase: an
   }
 }
 
+// ============================================================================
+// CALL FINALISATION (shared across salon / restaurant / dealership)
+// Runs on stream stop / socket close. Never throws into the hangup path.
+// ============================================================================
+
+function deriveCallOutcome(session: StreamSession): string {
+  if (session.bookingCreated) return "booking_made";
+  if (session.bookingRescheduled) return "booking_rescheduled";
+  if (session.bookingCancelled) return "booking_cancelled";
+  if (session.orderCreated) return "order_placed";
+  if (session.reservationCreated) return "reservation_made";
+  if (session.leadSaved) return "lead_captured";
+  if (session.messageLeft) return "message_taken";
+  return "completed";
+}
+
+function heuristicSummary(session: StreamSession, outcome: string): string {
+  const who = session.callerName || session.callerFirstName || "A caller";
+  const detail = session.lastOutcomeDetail ? ` (${session.lastOutcomeDetail})` : "";
+  switch (outcome) {
+    case "booking_made":
+      return `${who} called and a booking was made${detail}.`;
+    case "booking_rescheduled":
+      return `${who} called and rescheduled an existing booking${detail}.`;
+    case "booking_cancelled":
+      return `${who} called and cancelled a booking${detail}.`;
+    case "order_placed":
+      return `${who} called and placed an order${detail}.`;
+    case "reservation_made":
+      return `${who} called and a table reservation was made${detail}.`;
+    case "lead_captured":
+      return `${who} called with an enquiry and their details were captured as a lead${detail}.`;
+    case "message_taken":
+      return `${who} called and left a message for the team${detail}.`;
+    default:
+      return `${who} called with a general enquiry. No booking or message was taken.`;
+  }
+}
+
+function buildTranscriptText(session: StreamSession): string {
+  return (session.conversationHistory || [])
+    .filter((m) => m && typeof m.content === "string" && m.content.trim().length > 0)
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => `${m.role === "user" ? "Caller" : "Assistant"}: ${m.content.trim()}`)
+    .join("\n")
+    .slice(-8000);
+}
+
+async function generateCallSummary(transcript: string): Promise<string | null> {
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!apiKey || !transcript) return null;
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "Summarise this phone call to a business in 1-2 sentences: who called, what they wanted, what was done (booking/lead/message), any follow-up needed. Plain text only.",
+          },
+          { role: "user", content: transcript },
+        ],
+        max_tokens: 150,
+        temperature: 0.2,
+      }),
+    });
+    if (!res.ok) {
+      console.warn("[MediaStream] Summary API failed:", res.status, await res.text());
+      return null;
+    }
+    const json = await res.json();
+    const text = json?.choices?.[0]?.message?.content?.trim();
+    return text || null;
+  } catch (err) {
+    console.warn("[MediaStream] Summary generation error:", err);
+    return null;
+  }
+}
+
+async function finalizeCallLog(session: StreamSession, supabase: any): Promise<void> {
+  try {
+    if (session.isRotating) return; // mid-call stream rotation, not a hangup
+    if (session.finalizationDone) return;
+    if (!session.callSid) return;
+    session.finalizationDone = true;
+
+    const { data: row } = await supabase
+      .from("calls_log")
+      .select("id, call_outcome, summary, caller_name, duration_ms, transcription")
+      .eq("twilio_call_sid", session.callSid)
+      .maybeSingle();
+
+    if (!row) {
+      console.warn("[MediaStream] finalizeCallLog: no calls_log row for", session.callSid);
+      return;
+    }
+
+    const outcome = deriveCallOutcome(session);
+    const transcript = buildTranscriptText(session);
+
+    let summary: string | null = row.summary || null;
+    if (!summary) {
+      summary = (await generateCallSummary(transcript)) || heuristicSummary(session, outcome);
+    }
+
+    const update: Record<string, unknown> = {
+      call_outcome: outcome,
+      summary,
+    };
+
+    const name = session.callerName || session.callerFirstName || null;
+    if (!row.caller_name && name) update.caller_name = name;
+
+    if (!row.duration_ms && session.callStartTime) {
+      update.duration_ms = Math.max(0, Date.now() - session.callStartTime);
+    }
+
+    if (!row.transcription && transcript) update.transcription = transcript;
+
+    const { error } = await supabase.from("calls_log").update(update).eq("id", row.id);
+    if (error) {
+      console.warn("[MediaStream] finalizeCallLog update failed:", error);
+    } else {
+      console.log("[MediaStream] Call finalised:", { callSid: session.callSid, outcome });
+    }
+  } catch (err) {
+    console.warn("[MediaStream] finalizeCallLog error:", err);
+  }
+}
+
+
+
 async function sendSessionConfig(
   session: StreamSession,
   supabase: any,
