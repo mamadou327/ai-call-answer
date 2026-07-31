@@ -230,6 +230,7 @@ serve(async (req: Request): Promise<Response> => {
     const duration = booking.services?.duration_minutes || 0;
     const price = booking.services?.price || 0;
     const staffName = booking.staff?.name || "A member of our team";
+    const staffLine = isDealership && !booking.staff?.name ? "" : `👤 ${staffName}\n`;
     const bookingCode = booking.booking_code || "";
     const customerName = booking.customer_name?.toLowerCase() || "there";
 
