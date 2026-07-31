@@ -212,15 +212,30 @@ serve(async (req: Request): Promise<Response> => {
       minute: "2-digit",
     })}`;
 
-    const serviceName = booking.services?.name || "Service";
+    const isDealership = business.business_type === "dealership";
+    const APPOINTMENT_LABELS: Record<string, string> = {
+      test_drive: "Test Drive",
+      service: "Service Appointment",
+      sales_appointment: "Sales Appointment",
+      valuation: "Valuation",
+    };
+    const dealershipServiceName = isDealership
+      ? `${APPOINTMENT_LABELS[booking.appointment_type as string] || "Appointment"}${
+          booking.vehicle_details ? ` (${booking.vehicle_details})` : ""
+        }`
+      : null;
+
+    const serviceName = dealershipServiceName || booking.services?.name || "Service";
+    const serviceEmoji = isDealership ? "🚗" : "💇";
     const duration = booking.services?.duration_minutes || 0;
     const price = booking.services?.price || 0;
     const staffName = booking.staff?.name || "A member of our team";
+    const staffLine = isDealership && !booking.staff?.name ? "" : `👤 ${staffName}\n`;
     const bookingCode = booking.booking_code || "";
     const customerName = booking.customer_name?.toLowerCase() || "there";
 
-    // Check if deposit is required and not yet paid
-    const depositRequired = booking.services?.deposit_required || false;
+    // Check if deposit is required and not yet paid (never for dealership bookings)
+    const depositRequired = !isDealership && (booking.services?.deposit_required || false);
     const depositAmount = booking.services?.deposit_amount || 0;
     const depositPaid = !!booking.deposit_paid_at;
     const depositPaymentLink = booking.deposit_payment_link;
@@ -266,9 +281,8 @@ A payment link will be sent to you shortly.`;
 Hi ${customerName},
 
 📅 ${formattedDate}
-💇 ${serviceName}
-👤 ${staffName}
-🔖 Reference: ${bookingCode}
+${serviceEmoji} ${serviceName}
+${staffLine}🔖 Reference: ${bookingCode}
 ${depositSection}
 📍 ${business.address}
 
@@ -284,7 +298,7 @@ Reply POLICIES for booking terms.`;
 Hi ${customerName},
 
 📅 ${formattedDate}
-💇 ${serviceName}
+${serviceEmoji} ${serviceName}
 🔖 Reference: ${bookingCode}
 
 Your appointment has been cancelled.
@@ -314,9 +328,8 @@ A payment link will be sent to you shortly.`;
 Hi ${customerName},
 
 📅 ${formattedDate}
-💇 ${serviceName}
-👤 ${staffName}
-🔖 Reference: ${bookingCode}
+${serviceEmoji} ${serviceName}
+${staffLine}🔖 Reference: ${bookingCode}
 ${reminderDepositSection}
 📍 ${business.address}
 
@@ -330,9 +343,8 @@ ${business.business_name}`;
 Hi ${customerName},
 
 📅 ${formattedDate}
-💇 ${serviceName}
-👤 ${staffName}
-🔖 Reference: ${bookingCode}
+${serviceEmoji} ${serviceName}
+${staffLine}🔖 Reference: ${bookingCode}
 ${depositSection}
 📍 ${business.address}
 
