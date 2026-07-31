@@ -6562,18 +6562,25 @@ async function executeCheckDealershipAvailability(supabase: any, session: Stream
       };
     }
 
-    // Count bookings already in that hour to avoid obvious double-stacking
+    // Count bookings already in that hour to avoid obvious double-stacking.
+    // Only the SAME appointment type conflicts — a test drive and a workshop
+    // service at 3pm are handled by different teams and can safely overlap.
+    const requestedType = ["test_drive", "service", "sales_appointment", "valuation"].includes(args?.appointment_type)
+      ? args.appointment_type
+      : null;
     let conflicts = 0;
     if (requested) {
       const start = parseLocalDateTimeInTimezone(dateStr, requested, session.businessTimezone);
       const end = new Date(start.getTime() + 60 * 60 * 1000);
-      const { count } = await supabase
+      let conflictQuery = supabase
         .from("bookings")
         .select("id", { count: "exact", head: true })
         .eq("business_id", session.businessId)
         .neq("status", "cancelled")
         .gte("start_time", start.toISOString())
         .lt("start_time", end.toISOString());
+      if (requestedType) conflictQuery = conflictQuery.eq("appointment_type", requestedType);
+      const { count } = await conflictQuery;
       conflicts = count || 0;
     }
 
@@ -6581,9 +6588,10 @@ async function executeCheckDealershipAvailability(supabase: any, session: Stream
       success: true,
       available: true,
       opening_hours: `${openTime}-${closeTime}`,
+      appointment_type_checked: requestedType,
       existing_appointments_that_hour: conflicts,
       message: requested
-        ? `We can do ${requested} on that date. Confirm it back to the caller before booking.`
+        ? `We can do ${requested} on that date${conflicts > 0 ? ` (note: ${conflicts} other ${requestedType || "appointment"} booking(s) already in that hour — offer a nearby slot if they'd prefer)` : ""}. Confirm it back to the caller before booking.`
         : `We're open ${openTime} to ${closeTime} that day. Ask what time suits them.`,
     };
   } catch (err) {
