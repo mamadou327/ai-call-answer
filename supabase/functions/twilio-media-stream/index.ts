@@ -6273,3 +6273,324 @@ async function logConversation(supabase: any, callSid: string, role: string, con
     console.error("[MediaStream] Error logging conversation:", error);
   }
 }
+
+// ============================================================================
+// DEALERSHIP TOOLS
+// ============================================================================
+
+function formatVehicleLine(v: any): string {
+  const bits = [
+    v.year ? String(v.year) : null,
+    v.make,
+    v.model,
+    v.variant,
+  ].filter(Boolean).join(" ");
+  const extras = [
+    v.colour ? `${v.colour}` : null,
+    typeof v.mileage === "number" ? `${v.mileage.toLocaleString("en-GB")} miles` : null,
+    v.fuel_type,
+    v.transmission,
+    v.price != null ? `£${Number(v.price).toLocaleString("en-GB")}` : null,
+  ].filter(Boolean).join(", ");
+  return `${bits}${extras ? ` — ${extras}` : ""}`;
+}
+
+async function executeGetInventory(supabase: any, session: StreamSession, args: any): Promise<any> {
+  try {
+    let query = supabase
+      .from("dealership_inventory")
+      .select("id, year, make, model, variant, colour, mileage, fuel_type, transmission, body_type, price, registration")
+      .eq("business_id", session.businessId)
+      .eq("status", "in_stock");
+
+    if (args?.make) query = query.ilike("make", `%${escapeLike(args.make)}%`);
+    if (args?.model) query = query.ilike("model", `%${escapeLike(args.model)}%`);
+    if (args?.colour) query = query.ilike("colour", `%${escapeLike(args.colour)}%`);
+    if (args?.fuel_type) query = query.ilike("fuel_type", `%${escapeLike(args.fuel_type)}%`);
+    if (args?.body_type) query = query.ilike("body_type", `%${escapeLike(args.body_type)}%`);
+    if (args?.max_price) query = query.lte("price", Number(args.max_price));
+    if (args?.min_year) query = query.gte("year", Number(args.min_year));
+
+    const { data, error } = await query.order("price", { ascending: true }).limit(10);
+    if (error) {
+      console.error("[MediaStream] get_inventory error:", error);
+      return { success: false, message: "I couldn't pull up the stock list just now." };
+    }
+
+    if (data && data.length > 0) {
+      return {
+        success: true,
+        count: data.length,
+        vehicles: data.map((v: any) => ({ ...v, summary: formatVehicleLine(v) })),
+        instruction: "Mention at most 3 of these, with year, colour, mileage and price. Then ask if they'd like to come see one or book a test drive. Never quote a price not listed here.",
+      };
+    }
+
+    const { data: alternatives } = await supabase
+      .from("dealership_inventory")
+      .select("id, year, make, model, variant, colour, mileage, fuel_type, transmission, body_type, price")
+      .eq("business_id", session.businessId)
+      .eq("status", "in_stock")
+      .order("price", { ascending: true })
+      .limit(5);
+
+    return {
+      success: true,
+      count: 0,
+      vehicles: [],
+      alternatives: (alternatives || []).map((v: any) => ({ ...v, summary: formatVehicleLine(v) })),
+      instruction: "No exact match. Say we don't have that exact car right now, mention at most 2 of the alternatives, and offer to take their details so the team can call when something suitable arrives (use save_lead).",
+    };
+  } catch (err) {
+    console.error("[MediaStream] get_inventory exception:", err);
+    return { success: false, message: "I couldn't check the stock list just now." };
+  }
+}
+
+async function executeSaveLead(supabase: any, session: StreamSession, args: any): Promise<any> {
+  try {
+    const customerName = (args?.customer_name || "").trim();
+    const customerPhone = (args?.customer_phone || session.callerPhone || "").trim();
+    if (!customerName) {
+      return { success: false, message: "I just need your name so the team can get back to you. What name should I put down?" };
+    }
+
+    let callLogId: string | null = null;
+    if (session.callSid) {
+      const { data: callRow } = await supabase
+        .from("calls_log")
+        .select("id")
+        .eq("twilio_call_sid", session.callSid)
+        .maybeSingle();
+      callLogId = callRow?.id ?? null;
+    }
+
+    const leadScore = ["hot", "warm", "cold"].includes(args?.lead_score) ? args.lead_score : "warm";
+    const leadType = ["sales", "service", "parts", "finance", "trade_in"].includes(args?.lead_type)
+      ? args.lead_type
+      : "sales";
+
+    const { data: lead, error } = await supabase
+      .from("dealership_leads")
+      .insert({
+        business_id: session.businessId,
+        call_log_id: callLogId,
+        customer_name: customerName,
+        customer_phone: customerPhone || null,
+        customer_email: args?.customer_email || null,
+        lead_type: leadType,
+        interested_in: args?.interested_in || null,
+        budget: args?.budget || null,
+        has_trade_in: typeof args?.has_trade_in === "boolean" ? args.has_trade_in : null,
+        trade_in_details: args?.trade_in_details || null,
+        timeframe: args?.timeframe || null,
+        lead_score: leadScore,
+        status: "new",
+        notes: args?.notes || null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[MediaStream] save_lead error:", error);
+      return { success: false, message: "Sorry, I couldn't save those details." };
+    }
+
+    sendBusinessPush(
+      session.businessId,
+      `New ${leadScore} lead`,
+      `${customerName} — ${args?.interested_in || leadType}`,
+      "/dashboard?tab=leads",
+    ).catch((e) => console.warn("[MediaStream] lead push failed:", e));
+
+    // Email the business (same pattern as booking notifications)
+    (async () => {
+      try {
+        const resendApiKey = Deno.env.get("RESEND_API_KEY");
+        if (!resendApiKey) return;
+        const { data: settingsRow } = await supabase
+          .from("business_settings")
+          .select("notification_email")
+          .eq("business_id", session.businessId)
+          .maybeSingle();
+        const to = (settingsRow?.notification_email || "").trim();
+        if (!to) return;
+        const resend = new Resend(resendApiKey);
+        const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
+        await resend.emails.send({
+          from: `${session.businessName} <${fromEmail}>`,
+          to: [to],
+          subject: `🚗 New ${leadScore} lead — ${customerName}`,
+          html: `
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; line-height:1.6; color:#111827;">
+              <h2 style="margin:0 0 12px;">New ${escapeXml(leadScore)} ${escapeXml(leadType)} lead</h2>
+              <p style="margin:0 0 8px;"><strong>Customer:</strong> ${escapeXml(customerName)} (${escapeXml(customerPhone)})</p>
+              <p style="margin:0 0 8px;"><strong>Interested in:</strong> ${escapeXml(args?.interested_in || "-")}</p>
+              <p style="margin:0 0 8px;"><strong>Budget:</strong> ${escapeXml(args?.budget || "-")}</p>
+              <p style="margin:0 0 8px;"><strong>Part exchange:</strong> ${args?.has_trade_in ? escapeXml(args?.trade_in_details || "Yes") : "No"}</p>
+              <p style="margin:0 0 8px;"><strong>Timeframe:</strong> ${escapeXml(args?.timeframe || "-")}</p>
+              <p style="margin:0;"><strong>Notes:</strong> ${escapeXml(args?.notes || "-")}</p>
+            </div>
+          `,
+        });
+      } catch (e) {
+        console.warn("[MediaStream] lead email failed:", e);
+      }
+    })();
+
+    return {
+      success: true,
+      lead_id: lead.id,
+      message: "Lead saved. Tell the caller the team will be in touch shortly.",
+    };
+  } catch (err) {
+    console.error("[MediaStream] save_lead exception:", err);
+    return { success: false, message: "Sorry, I couldn't save those details." };
+  }
+}
+
+async function executeCheckDealershipAvailability(supabase: any, session: StreamSession, args: any): Promise<any> {
+  try {
+    const dateStr = args?.date;
+    if (!dateStr) return { success: false, message: "I need a date to check." };
+
+    const dayOfWeek = new Date(`${dateStr}T12:00:00Z`).getUTCDay();
+    const dayHours = (session.openingHours || []).find((h: any) => h.day_of_week === dayOfWeek);
+    if (!dayHours || dayHours.is_closed) {
+      return { success: false, available: false, message: "We're closed that day — offer the caller another day." };
+    }
+
+    const openTime = (dayHours.open_time || "09:00").slice(0, 5);
+    const closeTime = (dayHours.close_time || "17:00").slice(0, 5);
+    const requested = (args?.time || "").slice(0, 5);
+
+    if (requested && (requested < openTime || requested >= closeTime)) {
+      return {
+        success: true,
+        available: false,
+        opening_hours: `${openTime}-${closeTime}`,
+        message: `That time is outside our hours (${openTime} to ${closeTime}). Offer a time inside the window.`,
+      };
+    }
+
+    // Count bookings already in that hour to avoid obvious double-stacking
+    let conflicts = 0;
+    if (requested) {
+      const start = parseLocalDateTimeInTimezone(dateStr, requested, session.businessTimezone);
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+      const { count } = await supabase
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("business_id", session.businessId)
+        .neq("status", "cancelled")
+        .gte("start_time", start.toISOString())
+        .lt("start_time", end.toISOString());
+      conflicts = count || 0;
+    }
+
+    return {
+      success: true,
+      available: true,
+      opening_hours: `${openTime}-${closeTime}`,
+      existing_appointments_that_hour: conflicts,
+      message: requested
+        ? `We can do ${requested} on that date. Confirm it back to the caller before booking.`
+        : `We're open ${openTime} to ${closeTime} that day. Ask what time suits them.`,
+    };
+  } catch (err) {
+    console.error("[MediaStream] dealership availability exception:", err);
+    return { success: false, message: "I couldn't check the diary just now." };
+  }
+}
+
+async function executeCreateDealershipBooking(supabase: any, session: StreamSession, params: any): Promise<any> {
+  try {
+    const customerName = (params?.customer_name || "").trim();
+    const invalidNames = ["unknown", "caller", "customer", "guest", "anonymous", "n/a", "na", "none", ""];
+    if (!customerName || invalidNames.includes(customerName.toLowerCase())) {
+      return { success: false, message: "I just need your name for the appointment. What name should I put it under?" };
+    }
+    const customerPhone = (params?.customer_phone || session.callerPhone || "").trim();
+    if (!customerPhone) {
+      return { success: false, message: "What's the best phone number for you?" };
+    }
+    if (!params?.date || !params?.time) {
+      return { success: false, message: "I need the date and time before I can book that in." };
+    }
+
+    const appointmentType = ["test_drive", "service", "sales_appointment", "valuation"].includes(params?.appointment_type)
+      ? params.appointment_type
+      : "sales_appointment";
+
+    const startTime = parseLocalDateTimeInTimezone(params.date, params.time, session.businessTimezone);
+    const durationMinutes = appointmentType === "test_drive" ? 45 : 60;
+    const endTime = new Date(startTime.getTime() + durationMinutes * 60 * 1000);
+
+    const { data: codeData } = await supabase.rpc("generate_booking_code", {
+      p_business_name: session.businessName,
+    });
+
+    // Optional: link to a stock vehicle if one was named
+    let inventoryId: string | null = null;
+    if (params?.vehicle_details) {
+      const { data: match } = await supabase
+        .from("dealership_inventory")
+        .select("id, make, model")
+        .eq("business_id", session.businessId)
+        .eq("status", "in_stock")
+        .limit(20);
+      const details = String(params.vehicle_details).toLowerCase();
+      const hit = (match || []).find((v: any) =>
+        details.includes(String(v.make || "").toLowerCase()) &&
+        details.includes(String(v.model || "").toLowerCase())
+      );
+      inventoryId = hit?.id ?? null;
+    }
+
+    const { data: booking, error } = await supabase
+      .from("bookings")
+      .insert({
+        business_id: session.businessId,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        customer_email: params?.customer_email || null,
+        start_time: startTime.toISOString(),
+        end_time: endTime.toISOString(),
+        status: "confirmed",
+        booking_code: codeData,
+        created_by: "ai_phone",
+        appointment_type: appointmentType,
+        vehicle_details: params?.vehicle_details || null,
+        inventory_id: inventoryId,
+        notes: params?.service_name || null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[MediaStream] dealership booking error:", error);
+      return { success: false, message: "Sorry, there was an error creating that appointment." };
+    }
+
+    const dateStr = startTime.toLocaleDateString("en-GB", {
+      weekday: "long", day: "numeric", month: "long", timeZone: session.businessTimezone,
+    });
+    const timeStr = formatTime(startTime, session.businessTimezone);
+
+    const licenceLine = appointmentType === "test_drive"
+      ? " Remind them to bring their driving licence."
+      : "";
+
+    return {
+      success: true,
+      booking_id: booking.id,
+      booking_code: codeData,
+      canonical_date_en: dateStr,
+      canonical_time_en: timeStr,
+      message: `Booked for ${dateStr} at ${timeStr}. Reference ${codeData}. Confirm this back and say an SMS confirmation will follow.${licenceLine}`,
+    };
+  } catch (err) {
+    console.error("[MediaStream] dealership booking exception:", err);
+    return { success: false, message: "Sorry, there was an error creating that appointment." };
+  }
+}
