@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings, Package, CalendarDays, Menu, PhoneMissed, ExternalLink } from "lucide-react";
+import { LayoutDashboard, PhoneCall, MessageSquare, Calendar, Settings, Package, CalendarDays, Menu, PhoneMissed, ExternalLink, Car, UserPlus } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { useTranslation } from "react-i18next";
 import { SetupChecklist, type ChecklistItem } from "@/components/SetupChecklist";
@@ -18,6 +18,8 @@ import { OrdersTab } from "@/components/dashboard/OrdersTab";
 import { ReservationsTab } from "@/components/dashboard/ReservationsTab";
 import { FallbackReservationsTab } from "@/components/dashboard/FallbackReservationsTab";
 import { MissedCallsTab } from "@/components/dashboard/MissedCallsTab";
+import { InventoryTab } from "@/components/dashboard/InventoryTab";
+import { LeadsTab } from "@/components/dashboard/LeadsTab";
 import { AccountMenu } from "@/components/AccountMenu";
 import aiviaLogo from "@/assets/aivia-logo-new.png";
 import { AiviaAssistantChat } from "@/components/AiviaAssistantChat";
@@ -368,8 +370,8 @@ const Dashboard = () => {
                   <span className="hidden sm:inline truncate">{t("dashboard.title")}</span>
                 </TabsTrigger>
 
-                {/* Salon: Calendar & Bookings */}
-                {business.business_type === "salon" && (
+                {/* Salon & Dealership: Calendar & Bookings */}
+                {(business.business_type === "salon" || business.business_type === "dealership") && (
                   <>
                     <TabsTrigger value="calendar" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
                       <Calendar className="w-4 h-4 shrink-0" />
@@ -378,6 +380,20 @@ const Dashboard = () => {
                     <TabsTrigger value="bookings" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
                       <Calendar className="w-4 h-4 shrink-0" />
                       <span className="hidden sm:inline truncate">{t("dashboard.bookings")}</span>
+                    </TabsTrigger>
+                  </>
+                )}
+
+                {/* Dealership: Inventory & Leads */}
+                {business.business_type === "dealership" && (
+                  <>
+                    <TabsTrigger value="inventory" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                      <Car className="w-4 h-4 shrink-0" />
+                      <span className="hidden sm:inline truncate">Inventory</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="leads" className="flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex-1 sm:flex-initial min-w-0">
+                      <UserPlus className="w-4 h-4 shrink-0" />
+                      <span className="hidden sm:inline truncate">Leads</span>
                     </TabsTrigger>
                   </>
                 )}
@@ -467,14 +483,26 @@ const Dashboard = () => {
                 )}
               </TabsContent>
 
-              {/* Salon tabs */}
-              {business.business_type === "salon" && (
+              {/* Salon & Dealership tabs */}
+              {(business.business_type === "salon" || business.business_type === "dealership") && (
                 <>
                   <TabsContent value="calendar">
                     <CalendarTab businessId={business.id} currency={settings?.currency || "GBP"} />
                   </TabsContent>
                   <TabsContent value="bookings">
-                    <BookingsTab businessId={business.id} isDemoMode={isDemoMode} />
+                    <BookingsTab businessId={business.id} isDemoMode={isDemoMode} businessType={business.business_type} />
+                  </TabsContent>
+                </>
+              )}
+
+              {/* Dealership tabs */}
+              {business.business_type === "dealership" && (
+                <>
+                  <TabsContent value="inventory">
+                    <InventoryTab businessId={business.id} currency={settings?.currency || "GBP"} />
+                  </TabsContent>
+                  <TabsContent value="leads">
+                    <LeadsTab businessId={business.id} />
                   </TabsContent>
                 </>
               )}

@@ -29,6 +29,7 @@ const businessTypeOptions = [
   { value: "restaurant_pickup", label: "Restaurant - Pickup/Takeaway" },
   { value: "restaurant_dine_in", label: "Restaurant - Dine-in" },
   { value: "restaurant_hybrid", label: "Restaurant - Both Pickup & Dine-in" },
+  { value: "dealership", label: "Car Dealership" },
 ];
 
 export const BusinessInfoForm = ({ businessId, business, onUpdate }: BusinessInfoFormProps) => {

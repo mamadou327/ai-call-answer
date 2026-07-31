@@ -34,7 +34,8 @@ type BusinessTypeValue =
   | "salon"
   | "spa_clinic"
   | "real_estate"
-  | "trades";
+  | "trades"
+  | "dealership";
 
 const BUSINESS_TYPES: { value: BusinessTypeValue; label: string }[] = [
   { value: "restaurant_hybrid", label: "Restaurant" },
@@ -42,6 +43,7 @@ const BUSINESS_TYPES: { value: BusinessTypeValue; label: string }[] = [
   { value: "spa_clinic", label: "Spa & Clinic" },
   { value: "real_estate", label: "Real Estate" },
   { value: "trades", label: "Trades" },
+  { value: "dealership", label: "Car Dealership" },
 ];
 
 const SELECTABLE_TIERS: SubscriptionTier[] = ["starter", "growth", "scale", "enterprise"];
