@@ -2567,6 +2567,34 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
     console.warn("[MediaStream] push notify block error:", err);
   }
 
+  // Track what actually happened for end-of-call finalisation (calls_log).
+  try {
+    if (result?.success) {
+      if (name === "create_booking") session.bookingCreated = true;
+      else if (name === "cancel_booking" || name === "cancel_reservation") session.bookingCancelled = true;
+      else if (name === "reschedule_booking") session.bookingRescheduled = true;
+      else if (name === "create_pickup_order") session.orderCreated = true;
+      else if (name === "create_reservation") session.reservationCreated = true;
+      else if (name === "save_lead") session.leadSaved = true;
+      else if (name === "leave_message") session.messageLeft = true;
+
+      const collectedName = (args?.customer_name || args?.name || "").toString().trim();
+      if (collectedName && collectedName.length > 1 && !/^existing_customer$/i.test(collectedName)) {
+        session.callerName = collectedName;
+      }
+      const detailBits = [
+        args?.vehicle || args?.service || args?.interested_in,
+        args?.date || args?.new_date,
+        args?.time || args?.new_time,
+      ]
+        .filter(Boolean)
+        .map((v: any) => String(v));
+      if (detailBits.length) session.lastOutcomeDetail = detailBits.join(" ");
+    }
+  } catch (err) {
+    console.warn("[MediaStream] finalisation flag tracking error:", err);
+  }
+
 
   // Update the call tag in Calls tab based on what actually happened.
   // (We only set tags for booking actions; other intents remain 'other' unless handled elsewhere.)
