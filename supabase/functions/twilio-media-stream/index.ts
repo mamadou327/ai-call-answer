@@ -6388,6 +6388,14 @@ async function executeGetInventory(supabase: any, session: StreamSession, args: 
     if (args?.max_price) query = query.lte("price", Number(args.max_price));
     if (args?.min_year) query = query.gte("year", Number(args.min_year));
 
+    const currency = session.currency || "GBP";
+    const decorate = (v: any) => ({
+      ...v,
+      // Spoken form is authoritative — the numeral is easy to misread aloud.
+      price_spoken: v.price != null ? formatPriceForSpeech(Number(v.price), currency) : null,
+      summary: formatVehicleLine(v, currency),
+    });
+
     const { data, error } = await query.order("price", { ascending: true }).limit(10);
     if (error) {
       console.error("[MediaStream] get_inventory error:", error);
@@ -6398,8 +6406,8 @@ async function executeGetInventory(supabase: any, session: StreamSession, args: 
       return {
         success: true,
         count: data.length,
-        vehicles: data.map((v: any) => ({ ...v, summary: formatVehicleLine(v) })),
-        instruction: "Mention at most 3 of these, with year, colour, mileage and price. Then ask if they'd like to come see one or book a test drive. Never quote a price not listed here.",
+        vehicles: data.map(decorate),
+        instruction: "Mention at most 3 of these, with year, colour, mileage and price. Speak each price EXACTLY as given in price_spoken — never round it, never reformat it, never say the raw numeral. Then ask if they'd like to come see one or book a test drive. Never quote a price not listed here.",
       };
     }
 
@@ -6415,8 +6423,8 @@ async function executeGetInventory(supabase: any, session: StreamSession, args: 
       success: true,
       count: 0,
       vehicles: [],
-      alternatives: (alternatives || []).map((v: any) => ({ ...v, summary: formatVehicleLine(v) })),
-      instruction: "No exact match. Say we don't have that exact car right now, mention at most 2 of the alternatives, and offer to take their details so the team can call when something suitable arrives (use save_lead).",
+      alternatives: (alternatives || []).map(decorate),
+      instruction: "No exact match. Say we don't have that exact car right now, mention at most 2 of the alternatives (speaking each price exactly as given in price_spoken), and offer to take their details so the team can call when something suitable arrives (use save_lead).",
     };
   } catch (err) {
     console.error("[MediaStream] get_inventory exception:", err);
