@@ -65,6 +65,18 @@ const callTypeBadgeVariants: Record<string, "default" | "secondary" | "destructi
   other: "outline",
 };
 
+const callOutcomeLabels: Record<string, string> = {
+  booking_made: "Booking made",
+  booking_rescheduled: "Rescheduled",
+  booking_cancelled: "Cancelled",
+  order_placed: "Order placed",
+  reservation_made: "Reservation made",
+  lead_captured: "Lead captured",
+  message_taken: "Message taken",
+  completed: "Completed",
+  in_progress: "In progress",
+};
+
 export const CallsTab = ({ businessId, isDemoMode = false, businessType }: CallsTabProps) => {
   const { t } = useTranslation();
   const demoCalls = getDemoCalls(businessType);
@@ -391,8 +403,17 @@ export const CallsTab = ({ businessId, isDemoMode = false, businessType }: Calls
                           <Calendar className="w-3 h-3" />
                           {format(new Date(call.created_at), "MMM d, h:mm a")}
                         </span>
+                        {call.call_outcome && (
+                          <span className="hidden sm:inline">
+                            {callOutcomeLabels[call.call_outcome] || call.call_outcome}
+                          </span>
+                        )}
                       </div>
+                      {call.summary && (
+                        <p className="text-sm text-muted-foreground truncate mt-1">{call.summary}</p>
+                      )}
                     </div>
+
 
                     <div className="flex items-center gap-2 shrink-0">
                       <Badge variant={callTypeBadgeVariants[call.call_type] || "outline"} className="hidden sm:flex">
