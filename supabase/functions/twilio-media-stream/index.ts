@@ -945,6 +945,10 @@ Deno.serve(async (req) => {
           finalizeElevenLabsForSession(session, supabase).catch((err) =>
             console.warn("[MediaStream] finalizeElevenLabsForSession error:", err)
           );
+          // Finalise the calls_log row (outcome + summary). Fire-and-forget.
+          finalizeCallLog(session, supabase).catch((err) =>
+            console.warn("[MediaStream] finalizeCallLog error:", err)
+          );
           if (session.openAiWs) {
             session.openAiWs.close();
           }
