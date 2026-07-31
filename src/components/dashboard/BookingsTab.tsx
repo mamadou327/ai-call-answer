@@ -16,7 +16,15 @@ import { DEMO_BOOKINGS_LIST, DEMO_CANCELLED_BOOKINGS } from "@/lib/demoData";
 interface BookingsTabProps {
   businessId: string;
   isDemoMode?: boolean;
+  businessType?: string | null;
 }
+
+const APPOINTMENT_TYPE_LABELS: Record<string, string> = {
+  test_drive: "Test Drive",
+  service: "Service",
+  sales_appointment: "Sales Appointment",
+  valuation: "Valuation",
+};
 
 interface Booking {
   id: string;
@@ -33,12 +41,15 @@ interface Booking {
   notes: string | null;
   deposit_amount: number | null;
   deposit_paid_at: string | null;
+  appointment_type?: string | null;
+  vehicle_details?: string | null;
   service?: { name: string };
   staff?: { name: string };
   creator_name?: string;
 }
 
-export const BookingsTab = ({ businessId, isDemoMode = false }: BookingsTabProps) => {
+export const BookingsTab = ({ businessId, isDemoMode = false, businessType = null }: BookingsTabProps) => {
+  const isDealership = businessType === "dealership";
   const { t } = useTranslation();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -265,6 +276,11 @@ export const BookingsTab = ({ businessId, isDemoMode = false }: BookingsTabProps
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-sm sm:text-base truncate">{booking.customer_name}</p>
+                        {isDealership && booking.appointment_type && (
+                          <Badge variant="secondary" className="text-[10px] sm:text-xs shrink-0">
+                            {APPOINTMENT_TYPE_LABELS[booking.appointment_type] || booking.appointment_type}
+                          </Badge>
+                        )}
                         {booking.status === "completed" && (
                           <Check className="h-4 w-4 text-green-500 shrink-0" />
                         )}
@@ -278,6 +294,9 @@ export const BookingsTab = ({ businessId, isDemoMode = false }: BookingsTabProps
                           </span>
                         )}
                       </div>
+                      {isDealership && booking.vehicle_details && (
+                        <p className="text-xs text-muted-foreground truncate">{booking.vehicle_details}</p>
+                      )}
                       <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
                         <Clock className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
                         <span className="truncate">{format(new Date(booking.start_time), "MMM d 'at' h:mm a")}</span>

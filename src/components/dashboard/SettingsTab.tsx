@@ -17,6 +17,7 @@ import { DepositSettings } from "./settings/DepositSettings";
 import { OnlineBookingSettings } from "./settings/OnlineBookingSettings";
 import { PaymentProvidersSettings } from "./settings/PaymentProvidersSettings";
 import { MenuManagement } from "./settings/MenuManagement";
+import { DepartmentsManagement } from "./settings/DepartmentsManagement";
 import { BillingSettings } from "./settings/BillingSettings";
 import { AccountManagementSection } from "./settings/AccountManagementSection";
 import { CustomerDataRequestSection } from "./settings/CustomerDataRequestSection";
@@ -36,6 +37,7 @@ interface SettingsTabProps {
 export const SettingsTab = ({ businessId, business, activeSection, onUpdate, currency = "GBP" }: SettingsTabProps) => {
   const businessType = business?.business_type || "salon";
   const isRestaurant = businessType?.startsWith("restaurant");
+  const isDealership = businessType === "dealership";
   const { tier } = useTier(businessId);
   const canCollectDeposits = tierMeets(tier, "growth");
   const isPickup = businessType === "restaurant_pickup" || businessType === "restaurant_hybrid";
@@ -81,7 +83,7 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
         </TabsTrigger>
         
         {/* Salon-specific tabs */}
-        {!isRestaurant && (
+        {!isRestaurant && !isDealership && (
           <TabsTrigger value="services" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
             <Scissors className="w-4 h-4" />
             <span className="hidden sm:inline">Services</span>
@@ -94,6 +96,14 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
           <span className="hidden sm:inline">Staff</span>
         </TabsTrigger>
         
+        {/* Dealership-specific tab */}
+        {isDealership && (
+          <TabsTrigger value="departments" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
+            <Building2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Departments</span>
+          </TabsTrigger>
+        )}
+
         {/* Restaurant-specific tabs */}
         {isPickup && (
           <TabsTrigger value="menu" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
@@ -114,7 +124,7 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
         </TabsTrigger>
         
         {/* Time Off only for salon */}
-        {!isRestaurant && (
+        {!isRestaurant && !isDealership && (
           <TabsTrigger value="timeoff" className="px-3 py-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md flex items-center gap-1.5">
             <CalendarOff className="w-4 h-4" />
             <span className="hidden sm:inline">Time Off</span>
@@ -188,7 +198,7 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
       </TabsContent>
 
       {/* Salon-specific content */}
-      {!isRestaurant && (
+      {!isRestaurant && !isDealership && (
         <>
           <TabsContent value="services">
             <ServicesManagement businessId={businessId} onUpdate={onUpdate} currency={currency} />
@@ -211,6 +221,13 @@ export const SettingsTab = ({ businessId, business, activeSection, onUpdate, cur
         <StaffMembershipsManagement businessId={businessId} onUpdate={onUpdate} />
         <StaffJoinCodeSection businessId={businessId} businessName={business?.business_name || ""} />
       </TabsContent>
+
+      {/* Dealership-specific content */}
+      {isDealership && (
+        <TabsContent value="departments">
+          <DepartmentsManagement businessId={businessId} onUpdate={onUpdate} />
+        </TabsContent>
+      )}
 
       {/* Restaurant-specific content */}
       {isPickup && (
