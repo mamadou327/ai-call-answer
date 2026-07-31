@@ -90,6 +90,7 @@ export type Database = {
       }
       bookings: {
         Row: {
+          appointment_type: string | null
           booking_code: string
           business_id: string
           cancelled_at: string | null
@@ -108,6 +109,7 @@ export type Database = {
           deposit_reminder_sent: boolean
           end_time: string
           id: string
+          inventory_id: string | null
           last_modified_by_user_id: string | null
           notes: string | null
           order_total: number | null
@@ -123,8 +125,10 @@ export type Database = {
           stripe_payment_intent_id: string | null
           table_id: string | null
           updated_at: string | null
+          vehicle_details: string | null
         }
         Insert: {
+          appointment_type?: string | null
           booking_code: string
           business_id: string
           cancelled_at?: string | null
@@ -143,6 +147,7 @@ export type Database = {
           deposit_reminder_sent?: boolean
           end_time: string
           id?: string
+          inventory_id?: string | null
           last_modified_by_user_id?: string | null
           notes?: string | null
           order_total?: number | null
@@ -158,8 +163,10 @@ export type Database = {
           stripe_payment_intent_id?: string | null
           table_id?: string | null
           updated_at?: string | null
+          vehicle_details?: string | null
         }
         Update: {
+          appointment_type?: string | null
           booking_code?: string
           business_id?: string
           cancelled_at?: string | null
@@ -178,6 +185,7 @@ export type Database = {
           deposit_reminder_sent?: boolean
           end_time?: string
           id?: string
+          inventory_id?: string | null
           last_modified_by_user_id?: string | null
           notes?: string | null
           order_total?: number | null
@@ -193,6 +201,7 @@ export type Database = {
           stripe_payment_intent_id?: string | null
           table_id?: string | null
           updated_at?: string | null
+          vehicle_details?: string | null
         }
         Relationships: [
           {
@@ -207,6 +216,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "dealership_inventory"
             referencedColumns: ["id"]
           },
           {
@@ -1000,6 +1016,233 @@ export type Database = {
             columns: ["preferred_staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dealership_departments: {
+        Row: {
+          business_id: string
+          created_at: string
+          description: string | null
+          handles_bookings: boolean
+          id: string
+          is_active: boolean
+          name: string
+          phone_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          description?: string | null
+          handles_bookings?: boolean
+          id?: string
+          is_active?: boolean
+          name: string
+          phone_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          description?: string | null
+          handles_bookings?: boolean
+          id?: string
+          is_active?: boolean
+          name?: string
+          phone_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dealership_departments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dealership_departments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dealership_inventory: {
+        Row: {
+          body_type: string | null
+          business_id: string
+          colour: string | null
+          created_at: string
+          description: string | null
+          doors: number | null
+          engine_size: string | null
+          fuel_type: string | null
+          id: string
+          make: string
+          mileage: number | null
+          model: string
+          price: number | null
+          registration: string | null
+          status: string
+          transmission: string | null
+          updated_at: string
+          variant: string | null
+          vin: string | null
+          year: number | null
+        }
+        Insert: {
+          body_type?: string | null
+          business_id: string
+          colour?: string | null
+          created_at?: string
+          description?: string | null
+          doors?: number | null
+          engine_size?: string | null
+          fuel_type?: string | null
+          id?: string
+          make: string
+          mileage?: number | null
+          model: string
+          price?: number | null
+          registration?: string | null
+          status?: string
+          transmission?: string | null
+          updated_at?: string
+          variant?: string | null
+          vin?: string | null
+          year?: number | null
+        }
+        Update: {
+          body_type?: string | null
+          business_id?: string
+          colour?: string | null
+          created_at?: string
+          description?: string | null
+          doors?: number | null
+          engine_size?: string | null
+          fuel_type?: string | null
+          id?: string
+          make?: string
+          mileage?: number | null
+          model?: string
+          price?: number | null
+          registration?: string | null
+          status?: string
+          transmission?: string | null
+          updated_at?: string
+          variant?: string | null
+          vin?: string | null
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dealership_inventory_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dealership_inventory_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dealership_leads: {
+        Row: {
+          budget: string | null
+          business_id: string
+          call_log_id: string | null
+          created_at: string
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          has_trade_in: boolean | null
+          id: string
+          interested_in: string | null
+          inventory_id: string | null
+          lead_score: string
+          lead_type: string
+          notes: string | null
+          status: string
+          timeframe: string | null
+          trade_in_details: string | null
+          updated_at: string
+        }
+        Insert: {
+          budget?: string | null
+          business_id: string
+          call_log_id?: string | null
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          has_trade_in?: boolean | null
+          id?: string
+          interested_in?: string | null
+          inventory_id?: string | null
+          lead_score?: string
+          lead_type?: string
+          notes?: string | null
+          status?: string
+          timeframe?: string | null
+          trade_in_details?: string | null
+          updated_at?: string
+        }
+        Update: {
+          budget?: string | null
+          business_id?: string
+          call_log_id?: string | null
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          has_trade_in?: boolean | null
+          id?: string
+          interested_in?: string | null
+          inventory_id?: string | null
+          lead_score?: string
+          lead_type?: string
+          notes?: string | null
+          status?: string
+          timeframe?: string | null
+          trade_in_details?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dealership_leads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dealership_leads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "public_businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dealership_leads_call_log_id_fkey"
+            columns: ["call_log_id"]
+            isOneToOne: false
+            referencedRelation: "calls_log"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dealership_leads_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "dealership_inventory"
             referencedColumns: ["id"]
           },
         ]
