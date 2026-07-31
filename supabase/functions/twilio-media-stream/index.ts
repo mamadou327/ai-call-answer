@@ -2243,9 +2243,19 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
     }
 
     switch (name) {
+      // Dealership tools
+      case "get_inventory":
+        result = await executeGetInventory(supabase, session, args);
+        break;
+      case "save_lead":
+        result = await executeSaveLead(supabase, session, args);
+        break;
+
       // Salon tools
       case "create_booking":
-        result = await executeCreateBooking(supabase, session, args);
+        result = session.businessType === "dealership"
+          ? await executeCreateDealershipBooking(supabase, session, args)
+          : await executeCreateBooking(supabase, session, args);
         break;
       case "cancel_booking":
         result = await executeCancelBooking(supabase, session, args);
@@ -2254,7 +2264,9 @@ async function handleToolCall(session: StreamSession, supabase: any, callId: str
         result = await executeRescheduleBooking(supabase, session, args);
         break;
       case "check_availability":
-        result = await executeCheckAvailability(supabase, session, args);
+        result = session.businessType === "dealership"
+          ? await executeCheckDealershipAvailability(supabase, session, args)
+          : await executeCheckAvailability(supabase, session, args);
         break;
       case "save_customer_email":
         result = await executeSaveCustomerEmail(supabase, session.businessId, args);
